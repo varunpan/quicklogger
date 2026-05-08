@@ -22,7 +22,7 @@ jobs:
       - name: Run E2E tests if any exist
         run: |
           if ls tests/e2e/*.spec.ts 2>/dev/null; then
-            npx playwright install --with-deps chromium
+            npx playwright install --with-deps webkit
             npm run test:e2e
           else
             echo "No E2E tests yet — skipping"
