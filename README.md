@@ -53,7 +53,7 @@ services:
     container_name: quicklogger
     restart: unless-stopped
     environment:
-      - LUBELOGGER_URL=http://lubelog:8080         # the lubelog service's container name
+      - LUBELOGGER_URL=http://<lubelog-service>:8080  # whatever your LubeLogger service is named on this network
       - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY}   # in your stack's .env
       - LUBELOGGER_VOLUME_UNIT=gallons_us
       - LUBELOGGER_CURRENCY=USD
@@ -70,7 +70,7 @@ services:
     pids_limit: 100
     mem_limit: 256m
     networks:
-      - <same-network-as-lubelog>
+      - <same-network-as-lubelogger>
 ```
 
 Append `LUBELOGGER_API_KEY=<key>` to the stack's `.env`. Then `docker compose up -d quicklogger` — only that service starts, the others are untouched.
@@ -117,7 +117,7 @@ For Caddy, nginx, or Cloudflare Tunnel: same idea — proxy `https://quicklog.ex
 
 Defaults intended to be reasonable for a single-user homelab tool. The deeper write-up lives in [`docs/deployment.md`](docs/deployment.md) § *Hardening the runtime* — short version:
 
-- **No app-side auth.** quicklogger has no login screen. Front it with HTTPS and either keep it on a private network (Tailscale, LAN, `*.home.lab`) or put it behind a forward-auth middleware (Authentik, Cloudflare Access, etc.).
+- **No app-side auth.** quicklogger has no login screen. Front it with HTTPS and either keep it on a private network (Tailscale, LAN, an internal-only hostname) or put it behind a forward-auth middleware (Authentik, Cloudflare Access, etc.).
 - **Container runs as `node` (UID 1000)**, not root.
 - **Image is multi-stage** — runtime layer has only the built `build/` output, prod-only `node_modules`, and `package.json`. No build tools, no source.
 - **Recommended compose hardening** (in both compose patterns above): `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`, plus a 16 MB tmpfs for `/tmp`. Verified per-release.
@@ -192,7 +192,7 @@ Local dev server, real phone, same WiFi:
 **Caveats:**
 
 - This is plain HTTP. iOS won't let you "Add to Home Screen" as a real PWA, and the service worker won't activate — so offline-queue behaviour is unverifiable this way. Use it for layout, touch interactions, form flow, and live FX preview. For PWA install + service-worker testing, deploy to a real HTTPS host.
-- `LUBELOGGER_URL` in `.env` must be reachable from the dev machine. If your LubeLogger is on the same homelab/Tailscale network the dev machine is on, point at it directly (`https://lubelog.example.com`). Otherwise, run a throwaway LubeLogger locally and point at `http://localhost:8080`.
+- `LUBELOGGER_URL` in `.env` must be reachable from the dev machine. If your LubeLogger is on the same network the dev machine is on, point at it directly (`https://lubelogger.example.com`). Otherwise, run a throwaway LubeLogger locally and point at `http://localhost:8080`.
 - **Don't pollute your real fuel log** — when testing against a live LubeLogger, create a dedicated `TEST – DELETE ME` vehicle and submit fillups against that. Clean it up periodically.
 
 ### Architecture pointers

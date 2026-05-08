@@ -4,16 +4,16 @@ Run after each release before tagging stable.
 
 ## Setup
 
-- [ ] Latest tag pulled on homelab: `docker compose pull && docker compose up -d`
+- [ ] Latest tag pulled: `docker compose pull && docker compose up -d`
 - [ ] Browser cache cleared on iPhone (or new device fresh install)
 - [ ] LubeLogger has at least one test vehicle
-- [ ] `LUBELOGGER_API_KEY` is set in `/home/varun/stacks/quicklogger/.env`
+- [ ] `LUBELOGGER_API_KEY` is set in your stack's `.env`
 
 ## Cert check
 
-- [ ] Open `https://quicklog.home.lab` on iPhone (Safari)
+- [ ] Open the deployed URL on iPhone (Safari)
 - [ ] Page loads with green padlock — no cert warnings
-- [ ] (Root CA was installed on iPhone 2026-05-07 per homelab memory)
+- [ ] (If using a private CA: confirm the root cert is trusted on the phone)
 
 ## PWA install
 
@@ -57,7 +57,7 @@ Run after each release before tagging stable.
 ## Apple Shortcut — URL deep link
 
 - [ ] Run `quicklog-prefill` shortcut
-- [ ] Browser opens `quicklog.home.lab/?...` with form pre-filled
+- [ ] Browser opens the deployed URL with form pre-filled (`?vehicleId=...&volume=...`)
 - [ ] Tap "Log fillup" → confirmation
 - [ ] LubeLogger receives the entry
 

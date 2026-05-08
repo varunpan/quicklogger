@@ -22,7 +22,7 @@ Build this in the iOS Shortcuts app:
     - `isFillToFull` → equals "Yes" → true/false
     - `missedFuelup` → false
     - `clientSubmissionId` → uuid
-11. **Get contents of URL** — `https://quicklog.home.lab/api/fuelup`
+11. **Get contents of URL** — `https://<your-quicklogger-host>/api/fuelup`
     - Method: POST
     - Headers: `content-type: application/json`
     - Request body: JSON, the Dictionary from step 10

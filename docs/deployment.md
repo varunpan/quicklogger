@@ -57,8 +57,8 @@ To cut a release:
 2. `git tag v0.1.0 && git push origin v0.1.0`
 3. Watch the build job in Actions — once green, the new tag is
    available on GHCR.
-4. On the homelab: `docker compose pull && docker compose up -d`
-   in `/home/varun/stacks/quicklogger/`.
+4. On your host: `docker compose pull && docker compose up -d`
+   in your stack directory.
 
 ## GitHub repository setup
 
@@ -118,26 +118,27 @@ the one that matches your tolerance for surprise:
 either way — Dockhand's auto-update is off globally, so you opt in
 manually.
 
-## Homelab-specific stack
+## Same-stack deployment (recommended)
 
-The upstream homelab runs quicklogger as a service inside the
-existing `homeservices` stack (alongside `lubelog`), not as its own
-top-level stack. This means quicklogger reaches LubeLogger over the
-shared `br0` Docker network with no Traefik hop in the middle.
+If you already run LubeLogger via `docker compose`, prefer adding
+quicklogger as a service inside the **same** stack rather than a new
+top-level one. Reaching LubeLogger over the shared Docker network
+skips a public network round-trip and means LubeLogger doesn't need
+to be browser-accessible just for the backend's API calls.
 
 ```yaml
-# /home/varun/stacks/homeservices/docker-compose.yml — quicklogger entry
+# Inside your existing LubeLogger compose stack
 quicklogger:
-  image: ghcr.io/varunpan/quicklogger:latest
+  image: ghcr.io/varunpan/quicklogger:0.1.2
   container_name: quicklogger
   restart: unless-stopped
   environment:
-    - LUBELOGGER_URL=http://lubelog:8080            # br0 sibling, no Traefik hop
-    - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY}      # in homeservices/.env
-    - ORIGIN=https://quicklog.home.lab
+    - LUBELOGGER_URL=http://<lubelog-service-name>:8080  # the LubeLogger service's name on this network
+    - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY}           # in the stack's .env
+    - ORIGIN=https://quicklog.example.com                # the URL you'll serve from
     - PORT=3000
   volumes:
-    - /home/varun/quicklogger/data:/data
+    - /srv/quicklogger/data:/data                        # bind-mount for the FX cache
   read_only: true
   tmpfs:
     - /tmp:rw,size=16m,mode=1777
@@ -146,21 +147,14 @@ quicklogger:
   pids_limit: 100
   mem_limit: 256m
   labels:
-    - traefik.enable=true
-    - traefik.http.services.quicklogger.loadbalancer.server.port=3000
-    - traefik.http.routers.quicklogger-internal.rule=Host(`quicklog.home.lab`)
-    - traefik.http.routers.quicklogger-internal.entrypoints=websecure
-    - traefik.http.routers.quicklogger-internal.tls.certresolver=vault
-    - traefik.http.routers.quicklogger-internal.service=quicklogger
+    # If you front quicklogger with Traefik, see "Reverse proxy" in the README
+    # for the label snippet. Adapt to Caddy/nginx/Cloudflare Tunnel as needed.
   networks:
-    br0:
-      ipv4_address: 172.18.5.205
+    - <same-network-as-lubelog>
 ```
 
-Routing: Traefik on `*.home.lab` with the `vault` cert resolver
-issues a Vault PKI cert (the iPhone trusts the root CA). The compose
-pins `:latest` because every commit on the upstream main branch is
-gated by CI + PR review and is intended to be production-ready.
+`docker compose up -d quicklogger` brings up just the new service —
+existing services stay untouched.
 
 ## Hardening the runtime
 

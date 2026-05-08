@@ -4,8 +4,9 @@
 
 The server module `src/lib/server/lubelogger.ts` is the only place
 quicklogger talks to LubeLogger. All requests carry `x-api-key:
-${LUBELOGGER_API_KEY}`. Base URL is `${LUBELOGGER_URL}` (typically
-`http://lubelog:8080` on the homelab br0 network).
+${LUBELOGGER_API_KEY}`. Base URL is `${LUBELOGGER_URL}` — typically
+`http://<lubelog-service>:8080` when both containers share a Docker
+network, or a public URL otherwise.
 
 | quicklogger method | LubeLogger endpoint | Notes |
 |---|---|---|
