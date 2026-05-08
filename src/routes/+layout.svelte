@@ -1,6 +1,19 @@
 <script lang="ts">
   import '../app.css';
+  import { onMount } from 'svelte';
   let { children } = $props();
+
+  onMount(() => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/service-worker.js', { type: 'module' });
+
+    const trigger = () => {
+      navigator.serviceWorker.controller?.postMessage({ type: 'sync-queue' });
+    };
+    window.addEventListener('focus', trigger);
+    trigger();
+    return () => window.removeEventListener('focus', trigger);
+  });
 </script>
 
 <svelte:head>

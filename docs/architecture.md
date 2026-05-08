@@ -165,9 +165,28 @@ Submit logic:
 The summary line above the submit button shows live "Will log: X gal /
 $Y USD" + MPG-since-last-fill + a stale-FX warning when applicable.
 
-### Service worker
+### Service worker (`src/service-worker.ts`)
 
-(populated in Task 24)
+Three responsibilities:
+
+1. **App-shell precache** — on install, all build assets + static
+   files are added to the `quicklogger-shell-${version}` cache. Old
+   caches are pruned on activate. The user gets an instant launch on
+   subsequent loads.
+
+2. **Network-first for `/api/*`** — API calls are not cached (data
+   freshness wins). Failed GETs return a `504` so the page can show
+   an inline error rather than a generic browser offline page.
+
+3. **Queue sync on focus** — the layout sends a `sync-queue` message
+   to the SW on `window.focus`. The SW iterates `pendingSubmissions`
+   in IndexedDB, posts each `queued` entry to `/api/fuelup` (capped
+   at 5 attempts), removes successes, marks 4xx as failed.
+
+iOS doesn't fire Background Sync events reliably, so we use the
+focus-event pattern as the primary trigger. This means the user
+must reopen the app for queued submissions to flush — that's the
+realistic UX on iOS Safari today.
 
 ## Data flow
 
