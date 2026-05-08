@@ -23,5 +23,7 @@ COPY --from=build /app/package.json ./
 RUN mkdir -p /data && chown -R node:node /data
 USER node
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s CMD wget --quiet --spider http://localhost:3000/healthz || exit 1
+# Use 127.0.0.1 not localhost — alpine's /etc/hosts maps localhost to ::1
+# first, and the SvelteKit/adapter-node server binds IPv4-only on 0.0.0.0.
+HEALTHCHECK --interval=30s --timeout=3s CMD wget --quiet --spider http://127.0.0.1:3000/healthz || exit 1
 CMD ["node", "build"]
