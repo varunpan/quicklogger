@@ -1,30 +1,52 @@
-# quicklog-fuelup recipe (direct POST)
+# quicklog-fuelup — direct POST shortcut (voice-friendly)
 
-Build this in the iOS Shortcuts app:
+Voice-driven log: "Hey Siri, log fillup" → 3 spoken prompts → POST to `/api/fuelup` → spoken confirmation. No browser, no UI.
 
-1. **Ask for input** — Number, prompt "Vehicle ID" → save as `vehicleId`
-2. **Ask for input** — Number, prompt "Volume" → save as `volume`
-3. **Choose from menu** — `gal`, `L` → save as `volumeUnit`
-4. **Ask for input** — Number, prompt "Cost" → save as `cost`
-5. **Choose from menu** — `USD`, `CAD`, `EUR` → save as `currency`
-6. **Choose from menu** — `Yes`, `No` → save as `fillToFull`
-7. **Get current date** → save as `nowDate`
-8. **Format date** — ISO format (`yyyy-MM-dd`) → save as `isoDate`
-9. **Get UUID** → save as `uuid`
-10. **Dictionary** — build:
-    - `vehicleId` → variable
-    - `date` → `isoDate`
-    - `odometer` → `Ask for input` Number, prompt "Odometer"
-    - `volume` → variable
-    - `volumeUnit` → variable
-    - `cost` → variable
-    - `currency` → variable
-    - `isFillToFull` → equals "Yes" → true/false
-    - `missedFuelup` → false
-    - `clientSubmissionId` → uuid
-11. **Get contents of URL** — `https://<your-quicklogger-host>/api/fuelup`
-    - Method: POST
-    - Headers: `content-type: application/json`
-    - Request body: JSON, the Dictionary from step 10
-12. **Show result** — read `submitted.gallons` and `submitted.cost`,
-    show `"Logged: X gal · $Y"`
+For the full walkthrough with detail on each Shortcuts UI action, see [`docs/shortcuts.md`](../docs/shortcuts.md) § "Path 2 — Direct POST".
+
+## Actions (in order)
+
+1. **Current Date**
+2. **Format Date** — Format: `Custom`, format string `yyyy-MM-dd` → save as `date`
+3. **UUID** → save as `clientSubmissionId`
+4. **Ask for Input** — Number, prompt "Odometer?" → save as `odometer`
+5. **Ask for Input** — Number, prompt "Volume in gallons?" → save as `volume`
+6. **Ask for Input** — Number, prompt "Cost in dollars?" → save as `cost`
+7. **Dictionary** — JSON body:
+
+   | Key | Type | Value |
+   |---|---|---|
+   | `vehicleId` | Number | `1` (your LubeLogger vehicle id) |
+   | `date` | Text | `[date]` magic var |
+   | `odometer` | Number | `[odometer]` magic var |
+   | `volume` | Number | `[volume]` magic var |
+   | `volumeUnit` | Text | `gal` |
+   | `cost` | Number | `[cost]` magic var |
+   | `currency` | Text | `USD` |
+   | `isFillToFull` | Boolean | `true` |
+   | `missedFuelup` | Boolean | `false` |
+   | `clientSubmissionId` | Text | `[clientSubmissionId]` magic var |
+
+8. **Get Contents of URL** — `https://<your-quicklogger-host>/api/fuelup`
+   - Method: `POST`
+   - Headers: `Content-Type: application/json`
+   - Request Body: `JSON`, drag the Dictionary from step 7
+9. **Get Dictionary Value** — `submitted.gallons` from previous result → save as `loggedGal`
+10. **Get Dictionary Value** — `submitted.cost` from previous result → save as `loggedUsd`
+11. **Speak Text** — `Logged [loggedGal] gallons, [loggedUsd] dollars`
+
+## Install
+
+- Name the shortcut `quicklog-fuelup`.
+- **Share → Add to Home Screen** for one-tap access.
+- **Share → Add Voice Trigger** → "Log fillup" for "Hey Siri, log fillup".
+
+## Multi-vehicle variant
+
+Insert at the top, before step 4:
+
+- **Dictionary** — `Honda Accord: 1`, `VW Atlas: 2`, etc.
+- **Choose from List** — input is the Dictionary keys, prompt "Which vehicle?", save as `vehicleName`
+- **Get Dictionary Value** — `[vehicleName]` from the Dictionary, save as `vehicleId`
+
+Then in step 7 use `[vehicleId]` instead of the hardcoded `1`.
