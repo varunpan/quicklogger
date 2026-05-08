@@ -54,27 +54,6 @@ Returns the LubeLogger vehicle list verbatim, JSON array.
   submission flow.
 - No params. No request body. No auth (LAN-trust).
 
-### `GET /api/vehicles/[id]/image`
-
-Proxies the LubeLogger vehicle image for the given vehicle id back to
-the browser. Used by the form's vehicle picker and the `/vehicles`
-list to render the LubeLogger photo.
-
-- Looks up the vehicle's `imageLocation` field via a cached
-  `listVehicles()` call (5-minute TTL, separate from the
-  `/api/vehicles` cache).
-- Streams the upstream image body through with the original
-  `content-type`. Sets `cache-control: private, max-age=86400` so the
-  browser caches each photo for a day.
-- 400 if `id` is not a positive integer.
-- 404 if the vehicle has no `imageLocation` or LubeLogger returns 404
-  for the image path.
-- 502 on any other LubeLogger error.
-
-This endpoint exists so fork users don't need to expose LubeLogger to
-the browser — the SvelteKit server fetches the image with the
-`x-api-key` header and serves it from the same origin as the app.
-
 ### `GET /api/vehicle/last-fuelup?vehicleId=N`
 
 Returns the most recent `GasRecord` for the given vehicle, by date,

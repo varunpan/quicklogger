@@ -8,7 +8,7 @@ Mobile-first PWA for logging fuel fill-ups to a self-hosted [LubeLogger](https:/
 
 LubeLogger's web UI is great for review and analytics, but entering a fill-up at the gas pump from a phone is fiddly. quicklogger is a one-form, install-as-PWA front door optimised for the pump:
 
-- Auto-selects the last vehicle, with the photo pulled from LubeLogger
+- Auto-selects the last vehicle
 - Volume in gallons or liters, cost in any major currency — converted server-side
 - Live MPG-since-last-fill preview as you type
 - Offline queue that auto-syncs when signal returns
@@ -88,7 +88,7 @@ For Caddy, nginx, or Cloudflare Tunnel: same idea — proxy `https://quicklog.ex
 
 1. Open `https://quicklog.example.com` on your phone.
 2. iOS: Share → Add to Home Screen.
-3. Tap **☰** → **Vehicles** → confirm your fleet from LubeLogger appears (with photos).
+3. Tap **☰** → **Vehicles** → confirm your fleet from LubeLogger appears.
 4. Go back to **Log fillup**, enter a small dummy fill, submit. Confirm it lands in LubeLogger.
 
 ### Configuration

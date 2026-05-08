@@ -158,21 +158,12 @@
     class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full"
     onclick={() => navigateToVehicles()}
   >
-    {#if vehicle.imageLocation}
-      <img
-        src="/api/vehicles/{vehicle.id}/image"
-        alt=""
-        class="w-12 h-12 rounded-lg object-cover bg-zinc-700 shrink-0"
-        loading="lazy"
-      />
-    {:else}
-      <div class="w-12 h-12 rounded-lg bg-zinc-700 shrink-0 flex items-center justify-center text-zinc-500">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 17h14M5 17v-5l2-5h10l2 5v5M5 17H3M19 17h2M7 12h10" />
-          <circle cx="8" cy="17" r="1.5" /><circle cx="16" cy="17" r="1.5" />
-        </svg>
-      </div>
-    {/if}
+    <div class="w-12 h-12 rounded-lg bg-zinc-700 shrink-0 flex items-center justify-center text-zinc-500">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 17h14M5 17v-5l2-5h10l2 5v5M5 17H3M19 17h2M7 12h10" />
+        <circle cx="8" cy="17" r="1.5" /><circle cx="16" cy="17" r="1.5" />
+      </svg>
+    </div>
     <div class="text-left flex-1 min-w-0">
       <div class="field-label">Vehicle</div>
       <div class="text-base font-semibold truncate">
