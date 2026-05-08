@@ -29,9 +29,13 @@ button, [role="button"] {
   }
   .field-input {
     @apply w-full bg-zinc-800 rounded-xl px-4 py-3 text-lg font-semibold text-zinc-100 outline-none focus:ring-2 focus:ring-blue-500;
+    /* Safari ignores min-width:0 on date/number inputs in grid cells without box-sizing reinforcement. */
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
   }
   .toggle-pill {
-    @apply rounded-lg px-3 py-2 text-xs font-semibold;
+    @apply rounded-lg px-2 py-1.5 text-xs font-semibold;
   }
   .toggle-pill.active {
     @apply bg-blue-600 text-white;
@@ -39,4 +43,25 @@ button, [role="button"] {
   .toggle-pill.inactive {
     @apply text-zinc-400;
   }
+}
+
+/* iOS Safari: hide native number spinners (they add ~24px and overflow tight rows) */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* iOS Safari: type=date enforces intrinsic min-width via this pseudo-element. Clamp it. */
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+}
+input[type='date']::-webkit-calendar-picker-indicator {
+  margin-left: 0.25rem;
 }

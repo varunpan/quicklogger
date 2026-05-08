@@ -21,7 +21,6 @@
   let currency: string = $state(data.prefill.currency ?? prefs.defaultCurrency);
   let isFillToFull: boolean = $state(data.prefill.fillToFull !== 'false');
   let missedFuelup: boolean = $state(false);
-  let extrasOpen: boolean = $state(false);
   let notes: string = $state('');
   let manualFxRate: string = $state('');
   let needsManualFx: boolean = $state(false);
@@ -121,13 +120,11 @@
       const result = await submitFuelup(input);
       toast = {
         kind: 'success',
-        text: `Logged: ${result.submitted.gallons.toFixed(2)} gal · $${result.submitted.cost.toFixed(2)}`
+        text: `Logged: ${result.submitted.gallons.toFixed(2)} Gal · $${result.submitted.cost.toFixed(2)}`
       };
-      savePrefs({
-        lastVehicleId: vehicle.id,
-        defaultVolumeUnit: volumeUnit,
-        defaultCurrency: currency
-      });
+      // Only persist the vehicle as "last used" — defaults for unit/currency
+      // are owned by the Settings page, not overwritten by per-submit choices.
+      savePrefs({ lastVehicleId: vehicle.id });
       // reset volatile fields
       odometer = '';
       volume = '';
@@ -174,26 +171,26 @@
   </button>
 
   <div class="grid grid-cols-2 gap-2 mb-3">
-    <label class="field">
+    <label class="field min-w-0">
       <span class="field-label">Odometer</span>
-      <input class="field-input" type="number" inputmode="numeric"
+      <input class="field-input min-w-0" type="number" inputmode="numeric"
              bind:value={odometer} placeholder="87,432" />
     </label>
-    <label class="field">
+    <label class="field min-w-0">
       <span class="field-label">Date</span>
-      <input class="field-input text-base" type="date" bind:value={isoDate} />
+      <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate} />
     </label>
   </div>
 
   <label class="field mb-3">
     <span class="field-label">Volume</span>
-    <div class="flex gap-1">
-      <input class="field-input" type="number" inputmode="decimal" step="0.01"
+    <div class="flex gap-2">
+      <input class="field-input min-w-0 flex-1" type="number" inputmode="decimal" step="0.01"
              bind:value={volume} placeholder="11.2" />
-      <div class="flex bg-zinc-800 rounded-xl p-1">
-        <button type="button" class="toggle-pill" class:active={volumeUnit === 'gal'} class:inactive={volumeUnit !== 'gal'}
-                onclick={() => (volumeUnit = 'gal')}>gal</button>
-        <button type="button" class="toggle-pill" class:active={volumeUnit === 'L'} class:inactive={volumeUnit !== 'L'}
+      <div class="flex bg-zinc-800 rounded-xl p-1 w-20 shrink-0">
+        <button type="button" class="toggle-pill flex-1" class:active={volumeUnit === 'gal'} class:inactive={volumeUnit !== 'gal'}
+                onclick={() => (volumeUnit = 'gal')}>Gal</button>
+        <button type="button" class="toggle-pill flex-1" class:active={volumeUnit === 'L'} class:inactive={volumeUnit !== 'L'}
                 onclick={() => (volumeUnit = 'L')}>L</button>
       </div>
     </div>
@@ -201,12 +198,12 @@
 
   <label class="field mb-3">
     <span class="field-label">Cost</span>
-    <div class="flex gap-1">
-      <input class="field-input" type="number" inputmode="decimal" step="0.01"
+    <div class="flex gap-2">
+      <input class="field-input min-w-0 flex-1" type="number" inputmode="decimal" step="0.01"
              bind:value={cost} placeholder="42.18" />
-      <div class="flex bg-zinc-800 rounded-xl p-1 min-w-[72px]">
+      <div class="flex bg-zinc-800 rounded-xl p-1 w-20 shrink-0">
         <select
-          class="bg-transparent rounded-lg px-3 text-xs font-semibold text-zinc-100 outline-none cursor-pointer w-full appearance-none text-center"
+          class="bg-transparent rounded-lg text-xs font-semibold text-zinc-100 outline-none cursor-pointer w-full appearance-none text-center [text-align-last:center]"
           bind:value={currency}
           aria-label="Currency"
         >
@@ -249,22 +246,15 @@
     </button>
   </div>
 
-  <button type="button"
-          class="border border-dashed border-zinc-600 hover:border-zinc-500 rounded-xl px-4 py-3 text-sm text-zinc-300 mb-3 w-full text-left transition-colors"
-          onclick={() => (extrasOpen = !extrasOpen)}>
-    {extrasOpen ? '− Hide note · station · grade' : '+ Add note · station · grade'}
-  </button>
-  {#if extrasOpen}
-    <label class="field mb-3">
-      <span class="field-label">Note</span>
-      <input class="field-input text-sm" type="text" bind:value={notes}
-             placeholder="Costco Pump 4, regular grade" />
-    </label>
-  {/if}
+  <label class="field mb-3">
+    <span class="field-label">Note · station · grade</span>
+    <input class="field-input text-sm" type="text" bind:value={notes}
+           placeholder="Costco Pump 4, regular grade" />
+  </label>
 
   {#if previewUsd !== null && previewGallons !== null}
     <div class="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300 mb-3">
-      Will log: {previewGallons.toFixed(2)} gal · ${previewUsd.toFixed(2)} USD
+      Will log: {previewGallons.toFixed(2)} Gal · ${previewUsd.toFixed(2)} USD
       {#if mpgPreview !== null}
         &nbsp;·&nbsp; {mpgPreview.toFixed(1)} MPG since last fill
       {/if}

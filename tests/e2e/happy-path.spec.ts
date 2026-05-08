@@ -18,6 +18,6 @@ test('logs a CAD/L fillup and shows USD/gal in confirmation', async ({ page }) =
 
   await page.getByRole('button', { name: /^log fillup$/i }).click();
 
-  await expect(page.getByText(/Logged: 13\.\d{2} gal/)).toBeVisible();
+  await expect(page.getByText(/Logged: 13\.\d{2} Gal/)).toBeVisible();
   await expect(page.getByText(/\$47\.\d{2}/)).toBeVisible();
 });

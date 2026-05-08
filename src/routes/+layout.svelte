@@ -8,7 +8,7 @@
   let drawerOpen = $state(false);
 
   const navItems = [
-    { href: '/', label: 'Log fillup' },
+    { href: '/', label: 'Log Fuel' },
     { href: '/history', label: 'History' },
     { href: '/vehicles', label: 'Vehicles' },
     { href: '/settings', label: 'Settings' }

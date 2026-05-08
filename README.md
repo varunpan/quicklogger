@@ -2,7 +2,7 @@
 
 Mobile-first PWA for logging fuel fill-ups to a self-hosted [LubeLogger](https://lubelogger.com) instance.
 
-> **Status:** v0.1.1 — early. Single-user homelab tool. Public repo so anyone can fork and self-host.
+> **Status:** v0.1.2 — early. Single-user homelab tool. Public repo so anyone can fork and self-host.
 
 ## Why
 
@@ -17,9 +17,9 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
 
 ## Screenshots
 
-| Log fillup | Vehicles | Settings |
-| :---: | :---: | :---: |
-| ![Log fillup form](docs/screenshots/form.jpeg) | ![Vehicle picker](docs/screenshots/vehicles.jpeg) | ![Settings](docs/screenshots/settings.jpeg) |
+| Log Fuel | Vehicles | Settings | History |
+| :---: | :---: | :---: | :---: |
+| ![Log Fuel form](docs/screenshots/form.jpeg) | ![Vehicle picker](docs/screenshots/vehicles.jpeg) | ![Settings](docs/screenshots/settings.jpeg) | ![History](docs/screenshots/history.jpeg) |
 
 ## Self-hosting
 
@@ -197,6 +197,10 @@ PRs welcome. The repo is small enough to read in one sitting:
    ```
 
 4. Branch protection on `main` requires a green `lint-and-test` check and a PR (no direct pushes).
+
+## Built with Claude Code
+
+This project was developed with [Claude Code](https://claude.com/claude-code) — design, implementation, tests, infra, and docs were paired with Anthropic's coding assistant. Code is reviewed and decisions are made by a human; the assistant did the typing.
 
 ## License
 

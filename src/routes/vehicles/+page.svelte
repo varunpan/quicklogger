@@ -7,7 +7,7 @@
   function pick(id: number) {
     savePrefs({ lastVehicleId: id });
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    goto('/');
+    goto(`/?vehicleId=${id}`);
   }
 </script>
 
