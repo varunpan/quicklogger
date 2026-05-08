@@ -39,7 +39,26 @@ release workflow (Task 29) to publish a multi-arch image.
 
 ## Release workflow (multi-arch GHCR)
 
-(populated in Task 29)
+`.github/workflows/build.yml` runs on:
+- pushes to `main` — produces `:main` and `:latest` + `:sha-<short>`
+- semver tag pushes (`v0.1.0`) — produces `:0.1.0`, `:0.1`, `:latest`,
+  `:sha-<short>`
+- manual `workflow_dispatch` trigger
+
+Builds via `docker/build-push-action` with
+`platforms: linux/amd64,linux/arm64`. QEMU handles cross-arch
+emulation. Cache uses GitHub Actions native cache (`type=gha`).
+
+Image is pushed to `ghcr.io/varunpan/quicklogger`. The package is
+public — no auth needed to pull.
+
+To cut a release:
+1. Bump version in `package.json` (optional)
+2. `git tag v0.1.0 && git push origin v0.1.0`
+3. Watch the build job in Actions — once green, the new tag is
+   available on GHCR.
+4. On the homelab: `docker compose pull && docker compose up -d`
+   in `/home/varun/stacks/quicklogger/`.
 
 ## GitHub repository setup
 
