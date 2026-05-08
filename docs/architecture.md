@@ -145,6 +145,26 @@ removed on retry success, and marked `failed` on permanent (4xx)
 errors. The `/history` page surfaces the failed entries so the user
 can decide whether to fix and retry manually.
 
+## Frontend pages
+
+### `/` — main form
+The single most-used page. Implements mockup B from the design spec.
+Loads vehicle list + last fuelup via `+page.ts`. Reads `URL`
+query params for Apple-Shortcut deep-link pre-fill (Path 1 of the
+Shortcuts integration). `$effect` block fetches the FX rate when
+currency changes; `needsManualFx` toggles the manual-rate field when
+the chain is exhausted.
+
+Submit logic:
+1. Build `FuelSubmissionInput` with a fresh client UUID
+2. Try `POST /api/fuelup`
+3. On success: success toast + reset volatile fields + `savePrefs`
+4. On 4xx: rejection toast (don't queue — won't fix itself)
+5. On any other failure: enqueue to IndexedDB, show "queued" toast
+
+The summary line above the submit button shows live "Will log: X gal /
+$Y USD" + MPG-since-last-fill + a stale-FX warning when applicable.
+
 ### Service worker
 
 (populated in Task 24)
