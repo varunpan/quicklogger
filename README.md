@@ -132,9 +132,11 @@ npm run dev   # http://localhost:5173
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Vite dev server with hot reload |
+| `npm run dev` | Vite dev server with hot reload (localhost only) |
+| `npm run dev:lan` | Same, exposed on the LAN — for testing on a real phone |
 | `npm run build` | Production build (adapter-node → `build/`) |
 | `npm run preview` | Run the production build locally |
+| `npm run preview:lan` | Same, exposed on the LAN — for testing the production bundle on a real phone |
 | `npm test` | Vitest — unit + route handler tests |
 | `npm run test:watch` | Vitest watch mode |
 | `npm run test:e2e` | Playwright (mobile-Safari profile) |
@@ -146,6 +148,33 @@ npm run dev   # http://localhost:5173
 
 - **Vitest (unit + integration)** — `src/**/*.test.ts`. Server modules (env, currency, lubelogger client, FX cache) and SvelteKit route handlers (with MSW mocking the LubeLogger upstream) are covered here.
 - **Playwright (E2E)** — `tests/e2e/*.spec.ts`. One mobile-Safari profile to match the target device. The service worker is set to `block` per-spec so Playwright route mocks aren't intercepted.
+
+### Testing on a real phone before release
+
+Local dev server, real phone, same WiFi:
+
+1. Find the dev machine's LAN IP:
+
+   ```sh
+   ipconfig getifaddr en0          # macOS, Wi-Fi
+   hostname -I | awk '{print $1}'  # Linux
+   ```
+
+2. Run the dev or preview server on the LAN:
+
+   ```sh
+   npm run dev:lan        # http://<lan-ip>:5173 — hot reload
+   # or, to test the production bundle:
+   npm run build && npm run preview:lan   # http://<lan-ip>:4173
+   ```
+
+3. On the phone (same WiFi), open `http://<lan-ip>:5173` (or `:4173`) in Safari.
+
+**Caveats:**
+
+- This is plain HTTP. iOS won't let you "Add to Home Screen" as a real PWA, and the service worker won't activate — so offline-queue behaviour is unverifiable this way. Use it for layout, touch interactions, form flow, and live FX preview. For PWA install + service-worker testing, deploy to a real HTTPS host.
+- `LUBELOGGER_URL` in `.env` must be reachable from the dev machine. If your LubeLogger is on the same homelab/Tailscale network the dev machine is on, point at it directly (`https://lubelog.example.com`). Otherwise, run a throwaway LubeLogger locally and point at `http://localhost:8080`.
+- **Don't pollute your real fuel log** — when testing against a live LubeLogger, create a dedicated `TEST – DELETE ME` vehicle and submit fillups against that. Clean it up periodically.
 
 ### Architecture pointers
 
