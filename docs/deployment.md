@@ -2,7 +2,27 @@
 
 ## Image build
 
-(populated in Task 26)
+Multi-stage `Dockerfile` produces a slim runtime image based on
+`node:22-alpine`:
+
+1. `deps` — installs production + dev deps from lockfile
+2. `build` — runs `npm run build`, then `npm prune --omit=dev`
+3. `runtime` — copies the `build/` output, prod-only `node_modules`,
+   and `package.json`. Runs as the unprivileged `node` user. Creates
+   `/data` so the FX cache volume mount has a writable target.
+
+Size: ~150–200 MB. Healthcheck hits `/healthz` every 30 s — Docker
+marks the container `unhealthy` if LubeLogger is unreachable for two
+consecutive checks (~1 minute).
+
+**Local dev build:**
+```sh
+docker build -t quicklogger:dev .
+docker run --rm -p 3000:3000 \
+  -e LUBELOGGER_URL=http://host.docker.internal:8080 \
+  -e LUBELOGGER_API_KEY=$KEY \
+  quicklogger:dev
+```
 
 ## CI workflow
 
