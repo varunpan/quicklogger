@@ -134,6 +134,32 @@ Defaults intended to be reasonable for a single-user homelab tool. The deeper wr
   - The LubeLogger you already self-host
   - A throwaway one: `docker run --rm -p 8080:8080 ghcr.io/hargata/lubelogger:latest`
 
+### Tech stack
+
+The app has zero runtime npm `dependencies` — everything is `devDependencies` and gets bundled into the production artifact at build time. Exact versions live in [`package.json`](package.json); the categories below are the load-bearing pieces.
+
+| Layer | Package | Purpose |
+| --- | --- | --- |
+| **Framework** | [`@sveltejs/kit`](https://kit.svelte.dev) ^2.57 | Full-stack framework (file-based routing, SSR, server endpoints) |
+| | [`svelte`](https://svelte.dev) ^5.55 | UI framework (runes-mode component model) |
+| | [`@sveltejs/adapter-node`](https://kit.svelte.dev/docs/adapter-node) ^5.5 | Production adapter — emits a `node build` entrypoint |
+| **Build** | [`vite`](https://vite.dev) ^8.0 | Dev server + production bundler |
+| | [`typescript`](https://www.typescriptlang.org) ^6.0 | Type system |
+| | [`svelte-check`](https://github.com/sveltejs/language-tools/tree/master/packages/svelte-check) ^4.4 | Svelte/TS type-checker |
+| **Styling** | [`tailwindcss`](https://tailwindcss.com) ^4.2 + [`@tailwindcss/vite`](https://tailwindcss.com/docs/installation/using-vite) | Utility-first CSS via Vite plugin |
+| **Client state** | [`idb`](https://github.com/jakearchibald/idb) ^8.0 | Promise-based IndexedDB wrapper for the offline submission queue |
+| **Unit / integration tests** | [`vitest`](https://vitest.dev) ^4.1 + [`@vitest/coverage-v8`](https://vitest.dev/guide/coverage) | Test runner + coverage |
+| | [`@testing-library/svelte`](https://testing-library.com/docs/svelte-testing-library/intro/) ^5.3 + [`@testing-library/jest-dom`](https://github.com/testing-library/jest-dom) ^6.9 | Component testing + DOM matchers |
+| | [`msw`](https://mswjs.io) ^2.14 | Mock LubeLogger upstream in route-handler tests |
+| | [`jsdom`](https://github.com/jsdom/jsdom) ^29.1 | Browser DOM shim for Node-side unit tests |
+| | [`fake-indexeddb`](https://github.com/dumbmatter/fakeIndexedDB) ^6.2 | IndexedDB shim for tests of the offline queue |
+| **E2E tests** | [`@playwright/test`](https://playwright.dev) ^1.59 | Mobile-Safari profile against the production build |
+| **Lint / format** | [`eslint`](https://eslint.org) ^10.3 + [`@eslint/js`](https://eslint.org/docs/latest/use/configure/configuration-files) ^10.0 | Linter (flat config) |
+| | [`eslint-plugin-svelte`](https://sveltejs.github.io/eslint-plugin-svelte/) ^3.17 + [`svelte-eslint-parser`](https://github.com/sveltejs/svelte-eslint-parser) ^1.6 | Svelte ESLint integration |
+| | [`typescript-eslint`](https://typescript-eslint.io) ^8.59 | TypeScript-aware ESLint rules |
+| | [`prettier`](https://prettier.io) ^3.8 + [`prettier-plugin-svelte`](https://github.com/sveltejs/prettier-plugin-svelte) ^3.5 | Code formatter |
+| **Runtime** | `node:22-alpine` (Docker) | Runs as the unprivileged `node` user (UID 1000) |
+
 ### Setup
 
 ```sh
