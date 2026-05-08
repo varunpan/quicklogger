@@ -3,7 +3,7 @@
 quicklogger supports two iOS Shortcut patterns. Both work over the same HTTPS endpoint and require nothing on quicklogger's side beyond the regular setup.
 
 | | Path 1 — URL deep link | Path 2 — Direct POST |
-|---|---|---|
+| --- | --- | --- |
 | **What it does** | Opens the form pre-filled in Safari, you tap "Log fuel" to submit | POSTs JSON straight to `/api/fuelup`, no UI |
 | **Best for** | Eyeball-and-confirm flows; reading values off the pump display | Voice-first ("Hey Siri, log fillup"); hands-busy |
 | **Browser opens?** | Yes (then iOS may keep it focused) | No |
@@ -54,7 +54,7 @@ The home page (`/`) accepts query params. The shortcut just builds a URL and ope
 ### Supported query params
 
 | Param | Type | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `vehicleId` | int | LubeLogger vehicle id (`/vehicles` page shows the id under each name) |
 | `volume` | decimal | Matches the chosen unit |
 | `volumeUnit` | `gal` \| `L` | |
@@ -72,7 +72,7 @@ All params are optional — anything you don't pass uses the form's normal defau
    - **Ask for Input** — Type: Number, Prompt: "Cost" → save the result as `cost`.
    - **Text** — type the URL with magic-variable substitutions:
 
-     ```
+     ```text
      https://<your-quicklogger-host>/?vehicleId=1&volume=[volume]&volumeUnit=gal&cost=[cost]&currency=USD&fillToFull=true
      ```
 
@@ -87,7 +87,7 @@ If you have more than one vehicle, replace step 1 with:
 
 - **Dictionary** — keys are vehicle names, values are the corresponding `vehicleId` integers:
 
-  ```
+  ```text
   Honda Accord:  1
   VW Atlas:      2
   ```
@@ -164,7 +164,7 @@ When you say **"Hey Siri, log fillup"**:
 
 The whole flow takes ~25–35 seconds depending on how cleanly Siri parses each spoken number. For a single-vehicle, single-currency setup, that's the fastest "no-tap" log.
 
-### Build it on iPhone
+### Build the POST shortcut on iPhone
 
 The recipe below assumes a single-vehicle (`vehicleId=1`) `gal`/`USD` setup. Adjust the hardcoded values if you have a different default.
 
@@ -179,7 +179,7 @@ The recipe below assumes a single-vehicle (`vehicleId=1`) `gal`/`USD` setup. Adj
    7. **Dictionary** — build the JSON body with these key/value pairs:
 
       | Key | Value |
-      |---|---|
+      | --- | --- |
       | `vehicleId` | `1` (Number) |
       | `date` | `[date]` (Text, magic var) |
       | `odometer` | `[odometer]` (Number, magic var) |
@@ -208,11 +208,11 @@ The recipe below assumes a single-vehicle (`vehicleId=1`) `gal`/`USD` setup. Adj
 - Tap the shortcut on the home screen first (no voice). Walk through the prompts via tap-to-type. Verify the POST lands in LubeLogger and the Speak action announces the right numbers.
 - Then trigger by voice: **"Hey Siri, log fillup."**
 
-### Multi-vehicle variant
+### Multi-vehicle variant (Path 2)
 
 Same as Path 1 — insert a Dictionary + Choose from List + Get Dictionary Value at the top to pick `vehicleId` before the other prompts.
 
-### Recipe file
+### Recipe file (Path 2)
 
 [`shortcuts/quicklog-fuelup.shortcut.recipe.md`](../shortcuts/quicklog-fuelup.shortcut.recipe.md) — condensed step list.
 
@@ -231,9 +231,9 @@ Same as Path 1 — insert a Dictionary + Choose from List + Get Dictionary Value
 When you publish a new shortcut version, paste the iCloud share link here so future-you (or fork users) can install in one tap.
 
 | Shortcut | iCloud link |
-|---|---|
-| quicklog-fuelup | _(populate after first publish)_ |
-| quicklog-prefill | _(populate after first publish)_ |
+| --- | --- |
+| quicklog-fuelup | *(populate after first publish)* |
+| quicklog-prefill | *(populate after first publish)* |
 
 To publish: in Shortcuts app, long-press the shortcut → **Share** → **Copy iCloud Link**. Anyone with the link can add the shortcut and adjust the URL/vehicleId for their setup.
 
