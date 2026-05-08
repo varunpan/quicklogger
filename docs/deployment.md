@@ -67,7 +67,23 @@ through `~/.ssh/github-personal` for SSH key auth.
 
 ## Self-hosting (fork-friendly)
 
-(populated in Task 27)
+To run quicklogger against your own LubeLogger:
+
+1. `cp compose.example.yml docker-compose.yml`
+2. Edit `LUBELOGGER_URL` to point at your LubeLogger container/host.
+3. Create an Editor-scope API key in LubeLogger (Settings → API keys).
+4. Put it in `.env` as `LUBELOGGER_API_KEY=...` (the compose file
+   reads `${LUBELOGGER_API_KEY}` from the environment / `.env`).
+5. Pin a release: `image: ghcr.io/varunpan/quicklogger:0.1.0`
+   (avoid `:latest` for stability).
+6. `docker compose up -d` — quicklogger now serves on port 3000.
+   Put your reverse proxy in front of it for HTTPS.
+
+If you run LubeLogger on the same Docker network, prefer container
+DNS (e.g. `http://lubelogger:8080`) so traffic stays internal.
+
+Mount `./data:/data` to persist the FX rate cache across container
+restarts.
 
 ## Homelab-specific stack
 

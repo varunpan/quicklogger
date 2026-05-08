@@ -1,0 +1,21 @@
+# compose.example.yml — fork-friendly drop-in.
+# Copy to docker-compose.yml and edit env vars to point at your LubeLogger.
+services:
+  quicklogger:
+    image: ghcr.io/varunpan/quicklogger:0.1.0
+    restart: unless-stopped
+    environment:
+      LUBELOGGER_URL: http://lubelogger:8080         # change to your container/host
+      LUBELOGGER_API_KEY: "${LUBELOGGER_API_KEY}"     # define in .env
+      LUBELOGGER_VOLUME_UNIT: gallons_us
+      LUBELOGGER_CURRENCY: USD
+      FX_PROVIDERS: frankfurter,erapi,fawazahmed
+      FX_CACHE_PATH: /data/fx-cache.json
+      ORIGIN: https://quicklog.example.com           # set to whatever URL you serve from
+      PORT: 3000
+    volumes:
+      - ./data:/data
+    ports:
+      - "3000:3000"   # remove if behind a reverse proxy on the same network
+    networks:
+      - default
