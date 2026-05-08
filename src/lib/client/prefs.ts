@@ -4,12 +4,14 @@ export interface Prefs {
   lastVehicleId: number | null;
   defaultVolumeUnit: VolumeUnit;
   defaultCurrency: string;
+  siriShortcutUrl: string | null;
 }
 
 export const DEFAULT_PREFS: Prefs = {
   lastVehicleId: null,
   defaultVolumeUnit: 'gal',
-  defaultCurrency: 'USD'
+  defaultCurrency: 'USD',
+  siriShortcutUrl: null
 };
 
 const KEY = 'quicklogger.prefs';
