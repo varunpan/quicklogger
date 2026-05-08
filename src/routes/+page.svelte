@@ -37,17 +37,20 @@
   $effect(() => {
     if (!currency || currency === TARGET_CURRENCY) {
       fxRate = 1;
+      fxStale = false;
       needsManualFx = false;
       return;
     }
     getFx(currency, TARGET_CURRENCY).then((r) => {
       if ('available' in r) {
         fxRate = null;
+        fxStale = false;
         needsManualFx = true;
       } else {
         fxRate = r.rate;
         fxStale = r.stale;
         needsManualFx = false;
+        manualFxRate = '';
       }
     }).catch(() => {
       fxRate = null;
