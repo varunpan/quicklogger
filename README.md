@@ -61,6 +61,14 @@ services:
       - PORT=3000
     volumes:
       - /srv/quicklogger/data:/data                # bind-mount for the FX cache
+    # Runtime hardening — see docs/deployment.md § "Hardening the runtime"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 100
+    mem_limit: 256m
     networks:
       - <same-network-as-lubelog>
 ```
@@ -104,6 +112,17 @@ For Caddy, nginx, or Cloudflare Tunnel: same idea — proxy `https://quicklog.ex
 | `FX_CACHE_PATH` | no | `/data/fx-cache.json` | Persistent FX cache path |
 | `PORT` | no | `3000` | App listen port |
 | `ORIGIN` | no | — | SvelteKit CSRF origin (set to your public URL) |
+
+## Security posture
+
+Defaults intended to be reasonable for a single-user homelab tool. The deeper write-up lives in [`docs/deployment.md`](docs/deployment.md) § *Hardening the runtime* — short version:
+
+- **No app-side auth.** quicklogger has no login screen. Front it with HTTPS and either keep it on a private network (Tailscale, LAN, `*.home.lab`) or put it behind a forward-auth middleware (Authentik, Cloudflare Access, etc.).
+- **Container runs as `node` (UID 1000)**, not root.
+- **Image is multi-stage** — runtime layer has only the built `build/` output, prod-only `node_modules`, and `package.json`. No build tools, no source.
+- **Recommended compose hardening** (in both compose patterns above): `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`, plus a 16 MB tmpfs for `/tmp`. Verified per-release.
+- **Secrets surface**: `LUBELOGGER_API_KEY` (Editor-scope on your LubeLogger). Sits in `.env`, never logged. If it leaks, rotate it in LubeLogger.
+- **What's still your responsibility**: rate-limiting / WAF in front (CrowdSec, Traefik middlewares); TLS cert management; network segmentation; LubeLogger's own threat model.
 
 ## Development
 
@@ -180,9 +199,10 @@ Local dev server, real phone, same WiFi:
 
 - [`docs/architecture.md`](docs/architecture.md) — modules, FX chain, state, service worker
 - [`docs/api-mapping.md`](docs/api-mapping.md) — endpoint shapes + LubeLogger upstream calls
-- [`docs/deployment.md`](docs/deployment.md) — image build, CI, GHCR release
+- [`docs/deployment.md`](docs/deployment.md) — image build, CI, GHCR release, runtime hardening
 - [`docs/shortcuts.md`](docs/shortcuts.md) — Apple Shortcuts recipes
 - [`docs/uat.md`](docs/uat.md) — manual test plan
+- [`CHANGELOG.md`](CHANGELOG.md) — release history
 
 ### Contributing
 

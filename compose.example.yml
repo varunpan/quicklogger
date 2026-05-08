@@ -2,7 +2,7 @@
 # Copy to docker-compose.yml and edit env vars to point at your LubeLogger.
 services:
   quicklogger:
-    image: ghcr.io/varunpan/quicklogger:0.1.0
+    image: ghcr.io/varunpan/quicklogger:0.1.2
     restart: unless-stopped
     environment:
       LUBELOGGER_URL: http://lubelogger:8080         # change to your container/host
@@ -19,3 +19,13 @@ services:
       - "3000:3000"   # remove if behind a reverse proxy on the same network
     networks:
       - default
+    # --- Runtime hardening (drop these for permissive parity, keep them for least-privilege) ---
+    read_only: true                       # root FS read-only; only /data + /tmp writable
+    tmpfs:
+      - /tmp:rw,size=16m,mode=1777        # ephemeral 16MB writable /tmp
+    cap_drop:
+      - ALL                               # HTTP server needs zero Linux capabilities
+    security_opt:
+      - no-new-privileges:true            # block setuid escalation paths
+    pids_limit: 100                       # bound fork-bomb blast radius
+    mem_limit: 256m                       # OOM-kill the container before it hurts the host
