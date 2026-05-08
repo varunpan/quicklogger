@@ -148,13 +148,6 @@
   }
 </script>
 
-<header class="flex items-center justify-between mb-4">
-  <h1 class="text-2xl font-bold">⛽ quicklogger</h1>
-  <!-- /settings route is stood up in Task 22 -->
-  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/settings" class="text-zinc-400 text-sm" aria-label="settings">⚙</a>
-</header>
-
 {#if !vehicle}
   <div class="rounded-xl bg-zinc-900 p-4 text-center text-zinc-400">
     No vehicles found. Add one in LubeLogger first.
@@ -162,19 +155,34 @@
 {:else}
   <button
     type="button"
-    class="bg-zinc-800 rounded-xl px-4 py-3 mb-3 flex items-center justify-between"
+    class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full"
     onclick={() => navigateToVehicles()}
   >
-    <div class="text-left">
+    {#if vehicle.imageLocation}
+      <img
+        src="/api/vehicles/{vehicle.id}/image"
+        alt=""
+        class="w-12 h-12 rounded-lg object-cover bg-zinc-700 shrink-0"
+        loading="lazy"
+      />
+    {:else}
+      <div class="w-12 h-12 rounded-lg bg-zinc-700 shrink-0 flex items-center justify-center text-zinc-500">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 17h14M5 17v-5l2-5h10l2 5v5M5 17H3M19 17h2M7 12h10" />
+          <circle cx="8" cy="17" r="1.5" /><circle cx="16" cy="17" r="1.5" />
+        </svg>
+      </div>
+    {/if}
+    <div class="text-left flex-1 min-w-0">
       <div class="field-label">Vehicle</div>
-      <div class="text-base font-semibold">
+      <div class="text-base font-semibold truncate">
         {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')}
       </div>
     </div>
-    <span class="text-zinc-500">›</span>
+    <span class="text-zinc-500" aria-hidden="true">›</span>
   </button>
 
-  <div class="grid grid-cols-[1.4fr_1fr] gap-2 mb-3">
+  <div class="grid grid-cols-2 gap-2 mb-3">
     <label class="field">
       <span class="field-label">Odometer</span>
       <input class="field-input" type="number" inputmode="numeric"
@@ -205,13 +213,19 @@
     <div class="flex gap-1">
       <input class="field-input" type="number" inputmode="decimal" step="0.01"
              bind:value={cost} placeholder="42.18" />
-      <select class="bg-zinc-800 rounded-xl px-3 py-2 text-sm" bind:value={currency}>
-        <option>USD</option>
-        <option>CAD</option>
-        <option>EUR</option>
-        <option>GBP</option>
-        <option>MXN</option>
-      </select>
+      <div class="flex bg-zinc-800 rounded-xl p-1 min-w-[72px]">
+        <select
+          class="bg-transparent rounded-lg px-3 text-xs font-semibold text-zinc-100 outline-none cursor-pointer w-full appearance-none text-center"
+          bind:value={currency}
+          aria-label="Currency"
+        >
+          <option>USD</option>
+          <option>CAD</option>
+          <option>EUR</option>
+          <option>GBP</option>
+          <option>MXN</option>
+        </select>
+      </div>
     </div>
   </label>
 
@@ -244,7 +258,8 @@
     </button>
   </div>
 
-  <button type="button" class="bg-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-400 mb-3 w-full text-left"
+  <button type="button"
+          class="border border-dashed border-zinc-600 hover:border-zinc-500 rounded-xl px-4 py-3 text-sm text-zinc-300 mb-3 w-full text-left transition-colors"
           onclick={() => (extrasOpen = !extrasOpen)}>
     {extrasOpen ? '− Hide note · station · grade' : '+ Add note · station · grade'}
   </button>
