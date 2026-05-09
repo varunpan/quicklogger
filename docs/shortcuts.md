@@ -210,14 +210,14 @@ Same as Path 1 — insert a Dictionary + Choose from List + Get Dictionary Value
 
 ## Re-publishing iCloud links
 
-When you publish a new shortcut version, paste the iCloud share link here so future-you (or fork users) can install in one tap.
+iCloud already syncs your shortcuts across every Apple device on your Apple ID — no manual step needed for personal portability. The links below are useful only for **sharing with someone on a different Apple ID** (a fork user, family member, or anyone else who can't sync from your iCloud).
 
 | Shortcut | iCloud link |
 | --- | --- |
 | quicklog-fuelup | *(populate after first publish)* |
 | quicklog-prefill | *(populate after first publish)* |
 
-To publish: in Shortcuts app, long-press the shortcut → **Share** → **Copy iCloud Link**. Anyone with the link can add the shortcut and adjust the URL/vehicleId for their setup.
+To publish: in Shortcuts app, long-press the shortcut → **Share** → **Copy iCloud Link**. Whoever opens the link on their iPhone gets a Shortcuts "Add Shortcut" prompt. They will need to edit the `Get Contents of URL` action's URL to point at *their* quicklogger instance after install — see "Sharing a shortcut with someone else" near the top of this doc for the placeholder-host trick to make that edit obvious.
 
 ## Android
 
