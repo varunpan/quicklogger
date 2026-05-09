@@ -14,36 +14,18 @@ quicklogger supports two iOS Shortcut patterns. Both work over the same HTTPS en
 If you only build one, **Path 1 is the higher-leverage one** — you'll use it daily.
 If you do a lot of pump-side work and want voice, **also build Path 2**.
 
-## Two ways to install
+## Building the shortcuts
 
-For each Path, you can either **build the shortcut from scratch** following the action-by-action instructions below, or **install via an iCloud share link** if someone has already published one.
+Walkthroughs follow below. Roughly 3–5 minutes per shortcut, all in the iPhone Shortcuts app. iCloud automatically syncs whatever you build to every device on the same Apple ID — no manual sharing needed for your own use.
 
-### Build from scratch
+### Sharing a shortcut with someone else
 
-Walkthroughs follow in the next sections. Roughly 3–5 minutes per shortcut, all in the iPhone Shortcuts app.
+If you want to share with a friend or fork user (different Apple ID, so iCloud sync doesn't reach them):
 
-### Install via iCloud share link (one-tap)
-
-Open Settings inside the quicklogger PWA. The **Siri shortcut** card has a field for an iCloud share URL — paste a published link, then tap **Install Siri Shortcut on this iPhone**. iOS Shortcuts opens with an "Add Shortcut" prompt.
-
-The link is per-shortcut, not per-user — once you (or anyone you trust) builds and publishes one, the same link installs it on every device.
-
-#### Publishing your own iCloud link (after you've built the shortcut)
-
-1. In iPhone **Shortcuts** app, find the shortcut you built.
-2. Long-press the shortcut tile → **Share** → **Copy iCloud Link**.
-3. Paste the link into the quicklogger Settings page. The "Install" button now becomes a one-tap path for any future device.
-4. Optional: paste the link into [`docs/shortcuts.md`](#re-publishing-icloud-links) "Re-publishing iCloud links" table so fork users (and future-you on a fresh phone) can find it.
-
-#### Sharing a shortcut with fork users (different `quicklogger` URL than yours)
-
-The shortcut you publish has *your* `quicklogger` host baked into the `Get Contents of URL` action. If you want fork users to install via your iCloud link without it pointing at your homelab, **edit the published shortcut to use a placeholder URL before publishing**:
-
-- Replace `https://quicklog.your-host.example/api/fuelup` (or whatever you have) in the `Get Contents of URL` action's URL field with a literal placeholder like `https://YOUR-QUICKLOGGER-HOST/api/fuelup`.
-- Publish to iCloud.
-- Document in your sharing notes: "After installing, edit the `Get Contents of URL` action and replace `YOUR-QUICKLOGGER-HOST` with your actual quicklogger hostname."
-
-This is a one-time edit per fork user — they do it once after install, then never again.
+1. Long-press the shortcut tile in iPhone **Shortcuts** → **Share** → **Copy iCloud Link**.
+2. Send them the URL. They tap it on their iPhone → Shortcuts opens with an "Add Shortcut" prompt.
+3. Because the `Get Contents of URL` action has *your* `quicklogger` host baked in, they need to edit it after install. Easier flow: before publishing, replace the URL in that action with a literal placeholder like `https://YOUR-QUICKLOGGER-HOST/api/fuelup`. Then your sharing instructions become *"after install, edit the `Get Contents of URL` action and replace `YOUR-QUICKLOGGER-HOST` with your hostname."*
+4. Optional: paste the link into [the `Re-publishing iCloud links` table below](#re-publishing-icloud-links) so anyone landing in this doc can find it.
 
 ---
 
