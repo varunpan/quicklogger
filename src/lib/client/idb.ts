@@ -1,7 +1,11 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
-export type QueueStatus = 'queued' | 'failed';
+// 'queued' = pending replay; 'failed' = 4xx, won't retry; 'synced' = posted
+// successfully, kept as permanent local history (used by the offline-prefill
+// resolver). IndexedDB doesn't validate union values, so existing rows on
+// upgrading devices stay intact.
+export type QueueStatus = 'queued' | 'failed' | 'synced';
 
 export interface QueueEntry {
   id: number;
@@ -35,8 +39,8 @@ export class Queue {
 
   private constructor(private readonly db: IDBPDatabase<DbSchema>) {}
 
-  async enqueue(input: FuelSubmissionInput): Promise<number> {
-    const entry = { input, status: 'queued' as const, attempts: 0, enqueuedAt: Date.now() };
+  async enqueue(input: FuelSubmissionInput, status: QueueStatus = 'queued'): Promise<number> {
+    const entry = { input, status, attempts: 0, enqueuedAt: Date.now() };
     return await this.db.add(STORE, entry) as number;
   }
 
@@ -53,6 +57,13 @@ export class Queue {
     if (!entry) return;
     entry.status = 'failed';
     entry.lastError = error;
+    await this.db.put(STORE, entry);
+  }
+
+  async markSynced(id: number): Promise<void> {
+    const entry = await this.db.get(STORE, id) as QueueEntry | undefined;
+    if (!entry) return;
+    entry.status = 'synced';
     await this.db.put(STORE, entry);
   }
 

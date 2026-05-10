@@ -48,4 +48,29 @@ describe('Queue', () => {
     const [after] = await q.list();
     expect(after.attempts).toBe(2);
   });
+
+  it('marks an entry synced', async () => {
+    await q.enqueue(baseInput);
+    const [entry] = await q.list();
+    await q.markSynced(entry.id);
+    const [after] = await q.list();
+    expect(after.status).toBe('synced');
+  });
+
+  it('markSynced is a no-op for an unknown id', async () => {
+    await q.markSynced(9999);
+    expect(await q.list()).toHaveLength(0);
+  });
+
+  it('enqueue accepts an explicit status', async () => {
+    await q.enqueue(baseInput, 'synced');
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+  });
+
+  it('enqueue defaults status to queued', async () => {
+    await q.enqueue(baseInput);
+    const [entry] = await q.list();
+    expect(entry.status).toBe('queued');
+  });
 });
