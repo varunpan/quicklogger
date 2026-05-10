@@ -76,6 +76,19 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
     if (b[k] === undefined || b[k] === null) missing.push(k);
   }
   if (missing.length) throw new Error(`missing fields: ${missing.join(', ')}`);
+
+  // Numeric fields must be finite and strictly positive — a zero odometer,
+  // zero volume, or zero cost is never a real fuelup. Apple Shortcuts and
+  // direct API consumers bypass the form's own gate, so this is the only
+  // line of defense for them.
+  const positives = ['odometer', 'volume', 'cost'] as const;
+  const invalid: string[] = [];
+  for (const k of positives) {
+    const n = Number(b[k]);
+    if (!Number.isFinite(n) || n <= 0) invalid.push(k);
+  }
+  if (typeof b.date !== 'string' || b.date.trim() === '') invalid.push('date');
+  if (invalid.length) throw new Error(`invalid fields (must be > 0 / non-empty): ${invalid.join(', ')}`);
 }
 
 async function cloneJsonResponse(res: Response): Promise<Response> {

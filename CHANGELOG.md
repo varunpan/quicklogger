@@ -15,6 +15,7 @@ All notable changes to this project are documented here. Format roughly follows 
 ### Changed
 
 - `prefs.ts` adds two fields: `odometerPrefillEnabled` (default `true`), `odometerIncrementMi` (default `300`). Existing localStorage entries pick up the new defaults via the existing spread-merge load path — no migration code needed.
+- Form submission now requires odometer, volume, cost, and date — all four must be present and the numeric fields must be `> 0`. Server enforces the same on `/api/fuelup` so external consumers (Apple Shortcuts, direct callers) get a 400 instead of silently accepting an incomplete record.
 
 ### Tests
 

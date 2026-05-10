@@ -182,6 +182,12 @@ Submit logic:
 4. On 4xx: rejection toast (don't queue — won't fix itself)
 5. On any other failure: enqueue to IndexedDB, show "queued" toast
 
+Submit is gated client-side via a `canSubmit` derived (the button stays
+disabled until all four required fields are present with non-zero
+numeric values). The same contract is enforced server-side in
+`/api/fuelup`'s `validate()` — non-form callers (Shortcuts, direct
+curl) get a 400 with the failing field names.
+
 The summary line above the submit button shows live "Will log: X gal /
 $Y USD" + MPG-since-last-fill + a stale-FX warning when applicable.
 

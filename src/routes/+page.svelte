@@ -94,6 +94,20 @@
     return delta / gal;
   });
 
+  // Submit gate — every fuelup must have all four required fields with
+  // sensible non-zero values. Server enforces the same; this keeps the
+  // button visibly disabled so the user knows what's still missing.
+  const canSubmit = $derived.by(() => {
+    if (submitting) return false;
+    if (!isoDate) return false;
+    const od = Number(odometer);
+    const vol = Number(volume);
+    const c = Number(cost);
+    return Number.isFinite(od) && od > 0
+        && Number.isFinite(vol) && vol > 0
+        && Number.isFinite(c) && c > 0;
+  });
+
   // Per-tank delta shown under the odometer field once the user has interacted.
   const odometerDelta = $derived.by(() => {
     if (!odometerEdited || !data.lastFuelup) return null;
@@ -339,7 +353,7 @@
   {/if}
 
   <button type="button"
-          disabled={submitting || !odometer || !volume || !cost}
+          disabled={!canSubmit}
           class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
           onclick={submit}>
     {submitting ? 'Logging…' : 'Log fillup'}

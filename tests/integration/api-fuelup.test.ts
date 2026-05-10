@@ -115,6 +115,40 @@ describe('POST /api/fuelup', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 when odometer is 0 (positive-numeric guard)', async () => {
+    const res = await POST({ request: makeRequest({ ...baseInput, odometer: 0 }) } as Parameters<typeof POST>[0]);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/invalid fields/);
+    expect(body.error).toMatch(/odometer/);
+  });
+
+  it('returns 400 when volume is 0', async () => {
+    const res = await POST({ request: makeRequest({ ...baseInput, volume: 0 }) } as Parameters<typeof POST>[0]);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/invalid fields/);
+    expect(body.error).toMatch(/volume/);
+  });
+
+  it('returns 400 when cost is negative', async () => {
+    const res = await POST({ request: makeRequest({ ...baseInput, cost: -5 }) } as Parameters<typeof POST>[0]);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/invalid fields/);
+    expect(body.error).toMatch(/cost/);
+  });
+
+  it('returns 400 when date is empty string', async () => {
+    const res = await POST({ request: makeRequest({ ...baseInput, date: '' }) } as Parameters<typeof POST>[0]);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    // date='' falls through the missing-check (it's a defined string), so it
+    // should land in the "invalid fields" bucket from the positive/non-empty pass.
+    expect(body.error).toMatch(/invalid fields/);
+    expect(body.error).toMatch(/date/);
+  });
+
   it('uses manualFxRate when provided (no chain call)', async () => {
     upstream.use(
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
