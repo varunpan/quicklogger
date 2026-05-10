@@ -37,3 +37,7 @@ fx-cache.json
 
 # brainstorm artifacts
 .superpowers/
+docs/superpowers/
+
+# Project-scoped Claude skills (personal workflow, not shared)
+.claude/
