@@ -2,7 +2,7 @@
 
 Builds a URL with query params, opens it in Safari. The form mounts pre-filled; you tap **Log fuel** to submit.
 
-For the full walkthrough with detail on each Shortcuts UI action, see [`docs/shortcuts.md`](../docs/shortcuts.md) § "Path 1 — URL deep link".
+For the full walkthrough with detail on each Shortcuts UI action, see [`docs/user/shortcuts.md`](../docs/user/shortcuts.md) § "Path 1 — URL deep link".
 
 ## Actions (in order)
 

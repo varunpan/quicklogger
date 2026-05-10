@@ -10,7 +10,7 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Odometer prefill** — form opens with the last reading already in the field, muted with a `prefilled` tag until first interaction. Settings toggle (default on).
 - **`+N mi` chip** below the odometer field — one-tap increment that stacks across multiple taps. Configurable in Settings (default 300 mi). Set to 0 to hide the chip.
 - New `formatOdometer` and `daysAgo` helpers in `src/lib/client/format.ts` (unit-tested in `format.test.ts`).
-- New user guide [`docs/odometer-prefill.md`](docs/odometer-prefill.md) documenting the feature, configuration, and common patterns.
+- New user guide [`docs/user/odometer-prefill.md`](docs/user/odometer-prefill.md) documenting the feature, configuration, and common patterns.
 
 ### Changed
 
@@ -97,7 +97,7 @@ Initial public release.
 - **FX provider chain** (`src/lib/server/currency.ts`) with frankfurter / erapi / fawazahmed by default, optional exchangerate-api on top, persistent disk cache.
 - **Multi-stage Dockerfile** (Node 22 alpine, runs as `node` user UID 1000, ~150 MB).
 - **GitHub Actions**: `ci.yml` (lint + check + vitest + build + Playwright e2e), `build.yml` (multi-arch GHCR build on main pushes and semver tags).
-- **Apple Shortcuts** recipes in [`docs/shortcuts.md`](docs/shortcuts.md): voice "Log fuel" with deep-link prefill, JSON POST direct-submit.
+- **Apple Shortcuts** recipes in [`docs/user/shortcuts.md`](docs/user/shortcuts.md): voice "Log fuel" with deep-link prefill, JSON POST direct-submit.
 - Branch protection + CODEOWNERS + linear history on `main`.
 - Architecture, API mapping, deployment, and UAT docs.
 

@@ -11,8 +11,8 @@ plus iCloud share links to importable shortcuts.
 - `quicklog-prefill.shortcut.recipe.md` — step-by-step build of the
   URL-deep-link pre-fill shortcut
 - iCloud links to the published shortcuts live in
-  `docs/shortcuts.md`. Update them after re-publishing.
+  `docs/user/shortcuts.md`. Update them after re-publishing.
 
 To install on your phone, open the iCloud link from Safari on iOS;
-the Shortcuts app prompts for import. See `docs/shortcuts.md` for
+the Shortcuts app prompts for import. See `docs/user/shortcuts.md` for
 the full install + customization walkthrough.

@@ -11,7 +11,7 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
 - Auto-selects the last vehicle
 - Volume in gallons or liters, cost in any major currency — converted server-side
 - Live MPG-since-last-fill preview as you type
-- Last-fillup strip above the form + odometer prefill + one-tap `+300 mi` chip — see [`docs/odometer-prefill.md`](docs/odometer-prefill.md)
+- Last-fillup strip above the form + odometer prefill + one-tap `+300 mi` chip — see [`docs/user/odometer-prefill.md`](docs/user/odometer-prefill.md)
 - Offline queue that auto-syncs when signal returns
 - iOS Shortcut integration (voice + deep-link)
 - Stays on your network — backend talks to LubeLogger over the internal Docker network, not the public internet
@@ -224,11 +224,20 @@ Local dev server, real phone, same WiFi:
 
 ### Architecture pointers
 
+**User guides:**
+
+- [`docs/user/odometer-prefill.md`](docs/user/odometer-prefill.md) — odometer prefill + last-fillup strip
+- [`docs/user/shortcuts.md`](docs/user/shortcuts.md) — Apple Shortcuts recipes
+
+**Technical / internals:**
+
 - [`docs/architecture.md`](docs/architecture.md) — modules, FX chain, state, service worker
 - [`docs/api-mapping.md`](docs/api-mapping.md) — endpoint shapes + LubeLogger upstream calls
+- [`docs/technical/odometer-prefill.md`](docs/technical/odometer-prefill.md) — odometer prefill internals (state model, lifecycle, edge cases)
+
+**Operations:**
+
 - [`docs/deployment.md`](docs/deployment.md) — image build, CI, GHCR release, runtime hardening
-- [`docs/shortcuts.md`](docs/shortcuts.md) — Apple Shortcuts recipes
-- [`docs/odometer-prefill.md`](docs/odometer-prefill.md) — odometer prefill + last-fillup strip user guide
 - [`docs/uat.md`](docs/uat.md) — manual test plan
 - [`CHANGELOG.md`](CHANGELOG.md) — release history
 

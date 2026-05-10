@@ -2,7 +2,7 @@
 
 Voice-driven log: "Hey Siri, log fillup" → 3 spoken prompts → POST to `/api/fuelup` → spoken confirmation. No browser, no UI.
 
-For the full walkthrough with detail on each Shortcuts UI action, see [`docs/shortcuts.md`](../docs/shortcuts.md) § "Path 2 — Direct POST".
+For the full walkthrough with detail on each Shortcuts UI action, see [`docs/user/shortcuts.md`](../docs/user/shortcuts.md) § "Path 2 — Direct POST".
 
 ## Actions (in order)
 
