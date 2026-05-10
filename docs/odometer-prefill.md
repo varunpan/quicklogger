@@ -46,7 +46,7 @@ Settings changes apply on the next time you open the form.
 ## Common patterns
 
 | Situation | What to do |
-|---|---|
+| --- | --- |
 | Typical fillup, ~300 miles since last fill | Tap `+300 mi` once, adjust by a few digits if needed. |
 | Long road trip, ~600 miles | Tap `+300 mi` twice. |
 | You wrote down the exact reading | Just type it — the prefill is overwritten the moment you start typing. |
