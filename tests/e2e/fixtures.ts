@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 export async function mockLubelogger(page: Page) {
   await page.route('**/api/vehicles', (route) =>
@@ -25,4 +25,89 @@ export async function mockLubelogger(page: Page) {
       }
     });
   });
+}
+
+/**
+ * Pin the in-page Date to a fixed local-time instant. Forwards all constructor
+ * args so multi-arg `new Date(y, m, d)` calls (used in local-calendar arithmetic
+ * like `daysAgo`) still work correctly.
+ */
+export async function pinClock(page: Page, isoLocal: string) {
+  await page.addInitScript((iso) => {
+    const now = new Date(iso).getTime();
+    const D = Date;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).Date = class extends D {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      constructor(...args: any[]) {
+        if (args.length === 0) super(now);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        else super(...(args as [any]));
+      }
+      static now() { return now; }
+    };
+  }, isoLocal);
+}
+
+export type LastFuelupPayload = {
+  id: number;
+  date: string;
+  odometer: string;
+  fuelconsumed: string;
+  cost: string;
+  notes?: string;
+};
+
+const DEFAULT_LAST_FUELUP: LastFuelupPayload = {
+  id: 999,
+  date: '5/3/2026',
+  odometer: '87234',
+  fuelconsumed: '10.8',
+  cost: '39.42',
+  notes: 'Costco Pump 4'
+};
+
+/**
+ * Mock `/api/vehicles`, `/api/vehicle/last-fuelup`, and `/api/fx` for the
+ * last-fuelup-aware home page. Pass `null` to simulate the no-prior-fuelup
+ * case; pass an object to override the default payload; omit to use the
+ * canonical default (with notes).
+ */
+export async function mockWithLastFuelup(
+  page: Page,
+  lastFuelup: LastFuelupPayload | null | undefined = DEFAULT_LAST_FUELUP
+) {
+  await page.route('**/api/vehicles', (route) =>
+    route.fulfill({ json: [{ id: 1, year: 2014, make: 'Honda', model: 'Accord' }] })
+  );
+  await page.route('**/api/vehicle/last-fuelup**', (route) =>
+    route.fulfill({ json: lastFuelup ?? null })
+  );
+  await page.route('**/api/fx**', (route) =>
+    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+  );
+}
+
+/**
+ * Navigate to `/` via the SvelteKit client router instead of a hard load.
+ * Why: `+page.ts` `load` runs server-side during SSR, and Playwright's
+ * `page.route()` mocks don't intercept those in-process SvelteKit fetches.
+ * Going through `/settings` first then clicking into `/` re-runs `load` in
+ * the browser where the mocks apply.
+ */
+export async function gotoHomeViaClientRouter(page: Page) {
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await page.getByRole('link', { name: 'Log Fuel' }).click();
+  await expect(page).toHaveURL('/');
+}
+
+/**
+ * Seed `quicklogger.prefs` in localStorage before page scripts run. The keys
+ * are spec-defined; this helper stays prefs-shape-agnostic.
+ */
+export async function seedPrefs(page: Page, prefs: Record<string, unknown>) {
+  await page.addInitScript((p) => {
+    localStorage.setItem('quicklogger.prefs', JSON.stringify(p));
+  }, prefs);
 }

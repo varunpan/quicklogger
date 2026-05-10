@@ -1,44 +1,7 @@
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { mockWithLastFuelup, gotoHomeViaClientRouter, seedPrefs } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
-
-async function seedPrefs(page: Page, prefs: Record<string, unknown>) {
-  await page.addInitScript((p) => {
-    localStorage.setItem('quicklogger.prefs', JSON.stringify(p));
-  }, prefs);
-}
-
-async function mockWithLastFuelup(page: Page) {
-  await page.route('**/api/vehicles', (route) =>
-    route.fulfill({ json: [{ id: 1, year: 2014, make: 'Honda', model: 'Accord' }] })
-  );
-  await page.route('**/api/vehicle/last-fuelup**', (route) =>
-    route.fulfill({
-      json: {
-        id: 999,
-        date: '5/3/2026',
-        odometer: '87234',
-        fuelconsumed: '10.8',
-        cost: '39.42'
-      }
-    })
-  );
-  await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
-  );
-}
-
-// Universal `+page.ts` `load` runs server-side during SSR — Playwright route
-// mocks don't intercept those in-process SvelteKit fetches. Navigate to a
-// non-form page first (its SSR data doesn't matter), then route into `/` via
-// SvelteKit's client router so `load` re-runs in the browser where mocks apply.
-async function gotoHomeViaClientRouter(page: Page) {
-  await page.goto('/settings');
-  await page.getByRole('button', { name: 'Open menu' }).click();
-  await page.getByRole('link', { name: 'Log Fuel' }).click();
-  await expect(page).toHaveURL('/');
-}
 
 test('field opens prefilled with last reading and a "prefilled" tag', async ({ page }) => {
   await mockWithLastFuelup(page);
