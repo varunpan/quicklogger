@@ -4,12 +4,16 @@ export interface Prefs {
   lastVehicleId: number | null;
   defaultVolumeUnit: VolumeUnit;
   defaultCurrency: string;
+  odometerPrefillEnabled: boolean;
+  odometerIncrementMi: number;
 }
 
 export const DEFAULT_PREFS: Prefs = {
   lastVehicleId: null,
   defaultVolumeUnit: 'gal',
-  defaultCurrency: 'USD'
+  defaultCurrency: 'USD',
+  odometerPrefillEnabled: true,
+  odometerIncrementMi: 300
 };
 
 const KEY = 'quicklogger.prefs';

@@ -21,4 +21,25 @@ describe('prefs', () => {
     localStorage.setItem('quicklogger.prefs', 'not json');
     expect(loadPrefs()).toEqual(DEFAULT_PREFS);
   });
+  it('defaults odometerPrefillEnabled to true', () => {
+    expect(loadPrefs().odometerPrefillEnabled).toBe(true);
+  });
+  it('defaults odometerIncrementMi to 300', () => {
+    expect(loadPrefs().odometerIncrementMi).toBe(300);
+  });
+  it('round-trips odometerPrefillEnabled', () => {
+    savePrefs({ odometerPrefillEnabled: false });
+    expect(loadPrefs().odometerPrefillEnabled).toBe(false);
+  });
+  it('round-trips odometerIncrementMi', () => {
+    savePrefs({ odometerIncrementMi: 0 });
+    expect(loadPrefs().odometerIncrementMi).toBe(0);
+  });
+  it('preserves odometer fields when partial save touches other keys', () => {
+    savePrefs({ odometerIncrementMi: 250 });
+    savePrefs({ defaultCurrency: 'EUR' });
+    const p = loadPrefs();
+    expect(p.odometerIncrementMi).toBe(250);
+    expect(p.defaultCurrency).toBe('EUR');
+  });
 });
