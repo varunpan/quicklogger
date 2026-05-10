@@ -6,19 +6,26 @@ export interface Vehicle {
 	[key: string]: unknown;
 }
 
+/** Shape returned by GET /api/vehicle/gasrecords (camelCase, stringified values). */
 export interface GasRecord {
-	id: number;
+	id: string;
+	vehicleId: string;
 	date: string;
 	odometer: string;
-	fuelconsumed: string;
+	fuelConsumed: string;
 	cost?: string;
-	isfilltofull?: string;
-	missedfuelup?: string;
+	fuelEconomy?: string;
+	isFillToFull?: string;
+	missedFuelUp?: string;
 	notes?: string;
 	tags?: string;
+	extraFields?: unknown[];
+	files?: unknown[];
 	[key: string]: unknown;
 }
 
+/** Form-data payload accepted by POST /api/vehicle/gasrecords/add (LubeLogger
+ *  is case-insensitive on the form-data field names; we send lowercase). */
 export interface AddGasRecordPayload {
 	date: string;
 	odometer: string;

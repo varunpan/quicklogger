@@ -36,13 +36,29 @@ describe('LubeLoggerClient', () => {
 			http.get(`${BASE}/api/vehicle/gasrecords`, ({ request }) => {
 				observedQs = new URL(request.url).searchParams.toString();
 				return HttpResponse.json([
-					{ id: 100, date: '04/12/2026', odometer: '87000', fuelconsumed: '11.2', cost: '42.18' }
+					{
+						id: '100',
+						vehicleId: '1',
+						date: '04/12/2026',
+						odometer: '87000',
+						fuelConsumed: '11.2',
+						cost: '42.18',
+						fuelEconomy: '0',
+						isFillToFull: 'True',
+						missedFuelUp: 'False',
+						notes: '',
+						tags: '',
+						extraFields: [],
+						files: []
+					}
 				]);
 			})
 		);
 		const records = await client().listGasRecords(1);
 		expect(observedQs).toBe('vehicleId=1');
-		expect(records[0].id).toBe(100);
+		expect(records[0].id).toBe('100');
+		expect(records[0].fuelConsumed).toBe('11.2');
+		expect(records[0].isFillToFull).toBe('True');
 	});
 
 	it('adds a gas record as form-data', async () => {

@@ -24,6 +24,23 @@ network, or a public URL otherwise.
 - `notes` — optional
 - `tags` — optional
 
+`listGasRecords` returns records in LubeLogger's **camelCase** shape (note the casing — different from the lowercase form-data field names accepted by `addGasRecord`):
+
+- `id` — string (`"1"`)
+- `vehicleId` — string
+- `date` — `M/D/YYYY` (US locale)
+- `odometer` — string
+- `fuelConsumed` — string, decimal in LubeLogger's configured volume unit
+- `cost` — string, decimal in LubeLogger's configured currency (optional)
+- `fuelEconomy` — string (optional)
+- `isFillToFull` — `'True'` | `'False'`
+- `missedFuelUp` — `'True'` | `'False'`
+- `notes` — string (optional)
+- `tags` — string, comma-separated (optional)
+- `extraFields`, `files` — arrays, usually empty
+
+The asymmetry (camelCase reads, lowercase writes) is LubeLogger's own quirk — its POST handler is case-insensitive on form-data field names, but its GET handler returns whatever camelCase shape its model serializes. We mirror both directions in our `GasRecord` and `AddGasRecordPayload` interfaces.
+
 Errors: any non-2xx response throws `LubeLoggerError` with `status` and
 `body` properties. The error name is `'LubeLoggerError'` so route
 handlers can `instanceof`-check.

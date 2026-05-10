@@ -74,10 +74,6 @@ of `docs/architecture.md` — they apply equally to the field prefill.
 | Submit with prefill, then look | Field re-prefills, helper line briefly shows `0 mi this tank` until next interaction | See "Future considerations" |
 | Non-finite parse (`Number('abc')`) | `formatOdometer` returns the raw string | Better than rendering `NaN` |
 | `daysAgo` against today | Returns `'today'`; `1` → `'yesterday'`; otherwise `N days ago` | Diff is local-calendar-day, not UTC |
-| `lastFuelup.fuelconsumed === ''` | Strip's second line drops the volume part | Real LubeLogger records (partial fills, missed fuelups) can have an empty volume — never render ` Gal` with no number |
-| `lastFuelup.cost === ''` (or null) | Strip drops the cost part | `?? '—'` only catches null/undefined; truthy check covers `''` too |
-| All of `fuelconsumed`, `cost`, `notes` empty | Second line not rendered at all | No empty `<div>`; the `lastFillSummary` derived returns `''` and the `{#if}` skips the row |
-| `lastFillSummary` derived | Source of truth for the strip's second line — pure formatting, no side effects | Concentrates the join-only-truthy-parts logic in one place; template stays declarative |
 
 ## Non-obvious decisions
 
@@ -120,6 +116,18 @@ explicitly via `<label for="odometer">` + `<input id="odometer">`.
 `>= 0`, falling back to `0` on any non-finite or negative value. The
 field accepts `min="0"` `step="1"` in HTML, but those are advisory —
 clamping in the handler is what actually keeps localStorage clean.
+
+**`GasRecord` keys are camelCase to match the upstream contract.**
+LubeLogger returns gas records as JSON with camelCase keys
+(`fuelConsumed`, `isFillToFull`, `missedFuelUp`). Earlier versions of this
+type used lowercase (`fuelconsumed`, etc.) which silently produced
+`undefined` reads against real data — the strip rendered ` Gal` (no
+number) until v0.1.3 UAT caught it. Mocks at `tests/e2e/fixtures.ts`,
+`src/lib/server/lubelogger.test.ts`, and `tests/integration/api-*.test.ts`
+must mirror the real shape so the test suite actually catches contract
+drift. The asymmetric write path (`AddGasRecordPayload` stays lowercase
+because LubeLogger's POST is case-insensitive on form-data) is documented
+in `docs/api-mapping.md`.
 
 ## Future considerations
 
