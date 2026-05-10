@@ -208,9 +208,9 @@
 
   <div class="grid grid-cols-2 gap-2 mb-3">
     <div class="field min-w-0">
-      <span class="field-label">Odometer</span>
+      <label for="odometer" class="field-label">Odometer</label>
       <div class="relative">
-        <input class="field-input min-w-0" type="number" inputmode="numeric"
+        <input id="odometer" class="field-input min-w-0" type="number" inputmode="numeric"
                bind:value={odometer}
                oninput={() => (odometerEdited = true)}
                class:text-zinc-400={!odometerEdited && odometer !== ''}
