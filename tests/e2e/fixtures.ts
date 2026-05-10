@@ -125,3 +125,66 @@ export async function seedPrefs(page: Page, prefs: Record<string, unknown>) {
     localStorage.setItem('quicklogger.prefs', JSON.stringify(p));
   }, prefs);
 }
+
+/**
+ * Seed an entry into the IndexedDB `pendingSubmissions` store before page
+ * scripts run. The shape mirrors the runtime `QueueEntry` (no id —
+ * IndexedDB autoIncrements). Use this to set up offline-resolver fixtures
+ * without going through the full submit flow.
+ */
+export async function seedQueueEntry(
+  page: Page,
+  entry: {
+    input: Record<string, unknown>;
+    status: 'queued' | 'failed' | 'synced';
+    enqueuedAt?: number;
+  }
+) {
+  await page.addInitScript(async (e) => {
+    const open = indexedDB.open('quicklogger', 1);
+    await new Promise<void>((resolve, reject) => {
+      open.onupgradeneeded = () => {
+        const db = open.result;
+        if (!db.objectStoreNames.contains('pendingSubmissions')) {
+          const store = db.createObjectStore('pendingSubmissions', {
+            keyPath: 'id',
+            autoIncrement: true
+          });
+          store.createIndex('byStatus', 'status');
+        }
+      };
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction('pendingSubmissions', 'readwrite');
+        tx.objectStore('pendingSubmissions').add({
+          input: e.input,
+          status: e.status,
+          attempts: 0,
+          enqueuedAt: e.enqueuedAt ?? Date.now()
+        });
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+      open.onerror = () => reject(open.error);
+    });
+  }, entry);
+}
+
+/**
+ * Seed the per-vehicle localStorage cache the offline resolver reads.
+ */
+export async function seedLastFuelupCache(
+  page: Page,
+  vehicleId: number,
+  snapshot: Record<string, unknown>
+) {
+  await page.addInitScript(
+    ({ key, value }) => {
+      localStorage.setItem(key, JSON.stringify(value));
+    },
+    { key: `quicklogger.lastFuelup.${vehicleId}`, value: snapshot }
+  );
+}
