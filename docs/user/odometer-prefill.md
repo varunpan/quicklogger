@@ -92,7 +92,9 @@ last reading, the chip still bumps by your configured increment.
   LubeLogger had the last time you were online.
 - Cost is shown in whatever currency you originally entered (e.g.
   `CAD 60.00`) — no FX conversion happens offline. Online cached entries
-  still render with `$` because the server has already converted them.
+  still render with a leading `$` because that's what the strip has
+  always shown for the upstream value (typically USD; whatever your
+  LubeLogger is configured to return).
 - Submit works normally. The fillup queues locally and syncs on its own
   when the connection comes back.
 

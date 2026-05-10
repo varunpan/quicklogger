@@ -147,7 +147,7 @@ device while online (so the local cache is populated).
 
 ### Cache fallback (upstream down, cache populated)
 
-- [ ] Take upstream offline (e.g., point dev `.env` `LUBELOGGER_BASE_URL`
+- [ ] Take upstream offline (e.g., point dev `.env` `LUBELOGGER_URL`
       at an unreachable host, or pause the upstream container).
 - [ ] Restart `quicklogger` so the page loader hits the broken upstream.
 - [ ] Open `/`. Strip renders with the previously-cached values + small
@@ -175,4 +175,7 @@ device while online (so the local cache is populated).
 
 - [ ] Restore upstream connectivity. Reload `/`. Strip renders without
       the `offline copy` chip; cost reverts to `$<amount>` rendering.
-- [ ] Cache key is refreshed.
+- [ ] Open DevTools → Application → Local Storage → your origin. Confirm
+      `quicklogger.lastFuelup.<vehicleId>` value's `date` field matches
+      whatever upstream just returned (i.e. it's the freshly-fetched
+      value, not the previously-cached one).
