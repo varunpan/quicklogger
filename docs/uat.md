@@ -133,3 +133,46 @@ Run on a vehicle that has at least one previous fillup in LubeLogger.
 - [ ] Walk through Strip / Prefill / Chip / Settings card sections above on
       the phone.
 - [ ] Tap-target sizes feel comfortable for one-handed use at the pump.
+
+## Offline odometer prefill (v0.1.3)
+
+Run on a vehicle that already has at least one fillup logged from this
+device while online (so the local cache is populated).
+
+### Setup — populate local data
+
+- [ ] On a normal online session, submit one fillup successfully on the
+      target vehicle. This writes both the upstream cache and a `'synced'`
+      queue entry.
+
+### Cache fallback (upstream down, cache populated)
+
+- [ ] Take upstream offline (e.g., point dev `.env` `LUBELOGGER_BASE_URL`
+      at an unreachable host, or pause the upstream container).
+- [ ] Restart `quicklogger` so the page loader hits the broken upstream.
+- [ ] Open `/`. Strip renders with the previously-cached values + small
+      amber `offline copy` chip next to the days-ago text.
+- [ ] Odometer field is prefilled with the last reading.
+- [ ] `+N mi` chip increments work as normal.
+- [ ] Submit a fillup — toast shows "Saved locally — will sync".
+
+### Queue-derived fallback (upstream down, no cache)
+
+- [ ] Clear `quicklogger.lastFuelup.<vehicleId>` from localStorage (DevTools
+      → Application → Local Storage). Leave the `'synced'` queue entry
+      from the prior submit intact.
+- [ ] Reload `/`. Strip still renders (sourced from the queue entry).
+- [ ] Cost is shown as `<currency> <amount>` (e.g. `CAD 60.00`), not
+      `$<amount>`.
+
+### Empty state (upstream down, nothing local)
+
+- [ ] Clear both localStorage and IndexedDB.
+- [ ] Reload `/`. Strip is hidden, field is empty (matches today's
+      no-prior-fillup behaviour).
+
+### Recovery (upstream returns)
+
+- [ ] Restore upstream connectivity. Reload `/`. Strip renders without
+      the `offline copy` chip; cost reverts to `$<amount>` rendering.
+- [ ] Cache key is refreshed.

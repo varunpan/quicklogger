@@ -42,8 +42,6 @@ Two writers create `'synced'` rows:
    posts successfully, the worker calls `q.markSynced(entry.id)` instead of
    `q.remove(entry.id)`. The entry stays in the queue as a synced record.
 
-(More sections appended in subsequent commits.)
-
 ## Resolver (`src/lib/client/last-fillup.ts`)
 
 `resolveOfflineLastFillup(vehicleId, queue?)` returns a `LastFillupRecord`

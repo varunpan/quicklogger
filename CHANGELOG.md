@@ -11,11 +11,30 @@ All notable changes to this project are documented here. Format roughly follows 
 - **`+N mi` chip** below the odometer field — one-tap increment that stacks across multiple taps. Configurable in Settings (default 300 mi). Set to 0 to hide the chip.
 - New `formatOdometer` and `daysAgo` helpers in `src/lib/client/format.ts` (unit-tested in `format.test.ts`).
 - New user guide [`docs/user/odometer-prefill.md`](docs/user/odometer-prefill.md) documenting the feature, configuration, and common patterns.
+- **Offline odometer prefill** — the strip and field-prefill keep working
+  when `/api/vehicle/last-fuelup` is unreachable. A per-vehicle
+  `localStorage` snapshot of the latest upstream fetch and `'synced'`
+  IndexedDB queue entries (created by both successful submits and the
+  service-worker replay) are consulted by `resolveOfflineLastFillup` in
+  `src/lib/client/last-fillup.ts`. Strip renders an amber `offline copy`
+  chip when source is local; queue-derived rows render `<currency> <cost>`
+  to avoid implying FX conversion happened. Internals doc:
+  [`docs/technical/offline-odometer-prefill.md`](docs/technical/offline-odometer-prefill.md).
 
 ### Changed
 
 - `prefs.ts` adds two fields: `odometerPrefillEnabled` (default `true`), `odometerIncrementMi` (default `300`). Existing localStorage entries pick up the new defaults via the existing spread-merge load path — no migration code needed.
 - Form submission now requires odometer, volume, cost, and date — all four must be present and the numeric fields must be `> 0`. Server enforces the same on `/api/fuelup` so external consumers (Apple Shortcuts, direct callers) get a 400 instead of silently accepting an incomplete record.
+- `Queue` (`src/lib/client/idb.ts`) gains a third status `'synced'`
+  alongside the existing `'queued'` and `'failed'`. `Queue.enqueue` accepts
+  an optional explicit status (default `'queued'`) so the form's success
+  path can record `'synced'` directly. New `Queue.markSynced(id)` method.
+  Schema unchanged — IndexedDB version stays at `1`; existing
+  `'queued'`/`'failed'` rows on upgraded devices persist.
+- Service worker replay (`src/service-worker.ts`) now calls
+  `q.markSynced(entry.id)` on a successful POST instead of
+  `q.remove(entry.id)`. In-flight queued entries that previously
+  disappeared on success now stay as `'synced'` rows.
 
 ### Tests
 
@@ -23,6 +42,16 @@ All notable changes to this project are documented here. Format roughly follows 
 - Extended `prefs.test.ts` to cover the two new fields' defaults and round-trip.
 - New e2e specs `last-fillup.spec.ts` (strip rendering, presence/absence) and `odometer-prefill.spec.ts` (prefill state, chip increment, multi-tap, manual edit, hide-when-zero, hide-when-disabled).
 - New manual UAT checklist section in `docs/uat.md`.
+- Extended `idb.test.ts` to cover the `'synced'` status, `markSynced`, and
+  the explicit-status `enqueue` path.
+- New unit specs for `resolveOfflineLastFillup` in
+  `last-fillup.test.ts` covering cache-only, queue-only, both-present
+  freshest-pick, tied-date tiebreak, per-vehicle scoping, `'failed'`
+  exclusion, normalization (L→gal, ISO→`M/D/YYYY`, cost currency carry).
+- New e2e spec `offline-odometer-prefill.spec.ts` covering the cache and
+  queue-derived offline paths plus the upstream-up regression check.
+- New manual UAT block "Offline odometer prefill (v0.1.3)" in
+  `docs/uat.md`.
 
 ## [0.1.2] — 2026-05-08
 
