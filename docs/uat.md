@@ -78,3 +78,58 @@ Run after each release before tagging stable.
 - [ ] Set default unit = L, currency = CAD
 - [ ] Quit + relaunch app
 - [ ] Form opens with L + CAD as defaults
+
+## Odometer prefill + last-fillup strip (v0.1.3)
+
+Run on a vehicle that has at least one previous fillup in LubeLogger.
+
+### Strip
+
+- [ ] Open `/`. Above the vehicle picker, two-line strip is visible:
+      `Last fill: <comma-formatted miles> · <"today"|"yesterday"|"N days ago">`
+      `<volume> Gal · $<cost> · <notes if any>`.
+- [ ] Switch to a vehicle with **no** previous fillup. Strip is gone.
+
+### Prefill
+
+- [ ] On a vehicle with a previous fillup, open `/`. Odometer field shows the
+      last reading as raw digits (no comma) in muted text. Small
+      `PREFILLED` tag visible in the field's top-right corner.
+- [ ] Type into the field. Text snaps to white, the tag disappears.
+- [ ] Helper line under the field reads `+N mi this tank` where N is the
+      delta from the last reading.
+
+### `+N mi` chip
+
+- [ ] Chip is visible below the odometer field, labelled with the increment
+      from Settings (e.g. `+300 mi`).
+- [ ] Tap once → field value increases by the increment, helper updates,
+      muted style clears.
+- [ ] Tap twice in succession → value increases by 2× the increment.
+- [ ] After typing manually, tap chip → adds the increment to whatever was
+      typed (not to the original prefill).
+
+### Settings card
+
+- [ ] `/settings` shows the new **Odometer prefill** card under Currency.
+- [ ] Toggle Off → return to `/` → field is empty, chip is hidden, strip
+      still shows.
+- [ ] Toggle On, set increment to 0 → return to `/` → field is prefilled,
+      chip is hidden.
+- [ ] Toggle On, set increment to 250 → return to `/` → chip reads `+250 mi`
+      and bumps by 250.
+
+### Submit flow regression
+
+- [ ] Submit a fillup successfully. Form resets — odometer re-prefills with
+      the same prior value (snapshot from page-load), volume/cost reset.
+- [ ] Submit a fillup with the chip-bumped value. LubeLogger receives the
+      bumped value, not the original prefill.
+
+### Real-phone (LAN preview)
+
+- [ ] `npm run build && npm run preview:lan`
+- [ ] Open `http://<LAN-IP>:4173` on iPhone Safari.
+- [ ] Walk through Strip / Prefill / Chip / Settings card sections above on
+      the phone.
+- [ ] Tap-target sizes feel comfortable for one-handed use at the pump.
