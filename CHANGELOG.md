@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
+## [0.1.3] — 2026-05-10
+
+### Added
+
+- **Last-fillup strip** above the vehicle picker on the main form: `Last fill: {odometer} mi · {days ago}` on line one, `{volume} Gal · ${cost} · {notes}` on line two. Renders whenever a previous fillup exists. Phase A from the v0.2.0 OCR plan, shipped early.
+- **Odometer prefill** — form opens with the last reading already in the field, muted with a `prefilled` tag until first interaction. Settings toggle (default on).
+- **`+N mi` chip** below the odometer field — one-tap increment that stacks across multiple taps. Configurable in Settings (default 300 mi). Set to 0 to hide the chip.
+- New `formatOdometer` and `daysAgo` helpers in `src/lib/client/format.ts` (unit-tested in `format.test.ts`).
+- New user guide [`docs/odometer-prefill.md`](docs/odometer-prefill.md) documenting the feature, configuration, and common patterns.
+
+### Changed
+
+- `prefs.ts` adds two fields: `odometerPrefillEnabled` (default `true`), `odometerIncrementMi` (default `300`). Existing localStorage entries pick up the new defaults via the existing spread-merge load path — no migration code needed.
+
+### Tests
+
+- New unit specs for `formatOdometer` and `daysAgo`.
+- Extended `prefs.test.ts` to cover the two new fields' defaults and round-trip.
+- New e2e specs `last-fillup.spec.ts` (strip rendering, presence/absence) and `odometer-prefill.spec.ts` (prefill state, chip increment, multi-tap, manual edit, hide-when-zero, hide-when-disabled).
+- New manual UAT checklist section in `docs/uat.md`.
+
 ## [0.1.2] — 2026-05-08
 
 ### Added
