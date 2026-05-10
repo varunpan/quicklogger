@@ -88,3 +88,59 @@ parse failures both degrade silently — the cache contributes no candidate
 and the resolver falls back to the queue (or returns `null` if the queue
 is also empty). IndexedDB read failures are wrapped the same way; the
 resolver returns whatever it can from the other source.
+
+## Loader (`src/routes/+page.ts`)
+
+The loader is universal (runs on the server during SSR, in the browser
+during client navigation / PWA refresh). The cache write and the resolver
+call are gated on `import { browser } from '$app/environment'` because
+neither `localStorage` nor IndexedDB exist server-side.
+
+Flow:
+
+1. Fetch the vehicle list and pick the target vehicle (existing logic,
+   unchanged).
+2. `lastFuelup(targetVehicle.id)` — same call as before, returns
+   `GasRecord | null`.
+3. If upstream returned a record:
+   - Normalize to `LastFillupRecord` (`costCurrency: null`).
+   - In the browser, persist the *raw* upstream JSON into
+     `localStorage.quicklogger.lastFuelup.<vehicleId>` — that's what the
+     resolver expects to read back. Failures (quota, disabled storage)
+     are swallowed.
+   - Set `lastFuelupSource = 'upstream'`.
+4. If upstream returned null:
+   - In the browser, call `resolveOfflineLastFillup(vehicleId)`. If it
+     returns a record, set `lastFuelupSource = 'offline'`. Otherwise
+     `lastFuelupSource = null`.
+   - Server-side path is unreachable in practice (the PWA almost always
+     serves the page from the SW-cached HTML), but it returns
+     `lastFuelupSource = null` for completeness.
+5. Return `{ ..., lastFuelup, lastFuelupSource }`.
+
+The loader normalizes the upstream `GasRecord` to `LastFillupRecord` so the
+page consumes a single shape regardless of source. `data.lastFuelup` is
+typed as `LastFillupRecord | null`.
+
+## Page (`src/routes/+page.svelte`)
+
+Two changes:
+
+1. **Strip rendering** — when `data.lastFuelupSource === 'offline'`, an
+   amber-tinted `offline copy` chip appears next to the days-ago text. The
+   second line picks `<currency> <cost>` (when `costCurrency` is non-null)
+   over the historical `$<cost>` to avoid implying FX conversion happened.
+2. **Submit success path** — after `submitFuelup` returns 200 and prefs are
+   saved, the input is appended to the queue with `status: 'synced'`. This
+   is fire-and-forget; IDB failures are swallowed and don't affect the
+   submit toast. On the next page navigation / PWA relaunch, the resolver
+   has this row available as a fallback when upstream is unreachable.
+
+## Service worker (`src/service-worker.ts`)
+
+The replay loop's success branch was `q.remove(entry.id)`. It is now
+`q.markSynced(entry.id)`. Net behaviour difference for an upgraded device:
+in-flight `'queued'` rows that previously *disappeared* on successful
+replay now become `'synced'` rows. Disk usage grows by one row per
+successful replay (a fillup is ~200 bytes; at 50 fillups/year, ~10 KB/year
+worst case). Pruning is out of scope for v1.

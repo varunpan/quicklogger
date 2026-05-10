@@ -167,6 +167,16 @@
       // Only persist the vehicle as "last used" — defaults for unit/currency
       // are owned by the Settings page, not overwritten by per-submit choices.
       savePrefs({ lastVehicleId: vehicle.id });
+      // Record the successful submission as a 'synced' queue entry — kept
+      // as permanent local history so the offline-prefill resolver has
+      // something to fall back on if upstream is unreachable next session.
+      // Fire-and-forget; failure to record is non-fatal for the submit.
+      try {
+        const q = await Queue.open();
+        await q.enqueue(input, 'synced');
+      } catch {
+        // IDB unavailable (private mode, quota); ignore.
+      }
       // reset volatile fields — re-prefill from last fuelup if prefs allow.
       // (data.lastFuelup is the snapshot at page load; next navigation refreshes it.)
       odometer = initialOdometer();
@@ -196,8 +206,25 @@
 {:else}
   {#if data.lastFuelup}
     <div class="text-xs text-zinc-500 mb-3 leading-relaxed">
-      <div>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {daysAgo(data.lastFuelup.date)}</div>
-      <div>{data.lastFuelup.fuelConsumed} Gal · ${data.lastFuelup.cost ?? '—'}{data.lastFuelup.notes ? ` · ${data.lastFuelup.notes}` : ''}</div>
+      <div class="flex items-center gap-2">
+        <span>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {daysAgo(data.lastFuelup.date)}</span>
+        {#if data.lastFuelupSource === 'offline'}
+          <span class="text-[10px] uppercase tracking-wider font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded px-1.5 py-0.5">
+            offline copy
+          </span>
+        {/if}
+      </div>
+      <div>
+        {data.lastFuelup.fuelConsumed} Gal ·
+        {#if data.lastFuelup.costCurrency}
+          {data.lastFuelup.costCurrency} {data.lastFuelup.cost ?? '—'}
+        {:else}
+          ${data.lastFuelup.cost ?? '—'}
+        {/if}
+        {#if data.lastFuelup.notes}
+          · {data.lastFuelup.notes}
+        {/if}
+      </div>
     </div>
   {/if}
   <button

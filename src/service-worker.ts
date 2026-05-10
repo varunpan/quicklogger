@@ -74,7 +74,7 @@ async function syncQueue() {
         body: JSON.stringify(entry.input satisfies FuelSubmissionInput)
       });
       if (res.ok) {
-        await q.remove(entry.id);
+        await q.markSynced(entry.id);
       } else if (res.status >= 400 && res.status < 500) {
         await q.markFailed(entry.id, `${res.status}`);
       }

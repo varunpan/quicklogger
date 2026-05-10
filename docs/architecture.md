@@ -164,6 +164,19 @@ unit-testable. The strip is a snapshot at page-load — submitting a
 fillup re-prefills the odometer field from the same snapshot, and the
 strip itself only refreshes on the next navigation/page-load.
 
+The strip and odometer prefill survive **upstream outages** via a local-first
+resolver (`src/lib/client/last-fillup.ts`). On every successful upstream
+fetch, the loader caches the raw `GasRecord` to `localStorage` keyed by
+vehicle id. On upstream null/error, it consults the cache plus the
+IndexedDB queue (`'queued'` and `'synced'` entries scoped to the vehicle)
+and returns the freshest record. `data.lastFuelupSource` is `'upstream'`
+when live data was used, `'offline'` when the resolver supplied the value
+(strip renders an `offline copy` chip), or `null` when nothing is
+available. The queue's `'synced'` status — set by the form's success path
+and by the service worker after a successful replay — keeps a permanent
+local trail of submissions so the resolver always has something to fall
+back on after the first online use.
+
 The **odometer field** opens prefilled with the last reading (raw
 digits — `type="number"` can't render thousands separators) when
 `prefs.odometerPrefillEnabled` is true and `data.lastFuelup` exists.
