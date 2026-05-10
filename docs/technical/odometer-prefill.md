@@ -74,6 +74,10 @@ of `docs/architecture.md` — they apply equally to the field prefill.
 | Submit with prefill, then look | Field re-prefills, helper line briefly shows `0 mi this tank` until next interaction | See "Future considerations" |
 | Non-finite parse (`Number('abc')`) | `formatOdometer` returns the raw string | Better than rendering `NaN` |
 | `daysAgo` against today | Returns `'today'`; `1` → `'yesterday'`; otherwise `N days ago` | Diff is local-calendar-day, not UTC |
+| `lastFuelup.fuelconsumed === ''` | Strip's second line drops the volume part | Real LubeLogger records (partial fills, missed fuelups) can have an empty volume — never render ` Gal` with no number |
+| `lastFuelup.cost === ''` (or null) | Strip drops the cost part | `?? '—'` only catches null/undefined; truthy check covers `''` too |
+| All of `fuelconsumed`, `cost`, `notes` empty | Second line not rendered at all | No empty `<div>`; the `lastFillSummary` derived returns `''` and the `{#if}` skips the row |
+| `lastFillSummary` derived | Source of truth for the strip's second line — pure formatting, no side effects | Concentrates the join-only-truthy-parts logic in one place; template stays declarative |
 
 ## Non-obvious decisions
 
@@ -130,11 +134,6 @@ clamping in the handler is what actually keeps localStorage clean.
   DST transition, the calendar-day count can drift by one. Acceptable for
   "days since last fill" copy; a `Temporal`-based diff would be the proper
   fix when `Temporal` ships everywhere.
-- **`fuelconsumed` rendered raw in the strip.** The line uses
-  `data.lastFuelup.fuelconsumed` directly, which can return strings like
-  `'10.834'` from LubeLogger. A `formatGallons` helper would round to
-  one decimal for display parity with the post-submit toast; not worth a
-  point release on its own.
 - **Helper text shows `0 mi this tank` post-submit until next interaction.**
   After a successful submit the field re-prefills and `odometerEdited`
   resets to `false`, so the helper line clears. But if the user types

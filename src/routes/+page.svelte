@@ -103,6 +103,18 @@
     return od - last;
   });
 
+  // Strip's second line — drop parts that are missing/empty so we never render
+  // ` Gal` (no volume) or `$—` (no cost). If all three are empty, the whole
+  // line is suppressed in the template.
+  const lastFillSummary = $derived.by(() => {
+    if (!data.lastFuelup) return '';
+    const parts: string[] = [];
+    if (data.lastFuelup.fuelconsumed) parts.push(`${data.lastFuelup.fuelconsumed} Gal`);
+    if (data.lastFuelup.cost) parts.push(`$${data.lastFuelup.cost}`);
+    if (data.lastFuelup.notes) parts.push(data.lastFuelup.notes);
+    return parts.join(' · ');
+  });
+
   // /vehicles route is stood up in Task 20. Until then, route into it via a string-typed
   // intermediate so the typed-routes RouteId union doesn't reject the literal.
   function navigateToVehicles(): void {
@@ -183,7 +195,9 @@
   {#if data.lastFuelup}
     <div class="text-xs text-zinc-500 mb-3 leading-relaxed">
       <div>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {daysAgo(data.lastFuelup.date)}</div>
-      <div>{data.lastFuelup.fuelconsumed} Gal · ${data.lastFuelup.cost ?? '—'}{data.lastFuelup.notes ? ` · ${data.lastFuelup.notes}` : ''}</div>
+      {#if lastFillSummary}
+        <div>{lastFillSummary}</div>
+      {/if}
     </div>
   {/if}
   <button
