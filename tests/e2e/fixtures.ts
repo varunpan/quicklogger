@@ -50,21 +50,35 @@ export async function pinClock(page: Page, isoLocal: string) {
 }
 
 export type LastFuelupPayload = {
-  id: number;
+  id: string;
+  vehicleId: string;
   date: string;
   odometer: string;
-  fuelconsumed: string;
+  fuelConsumed: string;
   cost: string;
+  fuelEconomy?: string;
+  isFillToFull?: string;
+  missedFuelUp?: string;
   notes?: string;
+  tags?: string;
+  extraFields?: unknown[];
+  files?: unknown[];
 };
 
 const DEFAULT_LAST_FUELUP: LastFuelupPayload = {
-  id: 999,
+  id: '999',
+  vehicleId: '1',
   date: '5/3/2026',
   odometer: '87234',
-  fuelconsumed: '10.8',
+  fuelConsumed: '10.8',
   cost: '39.42',
-  notes: 'Costco Pump 4'
+  fuelEconomy: '0',
+  isFillToFull: 'True',
+  missedFuelUp: 'False',
+  notes: 'Costco Pump 4',
+  tags: '',
+  extraFields: [],
+  files: []
 };
 
 /**
