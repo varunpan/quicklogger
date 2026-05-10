@@ -155,10 +155,30 @@ Shortcuts integration). `$effect` block fetches the FX rate when
 currency changes; `needsManualFx` toggles the manual-rate field when
 the chain is exhausted.
 
+When `data.lastFuelup` is non-null, a two-line **last-fillup strip**
+renders above the vehicle picker — `Last fill: {odometer} mi · {days
+ago}` on line one, `{volume} Gal · ${cost} · {notes}` on line two.
+Format helpers (`formatOdometer`, `daysAgo`) live in
+`src/lib/client/format.ts` so the calendar-day arithmetic is
+unit-testable. The strip is a snapshot at page-load — submitting a
+fillup re-prefills the odometer field from the same snapshot, and the
+strip itself only refreshes on the next navigation/page-load.
+
+The **odometer field** opens prefilled with the last reading (raw
+digits — `type="number"` can't render thousands separators) when
+`prefs.odometerPrefillEnabled` is true and `data.lastFuelup` exists.
+A `prefilled` pill marks the field; muted text snaps to white on
+first interaction. A blue `+N mi` chip below the field bumps the
+current value by `prefs.odometerIncrementMi` on tap (stacks across
+multiple taps). After any edit, a helper line shows the delta from
+the last reading: `+N mi this tank`. Both prefs come from
+`src/lib/client/prefs.ts` and default to `true` / `300`.
+
 Submit logic:
 1. Build `FuelSubmissionInput` with a fresh client UUID
 2. Try `POST /api/fuelup`
-3. On success: success toast + reset volatile fields + `savePrefs`
+3. On success: success toast + reset volatile fields (odometer
+   re-prefills from snapshot) + `savePrefs`
 4. On 4xx: rejection toast (don't queue — won't fix itself)
 5. On any other failure: enqueue to IndexedDB, show "queued" toast
 

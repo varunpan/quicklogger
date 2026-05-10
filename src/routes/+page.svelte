@@ -5,13 +5,25 @@
   import { submitFuelup, getFx } from '$lib/client/api';
   import type { Vehicle } from '$lib/server/lubelogger';
   import type { VolumeUnit, FuelSubmissionInput } from '$lib/shared/types';
+  import { formatOdometer, daysAgo } from '$lib/client/format';
 
   let { data } = $props();
   const prefs = loadPrefs();
 
   // form state — Svelte 5 runes
   let vehicle: Vehicle | null = $state(data.initialVehicle);
-  let odometer: string = $state('');
+  // Initialize from last fillup when prefill is on (Decision 2 / 8). Stored
+  // as raw digits because the input is type="number" and can't render
+  // thousands separators — the formatted version lives in the strip only.
+  function initialOdometer(): string {
+    if (!prefs.odometerPrefillEnabled) return '';
+    if (!data.lastFuelup) return '';
+    const n = Number(data.lastFuelup.odometer);
+    if (!Number.isFinite(n)) return '';
+    return String(Math.round(n));
+  }
+  let odometer: string = $state(initialOdometer());
+  let odometerEdited: boolean = $state(false);
   let isoDate: string = $state(new Date().toISOString().slice(0, 10));
   let volume: string = $state(data.prefill.volume ?? '');
   let volumeUnit: VolumeUnit = $state(
@@ -82,6 +94,15 @@
     return delta / gal;
   });
 
+  // Per-tank delta shown under the odometer field once the user has interacted.
+  const odometerDelta = $derived.by(() => {
+    if (!odometerEdited || !data.lastFuelup) return null;
+    const od = Number(odometer);
+    const last = Number(data.lastFuelup.odometer);
+    if (!Number.isFinite(od) || !Number.isFinite(last)) return null;
+    return od - last;
+  });
+
   // /vehicles route is stood up in Task 20. Until then, route into it via a string-typed
   // intermediate so the typed-routes RouteId union doesn't reject the literal.
   function navigateToVehicles(): void {
@@ -94,6 +115,13 @@
     const c = globalThis.crypto;
     if (c && 'randomUUID' in c) return c.randomUUID();
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function bumpOdometer(): void {
+    const current = Number(odometer || 0);
+    const safe = Number.isFinite(current) ? current : 0;
+    odometer = String(safe + prefs.odometerIncrementMi);
+    odometerEdited = true;
   }
 
   async function submit() {
@@ -125,8 +153,10 @@
       // Only persist the vehicle as "last used" — defaults for unit/currency
       // are owned by the Settings page, not overwritten by per-submit choices.
       savePrefs({ lastVehicleId: vehicle.id });
-      // reset volatile fields
-      odometer = '';
+      // reset volatile fields — re-prefill from last fuelup if prefs allow.
+      // (data.lastFuelup is the snapshot at page load; next navigation refreshes it.)
+      odometer = initialOdometer();
+      odometerEdited = false;
       volume = '';
       cost = '';
     } catch (err) {
@@ -150,6 +180,12 @@
     No vehicles found. Add one in LubeLogger first.
   </div>
 {:else}
+  {#if data.lastFuelup}
+    <div class="text-xs text-zinc-500 mb-3 leading-relaxed">
+      <div>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {daysAgo(data.lastFuelup.date)}</div>
+      <div>{data.lastFuelup.fuelconsumed} Gal · ${data.lastFuelup.cost ?? '—'}{data.lastFuelup.notes ? ` · ${data.lastFuelup.notes}` : ''}</div>
+    </div>
+  {/if}
   <button
     type="button"
     class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full"
@@ -171,11 +207,35 @@
   </button>
 
   <div class="grid grid-cols-2 gap-2 mb-3">
-    <label class="field min-w-0">
+    <div class="field min-w-0">
       <span class="field-label">Odometer</span>
-      <input class="field-input min-w-0" type="number" inputmode="numeric"
-             bind:value={odometer} placeholder="87,432" />
-    </label>
+      <div class="relative">
+        <input class="field-input min-w-0" type="number" inputmode="numeric"
+               bind:value={odometer}
+               oninput={() => (odometerEdited = true)}
+               class:text-zinc-400={!odometerEdited && odometer !== ''}
+               placeholder="87,432" />
+        {#if !odometerEdited && odometer !== ''}
+          <span class="absolute top-1.5 right-2 text-[10px] uppercase tracking-wider font-semibold text-zinc-500 bg-zinc-700/60 px-1.5 py-0.5 rounded">
+            prefilled
+          </span>
+        {/if}
+      </div>
+      {#if prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0}
+        <button
+          type="button"
+          class="self-start mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
+          onclick={bumpOdometer}
+        >
+          <span aria-hidden="true">↑</span>+{prefs.odometerIncrementMi} mi
+        </button>
+      {/if}
+      {#if odometerDelta !== null}
+        <div class="text-xs text-zinc-500 mt-1 px-1">
+          <span class="text-blue-400 font-semibold">{odometerDelta > 0 ? '+' : ''}{odometerDelta} mi</span> this tank
+        </div>
+      {/if}
+    </div>
     <label class="field min-w-0">
       <span class="field-label">Date</span>
       <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate} />
