@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.1.3] — 2026-05-10
+## [0.1.3] — Unreleased
 
 ### Added
 
@@ -35,6 +35,10 @@ All notable changes to this project are documented here. Format roughly follows 
   `q.markSynced(entry.id)` on a successful POST instead of
   `q.remove(entry.id)`. In-flight queued entries that previously
   disappeared on success now stay as `'synced'` rows.
+
+### Removed
+
+- macOS Finder-duplicate artifacts that landed in the working tree via iCloud sync.
 
 ### Tests
 
