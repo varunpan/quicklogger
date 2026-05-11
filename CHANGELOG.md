@@ -21,6 +21,7 @@ All notable changes to this project are documented here. Format roughly follows 
   to avoid implying FX conversion happened. Internals doc:
   [`docs/technical/offline-odometer-prefill.md`](docs/technical/offline-odometer-prefill.md).
 - `.env.example` at repo root — full template with placeholders for required vars and commented defaults for optional vars.
+- User docs: `docs/user/offline-queue.md`, `docs/user/currency-fx.md`, `docs/user/app-pages.md` (Log Fuel + Vehicles + Settings + History tour), `docs/user/configuration.md` (full env-var reference).
 
 ### Changed
 
