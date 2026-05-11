@@ -38,46 +38,13 @@ Optional with defaults: `LUBELOGGER_VOLUME_UNIT` (`gallons_us`),
 (`/data/fx-cache.json`), `PORT` (`3000`), `ORIGIN` (none).
 
 `FX_PROVIDERS` is a CSV; unknown provider names throw `EnvError`.
-`EXCHANGERATE_API_KEY` is only required if `exchangerate-api` is in
-the chain.
 
 ### FX provider chain (`src/lib/server/currency.ts`)
 
-Multi-provider FX rate resolver with persistent cache.
-
-**Public API:**
-- `CurrencyService` — class wrapping the chain logic. Constructor takes
-  `{ providers, fetcher, store }` for testability.
-- `JsonFileStore` — `FxStore` implementation backed by a JSON file
-  (default `/data/fx-cache.json`).
-- `realFetcher` — production `FxFetcher` that hits the actual upstream
-  providers with a 3s timeout.
-- `FxUnavailableError` — thrown when all providers fail and cache is
-  empty / older than 7 days.
-
-**Resolution order on `getRate(from, to)`:**
-1. Identity short-circuit if `from === to` → returns rate=1, source=`identity`.
-2. Disk cache hit (entry < 24h old) → returned with `stale: false`.
-3. Provider chain walked in `FX_PROVIDERS` order. First successful
-   response wins; cache updated on disk.
-4. All providers failed but cache exists and < 7 days old → returned
-   with `stale: true`.
-5. All providers failed and cache absent / > 7 days → throws
-   `FxUnavailableError`. The route handler catches this and signals
-   the UI to show the manual-override field.
-
-**Provider implementations:**
-| Provider | URL | Notes |
-|---|---|---|
-| frankfurter | `api.frankfurter.dev/v1/latest?base=...&symbols=...` | ECB, daily |
-| erapi | `open.er-api.com/v6/latest/${from}` | Free, no key |
-| fawazahmed | `cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from}.json` | jsDelivr CDN |
-| exchangerate-api | `v6.exchangerate-api.com/v6/${KEY}/latest/${from}` | Optional, key required |
-
-All providers use `AbortSignal.timeout(3000)`. Failures are logged
-with provider name + reason but never throw out of the chain — the
-service either returns a rate, returns a stale rate, or throws once at
-the end.
+Multi-provider FX resolver with a 24-hour fresh cache, a 7-day stale
+fallback, and a 3-second per-provider timeout. Defaults to a three-provider
+chain (`frankfurter`, `erapi`, `fawazahmed`). Details:
+[`docs/technical/fx-chain.md`](./technical/fx-chain.md).
 
 ### LubeLogger client (`src/lib/server/lubelogger.ts`)
 
@@ -128,22 +95,11 @@ is async + structured, the SW cache is opaque + binary. No state lives
 in shared in-memory stores — every page load reads from the
 authoritative source.
 
-**`IndexedDB` schema — `pendingSubmissions` store:**
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | autoincrement key | |
-| `input` | `FuelSubmissionInput` | the unmodified user payload |
-| `status` | `'queued' \| 'failed'` | failed = 4xx response, no auto-retry |
-| `attempts` | number | incremented per retry, capped at 5 |
-| `enqueuedAt` | ms epoch | for stale-entry pruning later |
-| `lastError` | string? | populated on failure |
-
-The queue is opened lazily by the service worker and re-used per page
-load via `Queue.open()`. Records are inserted on submission failure,
-removed on retry success, and marked `failed` on permanent (4xx)
-errors. The `/history` page surfaces the failed entries so the user
-can decide whether to fix and retry manually.
+The IndexedDB store (`pendingSubmissions`, db version `1`) holds queued,
+failed, and synced submission rows. Schema, state machine, and replay
+loop live in [`docs/technical/offline-queue.md`](./technical/offline-queue.md).
+Combined IDB + HTTP API reference:
+[`docs/technical/idb-and-api.md`](./technical/idb-and-api.md).
 
 ## Frontend pages
 
@@ -206,26 +162,9 @@ $Y USD" + MPG-since-last-fill + a stale-FX warning when applicable.
 
 ### Service worker (`src/service-worker.ts`)
 
-Three responsibilities:
-
-1. **App-shell precache** — on install, all build assets + static
-   files are added to the `quicklogger-shell-${version}` cache. Old
-   caches are pruned on activate. The user gets an instant launch on
-   subsequent loads.
-
-2. **Network-first for `/api/*`** — API calls are not cached (data
-   freshness wins). Failed GETs return a `504` so the page can show
-   an inline error rather than a generic browser offline page.
-
-3. **Queue sync on focus** — the layout sends a `sync-queue` message
-   to the SW on `window.focus`. The SW iterates `pendingSubmissions`
-   in IndexedDB, posts each `queued` entry to `/api/fuelup` (capped
-   at 5 attempts), removes successes, marks 4xx as failed.
-
-iOS doesn't fire Background Sync events reliably, so we use the
-focus-event pattern as the primary trigger. This means the user
-must reopen the app for queued submissions to flush — that's the
-realistic UX on iOS Safari today.
+App-shell precache + network-first routing for `/api/*` + message-driven
+queue replay (no BackgroundSync). Details:
+[`docs/technical/service-worker.md`](./technical/service-worker.md).
 
 ## Data flow
 

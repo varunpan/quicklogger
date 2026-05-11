@@ -22,6 +22,7 @@ All notable changes to this project are documented here. Format roughly follows 
   [`docs/technical/offline-odometer-prefill.md`](docs/technical/offline-odometer-prefill.md).
 - `.env.example` at repo root — full template with placeholders for required vars and commented defaults for optional vars.
 - User docs: `docs/user/offline-queue.md`, `docs/user/currency-fx.md`, `docs/user/app-pages.md` (Log Fuel + Vehicles + Settings + History tour), `docs/user/configuration.md` (full env-var reference).
+- Technical docs: `docs/technical/offline-queue.md`, `docs/technical/fx-chain.md`, `docs/technical/service-worker.md`, `docs/technical/idb-and-api.md`.
 
 ### Changed
 
@@ -43,6 +44,7 @@ All notable changes to this project are documented here. Format roughly follows 
 - `compose.example.yml` image tag → `:latest` for pull-and-restart workflows. Comment block explains the trade-off vs version-pinning.
 - Dropped `EXCHANGERATE_API_KEY` from `.env.example` — the `exchangerate-api` provider isn't part of the supported default chain; code-side cleanup tracked separately.
 - Consolidated `shortcuts/` recipes into `docs/user/shortcuts.md` as quick-reference appendix sections. Top-level `shortcuts/` directory removed; `.dockerignore` updated.
+- `docs/architecture.md` trimmed to a high-level map; details moved to the four new focused technical docs.
 
 ### Removed
 
