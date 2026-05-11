@@ -1,76 +1,58 @@
 # Architecture
 
-This document describes how quicklogger is put together. Each section is filled in alongside the code it describes (per the Documentation policy in the spec).
+quicklogger is a mobile-first PWA that submits fillups to a self-hosted LubeLogger over HTTP. SvelteKit (adapter-node) runs on the server, Svelte 5 with runes runs on the client, and nothing is fetched at runtime that wasn't bundled at build time — there are zero runtime dependencies beyond Node and the LubeLogger API.
 
 ## Overview
 
-(populated in Task 32)
+The system has three surfaces:
+
+- **Browser / installed PWA** on the user's phone — Safari or any modern Chromium. The service worker precaches the app shell, so the form opens instantly even on a flaky connection. A per-vehicle `localStorage` snapshot plus an IndexedDB queue keep the form (including the last-fillup prefill) usable while LubeLogger is unreachable.
+- **SvelteKit server** running in a Node 22 container. Stateless except for an on-disk FX cache (`/data/fx-cache.json`) and an in-process 60s idempotency map. All upstream calls go through `src/lib/server/lubelogger.ts`.
+- **LubeLogger container** on the operator's network. quicklogger never talks to LubeLogger from the browser — the SvelteKit server is the only client.
+
+**Deployment topology note.** When quicklogger and LubeLogger run in the same Docker compose stack, the SvelteKit server reaches LubeLogger via container DNS (e.g. `http://lubelogger:8080`) — traffic stays on the internal Docker network and LubeLogger never needs to be exposed to the public internet just for the backend's API calls. `LUBELOGGER_URL` is the only switch; point it at an internal hostname for the co-located case, or at a public URL for split deployments. Either way, the browser only ever talks to the SvelteKit origin.
+
+```
+    iPhone (Safari/PWA)
+            │
+            │ HTTPS (your reverse proxy / Tailscale / LAN)
+            ▼
+    SvelteKit server (Node container)
+    ├── /api/vehicles
+    ├── /api/vehicle/last-fuelup
+    ├── /api/fuelup       ←──── form submits land here
+    ├── /api/fx
+    └── /healthz
+            │
+            │ HTTP (Docker internal network when co-located)
+            ▼
+    LubeLogger container
+    └── /api/vehicle/gasrecords/add  ←──── fillups stored here
+```
 
 ## Server modules
 
+Every server module is pure and unit-testable; I/O is centralized in `env.ts` and `lubelogger.ts`.
+
 ### Units conversion (`src/lib/server/units.ts`)
 
-Pure conversion helpers between US gallons and liters. The constant
-`GAL_TO_L = 3.785411784` is the exact definitional ratio (US gallon, NIST).
-
-Public surface:
-- `toGallons(value, unit)` — convert to US gallons. `unit` is `'gal'` or `'L'`.
-- `toLiters(value, unit)` — convert to liters. Same units.
-- `GAL_TO_L` — the conversion constant, exposed for tests.
-
-Negative inputs throw `RangeError`; unknown units throw `TypeError`.
-The module has no external dependencies and is safe to import in
-both server and edge runtimes.
+Pure helpers between US gallons and liters. The constant `GAL_TO_L = 3.785411784` is the exact definitional ratio (US gallon, NIST). `toGallons(value, unit)` / `toLiters(value, unit)` accept `'gal' | 'L'`. Negative inputs throw `RangeError`; unknown units throw `TypeError`. No external dependencies.
 
 ### Environment configuration (`src/lib/server/env.ts`)
 
-Single source of truth for env-var access. Other server modules import
-`loadEnv()` rather than reading `process.env` directly — this keeps
-validation centralized and makes the test surface obvious.
-
-Required: `LUBELOGGER_URL`, `LUBELOGGER_API_KEY`. Missing either at
-startup throws `EnvError`, which surfaces as a fast-fail container
-crash (visible in Discord via LoggiFly).
-
-Optional with defaults: `LUBELOGGER_VOLUME_UNIT` (`gallons_us`),
-`LUBELOGGER_CURRENCY` (`USD`), `FX_PROVIDERS`
-(`frankfurter,erapi,fawazahmed`), `FX_CACHE_PATH`
-(`/data/fx-cache.json`), `PORT` (`3000`), `ORIGIN` (none).
-
-`FX_PROVIDERS` is a CSV; unknown provider names throw `EnvError`.
+Single source of truth for env-var access — other server modules call `loadEnv()` rather than reading `process.env` directly. Required vars `LUBELOGGER_URL` and `LUBELOGGER_API_KEY` throw `EnvError` if missing; `FX_PROVIDERS` (CSV) is validated against a known-providers set, with unknown names also throwing `EnvError`. Full reference: [`docs/user/configuration.md`](./user/configuration.md).
 
 ### FX provider chain (`src/lib/server/currency.ts`)
 
-Multi-provider FX resolver with a 24-hour fresh cache, a 7-day stale
-fallback, and a 3-second per-provider timeout. Defaults to a three-provider
-chain (`frankfurter`, `erapi`, `fawazahmed`). Details:
-[`docs/technical/fx-chain.md`](./technical/fx-chain.md).
+Multi-provider FX resolver with a 24-hour fresh cache, a 7-day stale fallback, and a 3-second per-provider timeout. Defaults to a three-provider chain (`frankfurter`, `erapi`, `fawazahmed`). Details: [`docs/technical/fx-chain.md`](./technical/fx-chain.md).
 
 ### LubeLogger client (`src/lib/server/lubelogger.ts`)
 
-(populated in Task 8)
+Single integration point with LubeLogger — every upstream call flows through `LubeLoggerClient`. The client is reachable via container DNS on the same Docker network (preferred for security) or over a public URL; `LUBELOGGER_URL` is the switch. Auth is `x-api-key` from `LUBELOGGER_API_KEY` (Editor scope on the LubeLogger side). Default request timeout is 5s via `AbortSignal.timeout()`; `/healthz` constructs its own client with a 2s override so the probe fails fast. Non-2xx responses throw `LubeLoggerError` (status + body); `/api/fuelup` maps 5xx to 502 and passes 4xx through unchanged. Per-method/per-field reference: [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md) § *LubeLogger upstream calls*.
 
 ### Conversion orchestrator (`src/lib/server/convert.ts`)
 
-Combines `units.ts` and `currency.ts` into a single
-`convertSubmission()` call used by the `POST /api/fuelup` route.
-
-Input: raw user submission (`FuelInput`). Output: target-unit gallons +
-target-currency cost + FX provenance fields (rate, source, fetchedAt,
-stale flag).
-
-Behavior:
-- If `manualFxRate` is set on the input, the rate is used verbatim and
-  `fxSource` is recorded as `'manual'` — the currency service is not
-  consulted.
-- Otherwise the currency service resolves the rate per its provider
-  chain. Stale rates pass through with `fxStale: true`.
-- Volume is always converted via `toGallons`. Target unit other than
-  `gallons_us` throws — v0.1.0 only supports US-gallon LubeLogger
-  configurations. (Spec parking lot: multi-target-unit support.)
-
-Pure module — all I/O is delegated to the injected `CurrencyService`,
-which makes the whole thing trivially testable with a fake.
+Combines `units.ts` and `currency.ts` into a single `convertSubmission()` call used by `POST /api/fuelup`. Behavior: if `manualFxRate` is set on the input the rate is used verbatim and `fxSource` is recorded as `'manual'` — the currency service is not consulted. Otherwise the currency service resolves the rate per its provider chain; stale rates pass through with `fxStale: true`. Volume always goes through `toGallons`; any target volume unit other than `gallons_us` throws (v0.1.x only supports US-gallon LubeLogger configurations). Pure module — all I/O is delegated to the injected `CurrencyService`, so the whole thing is trivially testable with a fake.
 
 ## Frontend
 
@@ -78,94 +60,41 @@ which makes the whole thing trivially testable with a fake.
 
 The frontend keeps state in three buckets, each with a clear purpose:
 
-- **`localStorage`** (`src/lib/client/prefs.ts`) — user preferences:
-  `lastVehicleId`, `defaultVolumeUnit`, `defaultCurrency`. Single
-  storage key `quicklogger.prefs` holds a JSON blob. Defaults are
-  used when storage is unavailable or content is malformed (private
-  browsing, cleared site data).
+- **`localStorage`** (`src/lib/client/prefs.ts`) — user preferences: `lastVehicleId`, `defaultVolumeUnit`, `defaultCurrency`, `odometerPrefillEnabled`, `odometerIncrementMi`. Single storage key `quicklogger.prefs` holds a JSON blob. A second key per vehicle (`quicklogger.lastFuelup.<id>`) caches the most recent upstream `GasRecord` for the offline-prefill resolver.
+- **`IndexedDB`** (`src/lib/client/idb.ts`) — submission queue (`pendingSubmissions`, db version `1`) holding `'queued'`, `'failed'`, and `'synced'` rows. Schema and state machine: [`docs/technical/offline-queue.md`](./technical/offline-queue.md). Combined IDB + HTTP API reference: [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md).
+- **Service worker `Cache Storage`** — app-shell precache for instant launch. Details: [`docs/technical/service-worker.md`](./technical/service-worker.md).
 
-- **`IndexedDB`** (`src/lib/client/idb.ts`) — offline submission
-  queue. See Task 17.
-
-- **Service worker `Cache Storage`** — app shell precache for instant
-  launch. See Task 24.
-
-These are intentionally separated: prefs are sync + tiny, the queue
-is async + structured, the SW cache is opaque + binary. No state lives
-in shared in-memory stores — every page load reads from the
-authoritative source.
-
-The IndexedDB store (`pendingSubmissions`, db version `1`) holds queued,
-failed, and synced submission rows. Schema, state machine, and replay
-loop live in [`docs/technical/offline-queue.md`](./technical/offline-queue.md).
-Combined IDB + HTTP API reference:
-[`docs/technical/idb-and-api.md`](./technical/idb-and-api.md).
+These are intentionally separated: prefs are sync + tiny, the queue is async + structured, the SW cache is opaque + binary. No state lives in shared in-memory stores — every page load reads from the authoritative source.
 
 ## Frontend pages
 
+Four pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), and **History** (`/history`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md).
+
 ### `/` — main form
-The single most-used page. Implements mockup B from the design spec.
-Loads vehicle list + last fuelup via `+page.ts`. Reads `URL`
-query params for Apple-Shortcut deep-link pre-fill (Path 1 of the
-Shortcuts integration). `$effect` block fetches the FX rate when
-currency changes; `needsManualFx` toggles the manual-rate field when
-the chain is exhausted.
 
-When `data.lastFuelup` is non-null, a two-line **last-fillup strip**
-renders above the vehicle picker — `Last fill: {odometer} mi · {days
-ago}` on line one, `{volume} Gal · ${cost} · {notes}` on line two.
-Format helpers (`formatOdometer`, `daysAgo`) live in
-`src/lib/client/format.ts` so the calendar-day arithmetic is
-unit-testable. The strip is a snapshot at page-load — submitting a
-fillup re-prefills the odometer field from the same snapshot, and the
-strip itself only refreshes on the next navigation/page-load.
+The single most-used page. `+page.ts` loads the vehicle list and last-fuelup snapshot (with the offline resolver as fallback when upstream is unreachable). URL query params on the route drive Apple Shortcuts deep-link pre-fill (Path 1 of the Shortcuts integration). A `$effect` block fetches the FX rate from `/api/fx` whenever the currency selector changes; if the chain is exhausted, `needsManualFx` reveals a manual-rate field. Submit is gated client-side by a `canSubmit` derived (all four required numeric fields > 0); the same contract is enforced server-side in `/api/fuelup`'s `validate()`, so non-form callers (Shortcuts, direct curl) get a 400 with the failing field names.
 
-The strip and odometer prefill survive **upstream outages** via a local-first
-resolver (`src/lib/client/last-fillup.ts`). On every successful upstream
-fetch, the loader caches the raw `GasRecord` to `localStorage` keyed by
-vehicle id. On upstream null/error, it consults the cache plus the
-IndexedDB queue (`'queued'` and `'synced'` entries scoped to the vehicle)
-and returns the freshest record. `data.lastFuelupSource` is `'upstream'`
-when live data was used, `'offline'` when the resolver supplied the value
-(strip renders an `offline copy` chip), or `null` when nothing is
-available. The queue's `'synced'` status — set by the form's success path
-and by the service worker after a successful replay — keeps a permanent
-local trail of submissions so the resolver always has something to fall
-back on after the first online use.
+Cross-links for the detail this section deliberately doesn't repeat:
 
-The **odometer field** opens prefilled with the last reading (raw
-digits — `type="number"` can't render thousands separators) when
-`prefs.odometerPrefillEnabled` is true and `data.lastFuelup` exists.
-A `prefilled` pill marks the field; muted text snaps to white on
-first interaction. A blue `+N mi` chip below the field bumps the
-current value by `prefs.odometerIncrementMi` on tap (stacks across
-multiple taps). After any edit, a helper line shows the delta from
-the last reading: `+N mi this tank`. Both prefs come from
-`src/lib/client/prefs.ts` and default to `true` / `300`.
-
-Submit logic:
-1. Build `FuelSubmissionInput` with a fresh client UUID
-2. Try `POST /api/fuelup`
-3. On success: success toast + reset volatile fields (odometer
-   re-prefills from snapshot) + `savePrefs`
-4. On 4xx: rejection toast (don't queue — won't fix itself)
-5. On any other failure: enqueue to IndexedDB, show "queued" toast
-
-Submit is gated client-side via a `canSubmit` derived (the button stays
-disabled until all four required fields are present with non-zero
-numeric values). The same contract is enforced server-side in
-`/api/fuelup`'s `validate()` — non-form callers (Shortcuts, direct
-curl) get a 400 with the failing field names.
-
-The summary line above the submit button shows live "Will log: X gal /
-$Y USD" + MPG-since-last-fill + a stale-FX warning when applicable.
+- User view of the form + per-page tour: [`docs/user/app-pages.md`](./user/app-pages.md) § *Log Fuel*.
+- Prefill / `+N mi` chip / per-tank delta UX: [`docs/user/odometer-prefill.md`](./user/odometer-prefill.md).
+- Offline submit behavior + queue mechanics: [`docs/technical/offline-queue.md`](./technical/offline-queue.md).
+- Offline last-fillup resolver (cache + queue): [`docs/technical/offline-odometer-prefill.md`](./technical/offline-odometer-prefill.md).
 
 ### Service worker (`src/service-worker.ts`)
 
-App-shell precache + network-first routing for `/api/*` + message-driven
-queue replay (no BackgroundSync). Details:
-[`docs/technical/service-worker.md`](./technical/service-worker.md).
+App-shell precache + network-first routing for `/api/*` + message-driven queue replay (no BackgroundSync). Details: [`docs/technical/service-worker.md`](./technical/service-worker.md).
 
 ## Data flow
 
-(populated in Task 32)
+End-to-end walkthrough of a fillup submission — the most useful "data flow" lens for someone new to the system.
+
+1. **User opens the app.** The service worker serves the cached shell instantly. `+page.ts` runs in the browser and fetches the vehicle list from `/api/vehicles` and the last-fuelup snapshot from `/api/vehicle/last-fuelup`. On a successful fetch, the loader writes the raw `GasRecord` to `localStorage` keyed by vehicle id; on failure, it consults `resolveOfflineLastFillup` (cache + IDB queue) and reports `lastFuelupSource: 'offline'`.
+2. **User selects vehicle, enters odometer / volume / cost.** The client-side `canSubmit` derived gates the submit button until all four required fields have non-zero numeric values. The odometer opens pre-filled when `prefs.odometerPrefillEnabled` is true and a last-fuelup is available.
+3. **FX preview.** A `$effect` in the page calls `/api/fx?from=<currency>&to=USD` whenever the currency selector changes; the server consults the FX chain (cache → providers → stale fallback) and returns a rate. If the chain is fully exhausted, the page reveals the manual-rate field.
+4. **User taps "Log fillup".** The page POSTs `FuelSubmissionInput` (with a fresh client-side UUID) to `/api/fuelup`.
+5. **Server-side processing.** `/api/fuelup` validates required fields, calls `convertSubmission()` (units + FX), then `LubeLoggerClient.addGasRecord()` which POSTs form-data to LubeLogger's `POST /api/vehicle/gasrecords/add`. The 60s in-process idempotency map drops duplicate `clientSubmissionId` POSTs. When both containers are co-located in one compose stack, this hop stays on the internal Docker network.
+6. **Response.** 200 with `{ ok: true, submitted: { gallons, cost, fxRate, fxSource, fxStale } }`. The page shows a success toast and appends a `'synced'` row to the IndexedDB queue — a permanent local trail used by the offline resolver on future loads.
+7. **If `/api/fuelup` fails.** A 4xx is a terminal rejection (the page shows a rejection toast and does *not* queue — won't fix itself). Any other failure (network, 5xx) enqueues the submission to IndexedDB with status `'queued'` and shows "Saved locally — will sync". The service worker drains the queue on next app focus or `onMount`, marking each entry `'synced'` on success or `'failed'` on a 4xx replay response.
+
+Cross-cutting details — per-endpoint shapes in [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md); offline queue mechanics in [`docs/technical/offline-queue.md`](./technical/offline-queue.md).

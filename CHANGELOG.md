@@ -47,6 +47,7 @@ All notable changes to this project are documented here. Format roughly follows 
 - `docs/architecture.md` trimmed to a high-level map; details moved to the four new focused technical docs.
 - `README.md` restructured: Built-with-Claude-Code disclosure now at top, new Quick start section, Configuration table moved to `docs/user/configuration.md`, §Contributing now links `docs/uat.md`.
 - `docs/technical/idb-and-api.md` now also documents the LubeLogger upstream call mapping (camelCase reads vs lowercase writes, `LubeLoggerError` semantics, per-request timeout); content consolidated from `docs/api-mapping.md`.
+- `docs/architecture.md` rewritten as a clean high-level map: filled the empty Overview, Data flow, and LubeLogger client sections (previously stale `(populated in Task N)` placeholders); trimmed the over-detailed `/` main-form section that duplicated content now in user/technical docs; added an ASCII system diagram and a fillup-submission data-flow walkthrough.
 
 ### Removed
 
