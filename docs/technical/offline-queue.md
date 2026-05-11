@@ -151,18 +151,15 @@ rows, that **will** need a version bump and an `upgrade()` migration.
 
 ### Quota errors
 
-`localStorage` reads in `src/lib/client/last-fillup.ts` are wrapped in
-`try/catch` (both the `getItem` call and the `JSON.parse`). On any
-failure, the cache contributes no candidate and the resolver falls
-back to the queue alone. The IDB read inside `readQueueCandidates` is
-also wrapped in `try/catch` and degrades to an empty array on failure.
-
 The queue itself doesn't have explicit quota handling — `Queue.enqueue`
 throws on `QuotaExceededError`, which the form's submit path swallows
 via the outer `catch` (the error toast still fires, the entry just
 doesn't land). The synced-row write in `+page.svelte`'s success path
 is wrapped in its own `try/catch` and is fire-and-forget — IDB
 failures don't affect the success toast.
+
+For the localStorage cache + IDB read-side fallback used by the
+prefill resolver, see [`docs/technical/offline-odometer-prefill.md`](./offline-odometer-prefill.md).
 
 ### Private browsing mode
 

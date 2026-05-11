@@ -12,7 +12,7 @@ Source: `src/lib/server/currency.ts`, wired in
 Config: `src/lib/server/env.ts`.
 
 User-facing view: [`docs/user/currency-fx.md`](../user/currency-fx.md).
-Big-picture map: [`docs/architecture.md`](../architecture.md#fx-provider-chain).
+Big-picture map: [`docs/architecture.md`](../architecture.md).
 
 ## Provider chain order
 
@@ -172,7 +172,7 @@ its own error message (`"<name> no rate"`) and the chain moves on.
 
 - [`docs/user/currency-fx.md`](../user/currency-fx.md) — user-facing
   view of the chain, manual override, stale warnings.
-- [`docs/architecture.md`](../architecture.md#fx-provider-chain) —
+- [`docs/architecture.md`](../architecture.md) —
   high-level map; this doc owns the details.
 - `src/lib/server/convert.ts` — conversion orchestrator that combines
   units + currency for the submit path.
