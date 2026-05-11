@@ -13,7 +13,6 @@ docs/superpowers
 .env
 .env.*
 data/
-shortcuts/
 tests/e2e
 tests/integration
 .vscode

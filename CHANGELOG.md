@@ -42,6 +42,7 @@ All notable changes to this project are documented here. Format roughly follows 
 - Untracked `.vscode/extensions.json` to match `.gitignore` intent.
 - `compose.example.yml` image tag → `:latest` for pull-and-restart workflows. Comment block explains the trade-off vs version-pinning.
 - Dropped `EXCHANGERATE_API_KEY` from `.env.example` — the `exchangerate-api` provider isn't part of the supported default chain; code-side cleanup tracked separately.
+- Consolidated `shortcuts/` recipes into `docs/user/shortcuts.md` as quick-reference appendix sections. Top-level `shortcuts/` directory removed; `.dockerignore` updated.
 
 ### Removed
 

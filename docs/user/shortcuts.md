@@ -81,7 +81,7 @@ Then use `[vehicleId]` instead of the hard-coded `1` in the URL Text action.
 
 ### Recipe file
 
-[`shortcuts/quicklog-prefill.shortcut.recipe.md`](../shortcuts/quicklog-prefill.shortcut.recipe.md) — condensed step list.
+[Quick reference — quicklog-prefill](#quick-reference--quicklog-prefill) — condensed step list at the bottom of this page.
 
 ---
 
@@ -196,7 +196,7 @@ Same as Path 1 — insert a Dictionary + Choose from List + Get Dictionary Value
 
 ### Recipe file (Path 2)
 
-[`shortcuts/quicklog-fuelup.shortcut.recipe.md`](../shortcuts/quicklog-fuelup.shortcut.recipe.md) — condensed step list.
+[Quick reference — quicklog-fuelup](#quick-reference--quicklog-fuelup) — condensed step list at the bottom of this page.
 
 ---
 
@@ -222,3 +222,96 @@ To publish: in Shortcuts app, long-press the shortcut → **Share** → **Copy i
 ## Android
 
 Android Shortcuts (Tasker / Macrodroid) are out of scope for v0.1.x. The same `/api/fuelup` JSON endpoint will serve any client; build a Tasker HTTP Request task with the same payload and headers to integrate.
+
+---
+
+## Quick reference — quicklog-fuelup
+
+Voice-driven log: "Hey Siri, log fillup" → 3 spoken prompts → POST to `/api/fuelup` → spoken confirmation. No browser, no UI.
+
+For the full walkthrough with detail on each Shortcuts UI action, see [Path 2 — Direct POST](#path-2--direct-post-voice-friendly) above.
+
+### Actions (in order)
+
+1. **Current Date**
+2. **Format Date** — Format: `Custom`, format string `yyyy-MM-dd` → save as `date`
+3. **UUID** → save as `clientSubmissionId`
+4. **Ask for Input** — Number, prompt "Odometer?" → save as `odometer`
+5. **Ask for Input** — Number, prompt "Volume in gallons?" → save as `volume`
+6. **Ask for Input** — Number, prompt "Cost in dollars?" → save as `cost`
+7. **Dictionary** — JSON body:
+
+   | Key | Type | Value |
+   |---|---|---|
+   | `vehicleId` | Number | `1` (your LubeLogger vehicle id) |
+   | `date` | Text | `[date]` magic var |
+   | `odometer` | Number | `[odometer]` magic var |
+   | `volume` | Number | `[volume]` magic var |
+   | `volumeUnit` | Text | `gal` |
+   | `cost` | Number | `[cost]` magic var |
+   | `currency` | Text | `USD` |
+   | `isFillToFull` | Boolean | `true` |
+   | `missedFuelup` | Boolean | `false` |
+   | `clientSubmissionId` | Text | `[clientSubmissionId]` magic var |
+
+8. **Get Contents of URL** — `https://<your-quicklogger-host>/api/fuelup`
+   - Method: `POST`
+   - Headers: `Content-Type: application/json`
+   - Request Body: `JSON`, drag the Dictionary from step 7
+9. **Get Dictionary Value** — `submitted.gallons` from previous result → save as `loggedGal`
+10. **Get Dictionary Value** — `submitted.cost` from previous result → save as `loggedUsd`
+11. **Speak Text** — `Logged [loggedGal] gallons, [loggedUsd] dollars`
+
+### Install
+
+- Name the shortcut `quicklog-fuelup`.
+- **Share → Add to Home Screen** for one-tap access.
+- **Share → Add Voice Trigger** → "Log fillup" for "Hey Siri, log fillup".
+
+### Multi-vehicle variant
+
+Insert at the top, before step 4:
+
+- **Dictionary** — `Honda Accord: 1`, `VW Atlas: 2`, etc.
+- **Choose from List** — input is the Dictionary keys, prompt "Which vehicle?", save as `vehicleName`
+- **Get Dictionary Value** — `[vehicleName]` from the Dictionary, save as `vehicleId`
+
+Then in step 7 use `[vehicleId]` instead of the hardcoded `1`.
+
+---
+
+## Quick reference — quicklog-prefill
+
+Builds a URL with query params, opens it in Safari. The form mounts pre-filled; you tap **Log fuel** to submit.
+
+For the full walkthrough with detail on each Shortcuts UI action, see [Path 1 — URL deep link](#path-1--url-deep-link-form-opens-pre-filled) above.
+
+### Actions (in order)
+
+1. **Ask for Input** — Number, prompt "Volume" → save as `volume`
+2. **Ask for Input** — Number, prompt "Cost" → save as `cost`
+3. **Text** — build the URL using the magic-variable picker for the saved variables:
+
+   ```
+   https://<your-quicklogger-host>/?vehicleId=1&volume=[volume]&volumeUnit=gal&cost=[cost]&currency=USD&fillToFull=true
+   ```
+
+4. **Open URLs** — drag the Text from step 3 in as the input
+
+The web form mounts pre-filled. User taps **Log fuel** to submit.
+
+### Install
+
+- Name the shortcut `quicklog-prefill`.
+- **Share → Add to Home Screen** for one-tap access.
+- A voice trigger works too but is awkward — you'd say "Log fillup pre-filled" or similar, then dictate the values, then Safari opens, then you still have to tap submit. Path 2 (`quicklog-fuelup`) is the better voice flow.
+
+### Multi-vehicle variant
+
+Insert at the top, before step 1:
+
+- **Dictionary** — `Honda Accord: 1`, `VW Atlas: 2`, etc.
+- **Choose from List** — input is the Dictionary keys, prompt "Which vehicle?", save as `vehicleName`
+- **Get Dictionary Value** — `[vehicleName]` from the Dictionary, save as `vehicleId`
+
+Then in step 3, replace `vehicleId=1` with `vehicleId=[vehicleId]`.
