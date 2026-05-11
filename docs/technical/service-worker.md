@@ -163,7 +163,10 @@ The trigger lives in `src/routes/+layout.svelte`'s `onMount`:
   `navigator.serviceWorker.controller?.postMessage({ type: 'sync-queue' })`.
 - It runs once on mount.
 - It re-runs on every `window` `focus` event.
-- The cleanup function removes the `focus` listener on unmount.
+- It also re-runs on `document` `visibilitychange` when the page
+  becomes visible — belt-and-suspenders for desktop / Android
+  multi-window where a tab can become visible without firing focus.
+- The cleanup function removes both listeners on unmount.
 
 For the full per-entry state machine, response-code branching, and
 attempt-cap semantics, see

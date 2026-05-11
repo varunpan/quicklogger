@@ -29,9 +29,16 @@
     const trigger = () => {
       navigator.serviceWorker.controller?.postMessage({ type: 'sync-queue' });
     };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') trigger();
+    };
     window.addEventListener('focus', trigger);
+    document.addEventListener('visibilitychange', onVisible);
     trigger();
-    return () => window.removeEventListener('focus', trigger);
+    return () => {
+      window.removeEventListener('focus', trigger);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   });
 </script>
 

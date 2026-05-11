@@ -10,6 +10,8 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- Queue replay also triggers on `document` `visibilitychange` (in addition to `window` `focus`), covering desktop and Android multi-window scenarios where a tab can become visible without firing focus. SvelteKit layout `onMount` now wires both listeners and removes both on unmount. See [`docs/technical/service-worker.md`](docs/technical/service-worker.md#queue-replay).
+
 ### Removed
 
 - `exchangerate-api` FX provider — never part of the supported default chain and required a paid API key. Dropped the `FxProviderName` union member, `KNOWN_FX_PROVIDERS` set entry, `realFetcher` switch case, `Env.exchangerateApiKey` field, and the related env tests. `EXCHANGERATE_API_KEY` is no longer recognized; leftover values in `.env` files are silently ignored.
