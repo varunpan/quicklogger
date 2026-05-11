@@ -36,6 +36,8 @@ All notable changes to this project are documented here. Format roughly follows 
   `q.remove(entry.id)`. In-flight queued entries that previously
   disappeared on success now stay as `'synced'` rows.
 - `.gitignore` now blocks ` 2.`-style Finder/iCloud duplicate artifacts.
+- Repo hygiene pass: lint, type-check, tests, build verified green. `npm audit` and `npm outdated` snapshots captured in commit message for follow-up.
+- Untracked `.vscode/extensions.json` to match `.gitignore` intent.
 
 ### Removed
 
