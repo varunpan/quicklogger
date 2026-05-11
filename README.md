@@ -234,14 +234,23 @@ Local dev server, real phone, same WiFi:
 
 **User guides:**
 
+- [`docs/user/app-pages.md`](docs/user/app-pages.md) — tour of the four app pages (Log Fuel / Vehicles / Settings / History)
+- [`docs/user/configuration.md`](docs/user/configuration.md) — full env-var reference
+- [`docs/user/currency-fx.md`](docs/user/currency-fx.md) — entering cost in any currency, server-side conversion
 - [`docs/user/odometer-prefill.md`](docs/user/odometer-prefill.md) — odometer prefill + last-fillup strip
+- [`docs/user/offline-queue.md`](docs/user/offline-queue.md) — how offline submission and replay works from the user's side
 - [`docs/user/shortcuts.md`](docs/user/shortcuts.md) — Apple Shortcuts recipes
 
 **Technical / internals:**
 
-- [`docs/architecture.md`](docs/architecture.md) — modules, FX chain, state, service worker
+- [`docs/architecture.md`](docs/architecture.md) — high-level map of modules, FX chain, state, service worker (details live in the focused docs below)
 - [`docs/api-mapping.md`](docs/api-mapping.md) — endpoint shapes + LubeLogger upstream calls
+- [`docs/technical/fx-chain.md`](docs/technical/fx-chain.md) — provider chain order, cache, resolution flow
+- [`docs/technical/idb-and-api.md`](docs/technical/idb-and-api.md) — full IDB schema + every HTTP endpoint enumerated
 - [`docs/technical/odometer-prefill.md`](docs/technical/odometer-prefill.md) — odometer prefill internals (state model, lifecycle, edge cases)
+- [`docs/technical/offline-odometer-prefill.md`](docs/technical/offline-odometer-prefill.md) — odometer prefill behaviour while offline (cache + queue resolution)
+- [`docs/technical/offline-queue.md`](docs/technical/offline-queue.md) — IDB schema, status state machine, replay path
+- [`docs/technical/service-worker.md`](docs/technical/service-worker.md) — shell cache, install/activate, fetch decision tree
 
 **Operations:**
 
