@@ -154,17 +154,6 @@ export const realFetcher: FxFetcher = async (provider, from, to) => {
       if (typeof rate !== 'number') throw new Error('fawazahmed no rate');
       return { rate };
     }
-    case 'exchangerate-api': {
-      const key = process.env.EXCHANGERATE_API_KEY;
-      if (!key) throw new Error('EXCHANGERATE_API_KEY not set');
-      const url = `https://v6.exchangerate-api.com/v6/${key}/latest/${from}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-      if (!res.ok) throw new Error(`exchangerate-api ${res.status}`);
-      const json = (await res.json()) as { conversion_rates: Record<string, number> };
-      const rate = json.conversion_rates?.[to];
-      if (typeof rate !== 'number') throw new Error('exchangerate-api no rate');
-      return { rate };
-    }
     default:
       throw new Error(`Unknown provider ${provider}`);
   }

@@ -1,7 +1,7 @@
-export type FxProviderName = 'frankfurter' | 'erapi' | 'fawazahmed' | 'exchangerate-api';
+export type FxProviderName = 'frankfurter' | 'erapi' | 'fawazahmed';
 
 const KNOWN_FX_PROVIDERS: ReadonlySet<FxProviderName> = new Set([
-  'frankfurter', 'erapi', 'fawazahmed', 'exchangerate-api'
+  'frankfurter', 'erapi', 'fawazahmed'
 ]);
 
 export interface Env {
@@ -10,7 +10,6 @@ export interface Env {
   lubeloggerVolumeUnit: string;
   lubeloggerCurrency: string;
   fxProviders: FxProviderName[];
-  exchangerateApiKey: string | undefined;
   fxCachePath: string;
   port: number;
   origin: string | undefined;
@@ -45,7 +44,6 @@ export function loadEnv(): Env {
     lubeloggerVolumeUnit: process.env.LUBELOGGER_VOLUME_UNIT ?? 'gallons_us',
     lubeloggerCurrency: process.env.LUBELOGGER_CURRENCY ?? 'USD',
     fxProviders: fxRaw as FxProviderName[],
-    exchangerateApiKey: process.env.EXCHANGERATE_API_KEY,
     fxCachePath: process.env.FX_CACHE_PATH ?? '/data/fx-cache.json',
     port: Number(process.env.PORT ?? 3000),
     origin: process.env.ORIGIN

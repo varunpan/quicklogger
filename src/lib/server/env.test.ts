@@ -5,7 +5,7 @@ const ORIGINAL = { ...process.env };
 
 beforeEach(() => {
   for (const k of Object.keys(process.env)) {
-    if (k.startsWith('LUBELOGGER_') || k.startsWith('FX_') || k === 'EXCHANGERATE_API_KEY') {
+    if (k.startsWith('LUBELOGGER_') || k.startsWith('FX_')) {
       delete process.env[k];
     }
   }
@@ -35,7 +35,6 @@ describe('loadEnv', () => {
     expect(env.lubeloggerCurrency).toBe('USD');
     expect(env.fxProviders).toEqual(['frankfurter', 'erapi', 'fawazahmed']);
     expect(env.fxCachePath).toBe('/data/fx-cache.json');
-    expect(env.exchangerateApiKey).toBeUndefined();
   });
 
   it('parses FX_PROVIDERS as CSV', () => {
@@ -51,12 +50,5 @@ describe('loadEnv', () => {
     process.env.LUBELOGGER_API_KEY = 'abc';
     process.env.FX_PROVIDERS = 'frankfurter,bogus';
     expect(() => loadEnv()).toThrow(/unknown FX provider/i);
-  });
-
-  it('exposes EXCHANGERATE_API_KEY when set', () => {
-    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
-    process.env.LUBELOGGER_API_KEY = 'abc';
-    process.env.EXCHANGERATE_API_KEY = 'xyz';
-    expect(loadEnv().exchangerateApiKey).toBe('xyz');
   });
 });

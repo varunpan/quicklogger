@@ -10,6 +10,10 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+### Removed
+
+- `exchangerate-api` FX provider — never part of the supported default chain and required a paid API key. Dropped the `FxProviderName` union member, `KNOWN_FX_PROVIDERS` set entry, `realFetcher` switch case, `Env.exchangerateApiKey` field, and the related env tests. `EXCHANGERATE_API_KEY` is no longer recognized; leftover values in `.env` files are silently ignored.
+
 ### Tests
 
 ## [0.1.3] — 2026-05-11
