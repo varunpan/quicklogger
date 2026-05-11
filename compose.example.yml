@@ -1,8 +1,12 @@
 # compose.example.yml — fork-friendly drop-in.
 # Copy to docker-compose.yml and edit env vars to point at your LubeLogger.
+#
+# image: this example uses `:latest` so `docker compose pull && up -d`
+# always gets the newest release. If you need reproducible deploys, pin
+# to a specific version like `ghcr.io/varunpan/quicklogger:0.1.3`.
 services:
   quicklogger:
-    image: ghcr.io/varunpan/quicklogger:0.1.2
+    image: ghcr.io/varunpan/quicklogger:latest
     restart: unless-stopped
     environment:
       LUBELOGGER_URL: http://lubelogger:8080         # change to your container/host

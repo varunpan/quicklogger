@@ -39,6 +39,7 @@ All notable changes to this project are documented here. Format roughly follows 
 - `.gitignore` now blocks ` 2.`-style Finder/iCloud duplicate artifacts.
 - Repo hygiene pass: lint, type-check, tests, build verified green. `npm audit` and `npm outdated` snapshots captured in commit message for follow-up.
 - Untracked `.vscode/extensions.json` to match `.gitignore` intent.
+- `compose.example.yml` image tag → `:latest` for pull-and-restart workflows. Comment block explains the trade-off vs version-pinning.
 
 ### Removed
 
