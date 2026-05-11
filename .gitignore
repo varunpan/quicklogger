@@ -41,3 +41,7 @@ docs/superpowers/
 
 # Project-scoped Claude skills (personal workflow, not shared)
 .claude/
+
+# macOS Finder / iCloud duplicate artifacts
+* 2.*
+* [0-9].*

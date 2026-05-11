@@ -35,6 +35,7 @@ All notable changes to this project are documented here. Format roughly follows 
   `q.markSynced(entry.id)` on a successful POST instead of
   `q.remove(entry.id)`. In-flight queued entries that previously
   disappeared on success now stay as `'synced'` rows.
+- `.gitignore` now blocks ` 2.`-style Finder/iCloud duplicate artifacts.
 
 ### Removed
 
