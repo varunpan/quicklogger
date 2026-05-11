@@ -21,7 +21,7 @@ on each device — see [`app-pages.md`](app-pages.md#settings-settings).
 | `FX_PROVIDERS` | comma-separated list | no | `frankfurter,erapi,fawazahmed` | Ordered list of FX providers tried in sequence when the cache is cold or stale. First success wins. |
 | `FX_CACHE_PATH` | filesystem path | no | `/data/fx-cache.json` | On-disk path the server reads/writes for the persistent FX cache. The directory is created if it doesn't exist. |
 | `PORT` | int | no | `3000` | HTTP listen port for the Node server. |
-| `ORIGIN` | URL | no | (unset) | The public origin SvelteKit's CSRF check should accept on POSTs. Set this when you run behind a reverse proxy that terminates a different hostname than the one Node sees. |
+| `ORIGIN` | URL | no | — | The public origin SvelteKit's CSRF check should accept on POSTs. Set this when you run behind a reverse proxy that terminates a different hostname than the one Node sees. |
 
 The startup loader fails fast (`EnvError`) if a required var is missing
 or if `FX_PROVIDERS` contains an unknown provider name.
@@ -56,7 +56,7 @@ Override the default chain when:
 - You're testing one specific provider in isolation.
 
 Supported provider names: `frankfurter`, `erapi`, `fawazahmed`. Any
-other name causes startup to fail with `Unknown FX provider`. Example:
+unsupported name causes startup to fail with `Unknown FX provider`. Example:
 
         FX_PROVIDERS=frankfurter,fawazahmed
 

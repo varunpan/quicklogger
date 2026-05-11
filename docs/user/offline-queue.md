@@ -34,8 +34,9 @@ Each card shows the volume, currency, cost, and two status fields:
 - **`status`** — one of:
   - `queued` — waiting for the next sync run.
   - `failed` — the server rejected it permanently (HTTP 4xx). It will
-    not retry on its own; you'll need to delete the row (clear the IndexedDB
-    store) or accept that the data won't reach LubeLogger.
+    not retry. To clear it, open the row in your browser's devtools →
+    IndexedDB store and delete it, or accept that the entry won't reach
+    LubeLogger.
   - `synced` — already posted successfully. These are kept as local history
     so the offline odometer prefill has something to fall back on (see
     [`odometer-prefill.md`](odometer-prefill.md)).
@@ -50,19 +51,13 @@ that a previous submission really did land upstream.
 
 ## When does sync run?
 
-The service worker tries to drain the queue on these triggers — and only
-these:
+The app tries to drain the queue every time you **open** or **refocus**
+it. That's it — there is no background sync, and nothing happens while
+the tab is closed. If you close the tab/PWA, sync resumes the next time
+you open it. For most use cases this is fine — you'll re-open the app
+within minutes.
 
-1. **App load / focus** — every time `+layout.svelte` mounts and every time
-   the browser fires a `focus` event on the window. The layout's
-   `onMount` posts a `{ type: 'sync-queue' }` message to the active
-   service worker.
-2. **Explicit message** — any code in the app can post the same
-   `sync-queue` message; today only the layout does.
-
-There is no BackgroundSync registration and no periodic polling. If you
-close the tab/PWA, sync will run again the next time you open it. For
-most use cases this is fine — you'll re-open the app within minutes.
+Internals: see [`../technical/offline-queue.md`](../technical/offline-queue.md).
 
 ## What happens on failure
 
@@ -80,7 +75,7 @@ even if its status is still `queued`. This protects against an entry that
 keeps failing in a way the 4xx path doesn't catch (e.g. CORS bug,
 intermittent network).
 
-If you see a row stuck at `attempts: 5 · status: queued`, the simplest
+If a row gets stuck at `attempts: 5 · status: queued`, the simplest
 recovery is:
 
 - Open the form on a working network.

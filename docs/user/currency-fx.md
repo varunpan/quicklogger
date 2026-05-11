@@ -32,12 +32,8 @@ appears above the **Log fillup** button:
 
         Will log: 11.20 Gal · $42.18 USD  ·  28.4 MPG since last fill
 
-The line always shows:
-
-- **`Will log:`** — the converted gallons and USD-equivalent cost the
-  server will receive.
-
-It optionally adds:
+The line always shows the converted gallons and USD-equivalent cost the
+server will receive. It optionally adds:
 
 - **MPG since last fill** — only if there is a previous fillup to
   compare against and the form has a valid odometer reading.
@@ -54,14 +50,15 @@ The browser fetches the live FX rate via `GET /api/fx?from=…&to=…` for
 preview purposes only. The **authoritative** conversion happens
 server-side inside `POST /api/fuelup`, using the same FX provider chain.
 The number stored in LubeLogger is the server's result — even if the
-preview was using a slightly stale cached rate, the server re-fetches and
-uses the freshest available rate at submit time.
+preview was using a slightly stale cached rate, the server re-runs the
+same FX chain at submit time and uses its result (which may be a cached
+rate younger than 24h, or a freshly fetched one if the cache is stale).
 
 ## FX freshness
 
 The server caches FX rates on disk (path configurable via
-`FX_CACHE_PATH`, default `/data/fx-cache.json`). Two freshness windows
-apply:
+`FX_CACHE_PATH`, default `/data/fx-cache.json`). Two windows apply (plus
+an expiry boundary):
 
 - **Fresh (≤ 24h)** — the cached rate is used directly. No upstream
   provider call is made.

@@ -52,8 +52,7 @@ and will sync later; red = LubeLogger rejected it (fix and retry).
 
 A flat list of every vehicle LubeLogger knows about. Each tile shows:
 
-- A generic car icon (LubeLogger photos aren't served — see release
-  notes for v0.1.1 on the upstream proxy issue).
+- A generic car icon (LubeLogger photos aren't served).
 - The vehicle's year + make + model, joined with spaces, skipping
   blanks.
 - The LubeLogger vehicle id underneath (small grey text). Useful for
@@ -90,14 +89,12 @@ currency, FX provider chain), see [`configuration.md`](configuration.md).
 | **Odometer prefill** | `On` / `Off` toggle. Off = form opens with an empty odometer field; the `+N mi` chip is also hidden. | `odometerPrefillEnabled` (bool, default `true`) |
 | **Quick increment (mi)** | Number input. The `+N mi` chip below the odometer field adds this many miles per tap. Set to `0` to hide the chip while keeping the prefilled value. | `odometerIncrementMi` (int, default `300`) |
 
-Two implicit fields are also persisted but have no UI on this page:
-
-- `lastVehicleId` — set automatically whenever you pick a vehicle on
-  `/vehicles` or submit a fillup. The Log Fuel page falls back to this
-  when no `vehicleId` query param is present.
-- These four fields plus `lastVehicleId` are all of `prefs`. The
-  `DEFAULT_PREFS` constant in `src/lib/client/prefs.ts` is the source of
-  truth.
+One field is also persisted but has no UI on this page: `lastVehicleId`,
+set automatically when you pick a vehicle on `/vehicles` or submit a
+fillup. The Log Fuel page falls back to this when no `vehicleId` query
+param is present. The full set of persisted fields (these four plus
+`lastVehicleId`) is defined by `DEFAULT_PREFS` in
+`src/lib/client/prefs.ts`.
 
 A small footer reminds you:
 
