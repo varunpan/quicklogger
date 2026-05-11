@@ -46,10 +46,12 @@ All notable changes to this project are documented here. Format roughly follows 
 - Consolidated `shortcuts/` recipes into `docs/user/shortcuts.md` as quick-reference appendix sections. Top-level `shortcuts/` directory removed; `.dockerignore` updated.
 - `docs/architecture.md` trimmed to a high-level map; details moved to the four new focused technical docs.
 - `README.md` restructured: Built-with-Claude-Code disclosure now at top, new Quick start section, Configuration table moved to `docs/user/configuration.md`, §Contributing now links `docs/uat.md`.
+- `docs/technical/idb-and-api.md` now also documents the LubeLogger upstream call mapping (camelCase reads vs lowercase writes, `LubeLoggerError` semantics, per-request timeout); content consolidated from `docs/api-mapping.md`.
 
 ### Removed
 
 - macOS Finder-duplicate artifacts that landed in the working tree via iCloud sync.
+- `docs/api-mapping.md` — content folded into `docs/technical/idb-and-api.md`. Single canonical place for HTTP API + LubeLogger upstream mapping.
 
 ### Tests
 

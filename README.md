@@ -244,9 +244,8 @@ Local dev server, real phone, same WiFi:
 **Technical / internals:**
 
 - [`docs/architecture.md`](docs/architecture.md) — high-level map of modules, FX chain, state, service worker (details live in the focused docs below)
-- [`docs/api-mapping.md`](docs/api-mapping.md) — endpoint shapes + LubeLogger upstream calls
 - [`docs/technical/fx-chain.md`](docs/technical/fx-chain.md) — provider chain order, cache, resolution flow
-- [`docs/technical/idb-and-api.md`](docs/technical/idb-and-api.md) — full IDB schema + every HTTP endpoint enumerated
+- [`docs/technical/idb-and-api.md`](docs/technical/idb-and-api.md) — full IDB schema, every HTTP endpoint enumerated, plus the LubeLogger upstream call mapping
 - [`docs/technical/odometer-prefill.md`](docs/technical/odometer-prefill.md) — odometer prefill internals (state model, lifecycle, edge cases)
 - [`docs/technical/offline-odometer-prefill.md`](docs/technical/offline-odometer-prefill.md) — odometer prefill behaviour while offline (cache + queue resolution)
 - [`docs/technical/offline-queue.md`](docs/technical/offline-queue.md) — IDB schema, status state machine, replay path

@@ -13,8 +13,9 @@ server expose to each other:
 For the lifecycle and state-machine view of the queue see
 [`docs/technical/offline-queue.md`](./offline-queue.md). For the FX
 chain that backs `/api/fx` and the FX side of `/api/fuelup` see
-[`docs/technical/fx-chain.md`](./fx-chain.md). For LubeLogger-side
-mapping see [`docs/api-mapping.md`](../api-mapping.md).
+[`docs/technical/fx-chain.md`](./fx-chain.md). The LubeLogger
+upstream calls that back these endpoints are mapped at the end of
+this document under § *LubeLogger upstream calls*.
 
 ## IndexedDB
 
@@ -81,10 +82,25 @@ Source: `src/lib/shared/types.ts`.
 
 ## HTTP API
 
-All endpoints live under `src/routes/api/`. No app-side authentication
-— these routes assume same-origin requests from the page or the
-service worker, and the server-side LubeLogger key (`LUBELOGGER_API_KEY`,
-loaded via `loadEnv()`) authenticates the upstream calls.
+All endpoints live under `src/routes/api/`, plus the top-level
+`/healthz` liveness probe at `src/routes/healthz/`. No app-side
+authentication — these routes assume same-origin requests from the
+page or the service worker, and the server-side LubeLogger key
+(`LUBELOGGER_API_KEY`, loaded via `loadEnv()`) authenticates the
+upstream calls.
+
+### `GET /healthz`
+
+Source: `src/routes/healthz/+server.ts`. Liveness + LubeLogger
+reachability probe. The container's Dockerfile `HEALTHCHECK` and any
+reverse-proxy health probe hit this.
+
+| Field | Value |
+|---|---|
+| Request | No params. |
+| Behaviour | Calls `LubeLoggerClient.listVehicles()` with a 2-second timeout (override of the client's 5 s default). |
+| Response 200 | `{ ok: true }` — upstream reachable within the window. |
+| Response 503 | `{ ok: false, error: string }` — any thrown error (env missing, timeout, LubeLogger non-2xx, network failure). |
 
 ### `GET /api/vehicles`
 
@@ -184,11 +200,93 @@ entry `'queued'` for the next sync trigger.
 SvelteKit static handler — not an `+server.ts` route. It's precached
 by the service worker via the `files` array.
 
+## LubeLogger upstream calls
+
+The server module `src/lib/server/lubelogger.ts` is the only place
+quicklogger talks to LubeLogger. Every request carries
+`x-api-key: ${LUBELOGGER_API_KEY}` and targets `${LUBELOGGER_URL}`.
+
+### Client surface
+
+`LubeLoggerClient` (instantiated per request inside each route
+handler) exposes three methods mapped to LubeLogger's REST API:
+
+| quicklogger method | LubeLogger endpoint | Returns |
+|---|---|---|
+| `listVehicles()` | `GET /api/vehicles` | `Vehicle[]` |
+| `listGasRecords(vehicleId)` | `GET /api/vehicle/gasrecords?vehicleId=N` | `GasRecord[]` |
+| `addGasRecord(vehicleId, payload)` | `POST /api/vehicle/gasrecords/add?vehicleId=N` | `void` (body discarded) |
+
+### Timeout
+
+Per-request timeout defaults to **5 seconds** (`timeoutMs ?? 5_000` in
+the `LubeLoggerClient` constructor). The `/healthz` route overrides
+this to 2 seconds; all other routes accept the 5 s default.
+Cancellation uses `AbortSignal.timeout(timeoutMs)` — the underlying
+`fetch` is aborted on expiry.
+
+### `addGasRecord` form-data fields
+
+`POST /api/vehicle/gasrecords/add` takes `multipart/form-data`. The
+client sends the payload **lowercase** because LubeLogger's POST
+handler is case-insensitive on form-data field names — the
+`AddGasRecordPayload` interface enforces the casing at the type level
+so the wire shape stays consistent.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `date` | `string` | yes | `M/D/YYYY` — `/api/fuelup` derives this from the ISO submission date via `isoToLubeloggerDate`. |
+| `odometer` | `string` | yes | Integer-as-string. |
+| `fuelconsumed` | `string` | yes | Decimal-as-string, in LubeLogger's configured volume unit (`gallons_us` by default; written with `.toFixed(3)`). |
+| `isfilltofull` | `string` | yes | `'true'` \| `'false'`. |
+| `missedfuelup` | `string` | yes | `'true'` \| `'false'`. |
+| `cost` | `string` | no | Decimal-as-string, in LubeLogger's configured currency (`.toFixed(2)`). |
+| `notes` | `string` | no | Optional free text. |
+| `tags` | `string` | no | Optional, comma-separated on the LubeLogger side. |
+
+### `GasRecord` (response shape from `listGasRecords`)
+
+LubeLogger serializes gas records as JSON with **camelCase** keys.
+All values are LubeLogger-style stringified — dates included.
+
+| Field | Type | Optional |
+|---|---|---|
+| `id` | `string` | no |
+| `vehicleId` | `string` | no |
+| `date` | `string` (`M/D/YYYY`) | no |
+| `odometer` | `string` | no |
+| `fuelConsumed` | `string` | no |
+| `cost` | `string` | yes |
+| `fuelEconomy` | `string` | yes |
+| `isFillToFull` | `string` (`'True'` \| `'False'`) | yes |
+| `missedFuelUp` | `string` (`'True'` \| `'False'`) | yes |
+| `notes` | `string` | yes |
+| `tags` | `string` (comma-separated) | yes |
+| `extraFields`, `files` | `unknown[]` | yes (usually empty) |
+
+The casing asymmetry — camelCase reads, lowercase writes — is
+LubeLogger's own quirk. `GasRecord` and `AddGasRecordPayload` mirror
+both directions so the type system catches drift.
+
+### Error handling — `LubeLoggerError`
+
+Any non-2xx response throws `LubeLoggerError extends Error` with:
+
+| Property | Type | Source |
+|---|---|---|
+| `name` | `'LubeLoggerError'` | Set in the constructor; route handlers can `instanceof`-check. |
+| `status` | `number` | The upstream HTTP status. |
+| `body` | `string` | Raw response body text (or `''` if reading failed). |
+| `message` | `string` | `` `LubeLogger ${status}: ${body.slice(0, 200)}` `` |
+
+The route handlers use this for status-class routing — `/api/vehicles`
+and `/api/vehicle/last-fuelup` re-emit any `LubeLoggerError` as a
+quicklogger 502; `/api/fuelup` re-emits 4xx with the same status code
+(so the SW replay marks the entry `'failed'`) and 5xx as a 502
+(so the SW leaves the entry `'queued'`).
+
 ## Cross-references
 
-- [`docs/api-mapping.md`](../api-mapping.md) — how these endpoints
-  map onto upstream LubeLogger's `/api/vehicles` and
-  `/api/vehicle/gasrecords*` calls.
 - [`docs/technical/offline-queue.md`](./offline-queue.md) — queue
   lifecycle and replay path.
 - [`docs/technical/fx-chain.md`](./fx-chain.md) — the FX side of

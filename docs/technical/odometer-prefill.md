@@ -127,7 +127,8 @@ number) until v0.1.3 UAT caught it. Mocks at `tests/e2e/fixtures.ts`,
 must mirror the real shape so the test suite actually catches contract
 drift. The asymmetric write path (`AddGasRecordPayload` stays lowercase
 because LubeLogger's POST is case-insensitive on form-data) is documented
-in `docs/api-mapping.md`.
+in [`docs/technical/idb-and-api.md`](./idb-and-api.md) § *LubeLogger
+upstream calls*.
 
 ## Future considerations
 
