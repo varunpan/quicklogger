@@ -2,7 +2,11 @@
 
 Mobile-first PWA for logging fuel fill-ups to a self-hosted [LubeLogger](https://lubelogger.com) instance.
 
-> **Status:** v0.1.3 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
+> **Status:** v0.1.3 — in-flight. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
+
+## Built with Claude Code
+
+This project was developed with [Claude Code](https://claude.com/claude-code) — design, implementation, tests, infra, and docs were paired with Anthropic's coding assistant. Code is reviewed and decisions are made by a human; the assistant did the typing.
 
 ## Why
 
@@ -22,6 +26,23 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
 | :---: | :---: | :---: | :---: |
 | ![Log Fuel form](docs/screenshots/form.jpeg) | ![Vehicle picker](docs/screenshots/vehicles.jpeg) | ![Settings](docs/screenshots/settings.jpeg) | ![History](docs/screenshots/history.jpeg) |
 
+## Quick start
+
+The fastest path to running quicklogger — standalone container, single host, no other services on the network. Five commands:
+
+```sh
+git clone https://github.com/varunpan/quicklogger.git
+cd quicklogger
+cp compose.example.yml docker-compose.yml
+cp .env.example .env
+# Edit .env — set LUBELOGGER_URL and LUBELOGGER_API_KEY
+docker compose up -d
+```
+
+quicklogger now serves on `http://localhost:3000`. Open it on your phone (same network), confirm your fleet appears under **Vehicles**, log a small dummy fill, and you're done.
+
+For deployment behind a reverse proxy alongside an existing LubeLogger stack, see [Self-hosting](#self-hosting) below.
+
 ## Self-hosting
 
 ### Prerequisites
@@ -30,20 +51,7 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
 - A running LubeLogger instance with an **Editor**-scope API key (LubeLogger → Setup → API Keys)
 - A way to expose HTTPS to the phone you'll log from (Traefik, Caddy, Cloudflare Tunnel, Tailscale Funnel, etc.). Plain HTTP works on a LAN, but iOS won't install the PWA.
 
-### Pattern 1 — standalone stack
-
-```sh
-git clone https://github.com/varunpan/quicklogger.git
-cd quicklogger
-cp compose.example.yml docker-compose.yml
-# Edit docker-compose.yml — point LUBELOGGER_URL at your instance
-echo "LUBELOGGER_API_KEY=<your editor-scope key>" > .env
-docker compose up -d
-```
-
-quicklogger serves on port 3000. Front it with your reverse proxy.
-
-### Pattern 2 — alongside LubeLogger in the same compose stack (recommended)
+### Alongside an existing LubeLogger stack
 
 If you already run LubeLogger in a `docker compose` stack, drop quicklogger in next to it. Talking to LubeLogger over Docker DNS skips a public network round-trip:
 
@@ -100,20 +108,6 @@ For Caddy, nginx, or Cloudflare Tunnel: same idea — proxy `https://quicklog.ex
 3. Tap **☰** → **Vehicles** → confirm your fleet from LubeLogger appears.
 4. Go back to **Log fillup**, enter a small dummy fill, submit. Confirm it lands in LubeLogger.
 
-### Configuration
-
-| Var | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `LUBELOGGER_URL` | yes | — | URL of your LubeLogger (use container DNS if same network) |
-| `LUBELOGGER_API_KEY` | yes | — | Editor-scope API key from LubeLogger |
-| `LUBELOGGER_VOLUME_UNIT` | no | `gallons_us` | Currently only `gallons_us` is supported in v0.1 |
-| `LUBELOGGER_CURRENCY` | no | `USD` | Target currency for storage |
-| `FX_PROVIDERS` | no | `frankfurter,erapi,fawazahmed` | CSV chain order |
-| `EXCHANGERATE_API_KEY` | no | — | If set, prepends `exchangerate-api` to the chain |
-| `FX_CACHE_PATH` | no | `/data/fx-cache.json` | Persistent FX cache path |
-| `PORT` | no | `3000` | App listen port |
-| `ORIGIN` | no | — | SvelteKit CSRF origin (set to your public URL) |
-
 ## Security posture
 
 Defaults intended to be reasonable for a single-user homelab tool. The deeper write-up lives in [`docs/deployment.md`](docs/deployment.md) § *Hardening the runtime* — short version:
@@ -124,6 +118,20 @@ Defaults intended to be reasonable for a single-user homelab tool. The deeper wr
 - **Recommended compose hardening** (in both compose patterns above): `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`, plus a 16 MB tmpfs for `/tmp`. Verified per-release.
 - **Secrets surface**: `LUBELOGGER_API_KEY` (Editor-scope on your LubeLogger). Sits in `.env`, never logged. If it leaks, rotate it in LubeLogger.
 - **What's still your responsibility**: rate-limiting / WAF in front (CrowdSec, Traefik middlewares); TLS cert management; network segmentation; LubeLogger's own threat model.
+
+## Configuration
+
+Minimum vars to run:
+
+| Var | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `LUBELOGGER_URL` | yes | — | URL of your LubeLogger (use container DNS if same network) |
+| `LUBELOGGER_API_KEY` | yes | — | Editor-scope API key from LubeLogger |
+| `LUBELOGGER_CURRENCY` | no | `USD` | Target currency for storage |
+| `ORIGIN` | no | — | SvelteKit CSRF origin (set to your public URL) |
+| `PORT` | no | `3000` | App listen port |
+
+For the full reference (every var, type, default, override scenarios), see [`docs/user/configuration.md`](docs/user/configuration.md).
 
 ## Development
 
@@ -254,10 +262,7 @@ PRs welcome. The repo is small enough to read in one sitting:
    ```
 
 4. Branch protection on `main` requires a green `lint-and-test` check and a PR (no direct pushes).
-
-## Built with Claude Code
-
-This project was developed with [Claude Code](https://claude.com/claude-code) — design, implementation, tests, infra, and docs were paired with Anthropic's coding assistant. Code is reviewed and decisions are made by a human; the assistant did the typing.
+5. For changes that touch visible UI, run through [`docs/uat.md`](docs/uat.md) on a real phone before requesting review.
 
 ## License
 

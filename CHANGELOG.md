@@ -45,6 +45,7 @@ All notable changes to this project are documented here. Format roughly follows 
 - Dropped `EXCHANGERATE_API_KEY` from `.env.example` — the `exchangerate-api` provider isn't part of the supported default chain; code-side cleanup tracked separately.
 - Consolidated `shortcuts/` recipes into `docs/user/shortcuts.md` as quick-reference appendix sections. Top-level `shortcuts/` directory removed; `.dockerignore` updated.
 - `docs/architecture.md` trimmed to a high-level map; details moved to the four new focused technical docs.
+- `README.md` restructured: Built-with-Claude-Code disclosure now at top, new Quick start section, Configuration table moved to `docs/user/configuration.md`, §Contributing now links `docs/uat.md`.
 
 ### Removed
 
