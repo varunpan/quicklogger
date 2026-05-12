@@ -6,11 +6,66 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Photo OCR for gas-pump displays.** New camera chip between Volume
+  and Cost on the main form. Tap → iOS camera → server-side OCR (local
+  ollama, OpenRouter Gemini Flash Lite fallback) → confirm chip with
+  `[Use]` / `[Discard]` that populates Volume, Volume unit, and Cost.
+  Cross-field consistency (cost ≈ volume × price/unit within 5%) guards
+  against OCR confusion.
+- **Photo OCR for odometer readings.** Smaller camera chip inside the
+  Odometer cell. Reads either a dashboard odometer or a phone-app
+  screenshot showing mileage. Client-side relative-range check vs the
+  last fillup (≥ last, ≤ last + 2000 mi) surfaces an amber warning
+  chip when out-of-band.
+- **`POST /api/ocr`** — multipart photo → discriminated `OcrResult` JSON
+  (pump or odometer). **`GET /api/ocr`** — status probe returning
+  `{ enabled, modes? }`. Receipt mode is wire-accepted but returns 501
+  (reserved for v0.2.1). See
+  [`docs/technical/idb-and-api.md`](docs/technical/idb-and-api.md).
+- **Provider chain.** When both ollama and OpenRouter are configured,
+  ollama is tried first; OpenRouter is the single bounded fallback.
+  Audit log records which provider actually served the request and
+  whether a fallback occurred.
+- **Per-IP sliding-window rate limit** (default 20/hr) and
+  **daily $ budget** (default $1.00 USD/day, UTC rollover) — both
+  fail-closed, mapped to 429 / 402.
+- **HMAC-keyed JSONL audit log** at `/data/ocr-audit.jsonl`. Records
+  HMAC-hashed IP (HMAC key auto-generated to `/data/ocr-audit-key.txt`
+  on first run with `0600` perms, or overridden via
+  `OCR_AUDIT_HMAC_KEY`), SHA-256 image hash, parsed numeric fields,
+  latency, provider, and fallback flag. No raw IPs, no pixels. Rotates
+  destructively at 10 MiB.
+- **17 new env vars** — all optional with defaults. Feature activates
+  iff `OLLAMA_VISION_URL` or `OPENROUTER_API_KEY` is set. Full
+  reference: [`docs/user/configuration.md`](docs/user/configuration.md#photo-ocr-v020).
+- **Client image preprocess** (`resizeForOcr`) — 1024 px long edge,
+  JPEG q=0.8, EXIF stripped via Canvas re-encode. Honors EXIF
+  orientation via `createImageBitmap({ imageOrientation: 'from-image' })`
+  where available. GPS coordinates never leave the device.
+- **Client fetch timeout** — 90 s `AbortSignal.timeout` on `/api/ocr`
+  POST; surfaces a "OCR took too long" toast on timeout.
+- New user guide: [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md).
+  Internals doc:
+  [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
+
 ### Changed
+
+- `.env.example` and `compose.example.yml` gain a commented Photo OCR
+  block with placeholders.
 
 ### Fixed
 
 ### Tests
+
+- Unit suites: `ocrRateLimit`, `ocrBudget`, `ocrAudit` (incl. HMAC key
+  resolution), `ocrProviders` (Ollama, OpenRouter, Chain — msw-backed),
+  `ocrModes` (per-mode prompt/schema/validators incl. pump cross-field
+  drift), `ocr` (sniff, `selectProvider`, `runOcrPipeline`),
+  `routes/api/ocr` (POST + GET, status codes, rate-limit, mode
+  whitelist).
+- e2e spec [`tests/e2e/ocr-flow.spec.ts`](tests/e2e/ocr-flow.spec.ts):
+  pump happy path, pump discard, odometer happy path, odometer warnings
+  (lower / too-high), chips-hidden-when-disabled, 429/502/422 toasts.
 
 ## [0.1.4] — 2026-05-13
 
