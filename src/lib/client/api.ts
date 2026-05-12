@@ -1,6 +1,9 @@
 import type {
   FuelSubmissionInput,
-  FuelSubmissionResult
+  FuelSubmissionResult,
+  OcrResult,
+  OcrStatus,
+  OcrMode
 } from '$lib/shared/types';
 import type { Vehicle, GasRecord, Reminder } from '$lib/server/lubelogger';
 
@@ -52,6 +55,53 @@ export async function listReminders(vehicleId: number, fetchImpl = fetch): Promi
     const text = await res.text().catch(() => '');
     const err = new Error(`reminders ${res.status}${text ? `: ${text}` : ''}`);
     (err as Error & { status?: number }).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function getOcrStatus(fetchImpl = fetch): Promise<OcrStatus> {
+  const res = await fetchImpl('/api/ocr');
+  if (!res.ok) return { enabled: false };
+  return res.json();
+}
+
+export interface OcrError extends Error {
+  status?: number;
+  retryAfter?: number;
+}
+
+export async function postOcr(
+  image: Blob,
+  mode: OcrMode,
+  fetchImpl = fetch
+): Promise<OcrResult> {
+  const fd = new FormData();
+  fd.set('image', image, 'capture.jpg');
+  fd.set('mode', mode);
+  // 90s client-side timeout — generous enough for ollama CPU inference,
+  // shorter than indefinite hang on broken network.
+  let res: Response;
+  try {
+    res = await fetchImpl('/api/ocr', {
+      method: 'POST',
+      body: fd,
+      signal: AbortSignal.timeout(90_000)
+    });
+  } catch (err) {
+    const e: OcrError = new Error(`ocr network: ${(err as Error).message}`);
+    // AbortSignal.timeout DOM exception name is 'TimeoutError'
+    if ((err as { name?: string }).name === 'TimeoutError') e.status = 0;
+    throw e;
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const err: OcrError = new Error(`ocr ${res.status}: ${text}`);
+    err.status = res.status;
+    if (res.status === 429) {
+      const ra = res.headers.get('retry-after');
+      err.retryAfter = ra ? Number(ra) : 60;
+    }
     throw err;
   }
   return res.json();

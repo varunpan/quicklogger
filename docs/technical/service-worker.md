@@ -190,6 +190,25 @@ realistic UX on iOS Safari.
 Implication: a queued entry will not sync in the background while the
 tab is hidden. It syncs when the user comes back.
 
+## `/api/ocr` pass-through (v0.2.0+)
+
+The OCR endpoint is intentionally **not cached and not queued for replay**:
+
+- POST requests are already excluded by the SW's `req.method !== 'GET'`
+  guard — image POSTs go straight to the network with no SW involvement.
+- GET probes (`getOcrStatus`) fall through the network-first `/api/`
+  branch; on failure the loader catches the rejection and treats it as
+  `enabled: false`, hiding the camera affordances. No retry, no cached
+  status.
+- Image blobs are deliberately **not** stored in IndexedDB for offline
+  replay. Reasons: (a) ~300 KB per image bloats IDB fast; (b) by the
+  time network returns, the user has typically typed values manually;
+  (c) an OCR result arriving minutes later out-of-context is worse UX
+  than no OCR at all.
+
+No code change required in `src/service-worker.ts` — the existing
+network-first `/api/` branch is already correct for OCR's needs.
+
 ## Cross-references
 
 - [`docs/technical/offline-queue.md`](./offline-queue.md) — full

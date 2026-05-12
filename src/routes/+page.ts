@@ -1,12 +1,13 @@
 import type { PageLoad } from './$types';
 import { browser } from '$app/environment';
-import { listVehicles, lastFuelup } from '$lib/client/api';
+import { listVehicles, lastFuelup, getOcrStatus } from '$lib/client/api';
 import {
   resolveOfflineLastFillup,
   lastFuelupCacheKey,
   type LastFillupRecord,
   type LastFillupSource
 } from '$lib/client/last-fillup';
+import type { OcrMode, OcrStatus } from '$lib/shared/types';
 
 export const load: PageLoad = async ({ fetch, url }) => {
   const vehicles = await listVehicles(fetch).catch(() => []);
@@ -19,8 +20,6 @@ export const load: PageLoad = async ({ fetch, url }) => {
   if (targetVehicle) {
     const upstream = await lastFuelup(targetVehicle.id, fetch).catch(() => null);
     if (upstream) {
-      // Normalize to LastFillupRecord shape so the page consumes a single
-      // type. costCurrency stays null because upstream is already FX'd.
       lastFuelupRecord = {
         date: String(upstream.date ?? ''),
         odometer: String(upstream.odometer ?? ''),
@@ -46,11 +45,17 @@ export const load: PageLoad = async ({ fetch, url }) => {
     }
   }
 
+  const ocrStatus: OcrStatus = await getOcrStatus(fetch).catch(() => ({ enabled: false }));
+  const ocrEnabled = ocrStatus.enabled;
+  const ocrModes: OcrMode[] = ocrEnabled && ocrStatus.modes ? ocrStatus.modes : [];
+
   return {
     vehicles,
     initialVehicle: targetVehicle,
     lastFuelup: lastFuelupRecord,
     lastFuelupSource,
+    ocrEnabled,
+    ocrModes,
     prefill: {
       vehicleId: url.searchParams.get('vehicleId'),
       volume: url.searchParams.get('volume'),
