@@ -83,6 +83,17 @@ key to the authenticated user (or move the bucket to `/data`). Returns
 `{ allowed: true }` or `{ allowed: false, retryAfterSec }`; the `/api/ocr`
 handler maps the false case to a 429 with `Retry-After` header.
 
+### OCR daily budget (`src/lib/server/ocrBudget.ts`)
+
+Daily $ cap for cloud OCR calls. Persisted at `/data/ocr-budget.json` as a
+single object `{ date: 'YYYY-MM-DD' (UTC), calls, costCents }`. Tally rolls
+over at `00:00 UTC`. `check()` returns `{ ok: false }` once
+`costCents > OCR_DAILY_BUDGET_USD * 100` — the route handler maps that to
+`402 Payment Required`. `add(costCents)` records each successful call;
+ollama records 0 (local inference), OpenRouter records the per-call
+estimate (~0.006 cents for Gemini Flash Lite). At the $1/day default,
+that's ~16,000 OpenRouter calls/day before the budget closes.
+
 ## Frontend
 
 ### State management
