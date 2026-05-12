@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, statSync, existsSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey, type AuditRecord } from './ocrAudit';
@@ -107,7 +107,7 @@ describe('resolveAuditHmacKey', () => {
 
   it('reads an existing file when no env override', () => {
     const seed = Buffer.from('persisted-key');
-    require('node:fs').writeFileSync(keyPath, seed);
+    writeFileSync(keyPath, seed);
     const k = resolveAuditHmacKey({ ocrAuditHmacKey: undefined, ocrAuditKeyPath: keyPath });
     expect(k.equals(seed)).toBe(true);
   });
