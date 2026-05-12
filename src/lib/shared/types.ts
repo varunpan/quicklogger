@@ -26,3 +26,28 @@ export interface FuelSubmissionResult {
     fxStale?: boolean;
   };
 }
+
+// --- Photo OCR (v0.2.0+) ---
+// Wire format accepts 'receipt' (returns 501 in v0.2.0); the OcrMode union
+// captures only modes the dispatcher actively handles.
+export type OcrMode = 'pump' | 'odometer';
+
+export interface OcrPumpResult {
+  mode: 'pump';
+  volume: number;
+  volumeUnit: VolumeUnit;
+  cost: number;
+  pricePerUnit: number;
+}
+
+export interface OcrOdometerResult {
+  mode: 'odometer';
+  odometer: number;
+}
+
+export type OcrResult = OcrPumpResult | OcrOdometerResult;
+
+export interface OcrStatus {
+  enabled: boolean;
+  modes?: OcrMode[];
+}
