@@ -124,7 +124,7 @@ const ODOMETER_CONTRACT: ModeContract<OcrOdometerResult> = {
   // no validateCrossField — single field
 };
 
-export const MODES: Record<OcrMode, ModeContract> = {
-  pump: PUMP_CONTRACT as ModeContract,
-  odometer: ODOMETER_CONTRACT as ModeContract
-};
+export const MODES = {
+  pump: PUMP_CONTRACT,
+  odometer: ODOMETER_CONTRACT
+} satisfies Record<OcrMode, ModeContract>;

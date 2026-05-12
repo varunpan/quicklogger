@@ -4,6 +4,7 @@ import {
 	OllamaOcrProvider, OpenRouterOcrProvider
 } from './ocrProviders';
 import { MODES } from './ocrModes';
+import type { ModeContract } from './ocrModes';
 import type { OcrMode, OcrResult } from '$lib/shared/types';
 
 export type ImageType = 'jpeg' | 'png' | 'webp' | 'heic';
@@ -88,7 +89,12 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 	if (!imageType) {
 		return { ok: false, statusCode: 415, error: 'unsupported image type', imageType: null, latencyMs: Date.now() - t0 };
 	}
-	const contract = MODES[input.mode];
+	// Cast to the base ModeContract so the dispatcher can pass the union result
+	// type back into validateRanges / validateCrossField. MODES preserves per-mode
+	// specificity at the call site (MODES.pump → ModeContract<OcrPumpResult>), but
+	// when keyed by a runtime OcrMode here, TypeScript widens to the union of
+	// contracts, whose validate* methods have incompatible parameter types.
+	const contract: ModeContract = MODES[input.mode];
 	if (!contract) {
 		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
 	}
