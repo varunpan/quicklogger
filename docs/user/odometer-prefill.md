@@ -12,7 +12,7 @@ appear:
 
 1. **Last-fillup strip** at the top, above the vehicle picker:
 
-        Last fill: 87,234 mi · 7 days ago
+        Last fill: 87,234 mi · May 5, 2026 (7 days ago)
         10.8 Gal · $39.42 · Costco Pump 4
 
    The strip is read-only — it's there so you can sanity-check what the
@@ -79,7 +79,7 @@ Next time you open the form and the server is unreachable, you'll see the
 last-fillup strip with a small amber **`offline copy`** tag next to the
 date:
 
-        Last fill: 87,234 mi · 2 days ago  [offline copy]
+        Last fill: 87,234 mi · May 3, 2026 (2 days ago)  [offline copy]
         11.50 Gal · CAD 60.00
 
 The odometer prefill works exactly like online — the field opens with the

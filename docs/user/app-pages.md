@@ -15,7 +15,7 @@ first open quicklogger picks the first vehicle returned by LubeLogger.
 If the selected vehicle has a previous fillup, two muted text lines
 appear above the vehicle picker:
 
-        Last fill: 87,234 mi · 7 days ago
+        Last fill: 87,234 mi · May 5, 2026 (7 days ago)
         10.80 Gal · $39.42 · Costco Pump 4
 
 Source is either the live LubeLogger fetch or, when offline, a local

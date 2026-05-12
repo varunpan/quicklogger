@@ -8,6 +8,8 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- Last-fillup strip now shows the absolute date alongside the relative phrase: `Last fill: 45,123 mi · May 5, 2026 (7 days ago)` instead of `7 days ago` alone. Locale pinned to en-US for cross-device determinism. New `formatLastFillupDate` helper in `src/lib/client/format.ts` (unit-tested in `format.test.ts`).
+
 ### Fixed
 
 - Queue replay also triggers on `document` `visibilitychange` (in addition to `window` `focus`), covering desktop and Android multi-window scenarios where a tab can become visible without firing focus. SvelteKit layout `onMount` now wires both listeners and removes both on unmount. See [`docs/technical/service-worker.md`](docs/technical/service-worker.md#queue-replay).

@@ -11,8 +11,10 @@ sits in the bigger picture: see the `/` page section in
 ## Files
 
 - [`src/lib/client/format.ts`](../../src/lib/client/format.ts) — pure
-  `formatOdometer` (thousands-separator render) and `daysAgo` (calendar-day
-  diff against local clock). Unit-tested in `format.test.ts`.
+  `formatOdometer` (thousands-separator render), `daysAgo` (calendar-day
+  diff against local clock), and `formatLastFillupDate` (combined
+  `Mon D, YYYY (N days ago)` for the strip). Unit-tested in
+  `format.test.ts`.
 - [`src/lib/client/prefs.ts`](../../src/lib/client/prefs.ts) — adds the two
   new prefs to `Prefs` and `DEFAULT_PREFS`. Migration is free via the
   existing spread-merge in `loadPrefs()`.
@@ -129,6 +131,17 @@ drift. The asymmetric write path (`AddGasRecordPayload` stays lowercase
 because LubeLogger's POST is case-insensitive on form-data) is documented
 in [`docs/technical/idb-and-api.md`](./idb-and-api.md) § *LubeLogger
 upstream calls*.
+
+**Strip date locale is pinned to `en-US`.** `formatLastFillupDate` calls
+`toLocaleDateString('en-US', { month: 'short', day: 'numeric', year:
+'numeric' })` rather than the browser default. Without the explicit
+locale, an en-GB device would render `5 May 2026` instead of `May 5,
+2026`, and the rendered strip would silently change shape per user. The
+locale pin trades cross-locale flexibility (out of scope — the source
+LubeLogger date is itself `M/D/YYYY`) for deterministic, testable output.
+The unit test `'uses en-US month abbreviations (not browser locale)'` in
+`format.test.ts` guards against a CI runner whose default locale would
+otherwise hide a regression.
 
 ## Future considerations
 

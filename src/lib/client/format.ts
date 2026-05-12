@@ -25,3 +25,20 @@ export function daysAgo(s: string): string {
   if (diffDays === 1) return 'yesterday';
   return `${diffDays} days ago`;
 }
+
+// LubeLogger returns dates as `M/D/YYYY`. Renders the date for the
+// last-fillup info strip as `Mon D, YYYY (N days ago)`. Falls back to
+// the raw input on parse failure so the UI never shows "Invalid Date".
+// Locale pinned to en-US so the rendered month order is deterministic
+// across devices (browser default would swap to D Mon in en-GB).
+export function formatLastFillupDate(s: string): string {
+  if (!s) return s;
+  const parts = s.split('/');
+  if (parts.length !== 3) return s;
+  const [m, d, y] = parts.map(Number);
+  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) return s;
+  const then = new Date(y, m - 1, d);
+  if (Number.isNaN(then.getTime())) return s;
+  const abs = then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${abs} (${daysAgo(s)})`;
+}

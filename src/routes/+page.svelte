@@ -5,7 +5,7 @@
   import { submitFuelup, getFx } from '$lib/client/api';
   import type { Vehicle } from '$lib/server/lubelogger';
   import type { VolumeUnit, FuelSubmissionInput } from '$lib/shared/types';
-  import { formatOdometer, daysAgo } from '$lib/client/format';
+  import { formatOdometer, formatLastFillupDate } from '$lib/client/format';
 
   let { data } = $props();
   const prefs = loadPrefs();
@@ -207,7 +207,7 @@
   {#if data.lastFuelup}
     <div class="text-xs text-zinc-500 mb-3 leading-relaxed">
       <div class="flex items-center gap-2">
-        <span>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {daysAgo(data.lastFuelup.date)}</span>
+        <span>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {formatLastFillupDate(data.lastFuelup.date)}</span>
         {#if data.lastFuelupSource === 'offline'}
           <span class="text-[10px] uppercase tracking-wider font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded px-1.5 py-0.5">
             offline copy

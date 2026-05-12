@@ -86,8 +86,9 @@ Run on a vehicle that has at least one previous fillup in LubeLogger.
 ### Strip
 
 - [ ] Open `/`. Above the vehicle picker, two-line strip is visible:
-      `Last fill: <comma-formatted miles> · <"today"|"yesterday"|"N days ago">`
+      `Last fill: <comma-formatted miles> · <Mon D, YYYY> (<"today"|"yesterday"|"N days ago">)`
       `<volume> Gal · $<cost> · <notes if any>`.
+- [ ] Date format reads `Mon D, YYYY` regardless of browser locale (en-US pin).
 - [ ] Switch to a vehicle with **no** previous fillup. Strip is gone.
 
 ### Prefill

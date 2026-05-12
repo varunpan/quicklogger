@@ -34,7 +34,7 @@ test('upstream-down + cached snapshot renders strip with offline chip', async ({
   });
   await gotoHomeViaClientRouter(page);
 
-  await expect(page.getByText(/Last fill: 87,234 mi · 7 days ago/)).toBeVisible();
+  await expect(page.getByText(/Last fill: 87,234 mi · May 3, 2026 \(7 days ago\)/)).toBeVisible();
   await expect(page.getByText(/^offline copy$/i)).toBeVisible();
   // Cached upstream — costCurrency is null, so render uses $cost.
   await expect(page.getByText(/10\.8 Gal · \$39\.42 · Costco Pump 4/)).toBeVisible();
@@ -65,7 +65,7 @@ test('upstream-down + queue synced entry renders <currency> <cost>', async ({ pa
   });
   await gotoHomeViaClientRouter(page);
 
-  await expect(page.getByText(/Last fill: 87,800 mi · 2 days ago/)).toBeVisible();
+  await expect(page.getByText(/Last fill: 87,800 mi · May 8, 2026 \(2 days ago\)/)).toBeVisible();
   await expect(page.getByText(/^offline copy$/i)).toBeVisible();
   await expect(page.getByText(/11\.50 Gal · CAD 60\.00/)).toBeVisible();
   await expect(page.getByPlaceholder('87,432')).toHaveValue('87800');
@@ -102,6 +102,6 @@ test('upstream-up: no offline chip on the strip', async ({ page }) => {
   );
   await gotoHomeViaClientRouter(page);
 
-  await expect(page.getByText(/Last fill: 87,234 mi · 7 days ago/)).toBeVisible();
+  await expect(page.getByText(/Last fill: 87,234 mi · May 3, 2026 \(7 days ago\)/)).toBeVisible();
   await expect(page.getByText(/^offline copy$/i)).toHaveCount(0);
 });
