@@ -215,6 +215,28 @@ Cross-links for the detail this section deliberately doesn't repeat:
 - Offline submit behavior + queue mechanics: [`docs/technical/offline-queue.md`](./technical/offline-queue.md).
 - Offline last-fillup resolver (cache + queue): [`docs/technical/offline-odometer-prefill.md`](./technical/offline-odometer-prefill.md).
 
+#### Photo OCR (UI integration)
+
+**Photo OCR affordances (v0.2.0+):** when `data.ocrEnabled` is true, two
+camera chips render — one in the odometer cell (only when
+`data.ocrModes` includes `'odometer'`), one in the `mb-3` slot between
+Volume and Cost (only when `data.ocrModes` includes `'pump'`). Both open
+a hidden `<input type="file" accept="image/*" capture="environment">`;
+captured files are resized client-side via `resizeForOcr` (1024 px long
+edge, JPEG q=0.8, EXIF stripped) before POSTing to `/api/ocr`. On 200, a
+blue interstitial confirm chip replaces the trigger chip showing the
+detected values; `[Use]` populates form fields, `[Discard]` reverts.
+
+Odometer mode runs an additional client-side relative-range check
+against `data.lastFuelup` before showing `[Use]`: rejects readings lower
+than last, or > 2000 mi above last (hardcoded `ODOMETER_MAX_DELTA_MI`).
+Failure renders an amber warning chip with no `[Use]` action — only
+`[Dismiss]`.
+
+Errors (429, 402, 413, 415, 422, 502, network/timeout) reuse the
+existing toast surface with mode-specific messages. Internals doc:
+[`docs/technical/photo-ocr.md`](technical/photo-ocr.md).
+
 ### Service worker (`src/service-worker.ts`)
 
 App-shell precache + network-first routing for `/api/*` + message-driven queue replay (no BackgroundSync). Details: [`docs/technical/service-worker.md`](./technical/service-worker.md).
