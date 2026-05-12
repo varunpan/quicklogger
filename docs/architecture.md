@@ -113,6 +113,15 @@ re-tries of the same image without storing pixels. Rotation: when the
 next append would cross 10 MiB, the file is truncated to 0 bytes
 (destructive — old entries are discarded, not archived).
 
+### OCR validators + dispatcher (`src/lib/server/ocr.ts`)
+
+`sniffImageType(bytes)` — magic-byte sniff. Recognises JPEG, PNG, WebP,
+HEIC. Returns `null` for anything else; the `/api/ocr` handler maps null
+to `415 Unsupported Media Type`. Per-mode JSON-schema and range
+validators live in [`ocrModes.ts`](#ocr-mode-contracts-srclibserverocrmodests).
+The dispatcher (`runOcrPipeline`, `selectProvider`) is documented further
+down once all upstream pieces are in place.
+
 ## Frontend
 
 ### State management
