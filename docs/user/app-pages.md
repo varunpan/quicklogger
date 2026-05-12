@@ -48,6 +48,11 @@ See [`offline-queue.md`](offline-queue.md) for the toast colours and the
 queue behaviour. In short: green toast = posted; amber = saved locally
 and will sync later; red = LubeLogger rejected it (fix and retry).
 
+**Photo OCR (v0.2.0+):** when an OCR provider is configured, two blue
+camera chips render — one in the Odometer cell, one between Volume and
+Cost — letting you snap the pump display or odometer to pre-fill the
+form. See [`photo-ocr.md`](photo-ocr.md) for setup and walkthrough.
+
 ## Vehicles (`/vehicles`)
 
 A flat list of every vehicle LubeLogger knows about. Each tile shows:
