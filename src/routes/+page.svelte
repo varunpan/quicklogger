@@ -397,43 +397,6 @@
           </span>
         {/if}
       </div>
-      {#if prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0}
-        <button
-          type="button"
-          class="self-start mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
-          onclick={bumpOdometer}
-        >
-          <span aria-hidden="true">↑</span>+{prefs.odometerIncrementMi} mi
-        </button>
-      {/if}
-      {#if odoModeEnabled() && !odoSuggestion && !odoWarning}
-        <button
-          type="button"
-          class="self-start mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
-          aria-label="Read odometer from photo"
-          onclick={openOdoCamera}
-          disabled={odoOcrPending}
-        >
-          {#if odoOcrPending}
-            <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
-            Reading photo…
-          {:else}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-              <circle cx="12" cy="13" r="3.5"/>
-            </svg>
-            Photo
-          {/if}
-        </button>
-        <input
-          bind:this={odoCameraInput}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          class="hidden"
-          onchange={handleOdoCamera}
-        />
-      {/if}
       {#if odoSuggestion}
         <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mt-2" role="status">
           <div class="flex items-start gap-2">
@@ -482,6 +445,47 @@
       <span class="field-label">Date</span>
       <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate} />
     </label>
+    {#if (prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0) || (odoModeEnabled() && !odoSuggestion && !odoWarning)}
+      <div class="col-span-2 flex flex-wrap gap-2">
+        {#if prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0}
+          <button
+            type="button"
+            class="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
+            onclick={bumpOdometer}
+          >
+            <span aria-hidden="true">↑</span>+{prefs.odometerIncrementMi} mi
+          </button>
+        {/if}
+        {#if odoModeEnabled() && !odoSuggestion && !odoWarning}
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
+            aria-label="Read odometer from photo"
+            onclick={openOdoCamera}
+            disabled={odoOcrPending}
+          >
+            {#if odoOcrPending}
+              <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
+              Reading photo…
+            {:else}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
+                <circle cx="12" cy="13" r="3.5"/>
+              </svg>
+              Photo
+            {/if}
+          </button>
+          <input
+            bind:this={odoCameraInput}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="hidden"
+            onchange={handleOdoCamera}
+          />
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <label class="field mb-3">

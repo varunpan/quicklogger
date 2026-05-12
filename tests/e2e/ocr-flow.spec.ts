@@ -171,6 +171,32 @@ test('502 surfaces as service-unreachable toast', async ({ page }) => {
   await expect(page.getByText(/OCR service unreachable/)).toBeVisible();
 });
 
+test('odometer: increment chip and photo chip render on the same row', async ({ page }) => {
+  await commonRoutes(page, {
+    date: '2026-05-08', odometer: 87432, fuelConsumed: 11.2, cost: 42.18, notes: ''
+  });
+  await page.route('**/api/ocr', (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ json: { enabled: true, modes: ['pump', 'odometer'] } });
+    }
+    return route.fulfill({ json: { mode: 'odometer', odometer: 87612 } });
+  });
+  await gotoHomeViaClientRouter(page);
+
+  const incChip = page.getByRole('button', { name: /\+\d+ mi/ });
+  const photoChip = page.getByRole('button', { name: /Read odometer from photo/i });
+  await expect(incChip).toBeVisible();
+  await expect(photoChip).toBeVisible();
+
+  const incBox = await incChip.boundingBox();
+  const photoBox = await photoChip.boundingBox();
+  if (!incBox || !photoBox) throw new Error('chip bounding boxes not measurable');
+  const incCenter = incBox.y + incBox.height / 2;
+  const photoCenter = photoBox.y + photoBox.height / 2;
+  // Same row: centers within half a chip-height; wrapping pushes one >1 chip-height down.
+  expect(Math.abs(incCenter - photoCenter)).toBeLessThan(incBox.height / 2);
+});
+
 test('422 cross-field surfaces as "Couldn\'t read clearly"', async ({ page }) => {
   await commonRoutes(page);
   await page.route('**/api/ocr', (route) => {
