@@ -122,6 +122,27 @@ validators live in [`ocrModes.ts`](#ocr-mode-contracts-srclibserverocrmodests).
 The dispatcher (`runOcrPipeline`, `selectProvider`) is documented further
 down once all upstream pieces are in place.
 
+### OCR mode contracts (`src/lib/server/ocrModes.ts`)
+
+The `MODES` map (keyed by `OcrMode`) is the single source of truth for
+mode-specific prompt, JSON schema, schema validator (hand-written, no
+zod), range validator (env-bound), and optional cross-field validator.
+The dispatcher switches on mode by `MODES[mode]` lookup — no `if/else`
+chains; adding `receipt` in v0.2.1 is a single map-entry addition.
+
+**Pump contract** — schema-validates `{ volume, volumeUnit ∈ ['gal','L'],
+cost, pricePerUnit }`. Range-validates each numeric against
+`OCR_PUMP_VOLUME_MAX` / `OCR_PUMP_COST_MAX` /
+`OCR_PUMP_PRICE_PER_UNIT_MAX`. Cross-field-validates that
+`cost ≈ volume × pricePerUnit` within 5% drift (real-world pump rounding
+sits well inside that band).
+
+**Odometer contract** — schema-validates `{ odometer }`. Range-validates
+against `OCR_ODOMETER_MAX_MI`. No cross-field check (single field). The
+*relative-range* check vs the previous fillup happens client-side
+([`+page.svelte`](#---main-form)) — the server has no access to prior
+fillup history, and the failure mode is user-recoverable.
+
 ## Frontend
 
 ### State management
