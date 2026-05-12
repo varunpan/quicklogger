@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { OllamaOcrProvider, OcrProviderError, OpenRouterOcrProvider } from './ocrProviders';
+import {
+	OllamaOcrProvider,
+	OcrProviderError,
+	OpenRouterOcrProvider,
+	ChainOcrProvider
+} from './ocrProviders';
+import type { OcrProvider } from './ocrProviders';
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -128,5 +134,85 @@ describe('OpenRouterOcrProvider', () => {
 		const p = new OpenRouterOcrProvider({ apiKey: 'k', model: 'm', timeoutMs: 5_000 });
 		expect(p.estimateCostCents()).toBeGreaterThan(0);
 		expect(p.estimateCostCents()).toBeLessThan(1);
+	});
+});
+
+describe('ChainOcrProvider', () => {
+	it('returns the first provider result on success; activeProvider = first; lastFellbackTo = null', async () => {
+		const a: OcrProvider = {
+			name: 'ollama',
+			estimateCostCents: () => 0,
+			extract: vi.fn(async () => ({ v: 1 }))
+		};
+		const b: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => ({ v: 999 }))
+		};
+		const chain = new ChainOcrProvider([a, b]);
+		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(result).toEqual({ v: 1 });
+		expect(b.extract).not.toHaveBeenCalled();
+		expect(chain.activeProvider?.name).toBe('ollama');
+		expect(chain.lastFellbackTo).toBeNull();
+	});
+
+	it('falls through to the second provider on first failure; records lastFellbackTo', async () => {
+		const a: OcrProvider = {
+			name: 'ollama',
+			estimateCostCents: () => 0,
+			extract: vi.fn(async () => {
+				throw new OcrProviderError('NETWORK', 'down');
+			})
+		};
+		const b: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => ({ v: 42 }))
+		};
+		const chain = new ChainOcrProvider([a, b]);
+		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(result).toEqual({ v: 42 });
+		expect(chain.activeProvider?.name).toBe('openrouter');
+		expect(chain.lastFellbackTo).toBe('ollama');
+	});
+
+	it('throws the last error when all providers fail', async () => {
+		const a: OcrProvider = {
+			name: 'ollama',
+			estimateCostCents: () => 0,
+			extract: vi.fn(async () => {
+				throw new OcrProviderError('TIMEOUT', 'a-down');
+			})
+		};
+		const b: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => {
+				throw new OcrProviderError('HTTP', 'b-down');
+			})
+		};
+		const chain = new ChainOcrProvider([a, b]);
+		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toMatchObject({
+			name: 'OcrProviderError',
+			code: 'HTTP'
+		});
+	});
+
+	it('exposes the underlying chain via `chain` accessor for selectProvider tests', () => {
+		const a: OcrProvider = {
+			name: 'ollama',
+			estimateCostCents: () => 0,
+			extract: async () => ({})
+		};
+		const b: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: async () => ({})
+		};
+		const chain = new ChainOcrProvider([a, b]);
+		expect(chain.chain.length).toBe(2);
+		expect(chain.chain[0].name).toBe('ollama');
+		expect(chain.chain[1].name).toBe('openrouter');
 	});
 });

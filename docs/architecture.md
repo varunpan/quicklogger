@@ -164,6 +164,12 @@ json_schema: { strict: true, schema } }`. Default model
 rounded up). Wrapped in `AbortSignal.timeout(30 000)` by default — cloud
 is reliably <5 s.
 
+**ChainOcrProvider** — wraps an ordered list, tries them in order. Bounded
+at one fallback (`ChainOcrProvider([ollama, openrouter])` — 2-provider
+chain) — not a retry loop. On total failure, the last error propagates and
+the route handler maps it to `502 Bad Gateway`. `activeProvider` and
+`lastFellbackTo` getters drive audit attribution.
+
 ## Frontend
 
 ### State management

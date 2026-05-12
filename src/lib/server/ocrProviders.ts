@@ -163,3 +163,48 @@ export class OpenRouterOcrProvider implements OcrProvider {
 		}
 	}
 }
+
+// Chain wrapper: at most one fallback. Records which provider served
+// the request; exposed for audit. Not a retry loop — every provider is
+// tried at most once.
+export class ChainOcrProvider implements OcrProvider {
+	readonly name = 'ollama' as const; // unused; chain identifies via activeProvider
+	private _activeProvider: OcrProvider | null = null;
+	private _lastFellbackTo: 'ollama' | 'openrouter' | null = null;
+
+	constructor(private readonly _chain: OcrProvider[]) {
+		if (_chain.length === 0) throw new Error('ChainOcrProvider requires at least one provider');
+	}
+
+	get chain(): readonly OcrProvider[] {
+		return this._chain;
+	}
+	get activeProvider(): OcrProvider | null {
+		return this._activeProvider;
+	}
+	get lastFellbackTo(): 'ollama' | 'openrouter' | null {
+		return this._lastFellbackTo;
+	}
+
+	estimateCostCents(): number {
+		return this._activeProvider?.estimateCostCents() ?? this._chain[0].estimateCostCents();
+	}
+
+	async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
+		let lastErr: Error | undefined;
+		this._lastFellbackTo = null;
+		for (let i = 0; i < this._chain.length; i++) {
+			const p = this._chain[i];
+			try {
+				const result = await p.extract(bytes, prompt, schema);
+				this._activeProvider = p;
+				if (i > 0) this._lastFellbackTo = this._chain[0].name;
+				return result;
+			} catch (err) {
+				lastErr = err as Error;
+			}
+		}
+		this._activeProvider = null;
+		throw lastErr ?? new OcrProviderError('NO_PROVIDERS', 'no providers succeeded');
+	}
+}
