@@ -1,3 +1,11 @@
+import type { Env } from './env';
+import {
+	ChainOcrProvider, type OcrProvider, OcrProviderError,
+	OllamaOcrProvider, OpenRouterOcrProvider
+} from './ocrProviders';
+import { MODES } from './ocrModes';
+import type { OcrMode, OcrResult } from '$lib/shared/types';
+
 export type ImageType = 'jpeg' | 'png' | 'webp' | 'heic';
 
 export function sniffImageType(buf: Uint8Array): ImageType | null {
@@ -25,4 +33,100 @@ export function sniffImageType(buf: Uint8Array): ImageType | null {
 		if (brand === 'heic' || brand === 'heix' || brand === 'mif1' || brand === 'msf1') return 'heic';
 	}
 	return null;
+}
+
+export function selectProvider(env: Env): OcrProvider | null {
+	const ollama = env.ollamaVisionUrl
+		? new OllamaOcrProvider({
+				url: env.ollamaVisionUrl,
+				model: env.ollamaVisionModel,
+				timeoutMs: env.ollamaVisionTimeoutMs,
+				keepAlive: env.ollamaKeepAlive
+			})
+		: null;
+	const openrouter = env.openrouterApiKey
+		? new OpenRouterOcrProvider({
+				apiKey: env.openrouterApiKey,
+				model: env.openrouterVisionModel,
+				timeoutMs: env.openrouterVisionTimeoutMs
+			})
+		: null;
+	if (ollama && openrouter) return new ChainOcrProvider([ollama, openrouter]);
+	if (ollama) return ollama;
+	if (openrouter) return openrouter;
+	return null;
+}
+
+export type PipelineOutcome =
+	| {
+			ok: true;
+			imageType: ImageType;
+			result: OcrResult;
+			provider: 'ollama' | 'openrouter';
+			fellbackTo: 'ollama' | 'openrouter' | null;
+			costCents: number;
+			latencyMs: number;
+		}
+	| {
+			ok: false;
+			statusCode: 400 | 415 | 422 | 502;
+			error: string;
+			imageType: ImageType | null;
+			latencyMs: number;
+		};
+
+interface PipelineInput {
+	bytes: Uint8Array;
+	mode: OcrMode;
+	provider: OcrProvider;
+	env: Env;
+}
+
+export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutcome> {
+	const t0 = Date.now();
+	const imageType = sniffImageType(input.bytes);
+	if (!imageType) {
+		return { ok: false, statusCode: 415, error: 'unsupported image type', imageType: null, latencyMs: Date.now() - t0 };
+	}
+	const contract = MODES[input.mode];
+	if (!contract) {
+		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
+	}
+
+	let raw: unknown;
+	try {
+		raw = await input.provider.extract(input.bytes, contract.prompt, contract.schema);
+	} catch (err) {
+		const code = err instanceof OcrProviderError ? err.code : 'UNKNOWN';
+		return { ok: false, statusCode: 502, error: `provider failed: ${code}`, imageType, latencyMs: Date.now() - t0 };
+	}
+
+	const schema = contract.validateSchema(raw);
+	if (!schema.ok) {
+		return { ok: false, statusCode: 502, error: `schema invalid: ${schema.error}`, imageType, latencyMs: Date.now() - t0 };
+	}
+	const value = schema.value;
+	const ranges = contract.validateRanges(value, input.env);
+	if (!ranges.ok) {
+		return { ok: false, statusCode: 422, error: ranges.error, imageType, latencyMs: Date.now() - t0 };
+	}
+	if (contract.validateCrossField) {
+		const cross = contract.validateCrossField(value);
+		if (!cross.ok) {
+			return { ok: false, statusCode: 422, error: cross.error, imageType, latencyMs: Date.now() - t0 };
+		}
+	}
+
+	const isChain = input.provider instanceof ChainOcrProvider;
+	const active = isChain ? (input.provider as ChainOcrProvider).activeProvider ?? input.provider : input.provider;
+	const fellbackTo = isChain ? (input.provider as ChainOcrProvider).lastFellbackTo : null;
+	return {
+		ok: true,
+		imageType,
+		result: value,
+		provider: active.name === 'openrouter' ? 'openrouter' : 'ollama',
+		fellbackTo,
+		costCents: input.provider.estimateCostCents(),
+		latencyMs: Date.now() - t0
+	};
 }

@@ -170,6 +170,24 @@ chain) — not a retry loop. On total failure, the last error propagates and
 the route handler maps it to `502 Bad Gateway`. `activeProvider` and
 `lastFellbackTo` getters drive audit attribution.
 
+### OCR dispatcher (`src/lib/server/ocr.ts` — pipeline)
+
+`selectProvider(env)` returns an `OcrProvider | null` based on env:
+
+| ollama | openrouter | Result |
+|---|---|---|
+| set | set | `ChainOcrProvider([ollama, openrouter])` |
+| set | unset | `OllamaOcrProvider` |
+| unset | set | `OpenRouterOcrProvider` |
+| unset | unset | `null` → `/api/ocr` returns 503 |
+
+`runOcrPipeline(input)` orchestrates one request: magic-byte sniff →
+`MODES[mode]` lookup → provider call → `validateSchema` → `validateRanges`
+→ `validateCrossField` (pump only) → return tagged outcome. Returns
+discriminated `OcrResult` (`OcrPumpResult` or `OcrOdometerResult`) on
+success. Selection runs per-request — a transient ollama outage doesn't
+permanently disable the feature.
+
 ## Frontend
 
 ### State management
