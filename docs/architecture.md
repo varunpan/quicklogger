@@ -94,6 +94,25 @@ ollama records 0 (local inference), OpenRouter records the per-call
 estimate (~0.006 cents for Gemini Flash Lite). At the $1/day default,
 that's ~16,000 OpenRouter calls/day before the budget closes.
 
+### OCR audit log (`src/lib/server/ocrAudit.ts`)
+
+Append-only JSONL at `/data/ocr-audit.jsonl`. One row per OCR call,
+including failures. Row shape: `{ ts, mode, ipHash, imgHash, imgBytes,
+imageType, provider, model, fellbackTo, latencyMs, costCents, parsed, ok,
+error? }`. `parsed` is the discriminated `OcrResult` (`OcrPumpResult` or
+`OcrOdometerResult`) on success, `null` on failure.
+
+`ipHash` is HMAC-SHA-256 keyed by a 32-byte secret. Resolution order:
+`OCR_AUDIT_HMAC_KEY` env override → existing file at `OCR_AUDIT_KEY_PATH`
+→ generate and persist (0600 perms). The persistence ensures hash
+stability across container restarts; the file lives on the same `/data`
+bind mount as the rest of the OCR state.
+
+`imgHash` is SHA-256 of the post-receive bytes — useful for spotting
+re-tries of the same image without storing pixels. Rotation: when the
+next append would cross 10 MiB, the file is truncated to 0 bytes
+(destructive — old entries are discarded, not archived).
+
 ## Frontend
 
 ### State management
