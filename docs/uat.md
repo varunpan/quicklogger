@@ -180,3 +180,49 @@ device while online (so the local cache is populated).
       `quicklogger.lastFuelup.<vehicleId>` value's `date` field matches
       whatever upstream just returned (i.e. it's the freshly-fetched
       value, not the previously-cached one).
+
+## Photo OCR — pump mode (v0.2.0+, only with a provider configured)
+
+- [ ] Camera chip "Photo pump display" appears between Volume and Cost on the form
+- [ ] Tap it → iOS camera opens via `capture=environment`
+- [ ] Photograph 5+ real pump displays across stations
+- [ ] Within 2–15 s a chip "Detected: X gal · $Y · $Z/gal" appears in the same slot
+- [ ] Tap **Use** → Volume + Cost (+ volumeUnit) populate; chip disappears
+- [ ] Tap **Discard** → chip disappears; fields untouched
+- [ ] Repeat with a non-pump scene → 422 toast "Couldn't read clearly"
+
+## Photo OCR — odometer mode
+
+- [ ] Camera chip "Photo" appears inside the Odometer cell (beside the `+N mi` chip)
+- [ ] Photograph the dashboard odometer → blue chip "Detected: N mi" → [Use] populates Odometer
+- [ ] Photograph a phone app showing mileage (Carfax / FuelEconomy.gov / similar) → same flow works
+- [ ] With a previous fillup recorded, photograph an odometer that reads **below** the last value → amber warning, no [Use]
+- [ ] Photograph an odometer reading **> 2000 mi above** last → amber warning, no [Use], message says "jumped > 2000 mi"
+- [ ] Tap **Dismiss** on the amber chip → chip disappears, Odometer stays at the prefilled / typed value
+- [ ] First fillup for a fresh vehicle (no `lastFuelup`) → relative check is skipped, [Use] always shows
+
+## Photo OCR — error paths
+
+- [ ] Unset `OLLAMA_VISION_URL` + `OPENROUTER_API_KEY` and restart → both camera chips hidden
+- [ ] 21 rapid OCR taps within an hour → 21st attempt shows "OCR rate limit reached, try again in Ns" toast
+- [ ] Disconnect network mid-OCR → after 90 s, "OCR took too long — please type values" toast surfaces
+- [ ] Provider configured but reachable upstream is down → 502 → "OCR service unreachable — please type values" toast
+- [ ] Send a `mode=receipt` request directly (e.g., from curl/Postman) → 501 (camera UI doesn't surface this; cosmetic check)
+
+## Photo OCR — disk state
+
+- [ ] Inspect `/data/ocr-audit.jsonl` — one line per OCR call. `parsed` populated on success, `error` populated on failure. `ipHash` never resembles a raw IP (always `sha256:<16-hex>`). `mode` field present.
+- [ ] Inspect `/data/ocr-budget.json` — `costCents` increments per OpenRouter call, stays 0 for ollama-only.
+- [ ] Inspect `/data/ocr-audit-key.txt` — exists, 32 bytes, permissions `0600`.
+- [ ] After 10 MiB of audit log growth, file gets truncated to 0 bytes on next append.
+
+## Photo OCR — accuracy log (live data)
+
+For 5+ real pump fillups + 5+ real odometer reads, record:
+
+| Station / vehicle | Mode | Provider | Actual / detected | Drift | Notes |
+| --- | --- | --- | --- | --- | --- |
+| ... | pump / odometer | ollama / openrouter | ... | ... | ... |
+
+Use mismatches to refine the system prompt in `ocrModes.ts` via patch
+releases (v0.2.x).
