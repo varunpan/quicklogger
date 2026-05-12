@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { OllamaOcrProvider, OcrProviderError } from './ocrProviders';
+import { OllamaOcrProvider, OcrProviderError, OpenRouterOcrProvider } from './ocrProviders';
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -79,5 +79,54 @@ describe('OllamaOcrProvider', () => {
 		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
 			OcrProviderError
 		);
+	});
+});
+
+const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+describe('OpenRouterOcrProvider', () => {
+	it('POSTs with auth header, json_schema, and base64 image URL', async () => {
+		let observedAuth = '';
+		let observedBody: Record<string, unknown> | undefined;
+		server.use(
+			http.post(OR_URL, async ({ request }) => {
+				observedAuth = request.headers.get('authorization') ?? '';
+				observedBody = (await request.json()) as Record<string, unknown>;
+				return HttpResponse.json({
+					choices: [{ message: { content: '{"v":42}' } }]
+				});
+			})
+		);
+		const p = new OpenRouterOcrProvider({
+			apiKey: 'sk-or-test',
+			model: 'google/gemini-2.5-flash-lite',
+			timeoutMs: 5_000
+		});
+		const result = await p.extract(Buffer.from([0xff, 0xd8, 0xff]), PROMPT, SCHEMA);
+		expect(result).toEqual({ v: 42 });
+		expect(observedAuth).toBe('Bearer sk-or-test');
+		const rf = (
+			observedBody as { response_format: { type: string; json_schema: { schema: object } } }
+		).response_format;
+		expect(rf.type).toBe('json_schema');
+		expect(rf.json_schema.schema).toEqual(SCHEMA);
+		const content = (observedBody as { messages: { content: Array<{ type: string }> }[] })
+			.messages[0].content;
+		expect(content[0].type).toBe('text');
+		expect(content[1].type).toBe('image_url');
+	});
+
+	it('throws OcrProviderError on non-2xx', async () => {
+		server.use(http.post(OR_URL, () => new HttpResponse('rate limited', { status: 429 })));
+		const p = new OpenRouterOcrProvider({ apiKey: 'k', model: 'm', timeoutMs: 5_000 });
+		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+			OcrProviderError
+		);
+	});
+
+	it('reports a non-zero, sub-cent cost estimate', () => {
+		const p = new OpenRouterOcrProvider({ apiKey: 'k', model: 'm', timeoutMs: 5_000 });
+		expect(p.estimateCostCents()).toBeGreaterThan(0);
+		expect(p.estimateCostCents()).toBeLessThan(1);
 	});
 });

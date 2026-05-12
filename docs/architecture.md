@@ -156,6 +156,14 @@ map entry.
 (local). Wrapped in `AbortSignal.timeout(OLLAMA_VISION_TIMEOUT_MS)` —
 60 s default to accommodate CPU inference.
 
+**OpenRouter** — POSTs to `https://openrouter.ai/api/v1/chat/completions`
+with `Authorization: Bearer ${OPENROUTER_API_KEY}`, the OpenAI-compatible
+chat-completions shape, and `response_format: { type: 'json_schema',
+json_schema: { strict: true, schema } }`. Default model
+`google/gemini-2.5-flash-lite`. Cost-cents = 0.006 (≈ $0.00006/call,
+rounded up). Wrapped in `AbortSignal.timeout(30 000)` by default — cloud
+is reliably <5 s.
+
 ## Frontend
 
 ### State management

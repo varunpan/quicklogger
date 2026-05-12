@@ -76,3 +76,90 @@ export class OllamaOcrProvider implements OcrProvider {
 		}
 	}
 }
+
+interface OpenRouterOptions {
+	apiKey: string;
+	model: string;
+	timeoutMs: number;
+	fetchImpl?: typeof fetch;
+}
+
+// Per-call cost estimate (cents). Gemini Flash Lite is ≈ $0.00006/call;
+// we round up to 0.006 cents — conservative for the daily budget gate.
+const OPENROUTER_COST_CENTS = 0.006;
+
+export class OpenRouterOcrProvider implements OcrProvider {
+	readonly name = 'openrouter' as const;
+	private readonly fetchImpl: typeof fetch;
+	constructor(private readonly opts: OpenRouterOptions) {
+		this.fetchImpl = opts.fetchImpl ?? fetch;
+	}
+
+	estimateCostCents(): number {
+		return OPENROUTER_COST_CENTS;
+	}
+
+	async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
+		const dataUrl = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
+		const body = {
+			model: this.opts.model,
+			messages: [
+				{
+					role: 'user',
+					content: [
+						{ type: 'text', text: prompt },
+						{ type: 'image_url', image_url: { url: dataUrl } }
+					]
+				}
+			],
+			response_format: {
+				type: 'json_schema',
+				json_schema: {
+					name: 'OcrReading',
+					strict: true,
+					schema
+				}
+			}
+		};
+
+		let res: Response;
+		try {
+			res = await this.fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
+				method: 'POST',
+				headers: {
+					authorization: `Bearer ${this.opts.apiKey}`,
+					'content-type': 'application/json'
+				},
+				body: JSON.stringify(body),
+				signal: AbortSignal.timeout(this.opts.timeoutMs)
+			});
+		} catch (err) {
+			throw new OcrProviderError(
+				'NETWORK',
+				`openrouter request failed: ${(err as Error).message}`
+			);
+		}
+		if (!res.ok) {
+			const txt = await res.text().catch(() => '');
+			throw new OcrProviderError('HTTP', `openrouter ${res.status}: ${txt.slice(0, 200)}`);
+		}
+		const wire = (await res.json().catch(() => null)) as {
+			choices?: { message?: { content?: string } }[];
+		} | null;
+		const content = wire?.choices?.[0]?.message?.content;
+		if (typeof content !== 'string') {
+			throw new OcrProviderError(
+				'NO_CONTENT',
+				'openrouter response missing choices[0].message.content'
+			);
+		}
+		try {
+			return JSON.parse(content);
+		} catch {
+			throw new OcrProviderError(
+				'PARSE',
+				`openrouter content is not JSON: ${content.slice(0, 100)}`
+			);
+		}
+	}
+}
