@@ -73,6 +73,16 @@ Single integration point with LubeLogger — every upstream call flows through `
 
 Combines `units.ts` and `currency.ts` into a single `convertSubmission()` call used by `POST /api/fuelup`. Behavior: if `manualFxRate` is set on the input the rate is used verbatim and `fxSource` is recorded as `'manual'` — the currency service is not consulted. Otherwise the currency service resolves the rate per its provider chain; stale rates pass through with `fxStale: true`. Volume always goes through `toGallons`; any target volume unit other than `gallons_us` throws (v0.1.x only supports US-gallon LubeLogger configurations). Pure module — all I/O is delegated to the injected `CurrencyService`, so the whole thing is trivially testable with a fake.
 
+### OCR rate limiter (`src/lib/server/ocrRateLimit.ts`)
+
+In-memory sliding-window rate limiter, keyed per IP. Default
+`OCR_RATE_LIMIT_PER_HOUR=20` — a real fillup takes >5 minutes, so 20/hr
+is an abuse signal, not a usage limit. Single-replica only; if quicklogger
+ever scales to >1 replica or moves behind Authentik forward-auth, swap the
+key to the authenticated user (or move the bucket to `/data`). Returns
+`{ allowed: true }` or `{ allowed: false, retryAfterSec }`; the `/api/ocr`
+handler maps the false case to a 429 with `Retry-After` header.
+
 ## Frontend
 
 ### State management
