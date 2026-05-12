@@ -240,6 +240,60 @@ queue entry `'failed'` exactly when the response is `>= 400 && < 500`.
 5xx responses (including the 502 LubeLogger-upstream branch) leave the
 entry `'queued'` for the next sync trigger.
 
+### `GET /api/ocr` — status probe (v0.2.0+)
+
+Always `200 application/json`. Body:
+
+```json
+{ "enabled": false }
+```
+or
+```json
+{ "enabled": true, "modes": ["pump", "odometer"] }
+```
+
+`enabled` is `true` iff at least one of `OLLAMA_VISION_URL` /
+`OPENROUTER_API_KEY` is set. `modes` lists modes the dispatcher actively
+handles in this version (`receipt` is wire-accepted but reserved; it
+returns 501 and is NOT advertised here — listing it would imply
+usability). Used by the `/` page loader to decide whether to render the
+camera affordances.
+
+### `POST /api/ocr` — read pump or odometer (v0.2.0+)
+
+**Request:** `multipart/form-data`
+
+- `image` — image file (JPEG / PNG / WebP / HEIC), ≤ 5 MiB post-multipart.
+- `mode` — `'pump'` | `'odometer'`. `'receipt'` is wire-accepted but returns 501 (reserved for v0.2.1).
+
+**200 response (discriminated by `mode`):**
+
+```json
+{ "mode": "pump", "volume": 11.2, "volumeUnit": "gal", "cost": 42.18, "pricePerUnit": 3.78 }
+```
+or
+```json
+{ "mode": "odometer", "odometer": 87612 }
+```
+
+**Error matrix:**
+
+| Status | Cause | Headers |
+|---|---|---|
+| 400 | mode missing, unknown mode, multipart parse failure, missing image | — |
+| 402 | daily $ budget exhausted | — |
+| 413 | image > 5 MiB | — |
+| 415 | magic-byte sniff failed (not JPEG/PNG/WebP/HEIC) | — |
+| 422 | per-mode range failure OR cross-field drift > 5% (pump) | — |
+| 429 | per-IP rate limit | `Retry-After: <sec>` |
+| 501 | `mode=receipt` (reserved for v0.2.1) | — |
+| 502 | all providers failed, or returned malformed JSON | — |
+| 503 | no provider configured (UI should hide camera via `GET /api/ocr`) | — |
+
+The endpoint never persists image bytes. The audit log at
+`/data/ocr-audit.jsonl` records HMAC-keyed IP hash, SHA-256 image hash,
+and the parsed numeric fields only.
+
 ### Why no `/api/manifest.webmanifest`
 
 `manifest.webmanifest` is a static file under `static/`, served by the
