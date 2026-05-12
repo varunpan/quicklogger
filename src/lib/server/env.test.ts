@@ -128,4 +128,18 @@ describe('loadEnv — OCR fields', () => {
     expect(env.ocrPumpPricePerUnitMax).toBe(25);
     expect(env.ocrOdometerMaxMi).toBe(2_000_000);
   });
+
+  it('empty-string numeric env vars fall back to defaults', () => {
+    process.env.OCR_DAILY_BUDGET_USD = '';
+    process.env.OCR_RATE_LIMIT_PER_HOUR = '';
+    const env = loadEnv();
+    expect(env.ocrDailyBudgetUsd).toBe(1.0);
+    expect(env.ocrRateLimitPerHour).toBe(20);
+  });
+
+  it('throws EnvError when a numeric env var is non-finite', () => {
+    process.env.OCR_DAILY_BUDGET_USD = 'abc';
+    expect(() => loadEnv()).toThrow(EnvError);
+    expect(() => loadEnv()).toThrow(/OCR_DAILY_BUDGET_USD/);
+  });
 });

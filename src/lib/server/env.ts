@@ -50,6 +50,14 @@ function required(name: string): string {
   return v;
 }
 
+function numberOr(name: string, fallback: number): number {
+  const v = process.env[name];
+  if (v === undefined || v === '') return fallback;
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new EnvError(`${name} must be a finite number, got "${v}"`);
+  return n;
+}
+
 export function loadEnv(): Env {
   const fxRaw = (process.env.FX_PROVIDERS ?? 'frankfurter,erapi,fawazahmed')
     .split(',')
@@ -72,23 +80,23 @@ export function loadEnv(): Env {
 
     ollamaVisionUrl: process.env.OLLAMA_VISION_URL || undefined,
     ollamaVisionModel: process.env.OLLAMA_VISION_MODEL || 'qwen2.5vl:3b',
-    ollamaVisionTimeoutMs: Number(process.env.OLLAMA_VISION_TIMEOUT_MS ?? 60_000),
+    ollamaVisionTimeoutMs: numberOr('OLLAMA_VISION_TIMEOUT_MS', 60_000),
     ollamaKeepAlive: process.env.OLLAMA_KEEP_ALIVE || '30m',
     openrouterApiKey: process.env.OPENROUTER_API_KEY || undefined,
     openrouterVisionModel: process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.5-flash-lite',
-    openrouterVisionTimeoutMs: Number(process.env.OPENROUTER_VISION_TIMEOUT_MS ?? 30_000),
+    openrouterVisionTimeoutMs: numberOr('OPENROUTER_VISION_TIMEOUT_MS', 30_000),
 
-    ocrDailyBudgetUsd: Number(process.env.OCR_DAILY_BUDGET_USD ?? 1.0),
-    ocrRateLimitPerHour: Number(process.env.OCR_RATE_LIMIT_PER_HOUR ?? 20),
+    ocrDailyBudgetUsd: numberOr('OCR_DAILY_BUDGET_USD', 1.0),
+    ocrRateLimitPerHour: numberOr('OCR_RATE_LIMIT_PER_HOUR', 20),
 
     ocrBudgetPath: process.env.OCR_BUDGET_PATH || '/data/ocr-budget.json',
     ocrAuditPath: process.env.OCR_AUDIT_PATH || '/data/ocr-audit.jsonl',
     ocrAuditKeyPath: process.env.OCR_AUDIT_KEY_PATH || '/data/ocr-audit-key.txt',
     ocrAuditHmacKey: process.env.OCR_AUDIT_HMAC_KEY || undefined,
 
-    ocrPumpVolumeMax: Number(process.env.OCR_PUMP_VOLUME_MAX ?? 200),
-    ocrPumpCostMax: Number(process.env.OCR_PUMP_COST_MAX ?? 500),
-    ocrPumpPricePerUnitMax: Number(process.env.OCR_PUMP_PRICE_PER_UNIT_MAX ?? 20),
-    ocrOdometerMaxMi: Number(process.env.OCR_ODOMETER_MAX_MI ?? 1_000_000)
+    ocrPumpVolumeMax: numberOr('OCR_PUMP_VOLUME_MAX', 200),
+    ocrPumpCostMax: numberOr('OCR_PUMP_COST_MAX', 500),
+    ocrPumpPricePerUnitMax: numberOr('OCR_PUMP_PRICE_PER_UNIT_MAX', 20),
+    ocrOdometerMaxMi: numberOr('OCR_ODOMETER_MAX_MI', 1_000_000)
   };
 }
