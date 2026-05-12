@@ -73,7 +73,7 @@ describe('loadEnv — OCR fields', () => {
   it('OCR fields default to undefined / sensible defaults when nothing is set', () => {
     const env = loadEnv();
     expect(env.ollamaVisionUrl).toBeUndefined();
-    expect(env.ollamaVisionModel).toBe('qwen2.5vl:3b');
+    expect(env.ollamaVisionModel).toBe('qwen2.5vl:7b');
     expect(env.ollamaVisionTimeoutMs).toBe(60_000);
     expect(env.ollamaKeepAlive).toBe('30m');
     expect(env.openrouterApiKey).toBeUndefined();

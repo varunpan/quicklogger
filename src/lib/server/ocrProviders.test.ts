@@ -31,7 +31,7 @@ describe('OllamaOcrProvider', () => {
 		);
 		const p = new OllamaOcrProvider({
 			url: URL,
-			model: 'qwen2.5vl:3b',
+			model: 'qwen2.5vl:7b',
 			timeoutMs: 5_000,
 			keepAlive: '30m'
 		});
@@ -39,7 +39,7 @@ describe('OllamaOcrProvider', () => {
 		const result = await p.extract(buf, PROMPT, SCHEMA);
 		expect(result).toEqual({ v: 42 });
 		expect(observedBody).toMatchObject({
-			model: 'qwen2.5vl:3b',
+			model: 'qwen2.5vl:7b',
 			stream: false,
 			keep_alive: '30m',
 			format: SCHEMA

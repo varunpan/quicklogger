@@ -217,7 +217,7 @@ Settings preference (alongside `odometerIncrementMi`) in a future v0.2.x
 if real-world travel routinely hits 2000+ mi between fillups.
 
 **90 s client `AbortSignal.timeout` — generous, not stingy.** Ollama
-CPU inference on `qwen2.5vl:3b` can take 8–15 s on a Mac mini; an over-
+CPU inference on `qwen2.5vl:7b` can take 15–30 s on a Mac mini; an over-
 loaded host pushes that higher. 90 s gives a working setup plenty of
 headroom while still failing-fast on a wedged connection. Pairs with
 the 60 s server-side ollama timeout — server fails first under normal

@@ -14,7 +14,7 @@ function pumpRecord(extra: Partial<AuditRecord> = {}): AuditRecord {
     imgBytes: 100,
     imageType: 'jpeg',
     provider: 'ollama',
-    model: 'qwen2.5vl:3b',
+    model: 'qwen2.5vl:7b',
     fellbackTo: null,
     latencyMs: 1234,
     costCents: 0,

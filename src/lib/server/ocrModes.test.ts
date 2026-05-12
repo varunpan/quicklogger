@@ -8,7 +8,7 @@ function fakeEnv(overrides: Partial<Env> = {}): Env {
     lubeloggerVolumeUnit: 'gallons_us', lubeloggerCurrency: 'USD',
     fxProviders: ['frankfurter'],
     fxCachePath: '/tmp/fx', port: 3000, origin: undefined,
-    ollamaVisionUrl: undefined, ollamaVisionModel: 'qwen2.5vl:3b',
+    ollamaVisionUrl: undefined, ollamaVisionModel: 'qwen2.5vl:7b',
     ollamaVisionTimeoutMs: 60_000, ollamaKeepAlive: '30m',
     openrouterApiKey: undefined, openrouterVisionModel: 'google/gemini-2.5-flash-lite',
     openrouterVisionTimeoutMs: 30_000,

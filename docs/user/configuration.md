@@ -102,8 +102,8 @@ All optional. Feature activates iff at least one of `OLLAMA_VISION_URL` or
 | Variable | Default | Description |
 |---|---|---|
 | `OLLAMA_VISION_URL` | — | URL of an ollama instance with a vision-capable model loaded. Example: `http://ollama:11434`. |
-| `OLLAMA_VISION_MODEL` | `qwen2.5vl:3b` | Ollama model tag for OCR. `qwen2.5vl:3b` (~3 GB) is the tested default. |
-| `OLLAMA_VISION_TIMEOUT_MS` | `60000` | Per-call timeout. CPU inference takes 8–15 s. |
+| `OLLAMA_VISION_MODEL` | `qwen2.5vl:7b` | Ollama model tag for OCR. `qwen2.5vl:7b` (~6 GB) is the tested default. |
+| `OLLAMA_VISION_TIMEOUT_MS` | `60000` | Per-call timeout. CPU inference takes 15–30 s. |
 | `OLLAMA_KEEP_ALIVE` | `30m` | How long ollama holds the model in memory between calls. |
 | `OPENROUTER_API_KEY` | — | If set, adds OpenRouter as a cloud fallback (or sole provider). |
 | `OPENROUTER_VISION_MODEL` | `google/gemini-2.5-flash-lite` | OpenRouter model id. |

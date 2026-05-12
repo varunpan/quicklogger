@@ -79,7 +79,7 @@ export function loadEnv(): Env {
     origin: process.env.ORIGIN,
 
     ollamaVisionUrl: process.env.OLLAMA_VISION_URL || undefined,
-    ollamaVisionModel: process.env.OLLAMA_VISION_MODEL || 'qwen2.5vl:3b',
+    ollamaVisionModel: process.env.OLLAMA_VISION_MODEL || 'qwen2.5vl:7b',
     ollamaVisionTimeoutMs: numberOr('OLLAMA_VISION_TIMEOUT_MS', 60_000),
     ollamaKeepAlive: process.env.OLLAMA_KEEP_ALIVE || '30m',
     openrouterApiKey: process.env.OPENROUTER_API_KEY || undefined,

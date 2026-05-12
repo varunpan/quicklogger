@@ -21,16 +21,16 @@ both, **local ollama is tried first** and OpenRouter is the fallback.
 
 ```sh
 # on the host running ollama:
-ollama pull qwen2.5vl:3b
+ollama pull qwen2.5vl:7b
 ```
 
 ```yaml
 # in your stack's environment:
 OLLAMA_VISION_URL: http://ollama:11434
-OLLAMA_VISION_MODEL: qwen2.5vl:3b
+OLLAMA_VISION_MODEL: qwen2.5vl:7b
 ```
 
-CPU-only inference takes ~8–15 s per photo. A small GPU brings it
+CPU-only inference takes ~15–30 s per photo. A small GPU brings it
 under 5 s.
 
 ### Option B — OpenRouter (Gemini Flash Lite)

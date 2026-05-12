@@ -44,7 +44,7 @@ Pure helpers between US gallons and liters. The constant `GAL_TO_L = 3.785411784
 Single source of truth for env-var access — other server modules call `loadEnv()` rather than reading `process.env` directly. Required vars `LUBELOGGER_URL` and `LUBELOGGER_API_KEY` throw `EnvError` if missing; `FX_PROVIDERS` (CSV) is validated against a known-providers set, with unknown names also throwing `EnvError`. Full reference: [`docs/user/configuration.md`](./user/configuration.md).
 
 **Photo OCR (optional, v0.2.0+):**
-`OLLAMA_VISION_URL`, `OLLAMA_VISION_MODEL` (`qwen2.5vl:3b`),
+`OLLAMA_VISION_URL`, `OLLAMA_VISION_MODEL` (`qwen2.5vl:7b`),
 `OLLAMA_VISION_TIMEOUT_MS` (`60000`), `OLLAMA_KEEP_ALIVE` (`30m`),
 `OPENROUTER_API_KEY`, `OPENROUTER_VISION_MODEL`
 (`google/gemini-2.5-flash-lite`), `OPENROUTER_VISION_TIMEOUT_MS` (`30000`),
