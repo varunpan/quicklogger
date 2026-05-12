@@ -143,6 +143,19 @@ against `OCR_ODOMETER_MAX_MI`. No cross-field check (single field). The
 ([`+page.svelte`](#---main-form)) — the server has no access to prior
 fillup history, and the failure mode is user-recoverable.
 
+### OCR providers (`src/lib/server/ocrProviders.ts`)
+
+Provider interface: `extract(bytes, prompt, schema) → unknown`. Providers
+don't know about modes — the dispatcher pulls `prompt` + `schema` from
+`MODES[mode]` (B7) and passes them. This keeps adding a mode to a single
+map entry.
+
+**Ollama** — POSTs to `${OLLAMA_VISION_URL}/api/chat` with
+`format: <schema>`, `temperature: 0`, `keep_alive: 30m` (default),
+`stream: false`, and the base64-encoded image bytes. Cost-cents = 0
+(local). Wrapped in `AbortSignal.timeout(OLLAMA_VISION_TIMEOUT_MS)` —
+60 s default to accommodate CPU inference.
+
 ## Frontend
 
 ### State management
