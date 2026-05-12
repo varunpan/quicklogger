@@ -127,4 +127,11 @@ describe('resolveAuditHmacKey', () => {
     const b = resolveAuditHmacKey({ ocrAuditHmacKey: undefined, ocrAuditKeyPath: keyPath });
     expect(a.equals(b)).toBe(true);
   });
+
+  it('creates the parent directory if missing', () => {
+    const nested = join(dir, 'nope', 'still-nope', 'ocr-audit-key.txt');
+    const k = resolveAuditHmacKey({ ocrAuditHmacKey: undefined, ocrAuditKeyPath: nested });
+    expect(k.length).toBe(32);
+    expect(existsSync(nested)).toBe(true);
+  });
 });

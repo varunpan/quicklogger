@@ -1,5 +1,5 @@
 import { appendFile, stat, truncate, mkdir } from 'node:fs/promises';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import type { OcrMode, OcrResult } from '$lib/shared/types';
@@ -69,6 +69,7 @@ export function resolveAuditHmacKey(opts: KeyOptions): Buffer {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
   }
   const key = randomBytes(32);
+  mkdirSync(dirname(opts.ocrAuditKeyPath), { recursive: true });
   writeFileSync(opts.ocrAuditKeyPath, key, { mode: 0o600 });
   return key;
 }

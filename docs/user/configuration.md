@@ -119,6 +119,18 @@ All optional. Feature activates iff at least one of `OLLAMA_VISION_URL` or
 | `OCR_PUMP_PRICE_PER_UNIT_MAX` | `20` | Range bound on detected price per unit. |
 | `OCR_ODOMETER_MAX_MI` | `1000000` | Absolute upper bound on odometer reading, miles. |
 
+### OCR persistence paths
+
+The three `OCR_*_PATH` defaults assume the same `/data` Docker volume as
+`FX_CACHE_PATH`. The server `mkdir -p`s the parent directory on first
+write, so a missing nested dir is fine — but `/data/` itself is not
+writable without root on macOS. For local dev outside Docker, override
+them to a writable location, e.g.:
+
+        OCR_BUDGET_PATH=./data/ocr-budget.json
+        OCR_AUDIT_PATH=./data/ocr-audit.jsonl
+        OCR_AUDIT_KEY_PATH=./data/ocr-audit-key.txt
+
 ## Cross-reference
 
 The repo's [`README.md`](../../README.md) §Configuration shows a
