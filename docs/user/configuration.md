@@ -94,6 +94,31 @@ If you're running quicklogger directly on a host with no proxy, you
 can leave this unset and SvelteKit will accept POSTs from any origin
 that matches its own listening address.
 
+### Photo OCR (v0.2.0+)
+
+All optional. Feature activates iff at least one of `OLLAMA_VISION_URL` or
+`OPENROUTER_API_KEY` is set; otherwise the camera affordances stay hidden.
+
+| Variable | Default | Description |
+|---|---|---|
+| `OLLAMA_VISION_URL` | — | URL of an ollama instance with a vision-capable model loaded. Example: `http://ollama:11434`. |
+| `OLLAMA_VISION_MODEL` | `qwen2.5vl:3b` | Ollama model tag for OCR. `qwen2.5vl:3b` (~3 GB) is the tested default. |
+| `OLLAMA_VISION_TIMEOUT_MS` | `60000` | Per-call timeout. CPU inference takes 8–15 s. |
+| `OLLAMA_KEEP_ALIVE` | `30m` | How long ollama holds the model in memory between calls. |
+| `OPENROUTER_API_KEY` | — | If set, adds OpenRouter as a cloud fallback (or sole provider). |
+| `OPENROUTER_VISION_MODEL` | `google/gemini-2.5-flash-lite` | OpenRouter model id. |
+| `OPENROUTER_VISION_TIMEOUT_MS` | `30000` | Per-call timeout. Cloud is reliably <5 s. |
+| `OCR_DAILY_BUDGET_USD` | `1.00` | Runaway cap. Server returns 402 once exceeded. |
+| `OCR_RATE_LIMIT_PER_HOUR` | `20` | Per-IP sliding window. Abuse signal, not a usage limit. |
+| `OCR_BUDGET_PATH` | `/data/ocr-budget.json` | Daily-tally persistence path. |
+| `OCR_AUDIT_PATH` | `/data/ocr-audit.jsonl` | Append-only audit log. Rotates at 10 MiB by truncation. |
+| `OCR_AUDIT_KEY_PATH` | `/data/ocr-audit-key.txt` | HMAC key file; auto-generated if absent. `0600` perms. |
+| `OCR_AUDIT_HMAC_KEY` | — | Optional explicit override. When unset, key is generated and persisted to `OCR_AUDIT_KEY_PATH`. |
+| `OCR_PUMP_VOLUME_MAX` | `200` | Range bound on detected pump volume (raw value in gal or L). |
+| `OCR_PUMP_COST_MAX` | `500` | Range bound on detected pump cost (raw pump-display number). |
+| `OCR_PUMP_PRICE_PER_UNIT_MAX` | `20` | Range bound on detected price per unit. |
+| `OCR_ODOMETER_MAX_MI` | `1000000` | Absolute upper bound on odometer reading, miles. |
+
 ## Cross-reference
 
 The repo's [`README.md`](../../README.md) §Configuration shows a

@@ -43,6 +43,24 @@ Pure helpers between US gallons and liters. The constant `GAL_TO_L = 3.785411784
 
 Single source of truth for env-var access — other server modules call `loadEnv()` rather than reading `process.env` directly. Required vars `LUBELOGGER_URL` and `LUBELOGGER_API_KEY` throw `EnvError` if missing; `FX_PROVIDERS` (CSV) is validated against a known-providers set, with unknown names also throwing `EnvError`. Full reference: [`docs/user/configuration.md`](./user/configuration.md).
 
+**Photo OCR (optional, v0.2.0+):**
+`OLLAMA_VISION_URL`, `OLLAMA_VISION_MODEL` (`qwen2.5vl:3b`),
+`OLLAMA_VISION_TIMEOUT_MS` (`60000`), `OLLAMA_KEEP_ALIVE` (`30m`),
+`OPENROUTER_API_KEY`, `OPENROUTER_VISION_MODEL`
+(`google/gemini-2.5-flash-lite`), `OPENROUTER_VISION_TIMEOUT_MS` (`30000`),
+`OCR_DAILY_BUDGET_USD` (`1.00`), `OCR_RATE_LIMIT_PER_HOUR` (`20`),
+`OCR_BUDGET_PATH` (`/data/ocr-budget.json`), `OCR_AUDIT_PATH`
+(`/data/ocr-audit.jsonl`), `OCR_AUDIT_KEY_PATH`
+(`/data/ocr-audit-key.txt`), `OCR_AUDIT_HMAC_KEY`,
+`OCR_PUMP_VOLUME_MAX` (`200`), `OCR_PUMP_COST_MAX` (`500`),
+`OCR_PUMP_PRICE_PER_UNIT_MAX` (`20`), `OCR_ODOMETER_MAX_MI` (`1000000`).
+
+The feature is enabled iff at least one of `OLLAMA_VISION_URL` or
+`OPENROUTER_API_KEY` is set. Provider selection is resolved per-request,
+not cached at startup — a transient ollama outage doesn't permanently
+disable the camera button. Full user-facing reference lives in
+[`docs/user/configuration.md`](user/configuration.md#photo-ocr-v020).
+
 ### FX provider chain (`src/lib/server/currency.ts`)
 
 Multi-provider FX resolver with a 24-hour fresh cache, a 7-day stale fallback, and a 3-second per-provider timeout. Defaults to a three-provider chain (`frankfurter`, `erapi`, `fawazahmed`). Details: [`docs/technical/fx-chain.md`](./technical/fx-chain.md).
