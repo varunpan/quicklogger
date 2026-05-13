@@ -22,9 +22,28 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
 
 ## Screenshots
 
-| Log Fuel | Vehicles | Settings | History |
-| :---: | :---: | :---: | :---: |
-| ![Log Fuel form](docs/screenshots/form.jpeg) | ![Vehicle picker](docs/screenshots/vehicles.jpeg) | ![Settings](docs/screenshots/settings.jpeg) | ![History](docs/screenshots/history.jpeg) |
+<table>
+  <tr>
+    <td align="center"><strong>Log Fuel</strong></td>
+    <td align="center"><strong>History</strong></td>
+    <td align="center"><strong>Maintenance</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/form.jpeg" alt="Log Fuel form" width="240"></td>
+    <td><img src="docs/screenshots/history.jpeg" alt="History" width="240"></td>
+    <td><img src="docs/screenshots/maintenance.jpeg" alt="Maintenance reminders" width="240"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Vehicles</strong></td>
+    <td align="center"><strong>Settings</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/vehicles.jpeg" alt="Vehicle picker" width="240"></td>
+    <td><img src="docs/screenshots/settings.jpeg" alt="Settings" width="240"></td>
+    <td></td>
+  </tr>
+</table>
 
 ## Quick start
 
