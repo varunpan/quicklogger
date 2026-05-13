@@ -62,8 +62,11 @@ A flat list of every vehicle LubeLogger knows about. Each tile shows:
 Tap a tile to:
 
 1. Persist that vehicle id as your "last vehicle" in localStorage.
-2. Navigate back to `/?vehicleId={id}` so the Log Fuel page loads with
-   the selected vehicle.
+2. Navigate back to the page that sent you here. By default that's
+   `/?vehicleId={id}` (Log Fuel). If you arrived from `/maintenance`
+   via its vehicle card, you land back on
+   `/maintenance?vehicleId={id}` instead — the picker honors a
+   `?from=` query so the round-trip stays in context.
 
 The vehicle list is read-only inside quicklogger — to add or edit
 vehicles, do it in LubeLogger directly.
@@ -123,6 +126,11 @@ The page is reachable two ways:
   from the Log Fuel page so you see the heads-up without having to
   reach for the menu. Queued (offline) submits do NOT redirect —
   there's no live data to show.
+
+Tap the **vehicle card** at the top to switch which vehicle's
+reminders you're looking at. The picker (`/vehicles`) returns you
+straight back to Maintenance after you pick, rather than dumping
+you on Log Fuel.
 
 States you may see:
 

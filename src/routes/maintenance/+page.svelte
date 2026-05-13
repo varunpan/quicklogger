@@ -85,9 +85,6 @@
 
 <div class="mb-4">
   <h1 class="text-xl font-bold text-zinc-100">Upcoming maintenance</h1>
-  {#if data.vehicle}
-    <p class="text-sm text-zinc-500 mt-0.5">{vehicleLabel}</p>
-  {/if}
 </div>
 
 {#if data.error === 'no-vehicle'}
@@ -95,8 +92,27 @@
     Pick a vehicle first.
   </div>
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/vehicles" class="block text-sm text-blue-400 mt-6">→ Pick vehicle</a>
+  <a href="/vehicles?from=maintenance" class="block text-sm text-blue-400 mt-6">→ Pick vehicle</a>
 {:else}
+  {#if data.vehicle}
+    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+    <a href="/vehicles?from=maintenance" class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full">
+      <div class="w-12 h-12 rounded-lg bg-zinc-700 shrink-0 flex items-center justify-center text-zinc-500">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 17h14M5 17v-5l2-5h10l2 5v5M5 17H3M19 17h2M7 12h10" />
+          <circle cx="8" cy="17" r="1.5" /><circle cx="16" cy="17" r="1.5" />
+        </svg>
+      </div>
+      <div class="text-left flex-1 min-w-0">
+        <div class="field-label">Vehicle</div>
+        <div class="text-base font-semibold truncate text-zinc-100">
+          {vehicleLabel}
+        </div>
+      </div>
+      <span class="text-zinc-500" aria-hidden="true">›</span>
+    </a>
+  {/if}
+
   {#if data.error}
     <div class="rounded-xl px-3 py-2 text-sm text-amber-300 bg-amber-500/15 border border-amber-500/30 flex items-center gap-2 mb-3">
       <span aria-hidden="true">⚠</span>

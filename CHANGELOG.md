@@ -6,7 +6,7 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
-- **Maintenance page** (`/maintenance`) — shows LubeLogger reminders flagged as `Urgent`, `VeryUrgent`, or `PastDue` for the active vehicle. New drawer entry between History and Vehicles. The Log Fuel page auto-navigates here after a successful fuel submit so you see what's coming up next without reaching for the menu. Read-only — managing reminders still happens in LubeLogger. See [`docs/user/app-pages.md`](docs/user/app-pages.md) and [`docs/technical/maintenance-page.md`](docs/technical/maintenance-page.md).
+- **Maintenance page** (`/maintenance`) — shows LubeLogger reminders flagged as `Urgent`, `VeryUrgent`, or `PastDue` for the active vehicle. New drawer entry between History and Vehicles. The Log Fuel page auto-navigates here after a successful fuel submit so you see what's coming up next without reaching for the menu. Read-only — managing reminders still happens in LubeLogger. Includes an inline vehicle picker card mirroring the one on Log Fuel; the `/vehicles` page is now return-aware via a `?from=` query, so picking from Maintenance lands you back on Maintenance instead of Log Fuel. See [`docs/user/app-pages.md`](docs/user/app-pages.md) and [`docs/technical/maintenance-page.md`](docs/technical/maintenance-page.md).
 
 ### Changed
 

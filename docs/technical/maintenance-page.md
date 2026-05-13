@@ -8,7 +8,7 @@ The HTTP API row and the `Reminder` type definition live in
 
 ## Lifecycle
 
-The page is reached two ways:
+The page is reached three ways:
 
 1. **From the drawer.** The user taps `Maintenance` in the
    hamburger menu. The loader resolves the active vehicle via the
@@ -19,6 +19,14 @@ The page is reached two ways:
    `goto('/maintenance?vehicleId=' + vehicle.id)`. The URL always
    carries `vehicleId` in this path, so the first step of the
    fallback chain succeeds without touching prefs.
+3. **From the picker round-trip.** The page renders a vehicle
+   button card mirroring `/`. Tapping it navigates to
+   `/vehicles?from=maintenance`; selecting a vehicle there saves
+   `prefs.lastVehicleId` and returns to
+   `/maintenance?vehicleId=<picked-id>`. The `from` query is
+   read against a small allowlist in
+   `src/routes/vehicles/+page.svelte` — unknown values fall back
+   to `/` so the picker can't be coerced into an open redirect.
 
 The redirect only fires on the **green** submit path
 (`/api/fuelup` returned `200 { ok: true, ... }`). The amber

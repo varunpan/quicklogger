@@ -156,6 +156,68 @@ test('shows the empty state when no items are not-OK', async ({ page }) => {
   await expect(page.getByText('Tire Rotation')).not.toBeVisible();
 });
 
+test('vehicle picker card switches the active vehicle and returns to /maintenance', async ({ page }) => {
+  // Two vehicles so picking actually has somewhere to go.
+  await page.route('**/api/vehicles', (route) =>
+    route.fulfill({
+      json: [
+        { id: 1, year: 2014, make: 'Honda', model: 'Accord' },
+        { id: 2, year: 2021, make: 'Toyota', model: 'Sienna' }
+      ]
+    })
+  );
+  await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: null }));
+  await page.route('**/api/fx**', (route) =>
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
+  );
+
+  // Reminder payload differs by vehicle so we can prove vehicle 2 actually loaded.
+  await page.route('**/api/vehicle/reminders**', (route) => {
+    const url = new URL(route.request().url());
+    const vid = url.searchParams.get('vehicleId');
+    const description = vid === '2' ? 'Sienna Brake Fluid' : 'Accord Engine Oil';
+    return route.fulfill({
+      json: [
+        {
+          vehicleId: vid ?? '1',
+          id: '1',
+          description,
+          urgency: 'PastDue',
+          metric: 'Date',
+          userMetric: 'Date',
+          notes: '',
+          dueDate: '4/1/2026',
+          dueOdometer: '0',
+          dueDays: '-10',
+          dueDistance: '0',
+          tags: ''
+        }
+      ]
+    });
+  });
+
+  await gotoMaintenanceViaDrawer(page);
+
+  // Picker card shows the current vehicle and is the gateway to switching.
+  const picker = page.getByRole('link', { name: /Vehicle\s*2014 Honda Accord/i });
+  await expect(picker).toBeVisible();
+  await expect(page.getByText('Accord Engine Oil')).toBeVisible();
+
+  // Tap → /vehicles?from=maintenance (so the picker knows where to return us).
+  await picker.click();
+  await expect(page).toHaveURL('/vehicles?from=maintenance');
+
+  // Pick the other vehicle → land back on /maintenance, not /.
+  await page.getByRole('button', { name: /2021 Toyota Sienna/i }).click();
+  await expect(page).toHaveURL(/\/maintenance\?vehicleId=2/);
+
+  // Vehicle 2's reminders rendered, not Accord's.
+  await expect(page.getByText('Sienna Brake Fluid')).toBeVisible();
+  await expect(page.getByText('Accord Engine Oil')).not.toBeVisible();
+});
+
 test('shows the error banner when the reminders endpoint fails', async ({ page }) => {
   await baseStubs(page);
   await page.route('**/api/vehicle/reminders**', (route) =>

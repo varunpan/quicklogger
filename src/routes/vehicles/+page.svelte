@@ -1,19 +1,32 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { savePrefs } from '$lib/client/prefs';
 
   let { data } = $props();
 
+  // Allowlist of pages that can hand off to the picker and expect us to
+  // return there post-pick. Anything else (including absent / unknown
+  // values) falls back to '/' to avoid open-redirect surface.
+  const RETURN_TO: Record<string, string> = {
+    maintenance: '/maintenance'
+  };
+
+  function returnPath(): string {
+    const from = page.url.searchParams.get('from');
+    return (from && RETURN_TO[from]) || '/';
+  }
+
   function pick(id: number) {
     savePrefs({ lastVehicleId: id });
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    goto(`/?vehicleId=${id}`);
+    goto(`${returnPath()}?vehicleId=${id}`);
   }
 </script>
 
 <header class="flex items-center mb-4 gap-3">
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/" class="text-zinc-400">‹</a>
+  <a href={returnPath()} class="text-zinc-400">‹</a>
   <h1 class="text-xl font-bold">Pick vehicle</h1>
 </header>
 
