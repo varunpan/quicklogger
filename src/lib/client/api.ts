@@ -2,7 +2,7 @@ import type {
   FuelSubmissionInput,
   FuelSubmissionResult
 } from '$lib/shared/types';
-import type { Vehicle, GasRecord } from '$lib/server/lubelogger';
+import type { Vehicle, GasRecord, Reminder } from '$lib/server/lubelogger';
 
 export async function listVehicles(fetchImpl = fetch): Promise<Vehicle[]> {
   const res = await fetchImpl('/api/vehicles');
@@ -40,6 +40,17 @@ export async function submitFuelup(input: FuelSubmissionInput, fetchImpl = fetch
   if (!res.ok) {
     const text = await res.text();
     const err = new Error(`fuelup ${res.status}: ${text}`);
+    (err as Error & { status?: number }).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function listReminders(vehicleId: number, fetchImpl = fetch): Promise<Reminder[]> {
+  const res = await fetchImpl(`/api/vehicle/reminders?vehicleId=${vehicleId}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const err = new Error(`reminders ${res.status}${text ? `: ${text}` : ''}`);
     (err as Error & { status?: number }).status = res.status;
     throw err;
   }

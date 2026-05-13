@@ -42,3 +42,33 @@ export function formatLastFillupDate(s: string): string {
   const abs = then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   return `${abs} (${daysAgo(s)})`;
 }
+
+// Renders LubeLogger's pre-computed countdown values (`dueDays`,
+// `dueDistance`) as natural-language phrases. Positive = remaining,
+// negative = overdue, zero = "due today" / "due now". Non-finite or
+// unparseable input returns the empty string so the caller can render
+// nothing rather than "NaN ... to go".
+export function humanCountdown(value: number | string, unit: 'days' | 'mi'): string {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isFinite(n)) return '';
+  if (n === 0) return unit === 'days' ? 'due today' : 'due now';
+  const abs = Math.abs(n);
+  const formatted =
+    unit === 'mi' ? new Intl.NumberFormat('en-US').format(abs) : String(abs);
+  return n > 0 ? `${formatted} ${unit} to go` : `${formatted} ${unit} overdue`;
+}
+
+// Formats a LubeLogger M/D/YYYY date as `Mon D, YYYY`. Distinct from
+// `formatLastFillupDate` which appends `(N days ago)`; for reminders
+// that suffix is supplied separately by `humanCountdown` and would
+// double up. Falls back to the raw input on parse failure.
+export function formatDueDate(s: string): string {
+  if (!s) return s;
+  const parts = s.split('/');
+  if (parts.length !== 3) return s;
+  const [m, d, y] = parts.map(Number);
+  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) return s;
+  const then = new Date(y, m - 1, d);
+  if (Number.isNaN(then.getTime())) return s;
+  return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
