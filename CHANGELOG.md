@@ -11,6 +11,7 @@ All notable changes to this project are documented here. Format roughly follows 
 ### Changed
 
 - Last-fillup strip now shows the absolute date alongside the relative phrase: `Last fill: 45,123 mi · May 5, 2026 (7 days ago)` instead of `7 days ago` alone. Locale pinned to en-US for cross-device determinism. New `formatLastFillupDate` helper in `src/lib/client/format.ts` (unit-tested in `format.test.ts`).
+- **History page redesign** — `/history` now lists every fillup logged through this PWA as roomy cards (one per entry, newest first), with a status badge for queued / failed entries and date, odometer, volume·cost, optional fill-to-full / missed-fillup / notes / tags lines. Replaces the JSON dump and the misnamed "Pending sync" section. New `formatIsoDate` helper in `src/lib/client/format.ts` (unit-tested in `format.test.ts`). Vehicle row mirrors `/maintenance` and round-trips through `/vehicles?from=history`. Reads the existing IDB `pendingSubmissions` store — no new server endpoint. See [`docs/user/app-pages.md`](docs/user/app-pages.md) and [`docs/technical/history-page.md`](docs/technical/history-page.md).
 
 ### Fixed
 
