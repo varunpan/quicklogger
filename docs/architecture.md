@@ -20,6 +20,7 @@ The system has three surfaces:
     SvelteKit server (Node container)
     ├── /api/vehicles
     ├── /api/vehicle/last-fuelup
+    ├── /api/vehicle/reminders
     ├── /api/fuelup       ←──── form submits land here
     ├── /api/fx
     └── /healthz
@@ -68,7 +69,7 @@ These are intentionally separated: prefs are sync + tiny, the queue is async + s
 
 ## Frontend pages
 
-Four pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), and **History** (`/history`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md).
+Five pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), **History** (`/history`), and **Maintenance** (`/maintenance`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md); internals for the maintenance route in [`docs/technical/maintenance-page.md`](./technical/maintenance-page.md).
 
 ### `/` — main form
 

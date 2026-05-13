@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Maintenance page** (`/maintenance`) — shows LubeLogger reminders flagged as `Urgent`, `VeryUrgent`, or `PastDue` for the active vehicle. New drawer entry between History and Vehicles. The Log Fuel page auto-navigates here after a successful fuel submit so you see what's coming up next without reaching for the menu. Read-only — managing reminders still happens in LubeLogger. See [`docs/user/app-pages.md`](docs/user/app-pages.md) and [`docs/technical/maintenance-page.md`](docs/technical/maintenance-page.md).
+
 ### Changed
 
 - Last-fillup strip now shows the absolute date alongside the relative phrase: `Last fill: 45,123 mi · May 5, 2026 (7 days ago)` instead of `7 days ago` alone. Locale pinned to en-US for cross-device determinism. New `formatLastFillupDate` helper in `src/lib/client/format.ts` (unit-tested in `format.test.ts`).

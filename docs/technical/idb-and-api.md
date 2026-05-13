@@ -137,6 +137,46 @@ Source: `src/routes/api/vehicle/last-fuelup/+server.ts`.
 (`odometer: "87432"`, `cost: "42.18"` etc.). Date format `M/D/YYYY`.
 See `src/lib/server/lubelogger.ts` for the full type.
 
+### `GET /api/vehicle/reminders?vehicleId=<id>`
+
+Source: `src/routes/api/vehicle/reminders/+server.ts`.
+
+| Field | Value |
+|---|---|
+| Request | Query: `vehicleId` (required, finite number). |
+| Cache | None — every request hits LubeLogger. |
+| Response 200 | `Reminder[]` from LubeLogger's `/api/vehicle/reminders`. |
+| Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
+| Response 502 | `{ error: string }` — any `LubeLoggerError` (matches the `last-fuelup` route's blanket-502 pattern). |
+| Response 500 | `{ error: string }` — anything else thrown. |
+
+`Reminder` shape (`src/lib/server/lubelogger.ts`):
+
+```ts
+type ReminderUrgency = 'NotUrgent' | 'Urgent' | 'VeryUrgent' | 'PastDue';
+type ReminderMetric  = 'Odometer'  | 'Date'   | 'Both';
+
+interface Reminder {
+  id: string;
+  vehicleId: string;
+  description: string;       // human-readable label
+  urgency: ReminderUrgency;
+  metric: ReminderMetric;    // metric the system thinks triggered urgency now
+  userMetric: ReminderMetric; // metric the user configured to track
+  notes: string;
+  dueDate: string;           // 'M/D/YYYY'; placeholder when userMetric === 'Odometer'
+  dueOdometer: string;       // stringified int; '0' when userMetric === 'Date'
+  dueDays: string;           // stringified int countdown; negative = overdue
+  dueDistance: string;       // stringified int countdown (mi); negative = overdue
+  tags: string;
+}
+```
+
+All values are LubeLogger-style stringified (matches `GasRecord`).
+Page-side render logic uses `userMetric` to decide which due-side
+fields are meaningful — see
+[`maintenance-page.md`](./maintenance-page.md).
+
 ### `GET /api/fx?from=<code>&to=<code>`
 
 Source: `src/routes/api/fx/+server.ts`. Backed by `CurrencyService` —
@@ -215,6 +255,7 @@ handler) exposes three methods mapped to LubeLogger's REST API:
 |---|---|---|
 | `listVehicles()` | `GET /api/vehicles` | `Vehicle[]` |
 | `listGasRecords(vehicleId)` | `GET /api/vehicle/gasrecords?vehicleId=N` | `GasRecord[]` |
+| `listReminders(vehicleId)` | `GET /api/vehicle/reminders?vehicleId=N` | `Reminder[]` |
 | `addGasRecord(vehicleId, payload)` | `POST /api/vehicle/gasrecords/add?vehicleId=N` | `void` (body discarded) |
 
 ### Timeout

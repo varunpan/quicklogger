@@ -1,9 +1,9 @@
 # App pages
 
-quicklogger has four pages, reachable from the drawer (top-right
-hamburger): **Log Fuel**, **History**, **Vehicles**, **Settings**. The
-active page is highlighted in the drawer. This page walks through each
-one.
+quicklogger has five pages, reachable from the drawer (top-right
+hamburger): **Log Fuel**, **History**, **Maintenance**, **Vehicles**,
+**Settings**. The active page is highlighted in the drawer. This
+page walks through each one.
 
 ## Log Fuel (`/`)
 
@@ -100,6 +100,42 @@ A small footer reminds you:
 
 > Server converts to the LubeLogger-configured target unit and currency
 > before posting. These prefs only affect form defaults.
+
+## Maintenance (`/maintenance`)
+
+A read-only list of upcoming maintenance reminders pulled from
+LubeLogger for the active vehicle. Each row shows what's due, an
+urgency chip (`Past Due` / `Very Urgent` / `Urgent`), and a due
+context line — either a date (`Due Apr 12, 2026 · 31 days overdue`),
+an odometer reading (`Due at 115,316 mi · 5,764 mi to go`), or both.
+
+quicklogger relies on whatever reminders you've configured in
+LubeLogger — there's no UI here to create, edit, or dismiss them.
+Anything LubeLogger flags as `NotUrgent` is hidden; the page is
+about what's actually approaching or past due.
+
+The page is reachable two ways:
+
+- **From the drawer** — tap `Maintenance` in the hamburger menu. The
+  active vehicle is the one you most recently picked or submitted
+  against (same `lastVehicleId` the form uses).
+- **After a successful fuel submit** — the app auto-navigates here
+  from the Log Fuel page so you see the heads-up without having to
+  reach for the menu. Queued (offline) submits do NOT redirect —
+  there's no live data to show.
+
+States you may see:
+
+- **Looks good** — your active vehicle has no `Urgent`,
+  `VeryUrgent`, or `PastDue` items right now.
+- **Couldn't reach LubeLogger right now** — the API call failed.
+  Try again once you're back online; no data is cached locally for
+  this page in this version.
+- **Pick a vehicle first** — quicklogger doesn't know which vehicle
+  to show. Tap through to `/vehicles` and select one.
+
+A small "← Back to Log Fuel" link at the bottom returns you to the
+form.
 
 ## History (`/history`)
 

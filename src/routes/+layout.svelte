@@ -10,6 +10,7 @@
   const navItems = [
     { href: '/', label: 'Log Fuel' },
     { href: '/history', label: 'History' },
+    { href: '/maintenance', label: 'Maintenance' },
     { href: '/vehicles', label: 'Vehicles' },
     { href: '/settings', label: 'Settings' }
   ];

@@ -177,6 +177,8 @@
       } catch {
         // IDB unavailable (private mode, quota); ignore.
       }
+      // eslint-disable-next-line svelte/no-navigation-without-resolve
+      goto(`/maintenance?vehicleId=${vehicle.id}`);
       // reset volatile fields — re-prefill from last fuelup if prefs allow.
       // (data.lastFuelup is the snapshot at page load; next navigation refreshes it.)
       odometer = initialOdometer();
