@@ -147,29 +147,47 @@ form.
 
 ## History (`/history`)
 
-A bare-bones inspection page. It loads in two halves:
+A scrollable list of every fillup you've logged through this PWA for
+the active vehicle. One card per entry, newest date first.
 
-### Pending sync
+A vehicle card at the top mirrors the one on Log Fuel and Maintenance —
+tap it to switch which vehicle's history you're looking at. The
+picker returns you straight back to History after you pick.
 
-If anything is in the local IndexedDB queue, this section appears first
-under an amber **Pending sync** heading. One amber card per queue entry,
-each showing volume + currency + cost, then `status` and `attempts`,
-and `error` if the last attempt failed.
+Each card shows:
 
-This is where you check whether an offline submission actually went
-through. See [`offline-queue.md`](offline-queue.md) for what each status
-means and what triggers a re-sync.
+- **Status badge** when relevant. Amber `Queued` means the entry is
+  waiting to sync; rose `Failed` means LubeLogger rejected it. No
+  badge means the entry posted successfully.
+- **Date line** — the date you logged, plus a relative phrase
+  (`May 12, 2026 · yesterday`, `Apr 7, 2026 · 36 days ago`).
+- **Odometer reading**.
+- **Volume + cost line** — formatted as `14.279 gal · USD 50.96`.
+- **Fill-to-full** or **Missed fillup** when those flags were set.
+- **note:** the free-text note, when you wrote one.
+- **#tag chips** when you tagged the entry.
+- **error:** and **attempts:** lines on failed entries only, so you
+  know why and how often it tried.
 
-### Last fillup on LubeLogger
+States you may see:
 
-Below the queue, the most recent fillup the server returned for your
-**last-picked vehicle** is rendered as raw JSON. It's pretty-printed so
-you can read fields directly. There's no formatting layer — it's
-diagnostic rather than presentational. If the server returned nothing
-(network failed, vehicle has no fillups yet), the page says:
+- **No fillups logged on this device yet** — your local store is
+  empty. Log something and it'll appear here.
+- **No fillups logged for this vehicle yet** — the local store has
+  entries for other vehicles. Switch vehicles via the picker card.
+- **Couldn't load local history** — IndexedDB is unavailable (private
+  browsing, storage quota). The page renders a rose notice; the
+  picker still works.
 
-> None.
+A footer disclaimer is always present:
 
-The page does not currently let you view older fillups, delete queue
-entries, or trigger a manual re-sync — those run automatically on focus
-(see [`offline-queue.md`](offline-queue.md)).
+> Only fillups logged through this PWA appear here.
+
+This is by design — the page reads the local browser store, not
+LubeLogger. Fillups you entered via the LubeLogger web UI, or on a
+different device, won't show up. To see the full history per
+vehicle, use LubeLogger directly.
+
+There's no retry, dismiss, or edit affordance in this version —
+failed entries surface their last error so you can decide what to
+do next.
