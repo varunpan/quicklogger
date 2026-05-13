@@ -99,4 +99,69 @@ describe('LubeLoggerClient', () => {
 		server.use(http.get(`${BASE}/api/vehicles`, () => new HttpResponse(null, { status: 503 })));
 		await expect(client().listVehicles()).rejects.toMatchObject({ status: 503 });
 	});
+
+	it('lists reminders for a vehicle', async () => {
+		let observedQs = '';
+		server.use(
+			http.get(`${BASE}/api/vehicle/reminders`, ({ request }) => {
+				observedQs = new URL(request.url).searchParams.toString();
+				return HttpResponse.json([
+					{
+						vehicleId: '1',
+						id: '5',
+						description: 'Brake Fluid',
+						urgency: 'PastDue',
+						metric: 'Date',
+						userMetric: 'Date',
+						notes: '',
+						dueDate: '3/30/2026',
+						dueOdometer: '0',
+						dueDays: '-44',
+						dueDistance: '0',
+						tags: ''
+					},
+					{
+						vehicleId: '1',
+						id: '12',
+						description: 'Engine Oil change',
+						urgency: 'PastDue',
+						metric: 'Date',
+						userMetric: 'Both',
+						notes: '',
+						dueDate: '4/12/2026',
+						dueOdometer: '115316',
+						dueDays: '-31',
+						dueDistance: '5764',
+						tags: ''
+					}
+				]);
+			})
+		);
+		const reminders = await client().listReminders(1);
+		expect(observedQs).toBe('vehicleId=1');
+		expect(reminders).toHaveLength(2);
+		expect(reminders[0].description).toBe('Brake Fluid');
+		expect(reminders[0].urgency).toBe('PastDue');
+		expect(reminders[1].userMetric).toBe('Both');
+	});
+
+	it('throws LubeLoggerError on reminders 4xx', async () => {
+		server.use(
+			http.get(
+				`${BASE}/api/vehicle/reminders`,
+				() => new HttpResponse('not found', { status: 404 })
+			)
+		);
+		await expect(client().listReminders(99)).rejects.toMatchObject({
+			name: 'LubeLoggerError',
+			status: 404
+		});
+	});
+
+	it('throws LubeLoggerError on reminders 5xx', async () => {
+		server.use(
+			http.get(`${BASE}/api/vehicle/reminders`, () => new HttpResponse(null, { status: 503 }))
+		);
+		await expect(client().listReminders(1)).rejects.toMatchObject({ status: 503 });
+	});
 });

@@ -24,6 +24,29 @@ export interface GasRecord {
 	[key: string]: unknown;
 }
 
+export type ReminderUrgency = 'NotUrgent' | 'Urgent' | 'VeryUrgent' | 'PastDue';
+export type ReminderMetric = 'Odometer' | 'Date' | 'Both';
+
+/** Shape returned by GET /api/vehicle/reminders. Every field is always
+ *  present in the upstream payload (verified against LubeLogger during
+ *  design). All values are strings, matching the LubeLogger
+ *  stringified-everything convention also seen on GasRecord. */
+export interface Reminder {
+	id: string;
+	vehicleId: string;
+	description: string;
+	urgency: ReminderUrgency;
+	metric: ReminderMetric;
+	userMetric: ReminderMetric;
+	notes: string;
+	dueDate: string;       // 'M/D/YYYY'; placeholder when userMetric === 'Odometer'
+	dueOdometer: string;   // stringified int; '0' when userMetric === 'Date'
+	dueDays: string;       // stringified int countdown; negative = overdue
+	dueDistance: string;   // stringified int countdown (mi); negative = overdue
+	tags: string;
+	[key: string]: unknown;
+}
+
 /** Form-data payload accepted by POST /api/vehicle/gasrecords/add (LubeLogger
  *  is case-insensitive on the form-data field names; we send lowercase). */
 export interface AddGasRecordPayload {
@@ -87,6 +110,11 @@ export class LubeLoggerClient {
 	async listGasRecords(vehicleId: number): Promise<GasRecord[]> {
 		const res = await this.request(`/api/vehicle/gasrecords?vehicleId=${vehicleId}`);
 		return res.json() as Promise<GasRecord[]>;
+	}
+
+	async listReminders(vehicleId: number): Promise<Reminder[]> {
+		const res = await this.request(`/api/vehicle/reminders?vehicleId=${vehicleId}`);
+		return res.json() as Promise<Reminder[]>;
 	}
 
 	async addGasRecord(vehicleId: number, payload: AddGasRecordPayload): Promise<void> {
