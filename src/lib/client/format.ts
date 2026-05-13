@@ -72,3 +72,22 @@ export function formatDueDate(s: string): string {
   if (Number.isNaN(then.getTime())) return s;
   return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
+// Formats an ISO `YYYY-MM-DD` date (the shape IDB stores) as
+// `Mon D, YYYY · N days ago` for /history cards. Uses the existing
+// `daysAgo` helper for the relative suffix — IDB's ISO format is
+// converted to `M/D/YYYY` first so the two share one definition of
+// "today" / "yesterday" / "N days ago". Locale pinned to en-US to
+// match `formatLastFillupDate`. Falls back to the raw input on parse
+// failure so the UI never renders "Invalid Date".
+export function formatIsoDate(s: string): string {
+  if (!s) return s;
+  const parts = s.split('-');
+  if (parts.length !== 3) return s;
+  const [y, m, d] = parts.map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
+  const then = new Date(y, m - 1, d);
+  if (Number.isNaN(then.getTime())) return s;
+  const abs = then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${abs} · ${daysAgo(`${m}/${d}/${y}`)}`;
+}

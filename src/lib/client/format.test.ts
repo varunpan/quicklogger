@@ -4,7 +4,8 @@ import {
   daysAgo,
   formatLastFillupDate,
   humanCountdown,
-  formatDueDate
+  formatDueDate,
+  formatIsoDate
 } from './format';
 
 describe('formatOdometer', () => {
@@ -154,5 +155,41 @@ describe('formatDueDate', () => {
 
   it('returns the raw string on unparseable date', () => {
     expect(formatDueDate('not a date')).toBe('not a date');
+  });
+});
+
+describe('formatIsoDate', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-13T10:00:00'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('combines absolute date with "today"', () => {
+    expect(formatIsoDate('2026-05-13')).toBe('May 13, 2026 · today');
+  });
+
+  it('combines absolute date with "yesterday"', () => {
+    expect(formatIsoDate('2026-05-12')).toBe('May 12, 2026 · yesterday');
+  });
+
+  it('combines absolute date with "N days ago"', () => {
+    expect(formatIsoDate('2026-05-06')).toBe('May 6, 2026 · 7 days ago');
+  });
+
+  it('returns the raw string on non-date input', () => {
+    expect(formatIsoDate('not-a-date')).toBe('not-a-date');
+  });
+
+  it('returns the raw string on empty input', () => {
+    expect(formatIsoDate('')).toBe('');
+  });
+
+  it('returns the raw string when not three segments', () => {
+    expect(formatIsoDate('2026-05')).toBe('2026-05');
+  });
+
+  it('returns the raw string on non-numeric segments', () => {
+    expect(formatIsoDate('2026-foo-13')).toBe('2026-foo-13');
   });
 });
