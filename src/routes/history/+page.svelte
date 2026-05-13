@@ -1,28 +1,69 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Queue, type QueueEntry } from '$lib/client/idb';
-  import { loadPrefs } from '$lib/client/prefs';
-  import { lastFuelup } from '$lib/client/api';
+  import { formatIsoDate, formatOdometer } from '$lib/client/format';
 
-  let { data: _data } = $props();
-  const prefs = loadPrefs();
-  let vehicleId: number | null = $state(prefs.lastVehicleId);
-  let recent: Array<Record<string, unknown>> = $state([]);
-  let queued: QueueEntry[] = $state([]);
+  let { data } = $props();
+
+  let allEntries: QueueEntry[] = $state([]);
   let loading: boolean = $state(true);
+  let error: string | null = $state(null);
 
-  async function load() {
-    loading = true;
-    if (vehicleId !== null) {
-      const last = await lastFuelup(vehicleId);
-      recent = last ? [last] : [];
+  const vehicleLabel = $derived.by(() => {
+    const v = data.vehicle;
+    if (!v) return '';
+    return [v.year, v.make, v.model].filter(Boolean).join(' ');
+  });
+
+  // 'YYYY-MM-DD' → epoch ms. UTC keeps the comparison stable across
+  // timezones — we only care about ordering, not absolute display.
+  function dateKey(iso: string): number {
+    const [y, m, d] = iso.split('-').map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+      return 0;
     }
-    const q = await Queue.open();
-    queued = await q.list();
-    loading = false;
+    return Date.UTC(y, m - 1, d);
   }
 
-  onMount(load);
+  const visible = $derived.by(() => {
+    const vid = data.vehicle?.id ?? null;
+    if (vid === null) return [];
+    return allEntries
+      .filter((e) => e.input.vehicleId === vid)
+      .sort(
+        (a, b) =>
+          dateKey(b.input.date) - dateKey(a.input.date) ||
+          b.enqueuedAt - a.enqueuedAt
+      );
+  });
+
+  const emptyCopy = $derived.by(() => {
+    if (allEntries.length === 0) return 'No fillups logged on this device yet.';
+    return 'No fillups logged for this vehicle yet.';
+  });
+
+  function tagsOf(raw: string | undefined): string[] {
+    if (!raw) return [];
+    return raw
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  }
+
+  function fuelCostLine(input: QueueEntry['input']): string {
+    return `${input.volume.toFixed(3)} ${input.volumeUnit} · ${input.currency} ${input.cost.toFixed(2)}`;
+  }
+
+  onMount(async () => {
+    try {
+      const q = await Queue.open();
+      allEntries = await q.list();
+    } catch (e) {
+      error = (e as Error).message ?? 'IndexedDB unavailable';
+    } finally {
+      loading = false;
+    }
+  });
 </script>
 
 <header class="flex items-center mb-4 gap-3">
@@ -31,32 +72,86 @@
   <h1 class="text-xl font-bold">History</h1>
 </header>
 
+{#if data.vehicle}
+  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+  <a href="/vehicles?from=history" class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full">
+    <div class="w-12 h-12 rounded-lg bg-zinc-700 shrink-0 flex items-center justify-center text-zinc-500">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 17h14M5 17v-5l2-5h10l2 5v5M5 17H3M19 17h2M7 12h10" />
+        <circle cx="8" cy="17" r="1.5" /><circle cx="16" cy="17" r="1.5" />
+      </svg>
+    </div>
+    <div class="text-left flex-1 min-w-0">
+      <div class="field-label">Vehicle</div>
+      <div class="text-base font-semibold truncate text-zinc-100">
+        {vehicleLabel}
+      </div>
+    </div>
+    <span class="text-zinc-500" aria-hidden="true">›</span>
+  </a>
+{/if}
+
 {#if loading}
   <p class="text-zinc-400">Loading…</p>
+{:else if error !== null}
+  <div class="rounded-xl px-3 py-2 text-sm text-rose-300 bg-rose-500/15 border border-rose-500/30">
+    Couldn't load local history: {error}
+  </div>
+  <p class="text-xs text-zinc-500 mt-6 italic">
+    Only fillups logged through this PWA appear here.
+  </p>
+{:else if visible.length === 0}
+  <p class="text-sm text-zinc-500 italic">{emptyCopy}</p>
+  <p class="text-xs text-zinc-500 mt-6 italic">
+    Only fillups logged through this PWA appear here.
+  </p>
 {:else}
-  {#if queued.length > 0}
-    <h2 class="text-sm uppercase text-amber-400 mb-2">Pending sync</h2>
-    <div class="flex flex-col gap-2 mb-4">
-      {#each queued as q (q.id)}
-        <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-sm">
-          <div class="text-amber-300 font-semibold">
-            {q.input.volume} {q.input.volumeUnit} · {q.input.currency} {q.input.cost}
-          </div>
-          <div class="text-xs text-zinc-400">
-            status: {q.status} · attempts: {q.attempts}
-            {#if q.lastError}<br>error: {q.lastError}{/if}
-          </div>
+  {#each visible as entry (entry.id)}
+    {@const tagList = tagsOf(entry.input.tags)}
+    <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-2">
+      <div class="flex items-center gap-2">
+        {#if entry.status === 'queued'}
+          <span class="text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5 border shrink-0 text-amber-300 bg-amber-500/15 border-amber-500/30">
+            Queued
+          </span>
+        {:else if entry.status === 'failed'}
+          <span class="text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5 border shrink-0 text-rose-300 bg-rose-500/15 border-rose-500/30">
+            Failed
+          </span>
+        {/if}
+        <span class="text-sm text-zinc-300">{formatIsoDate(entry.input.date)}</span>
+      </div>
+      <div class="text-base font-semibold text-zinc-100 mt-2">
+        {formatOdometer(String(entry.input.odometer))} mi
+      </div>
+      <div class="text-sm text-zinc-300 mt-0.5">
+        {fuelCostLine(entry.input)}
+      </div>
+      {#if entry.input.isFillToFull}
+        <div class="text-xs text-zinc-400 mt-1">Fill-to-full</div>
+      {/if}
+      {#if entry.input.missedFuelup}
+        <div class="text-xs text-zinc-400 mt-1">Missed fillup</div>
+      {/if}
+      {#if entry.input.notes && entry.input.notes.trim().length > 0}
+        <div class="text-xs text-zinc-400 mt-1 whitespace-pre-wrap">note: {entry.input.notes}</div>
+      {/if}
+      {#if tagList.length > 0}
+        <div class="mt-2 flex flex-wrap gap-1">
+          {#each tagList as tag (tag)}
+            <span class="text-xs text-zinc-300 bg-zinc-700/60 rounded px-1.5 py-0.5">#{tag}</span>
+          {/each}
         </div>
-      {/each}
+      {/if}
+      {#if entry.status === 'failed' && entry.lastError}
+        <div class="text-xs text-rose-300 mt-2">error: {entry.lastError}</div>
+      {/if}
+      {#if entry.status === 'failed' && entry.attempts > 0}
+        <div class="text-xs text-zinc-500 mt-0.5">attempts: {entry.attempts}</div>
+      {/if}
     </div>
-  {/if}
-
-  <h2 class="text-sm uppercase text-zinc-400 mb-2">Last fillup on LubeLogger</h2>
-  {#if recent.length === 0}
-    <p class="text-zinc-500">None.</p>
-  {:else}
-    <div class="bg-zinc-800 rounded-xl p-3 text-sm">
-      <pre class="text-xs whitespace-pre-wrap">{JSON.stringify(recent[0], null, 2)}</pre>
-    </div>
-  {/if}
+  {/each}
+  <p class="text-xs text-zinc-500 mt-4 italic">
+    Only fillups logged through this PWA appear here.
+  </p>
 {/if}

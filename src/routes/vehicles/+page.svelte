@@ -9,7 +9,8 @@
   // return there post-pick. Anything else (including absent / unknown
   // values) falls back to '/' to avoid open-redirect surface.
   const RETURN_TO: Record<string, string> = {
-    maintenance: '/maintenance'
+    maintenance: '/maintenance',
+    history: '/history'
   };
 
   function returnPath(): string {
