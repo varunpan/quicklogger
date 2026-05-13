@@ -46,6 +46,12 @@ this document under § *LubeLogger upstream calls*.
 | `enqueuedAt` | `number` | no | `Date.now()` at enqueue time (ms epoch). |
 | `lastError` | `string` | yes | Response status string on failed replay (set by `markFailed`). |
 
+### Consumers
+
+- `Queue.enqueue` — written by the Log Fuel submit path and the service-worker replay (see [`offline-queue.md`](./offline-queue.md)).
+- The offline-prefill resolver in `src/lib/client/last-fillup.ts` — reads `'synced'` rows to surface the most-recent fillup when `/api/vehicle/last-fuelup` is unreachable.
+- `/history` (`src/routes/history/+page.svelte`) — reads the whole store for display ([`history-page.md`](./history-page.md)).
+
 ### `FuelSubmissionInput` shape
 
 Source: `src/lib/shared/types.ts`.
