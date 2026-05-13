@@ -138,6 +138,8 @@ export async function seedQueueEntry(
     input: Record<string, unknown>;
     status: 'queued' | 'failed' | 'synced';
     enqueuedAt?: number;
+    attempts?: number;
+    lastError?: string;
   }
 ) {
   await page.addInitScript(async (e) => {
@@ -156,12 +158,14 @@ export async function seedQueueEntry(
       open.onsuccess = () => {
         const db = open.result;
         const tx = db.transaction('pendingSubmissions', 'readwrite');
-        tx.objectStore('pendingSubmissions').add({
+        const row: Record<string, unknown> = {
           input: e.input,
           status: e.status,
-          attempts: 0,
+          attempts: e.attempts ?? 0,
           enqueuedAt: e.enqueuedAt ?? Date.now()
-        });
+        };
+        if (e.lastError !== undefined) row.lastError = e.lastError;
+        tx.objectStore('pendingSubmissions').add(row);
         tx.oncomplete = () => {
           db.close();
           resolve();

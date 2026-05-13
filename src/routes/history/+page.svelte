@@ -108,7 +108,7 @@
 {:else}
   {#each visible as entry (entry.id)}
     {@const tagList = tagsOf(entry.input.tags)}
-    <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-2">
+    <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-2" data-testid="fillup-card">
       <div class="flex items-center gap-2">
         {#if entry.status === 'queued'}
           <span class="text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5 border shrink-0 text-amber-300 bg-amber-500/15 border-amber-500/30">

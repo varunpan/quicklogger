@@ -127,48 +127,22 @@ test('queued card renders amber badge', async ({ page }) => {
 test('failed card renders rose badge, error line, attempts line', async ({ page }) => {
   await pinClock(page, '2026-05-13T10:00:00');
   await mockVehiclesOnly(page);
-  await page.addInitScript(async () => {
-    const open = indexedDB.open('quicklogger', 1);
-    await new Promise<void>((resolve, reject) => {
-      open.onupgradeneeded = () => {
-        const db = open.result;
-        if (!db.objectStoreNames.contains('pendingSubmissions')) {
-          const store = db.createObjectStore('pendingSubmissions', {
-            keyPath: 'id',
-            autoIncrement: true
-          });
-          store.createIndex('byStatus', 'status');
-        }
-      };
-      open.onsuccess = () => {
-        const db = open.result;
-        const tx = db.transaction('pendingSubmissions', 'readwrite');
-        tx.objectStore('pendingSubmissions').add({
-          input: {
-            vehicleId: 1,
-            date: '2026-04-30',
-            odometer: 105100,
-            volume: 12,
-            volumeUnit: 'gal',
-            cost: 44,
-            currency: 'USD',
-            isFillToFull: true,
-            missedFuelup: false,
-            clientSubmissionId: 'd'
-          },
-          status: 'failed',
-          attempts: 3,
-          enqueuedAt: Date.now(),
-          lastError: '400 invalid odometer'
-        });
-        tx.oncomplete = () => {
-          db.close();
-          resolve();
-        };
-        tx.onerror = () => reject(tx.error);
-      };
-      open.onerror = () => reject(open.error);
-    });
+  await seedQueueEntry(page, {
+    input: {
+      vehicleId: 1,
+      date: '2026-04-30',
+      odometer: 105100,
+      volume: 12,
+      volumeUnit: 'gal',
+      cost: 44,
+      currency: 'USD',
+      isFillToFull: true,
+      missedFuelup: false,
+      clientSubmissionId: 'd'
+    },
+    status: 'failed',
+    attempts: 3,
+    lastError: '400 invalid odometer'
   });
   await gotoHistoryViaDrawer(page);
 
@@ -201,9 +175,7 @@ test('sort order: newer date first', async ({ page }) => {
   }
   await gotoHistoryViaDrawer(page);
 
-  // Fillup cards: the only ones with the "mi" odometer suffix line.
-  // The vehicle picker card is a separate <a>, not a <div>.
-  const fillupCards = page.locator('main div.bg-zinc-800.rounded-xl').filter({ hasText: /\d{3},\d{3} mi/ });
+  const fillupCards = page.locator('[data-testid="fillup-card"]');
   await expect(fillupCards).toHaveCount(3);
   await expect(fillupCards.nth(0)).toContainText('Apr 15, 2026');
   await expect(fillupCards.nth(1)).toContainText('Apr 8, 2026');
@@ -249,8 +221,7 @@ test('same-date tie-breaker: higher enqueuedAt renders first', async ({ page }) 
   });
   await gotoHistoryViaDrawer(page);
 
-  // Both cards are dated Apr 15, 2026 — distinguish by the odometer line.
-  const fillupCards = page.locator('main div.bg-zinc-800.rounded-xl').filter({ hasText: 'Apr 15, 2026' });
+  const fillupCards = page.locator('[data-testid="fillup-card"]');
   await expect(fillupCards).toHaveCount(2);
   await expect(fillupCards.nth(0)).toContainText('note: later');
   await expect(fillupCards.nth(1)).toContainText('note: earlier');
