@@ -61,6 +61,13 @@ bigger picture: see the `/` page section in
   `opts.rotation: 0 | 90 | 180 | 270` is applied as a single
   translate+rotate transform inside the same canvas pass (no double
   re-encode). Used by the preview screen.
+- [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
+  — full-screen modal mounted between capture and OCR submit.
+  CSS-rotates the `<img>` while the user picks an orientation;
+  cumulative rotation is handed to `resizeForOcr({ rotation })` on
+  `[Send for OCR]`. Cancel returns to the form (no OCR call); Retake
+  asks the host to re-trigger the originating `<input type="file">`.
+  Object URL revoked on unmount.
 - [`src/routes/+page.ts`](../../src/routes/+page.ts) — probes
   `GET /api/ocr` and surfaces `ocrEnabled` + `ocrModes` to the page.
   Failure to probe = `enabled: false`; page load never blocks on OCR.
