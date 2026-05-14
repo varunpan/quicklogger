@@ -6,6 +6,7 @@ export interface Prefs {
   defaultCurrency: string;
   odometerPrefillEnabled: boolean;
   odometerIncrementMi: number;
+  smartChecksEnabled: boolean;
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -13,7 +14,8 @@ export const DEFAULT_PREFS: Prefs = {
   defaultVolumeUnit: 'gal',
   defaultCurrency: 'USD',
   odometerPrefillEnabled: true,
-  odometerIncrementMi: 300
+  odometerIncrementMi: 300,
+  smartChecksEnabled: true
 };
 
 const KEY = 'quicklogger.prefs';

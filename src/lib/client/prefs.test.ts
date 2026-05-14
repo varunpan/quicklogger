@@ -42,4 +42,32 @@ describe('prefs', () => {
     expect(p.odometerIncrementMi).toBe(250);
     expect(p.defaultCurrency).toBe('EUR');
   });
+  it('defaults smartChecksEnabled to true', () => {
+    expect(loadPrefs().smartChecksEnabled).toBe(true);
+  });
+  it('round-trips smartChecksEnabled', () => {
+    savePrefs({ smartChecksEnabled: false });
+    expect(loadPrefs().smartChecksEnabled).toBe(false);
+  });
+  it('preserves smartChecksEnabled across partial saves of other keys', () => {
+    savePrefs({ smartChecksEnabled: false });
+    savePrefs({ defaultCurrency: 'EUR' });
+    const p = loadPrefs();
+    expect(p.smartChecksEnabled).toBe(false);
+    expect(p.defaultCurrency).toBe('EUR');
+  });
+  it('legacy JSON without smartChecksEnabled picks up the default', () => {
+    // Mimics a localStorage value written by a pre-0.2.0 build.
+    localStorage.setItem(
+      'quicklogger.prefs',
+      JSON.stringify({
+        lastVehicleId: 4,
+        defaultVolumeUnit: 'gal',
+        defaultCurrency: 'USD',
+        odometerPrefillEnabled: true,
+        odometerIncrementMi: 300
+      })
+    );
+    expect(loadPrefs().smartChecksEnabled).toBe(true);
+  });
 });
