@@ -13,6 +13,8 @@
     OcrMode
   } from '$lib/shared/types';
   import { formatOdometer, formatLastFillupDate } from '$lib/client/format';
+  import OcrPreview from '$lib/client/OcrPreview.svelte';
+  import type { Rotation } from '$lib/client/image';
 
   let { data } = $props();
   const prefs = loadPrefs();
@@ -63,6 +65,11 @@
   let odoWarning: OdoWarn | null = $state(null);
   let odoCameraInput: HTMLInputElement | undefined = $state();
 
+  // Preview screen state — set when the user picks/captures a file,
+  // cleared when they Cancel, Retake (after the input re-fires), or Send.
+  type PendingCapture = { file: File; mode: OcrMode };
+  let pendingCapture: PendingCapture | null = $state(null);
+
   function pumpModeEnabled(): boolean {
     return data.ocrEnabled && data.ocrModes.includes('pump' as OcrMode);
   }
@@ -96,22 +103,20 @@
     return { kind: 'error', text: `OCR failed (${s ?? 'network'})` };
   }
 
-  async function handlePumpCamera(ev: Event) {
+  function handlePumpCamera(ev: Event) {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
-    pumpOcrPending = true;
-    toast = null;
-    try {
-      const blob = await resizeForOcr(file);
-      const result = await postOcr(blob, 'pump');
-      if (result.mode === 'pump') pumpSuggestion = result;
-    } catch (err) {
-      toast = ocrErrorToast(err);
-    } finally {
-      pumpOcrPending = false;
-    }
+    pendingCapture = { file, mode: 'pump' };
+  }
+
+  function handleOdoCamera(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    pendingCapture = { file, mode: 'odometer' };
   }
 
   function checkOdometerRelative(
@@ -125,30 +130,60 @@
     return { ok: true };
   }
 
-  async function handleOdoCamera(ev: Event) {
-    const input = ev.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-    odoOcrPending = true;
+  async function runOcr(file: File, mode: OcrMode, rotation: Rotation) {
+    if (mode === 'pump') {
+      pumpOcrPending = true;
+    } else {
+      odoOcrPending = true;
+    }
     toast = null;
     try {
-      const blob = await resizeForOcr(file);
-      const result = await postOcr(blob, 'odometer');
-      if (result.mode !== 'odometer') return; // type-narrow guard
-      const check = checkOdometerRelative(result.odometer);
-      if ('ok' in check) {
-        odoSuggestion = result;
-        odoWarning = null;
-      } else {
-        odoSuggestion = null;
-        odoWarning = check;
+      const blob = await resizeForOcr(file, { rotation });
+      const result = await postOcr(blob, mode, rotation);
+      if (result.mode === 'pump') {
+        pumpSuggestion = result;
+      } else if (result.mode === 'odometer') {
+        const check = checkOdometerRelative(result.odometer);
+        if ('ok' in check) {
+          odoSuggestion = result;
+          odoWarning = null;
+        } else {
+          odoSuggestion = null;
+          odoWarning = check;
+        }
       }
     } catch (err) {
       toast = ocrErrorToast(err);
     } finally {
-      odoOcrPending = false;
+      // Narrow to the originating mode so concurrent OCR (a future change)
+      // wouldn't have one completion clear the other's spinner.
+      if (mode === 'pump') pumpOcrPending = false;
+      else odoOcrPending = false;
     }
+  }
+
+  function previewSubmit({ rotation }: { rotation: Rotation }) {
+    if (!pendingCapture) return;
+    const { file, mode } = pendingCapture;
+    pendingCapture = null;
+    void runOcr(file, mode, rotation);
+  }
+
+  function previewCancel() {
+    pendingCapture = null;
+  }
+
+  function previewRetake() {
+    if (!pendingCapture) return;
+    const mode = pendingCapture.mode;
+    pendingCapture = null;
+    // Re-open the originating file input. A synchronous .click() from
+    // inside the modal-unmount frame is dropped silently on iOS Safari;
+    // queueMicrotask defers it to the next task once the modal is gone.
+    queueMicrotask(() => {
+      if (mode === 'pump') pumpCameraInput?.click();
+      else odoCameraInput?.click();
+    });
   }
 
   function applyPumpOcr() {
@@ -634,6 +669,16 @@
           onclick={submit}>
     {submitting ? 'Logging…' : 'Log fillup'}
   </button>
+
+  {#if pendingCapture}
+    <OcrPreview
+      file={pendingCapture.file}
+      mode={pendingCapture.mode}
+      onsubmit={previewSubmit}
+      oncancel={previewCancel}
+      onretake={previewRetake}
+    />
+  {/if}
 
   {#if toast}
     <div class="mt-4 rounded-xl px-4 py-3 text-sm"

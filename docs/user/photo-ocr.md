@@ -58,10 +58,15 @@ Full env-var reference:
 3. iPhone shows its chooser sheet. Pick **Take Photo or Video** to use
    the camera, or **Photo Library** to pick a photo you already took.
    On Android the standard picker covers both paths in one screen.
-4. ~2–15 s later a blue chip appears showing the detected values:
-   *Detected: 11.2 gal · $42.18 · $3.78/gal*
-5. Tap **Use** → Volume + Cost (+ unit) populate. **Discard** dismisses
-   without changing anything.
+4. After you pick or shoot the photo, the **preview screen** takes
+   over. You can tap the rotate buttons to spin the image to the right
+   orientation, **Retake** to pick another photo, or **Cancel** to
+   bail out without sending. When the orientation looks right, tap
+   **Send for OCR**.
+5. ~2–15 s later a blue chip appears in the feedback zone showing
+   the detected values: *Detected: 11.2 gal · $42.18 · $3.78/gal*
+6. Tap **Use** → Volume + Cost (+ unit) populate. **Discard**
+   dismisses without changing anything.
 
 ### Odometer mode
 
@@ -71,9 +76,11 @@ Full env-var reference:
    - a screenshot of a phone app showing the mileage (Carfax,
      FuelEconomy.gov, your car's companion app — anything that displays
      the number).
-3. A blue chip appears in the feedback zone under the capture row:
+3. The **preview screen** opens. Rotate or retake if the image isn't
+   right; tap **Send for OCR** when it is.
+4. A blue chip appears in the feedback zone under the capture row:
    *Detected: 87,612 mi*. Tap **Use** to populate.
-4. If the detected reading is **lower than your last fillup** or
+5. If the detected reading is **lower than your last fillup** or
    **more than 2,000 mi above it**, the chip turns amber and shows
    `[Use anyway]` and `[Dismiss]`. Both are valid: tap `Use anyway`
    if you know the reading is right (cluster swap, long road trip,
@@ -106,6 +113,11 @@ Full env-var reference:
 - **Going offline mid-OCR.** After 90 seconds the client times out and
   surfaces a toast — type the value manually. Image is **not** queued
   for replay (intentional — see internals doc).
+- **The preview is local — works offline.** You can pick the photo,
+  rotate it, and decide whether to send even when offline. Tapping
+  `Send for OCR` is the only thing that needs network. If the network
+  is down at that moment, the same 90 s timeout fires and you fall
+  back to typing.
 - **Cross-currency.** The pump cross-field check is currency-agnostic;
   it relies on the relationship `cost ≈ volume × price/unit`, which
   holds in any currency. Just make sure the currency selector matches

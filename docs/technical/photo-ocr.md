@@ -122,10 +122,16 @@ audit log persists the same shape under `parsed`, plus a top-level
 1. Browser opens the OS chooser via `<input type="file" accept="image/*">`
    (no `capture` attribute — iOS users get the native sheet with both
    *Take Photo* and *Photo Library* options).
-2. `resizeForOcr(file)` runs in a hidden Canvas — 1024 px long edge,
-   JPEG q=0.8, EXIF stripped. Output is ~150–300 KB.
-3. `postOcr(blob, mode)` POSTs `multipart/form-data` with 90 s client
-   `AbortSignal.timeout`.
+2. The selected `File` lands in `pendingCapture` state and the
+   `OcrPreview` modal mounts. The user can rotate the image
+   (CSS-only — no re-encode), retake (re-triggers the file input), or
+   cancel (no OCR call).
+3. On `[Send for OCR]`, `resizeForOcr(file, { rotation })` runs in a
+   hidden Canvas — orient via EXIF → apply rotation → resize to
+   1024 px long edge → JPEG q=0.8. Single canvas pass, ~150–300 KB
+   output. `postOcr(blob, mode, rotation)` POSTs `multipart/form-data`
+   with 90 s client `AbortSignal.timeout`. The `rotation` form field
+   is omitted when 0 (wire-compat with v0.2.0 pre-refinement clients).
 4. Server: rate-limit check (in-memory sliding window, per-IP) →
    budget check (`/data/ocr-budget.json`) → multipart parse → mode
    whitelist → image size + magic-byte sniff.
@@ -284,6 +290,21 @@ On `[Send for OCR]`, the cumulative rotation is handed to
 `resizeForOcr({ rotation })` so EXIF-orient → rotate → resize → JPEG
 encode all happen in one canvas pass. One pixel-encoding event total,
 not two — keeps the existing performance profile.
+
+**Preview component is full-screen modal, not a panel.** The OCR loop
+is ~5–30 s with a clear before/after; embedding the preview as a panel
+on the form would make rotation hard to see and would make the user
+worry about scrolling away. Modal frees the whole viewport for the
+image and keeps the rotate / retake / cancel / send actions in fixed
+positions at the bottom edge.
+
+**Cancel and Retake have distinct semantics.** Cancel discards the
+file and returns to the form; nothing changes. Retake discards the
+current file but re-opens the same input the user originally tapped
+(via a `queueMicrotask` to step out of the modal-unmount frame), so
+the second photo flows through the preview again. Both clear the
+pending state — they differ only in whether a follow-up file picker
+opens.
 
 ## Future considerations
 

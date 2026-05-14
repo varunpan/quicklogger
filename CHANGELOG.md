@@ -47,6 +47,13 @@ All notable changes to this project are documented here. Format roughly follows 
 - New user guide: [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md).
   Internals doc:
   [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
+- **Photo preview screen.** Between picker and OCR submit, a
+  full-screen preview lets you rotate the image (`[↺]` / `[↻]`),
+  retake (re-opens the same picker), cancel (no OCR call), or
+  `[Send for OCR]`. Rotation is CSS-only while previewing — no
+  re-encode — and is applied as a single canvas transform on submit
+  alongside the existing resize. Component:
+  [`src/lib/client/OcrPreview.svelte`](src/lib/client/OcrPreview.svelte).
 
 ### Changed
 
@@ -73,6 +80,14 @@ All notable changes to this project are documented here. Format roughly follows 
   cases (replaced cluster, long road trip, odometer rollover) deserve
   a one-tap path through, not a re-shoot loop. Server-side absolute
   bound (`OCR_ODOMETER_MAX_MI`) is unchanged and still blocking.
+- `resizeForOcr` accepts an optional `{ rotation: 0 | 90 | 180 | 270 }`
+  applied in the same canvas pass as the resize. `postOcr` accepts
+  an optional `rotation` arg and adds a wire-additive `rotation`
+  form field (omitted when 0, so old clients are byte-identical).
+- `/api/ocr` POST now reads an optional `rotation` form field; the
+  audit log records `rotationApplied: number` on every row (always
+  present, defaults to 0). JSONL field-additive — old log readers
+  ignore the field; rollback leaves rows without it.
 
 ### Fixed
 
@@ -87,6 +102,19 @@ All notable changes to this project are documented here. Format roughly follows 
 - e2e spec [`tests/e2e/ocr-flow.spec.ts`](tests/e2e/ocr-flow.spec.ts):
   pump happy path, pump discard, odometer happy path, odometer warnings
   (lower / too-high), chips-hidden-when-disabled, 429/502/422 toasts.
+- New unit specs: `src/lib/client/image.test.ts` (rotation cases for
+  `resizeForOcr`), `src/lib/client/OcrPreview.test.ts` (preview state
+  machine — rotation cycle, submit/cancel/retake events, ESC key,
+  ObjectURL lifecycle).
+- Extended `src/lib/server/ocrAudit.test.ts` to cover `rotationApplied`
+  round-trip.
+- New e2e spec [`tests/e2e/ocr-preview.spec.ts`](tests/e2e/ocr-preview.spec.ts):
+  preview opens between picker and OCR, Cancel suppresses the OCR call,
+  rotate-then-send POSTs the form field, no-rotate-send stays
+  byte-compatible.
+- Existing pump/odometer/error-path specs in
+  [`tests/e2e/ocr-flow.spec.ts`](tests/e2e/ocr-flow.spec.ts) updated to
+  click `[Send for OCR]` after picking the file.
 
 ## [0.1.4] — 2026-05-13
 

@@ -47,6 +47,8 @@ test('pump: chip appears + Use populates Volume + Cost', async ({ page }) => {
 
   // Pump file input is nth=0 (top capture row renders pump first, odometer second).
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   // Wait for confirm chip rendering
   await expect(page.getByText(/Detected:/)).toBeVisible();
   await expect(page.getByText(/11\.2 gal · \$42\.18/)).toBeVisible();
@@ -68,6 +70,8 @@ test('pump: Discard dismisses chip without populating', async ({ page }) => {
   });
   await gotoHomeViaClientRouter(page);
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await page.getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(page.getByText(/Detected:/)).toHaveCount(0);
   await expect(page.locator('input[placeholder="11.2"]')).toHaveValue('');
@@ -93,6 +97,8 @@ test('odometer: chip appears + Use populates Odometer', async ({ page }) => {
 
   // Odometer file input is nth=1 (top capture row: pump first, odometer second).
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await expect(page.getByText(/Detected: 87,612 mi/)).toBeVisible();
   await page.getByRole('button', { name: 'Use', exact: true }).click();
   await expect(page.locator('input#odometer')).toHaveValue('87612');
@@ -110,6 +116,8 @@ test('odometer: detected > last + 2000 → amber advisory, [Use anyway] populate
   });
   await gotoHomeViaClientRouter(page);
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await expect(page.getByText(/> 2,000 mi above last fillup/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use anyway', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Dismiss', exact: true })).toBeVisible();
@@ -129,6 +137,8 @@ test('odometer: detected < last → amber advisory, [Use anyway] populates', asy
   });
   await gotoHomeViaClientRouter(page);
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await expect(page.getByText(/lower than last fillup/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use anyway', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Use anyway', exact: true }).click();
@@ -158,6 +168,8 @@ test('429 surfaces as a toast with Retry-After', async ({ page }) => {
   await gotoHomeViaClientRouter(page);
   // pump trigger (nth=0 — pump file input renders first in the top capture row)
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await expect(page.getByText(/OCR rate limit reached, try again in 120s/)).toBeVisible();
 });
 
@@ -171,6 +183,8 @@ test('502 surfaces as service-unreachable toast', async ({ page }) => {
   });
   await gotoHomeViaClientRouter(page);
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await expect(page.getByText(/OCR service unreachable/)).toBeVisible();
 });
 
@@ -188,5 +202,7 @@ test('422 cross-field surfaces as "Couldn\'t read clearly"', async ({ page }) =>
   });
   await gotoHomeViaClientRouter(page);
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  // Preview screen comes up between picker and OCR call. Confirm send.
+  await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await expect(page.getByText(/Couldn't read clearly/)).toBeVisible();
 });
