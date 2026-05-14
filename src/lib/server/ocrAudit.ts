@@ -6,6 +6,7 @@ import type { OcrMode, OcrResult } from '$lib/shared/types';
 
 export interface AuditRecord {
   mode: OcrMode;
+  rotationApplied: number;
   ipHash: string;
   imgHash: string;
   imgBytes: number;

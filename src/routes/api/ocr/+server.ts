@@ -94,6 +94,17 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   }
   const mode = modeRaw as OcrMode;
 
+  // Optional rotation form field — accepts "0" | "90" | "180" | "270".
+  // Anything else (including unset) collapses to 0. Wire-additive, never
+  // user-visible — only recorded in the audit log so we can later answer
+  // "do photos requiring rotation OCR worse?".
+  const rotationRaw = form.get('rotation');
+  const rotationParsed = typeof rotationRaw === 'string' ? Number(rotationRaw) : 0;
+  const rotationApplied =
+    rotationParsed === 90 || rotationParsed === 180 || rotationParsed === 270
+      ? rotationParsed
+      : 0;
+
   const file = form.get('image');
   if (!(file instanceof File)) return json({ error: 'image required' }, { status: 400 });
   if (file.size === 0) return json({ error: 'empty image' }, { status: 400 });
@@ -112,6 +123,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
     await budget!.add(outcome.costCents);
     await audit!.append({
       mode,
+      rotationApplied,
       ipHash, imgHash, imgBytes: arr.byteLength,
       imageType: outcome.imageType,
       provider: outcome.provider,
@@ -125,6 +137,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 
   await audit!.append({
     mode,
+    rotationApplied,
     ipHash, imgHash, imgBytes: arr.byteLength,
     imageType: outcome.imageType ?? 'jpeg',
     provider: provider.name === 'openrouter' ? 'openrouter' : 'ollama',

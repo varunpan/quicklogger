@@ -9,6 +9,7 @@ const TEST_KEY = Buffer.from('secret-key-for-testing-only-bytes', 'utf-8');
 function pumpRecord(extra: Partial<AuditRecord> = {}): AuditRecord {
   return {
     mode: 'pump',
+    rotationApplied: 0,
     ipHash: 'sha256:abc',
     imgHash: 'sha256:def',
     imgBytes: 100,
@@ -61,6 +62,16 @@ describe('OcrAudit', () => {
     expect(row0).toMatchObject({ ok: true, mode: 'pump', provider: 'ollama' });
     expect(row1).toMatchObject({ ok: false, mode: 'odometer', error: { code: 'TIMEOUT' } });
     expect(typeof row0.ts).toBe('string');
+  });
+
+  it('round-trips rotationApplied through append + read (default 0 and explicit 90)', async () => {
+    const audit = new OcrAudit({ path, maxBytes: 1_048_576 });
+    await audit.append(pumpRecord());                          // default 0
+    await audit.append(pumpRecord({ rotationApplied: 90 }));   // explicit
+    const lines = readFileSync(path, 'utf-8').trim().split('\n');
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[0]).rotationApplied).toBe(0);
+    expect(JSON.parse(lines[1]).rotationApplied).toBe(90);
   });
 
   it('truncates the file when the next append would exceed maxBytes', async () => {

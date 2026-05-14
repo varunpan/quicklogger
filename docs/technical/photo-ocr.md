@@ -105,7 +105,7 @@ audit log persists the same shape under `parsed`, plus a top-level
 | File | Shape | Notes |
 |---|---|---|
 | `ocr-budget.json` | `{ date: 'YYYY-MM-DD', calls, costCents }` | UTC date; replaced (not appended) on each `add()`. |
-| `ocr-audit.jsonl` | one JSON object per line | Append-only. Truncated to 0 bytes when next append would cross 10 MiB. Old entries discarded, not archived. |
+| `ocr-audit.jsonl` | one JSON object per line (incl. `rotationApplied: number` since v0.2.0+) | Append-only. Truncated to 0 bytes when next append would cross 10 MiB. Old entries discarded, not archived. |
 | `ocr-audit-key.txt` | 32 random bytes, 0600 | Auto-generated if `OCR_AUDIT_HMAC_KEY` is unset and the file is absent. Persists across container restarts. |
 
 ## Lifecycle
@@ -155,6 +155,7 @@ request re-selects.
 {
   ts: string,                                 // ISO 8601
   mode: 'pump' | 'odometer',
+  rotationApplied: number,                    // 0 | 90 | 180 | 270 — preview screen rotation
   ipHash: 'sha256:<16-hex>',                  // HMAC-SHA-256 (key, ip), 64 bits
   imgHash: 'sha256:<64-hex>',                 // SHA-256 of post-resize bytes
   imgBytes: number,                           // post-resize size
@@ -194,6 +195,8 @@ Privacy properties:
 | Cold page load while offline | Loader probe fails → `enabled: false` → chips hidden | Loader catches all GET errors; failure-as-disabled is intentional |
 | `OCR_AUDIT_HMAC_KEY` unset, no key file | Generate 32 random bytes, write `0600`, persist | Stable across restarts via the `/data` bind mount |
 | Rollback to v0.1.x with v0.2.0 data files present | `/data/ocr-*` files become orphans; harmless | Not referenced by anything in v0.1.x |
+| Client sends `rotation` form field with non-{0,90,180,270} value | Server collapses to 0 | Wire-additive, defensive parse — adversarial values can't poison the audit log |
+| Old client (no rotation field) on new server | Audit row records `rotationApplied: 0` | Field-additive change — `0` is the documented default, not "absent" |
 
 ## Non-obvious decisions
 
