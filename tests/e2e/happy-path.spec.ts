@@ -1,11 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { mockLubelogger } from './fixtures';
+import { mockLubelogger, seedPrefs } from './fixtures';
 
 // Block the SvelteKit service worker so Playwright's page.route() interceptors
 // see the API requests (the SW intercepts /api/* GETs by default).
 test.use({ serviceWorkers: 'block' });
 
 test('logs a CAD/L fillup, shows USD/gal in confirmation, and redirects to maintenance', async ({ page }) => {
+  // Smart checks (default on) would fire against the real upstream
+  // lastFuelup that SSR reads in via page.goto. This test is about the
+  // CAD/L conversion path, not smart checks — disable them here so the
+  // submit is robust to whatever the real LubeLogger most-recent fillup
+  // happens to be.
+  await seedPrefs(page, { smartChecksEnabled: false });
   await mockLubelogger(page);
   // Maintenance endpoint must respond — the post-submit redirect navigates here.
   await page.route('**/api/vehicle/reminders**', (route) => route.fulfill({ json: [] }));
