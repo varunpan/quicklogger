@@ -36,12 +36,12 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
   <tr>
     <td align="center"><strong>Vehicles</strong></td>
     <td align="center"><strong>Settings</strong></td>
-    <td></td>
+    <td align="center"><strong>Photo Preview</strong></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/vehicles.jpeg" alt="Vehicle picker" width="240"></td>
     <td><img src="docs/screenshots/settings.jpeg" alt="Settings" width="240"></td>
-    <td></td>
+    <td><img src="docs/screenshots/photo-preview.jpeg" alt="Photo preview before OCR" width="240"></td>
   </tr>
 </table>
 
