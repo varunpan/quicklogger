@@ -8,6 +8,28 @@ import {
 
 test.use({ serviceWorkers: 'block' });
 
+// Intercept the POST so no test ever writes garbage data to the real upstream.
+// The success path navigates to /maintenance?vehicleId=1, which server-side-loads
+// /api/vehicle/reminders — mock that too (empty list) so SSR doesn't hit real upstream.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/fuelup', async (route) => {
+    const body = JSON.parse(route.request().postData() ?? '{}');
+    return route.fulfill({
+      json: {
+        ok: true,
+        submitted: {
+          gallons: body.volume * (body.volumeUnit === 'L' ? 1 / 3.785411784 : 1),
+          cost: body.cost * (body.currency === 'CAD' ? 0.73 : 1),
+          fxRate: body.currency === 'CAD' ? 0.73 : 1,
+          fxSource: 'frankfurter',
+          fxStale: false
+        }
+      }
+    });
+  });
+  await page.route('**/api/vehicle/reminders**', (route) => route.fulfill({ json: [] }));
+});
+
 // Fixed local clock so check D ("future date") is deterministic. The
 // fixture's DEFAULT_LAST_FUELUP is dated 5/3/2026; we pin "today" a few
 // days later so the form's date default (today) doesn't accidentally
