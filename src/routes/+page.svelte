@@ -13,6 +13,12 @@
     OcrMode
   } from '$lib/shared/types';
   import { formatOdometer, formatLastFillupDate } from '$lib/client/format';
+  import {
+    evaluateSmartChecks,
+    ODOMETER_MAX_DELTA_MI,
+    type SmartCheckIssue,
+    type LastFuelupForCheck
+  } from '$lib/client/smart-checks';
   import OcrPreview from '$lib/client/OcrPreview.svelte';
   import type { Rotation } from '$lib/client/image';
 
@@ -49,10 +55,6 @@
   let toast: { kind: 'success' | 'queued' | 'error'; text: string } | null = $state(null);
 
   // --- Photo OCR state (v0.2.0+) ---
-  // Hardcoded delta for the odometer relative-range check. Promotable to a
-  // Prefs.odometerIncrementMi-style setting in a future v0.2.x if real-world
-  // travel hits this band.
-  const ODOMETER_MAX_DELTA_MI = 2000;
 
   type OdoWarn = { detected: number; reason: 'lower' | 'too-high' };
 
@@ -69,6 +71,31 @@
   // cleared when they Cancel, Retake (after the input re-fires), or Send.
   type PendingCapture = { file: File; mode: OcrMode };
   let pendingCapture: PendingCapture | null = $state(null);
+
+  // --- Smart checks state (v0.2.0) ---
+  let smartCheckIssues: SmartCheckIssue[] = $state([]);
+
+  // LubeLogger emits dates as M/D/YYYY; smart-checks compares ISO YYYY-MM-DD
+  // lexicographically. Convert once; null when input is unparseable so we
+  // safely degrade to the no-lastFuelup branch.
+  function lubeDateToIso(s: string): string | null {
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return null;
+    const [, mo, da, yr] = m;
+    return `${yr}-${mo.padStart(2, '0')}-${da.padStart(2, '0')}`;
+  }
+
+  function lastFuelupForCheck(): LastFuelupForCheck | null {
+    if (!data.lastFuelup) return null;
+    const odo = Number(data.lastFuelup.odometer);
+    const iso = lubeDateToIso(data.lastFuelup.date);
+    if (!Number.isFinite(odo) || !iso) return null;
+    return { odometer: odo, date: iso };
+  }
+
+  function clearSmartCheckIssues() {
+    if (smartCheckIssues.length > 0) smartCheckIssues = [];
+  }
 
   function pumpModeEnabled(): boolean {
     return data.ocrEnabled && data.ocrModes.includes('pump' as OcrMode);
@@ -309,10 +336,8 @@
     odometerEdited = true;
   }
 
-  async function submit() {
+  async function submit(skipSmartChecks: boolean = false) {
     if (!vehicle) return;
-    submitting = true;
-    toast = null;
 
     const input: FuelSubmissionInput = {
       vehicleId: vehicle.id,
@@ -329,19 +354,33 @@
       clientSubmissionId: genUuid()
     };
 
+    if (!skipSmartChecks) {
+      const result = evaluateSmartChecks(
+        {
+          odometer: input.odometer,
+          volume: input.volume,
+          volumeUnit: input.volumeUnit,
+          date: input.date
+        },
+        lastFuelupForCheck(),
+        { smartChecksEnabled: prefs.smartChecksEnabled }
+      );
+      if (result.issues.length > 0) {
+        smartCheckIssues = result.issues;
+        return;
+      }
+    }
+
+    submitting = true;
+    toast = null;
+
     try {
       const result = await submitFuelup(input);
       toast = {
         kind: 'success',
         text: `Logged: ${result.submitted.gallons.toFixed(2)} Gal · $${result.submitted.cost.toFixed(2)}`
       };
-      // Only persist the vehicle as "last used" — defaults for unit/currency
-      // are owned by the Settings page, not overwritten by per-submit choices.
       savePrefs({ lastVehicleId: vehicle.id });
-      // Record the successful submission as a 'synced' queue entry — kept
-      // as permanent local history so the offline-prefill resolver has
-      // something to fall back on if upstream is unreachable next session.
-      // Fire-and-forget; failure to record is non-fatal for the submit.
       try {
         const q = await Queue.open();
         await q.enqueue(input, 'synced');
@@ -350,8 +389,6 @@
       }
       // eslint-disable-next-line svelte/no-navigation-without-resolve
       goto(`/maintenance?vehicleId=${vehicle.id}`);
-      // reset volatile fields — re-prefill from last fuelup if prefs allow.
-      // (data.lastFuelup is the snapshot at page load; next navigation refreshes it.)
       odometer = initialOdometer();
       odometerEdited = false;
       volume = '';
@@ -359,12 +396,12 @@
       pumpSuggestion = null;
       odoSuggestion = null;
       odoWarning = null;
+      smartCheckIssues = [];
     } catch (err) {
       const status = (err as Error & { status?: number }).status;
       if (status && status >= 400 && status < 500) {
         toast = { kind: 'error', text: `Submission rejected: ${(err as Error).message}` };
       } else {
-        // queue
         const q = await Queue.open();
         await q.enqueue(input);
         toast = { kind: 'queued', text: 'Saved locally — will sync when online' };
@@ -372,6 +409,11 @@
     } finally {
       submitting = false;
     }
+  }
+
+  function submitAnyway() {
+    smartCheckIssues = [];
+    void submit(true);
   }
 </script>
 
@@ -549,7 +591,7 @@
       <div class="relative">
         <input id="odometer" class="field-input min-w-0" type="number" inputmode="numeric"
                bind:value={odometer}
-               oninput={() => (odometerEdited = true)}
+               oninput={() => { odometerEdited = true; clearSmartCheckIssues(); }}
                class:text-zinc-400={!odometerEdited && odometer !== ''}
                placeholder="87,432" />
         {#if !odometerEdited && odometer !== ''}
@@ -566,7 +608,8 @@
     </div>
     <label class="field min-w-0">
       <span class="field-label">Date</span>
-      <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate} />
+      <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate}
+             oninput={clearSmartCheckIssues} />
     </label>
     {#if prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0}
       <div class="col-span-2 flex flex-wrap gap-2">
@@ -585,7 +628,7 @@
     <span class="field-label">Volume</span>
     <div class="flex gap-2">
       <input class="field-input min-w-0 flex-1" type="number" inputmode="decimal" step="0.01"
-             bind:value={volume} placeholder="11.2" />
+             bind:value={volume} oninput={clearSmartCheckIssues} placeholder="11.2" />
       <div class="flex bg-zinc-800 rounded-xl p-1 w-20 shrink-0">
         <button type="button" class="toggle-pill flex-1" class:active={volumeUnit === 'gal'} class:inactive={volumeUnit !== 'gal'}
                 onclick={() => (volumeUnit = 'gal')}>Gal</button>
@@ -663,10 +706,29 @@
     </div>
   {/if}
 
+  {#if smartCheckIssues.length > 0}
+    <div class="rounded-xl px-4 py-3 mb-3 border border-amber-500/30 bg-amber-500/15 text-amber-300 text-sm leading-relaxed" role="alert" data-testid="smart-check-chip">
+      <div class="flex items-center gap-2 font-semibold mb-2">
+        <span aria-hidden="true">⚠</span>
+        <span>{smartCheckIssues.length} {smartCheckIssues.length === 1 ? 'issue' : 'issues'} found</span>
+      </div>
+      <ul class="list-disc pl-5 space-y-1 mb-3">
+        {#each smartCheckIssues as issue (issue.code)}
+          <li>{issue.message}</li>
+        {/each}
+      </ul>
+      <button type="button"
+              class="w-full rounded-lg py-2 px-3 text-sm font-semibold border border-amber-500/40 text-amber-200"
+              onclick={submitAnyway}>
+        Submit anyway
+      </button>
+    </div>
+  {/if}
+
   <button type="button"
-          disabled={!canSubmit}
+          disabled={!canSubmit || smartCheckIssues.length > 0}
           class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
-          onclick={submit}>
+          onclick={() => submit()}>
     {submitting ? 'Logging…' : 'Log fillup'}
   </button>
 
