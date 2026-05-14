@@ -101,11 +101,12 @@ currency, FX provider chain), see [`configuration.md`](configuration.md).
 | **Default currency** | Dropdown of the same five currencies the form accepts. New form opens with this currency pre-selected. | `defaultCurrency` (ISO 4217 code) |
 | **Odometer prefill** | `On` / `Off` toggle. Off = form opens with an empty odometer field; the `+N mi` chip is also hidden. | `odometerPrefillEnabled` (bool, default `true`) |
 | **Quick increment (mi)** | Number input. The `+N mi` chip below the odometer field adds this many miles per tap. Set to `0` to hide the chip while keeping the prefilled value. | `odometerIncrementMi` (int, default `300`) |
+| **Smart checks** | `On` / `Off` toggle. On = advisory chip appears at submit time when the form looks off (lower odometer than last, future date, tiny volume, etc.); the chip has a `[Submit anyway]` override. Off = no chip, no extra friction. | `smartChecksEnabled` (bool, default `true`) |
 
 One field is also persisted but has no UI on this page: `lastVehicleId`,
 set automatically when you pick a vehicle on `/vehicles` or submit a
 fillup. The Log Fuel page falls back to this when no `vehicleId` query
-param is present. The full set of persisted fields (these four plus
+param is present. The full set of persisted fields (these five plus
 `lastVehicleId`) is defined by `DEFAULT_PREFS` in
 `src/lib/client/prefs.ts`.
 

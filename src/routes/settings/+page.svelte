@@ -26,6 +26,11 @@
     prefs.odometerIncrementMi = safe;
     savePrefs({ odometerIncrementMi: safe });
   }
+
+  function updateSmartChecks(enabled: boolean) {
+    prefs.smartChecksEnabled = enabled;
+    savePrefs({ smartChecksEnabled: enabled });
+  }
 </script>
 
 <header class="flex items-center mb-4 gap-3">
@@ -113,6 +118,34 @@
         Adds this many miles when you tap the chip below the odometer field. Set to 0 to hide the chip.
       </span>
     </label>
+  </div>
+
+  <div class="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="field-label">Smart checks</div>
+        <div class="text-xs text-zinc-500 mt-1 leading-relaxed">
+          Warn before submitting fillups that look off — lower odometer
+          than last, future date, tiny volume, etc.
+        </div>
+      </div>
+      <div class="flex bg-zinc-800 rounded-xl p-1 shrink-0" style="width: 96px;">
+        <button
+          type="button"
+          class="toggle-pill flex-1"
+          class:active={prefs.smartChecksEnabled}
+          class:inactive={!prefs.smartChecksEnabled}
+          onclick={() => updateSmartChecks(true)}
+        >On</button>
+        <button
+          type="button"
+          class="toggle-pill flex-1"
+          class:active={!prefs.smartChecksEnabled}
+          class:inactive={prefs.smartChecksEnabled}
+          onclick={() => updateSmartChecks(false)}
+        >Off</button>
+      </div>
+    </div>
   </div>
 
   <p class="text-xs text-zinc-500">
