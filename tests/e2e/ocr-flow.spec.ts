@@ -98,7 +98,7 @@ test('odometer: chip appears + Use populates Odometer', async ({ page }) => {
   await expect(page.locator('input#odometer')).toHaveValue('87612');
 });
 
-test('odometer: detected > last + 2000 → amber warning, no Use', async ({ page }) => {
+test('odometer: detected > last + 2000 → amber advisory, [Use anyway] populates', async ({ page }) => {
   await commonRoutes(page, {
     date: '2026-05-08', odometer: 87432, fuelConsumed: 11.2, cost: 42.18, notes: ''
   });
@@ -110,12 +110,14 @@ test('odometer: detected > last + 2000 → amber warning, no Use', async ({ page
   });
   await gotoHomeViaClientRouter(page);
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
-  await expect(page.getByText(/jumped > 2000 mi/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Use', exact: true })).toHaveCount(0);
+  await expect(page.getByText(/> 2,000 mi above last fillup/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use anyway', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Dismiss', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Use anyway', exact: true }).click();
+  await expect(page.locator('input#odometer')).toHaveValue('92500');
 });
 
-test('odometer: detected < last → amber warning', async ({ page }) => {
+test('odometer: detected < last → amber advisory, [Use anyway] populates', async ({ page }) => {
   await commonRoutes(page, {
     date: '2026-05-08', odometer: 87432, fuelConsumed: 11.2, cost: 42.18, notes: ''
   });
@@ -128,7 +130,9 @@ test('odometer: detected < last → amber warning', async ({ page }) => {
   await gotoHomeViaClientRouter(page);
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
   await expect(page.getByText(/lower than last fillup/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Use', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Use anyway', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Use anyway', exact: true }).click();
+  await expect(page.locator('input#odometer')).toHaveValue('80000');
 });
 
 test('chips hidden when ocrEnabled=false', async ({ page }) => {

@@ -168,6 +168,12 @@
   }
   function discardOdoOcr() { odoSuggestion = null; }
   function dismissOdoWarning() { odoWarning = null; }
+  function useOdoWarning() {
+    if (!odoWarning) return;
+    odometer = String(Math.round(odoWarning.detected));
+    odometerEdited = true;
+    odoWarning = null;
+  }
 
   const TARGET_CURRENCY = 'USD'; // server enforces; this is just for the UI hint
 
@@ -488,13 +494,14 @@
           <div class="text-xs text-amber-300 flex-1 leading-relaxed">
             <span class="font-semibold">Detected: {formatOdometer(String(odoWarning.detected))} mi</span> —
             {#if odoWarning.reason === 'lower'}
-              lower than last fillup. Try again or type manually.
+              lower than last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
             {:else}
-              jumped &gt; {ODOMETER_MAX_DELTA_MI} mi from last fillup. Try again or type manually.
+              &gt; {formatOdometer(String(ODOMETER_MAX_DELTA_MI))} mi above last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
             {/if}
           </div>
         </div>
         <div class="flex gap-2 mt-2 ml-6">
+          <button type="button" class="bg-amber-500/20 text-amber-200 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={useOdoWarning}>Use anyway</button>
           <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={dismissOdoWarning}>Dismiss</button>
         </div>
       </div>

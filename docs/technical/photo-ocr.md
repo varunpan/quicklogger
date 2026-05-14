@@ -184,8 +184,8 @@ Privacy properties:
 | Ollama transient outage with both configured | Chain falls through to OpenRouter; `lastFellbackTo='ollama'` audited | Bounded single-fallback — not a retry loop |
 | `mode=receipt` POST in v0.2.0 | 501 Not Implemented; `modes` array does NOT advertise it | Wire-accepted (forward-compat), but listing would imply usability |
 | Pump cross-field drift > 5% | 422 + range-style toast; chip never shown | Adversarial-image / OCR-confusion guard |
-| Odometer detected < last fillup | Amber warning chip, no `[Use]` | Odometers don't run backwards; user-recoverable |
-| Odometer jumped > 2000 mi | Amber warning chip, no `[Use]` | Hardcoded `ODOMETER_MAX_DELTA_MI`; promotable to Settings if real travel hits this |
+| Odometer detected < last fillup | Amber advisory chip, `[Use anyway]` writes field | Odometers don't run backwards, but legitimate cases exist (replaced cluster, odometer rollover at high mileage); user owns the call |
+| Odometer jumped > 2000 mi | Amber advisory chip, `[Use anyway]` writes field | Hardcoded `ODOMETER_MAX_DELTA_MI`; long road trips are real; user owns the call. Promotable to Settings if real travel routinely hits this |
 | First fillup for vehicle (no `data.lastFuelup`) | Relative check skipped — value flows to confirm chip | Nothing to compare against |
 | Network drops mid-OCR | After 90 s client timeout: "OCR took too long" toast | `AbortSignal.timeout` fires; no IDB queue (intentional — see SW doc) |
 | Cold page load while offline | Loader probe fails → `enabled: false` → chips hidden | Loader catches all GET errors; failure-as-disabled is intentional |
@@ -213,11 +213,13 @@ genuine OCR confusion (e.g., `volume=11.2`, `pricePerUnit=3.78`,
 `cost=100` → ~58% drift).
 
 **Odometer *relative* range lives client-side; *absolute* range lives
-server-side.** The server has no access to per-vehicle fillup history,
-and the relative failure mode is user-recoverable (warning chip,
-type-manually escape hatch). The absolute bound
-(`OCR_ODOMETER_MAX_MI=1,000,000`) catches adversarial-image / OCR
-confusion outright at the server boundary.
+server-side.** The server has no access to per-vehicle fillup history.
+Relative-range hits are **advisory** (amber chip with `[Use anyway]`):
+the user owns the override gesture, since legitimate cases exist
+(replaced cluster, long road trip, odometer rollover). The absolute
+bound (`OCR_ODOMETER_MAX_MI=1,000,000`) catches adversarial-image /
+OCR confusion outright at the server boundary — that one stays
+blocking (422), since no legitimate fillup reads a million-mile delta.
 
 **`ODOMETER_MAX_DELTA_MI = 2000` is hardcoded in client code, not env.**
 The bound is a UX safety net, not a security gate, and the value is

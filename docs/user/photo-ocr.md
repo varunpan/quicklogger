@@ -74,8 +74,10 @@ Full env-var reference:
 3. A blue chip appears in the feedback zone under the capture row:
    *Detected: 87,612 mi*. Tap **Use** to populate.
 4. If the detected reading is **lower than your last fillup** or
-   **more than 2000 mi above it**, you'll see an amber warning chip
-   instead of `[Use]`. Tap **Dismiss** and type the value manually.
+   **more than 2,000 mi above it**, the chip turns amber and shows
+   `[Use anyway]` and `[Dismiss]`. Both are valid: tap `Use anyway`
+   if you know the reading is right (cluster swap, long road trip,
+   rollover); tap `Dismiss` to type a corrected value yourself.
 
 ## What gets stored
 

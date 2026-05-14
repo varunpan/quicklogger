@@ -65,6 +65,14 @@ All notable changes to this project are documented here. Format roughly follows 
   chooser sheet (Take Photo / Photo Library / Choose File) instead of
   jumping straight to the camera. Android picker behavior is
   unchanged. See [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md).
+- **Odometer relative-range warnings are now advisory.** The amber
+  chip that fires when an OCR'd odometer is lower than the last
+  fillup, or more than 2,000 mi above it, gains a `[Use anyway]`
+  action that writes the detected value to the Odometer field.
+  `[Dismiss]` still leaves the field untouched. Reason: legitimate
+  cases (replaced cluster, long road trip, odometer rollover) deserve
+  a one-tap path through, not a re-shoot loop. Server-side absolute
+  bound (`OCR_ODOMETER_MAX_MI`) is unchanged and still blocking.
 
 ### Fixed
 
