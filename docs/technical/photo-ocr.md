@@ -52,12 +52,15 @@ bigger picture: see the `/` page section in
   `postOcr(image, mode)` (multipart POST with 90 s
   `AbortSignal.timeout`).
 - [`src/lib/client/image.ts`](../../src/lib/client/image.ts) —
-  `resizeForOcr(file)`. Long edge clamped to 1024 px, JPEG q=0.8,
-  EXIF stripped by Canvas re-encode. Prefers
+  `resizeForOcr(file, opts?)`. Long edge clamped to 1024 px, JPEG
+  q=0.8, EXIF stripped by Canvas re-encode. Prefers
   `createImageBitmap({ imageOrientation: 'from-image' })` +
   `OffscreenCanvas`; falls back to `HTMLImageElement` +
   `HTMLCanvasElement` on older Safari (where EXIF orientation may not
-  be honored — ~2% of iOS users, accepted).
+  be honored — ~2% of iOS users, accepted). Optional
+  `opts.rotation: 0 | 90 | 180 | 270` is applied as a single
+  translate+rotate transform inside the same canvas pass (no double
+  re-encode). Used by the preview screen.
 - [`src/routes/+page.ts`](../../src/routes/+page.ts) — probes
   `GET /api/ocr` and surfaces `ocrEnabled` + `ocrModes` to the page.
   Failure to probe = `enabled: false`; page load never blocks on OCR.
@@ -263,6 +266,14 @@ happen to send `mode=receipt` get a clear 501, not a 400.
 an `OcrError` interface only on the client side (it carries DOM-only
 data like `retryAfter` from a header). Keeps `shared/types.ts` free of
 client-only ergonomics.
+
+**Rotation lives in the same canvas pass as resize, not a second pass.**
+The preview screen rotates visually via CSS `transform: rotate(deg)` on
+an `<img>` while the user is fiddling — cheap, instant, no re-encode.
+On `[Send for OCR]`, the cumulative rotation is handed to
+`resizeForOcr({ rotation })` so EXIF-orient → rotate → resize → JPEG
+encode all happen in one canvas pass. One pixel-encoding event total,
+not two — keeps the existing performance profile.
 
 ## Future considerations
 
