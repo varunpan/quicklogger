@@ -60,6 +60,19 @@ All notable changes to this project are documented here. Format roughly follows 
   re-encode — and is applied as a single canvas transform on submit
   alongside the existing resize. Component:
   [`src/lib/client/OcrPreview.svelte`](src/lib/client/OcrPreview.svelte).
+- **Smart checks at submit time.** New advisory chip catches
+  logically-inconsistent or obviously-typo'd fillups before they POST —
+  lower odometer than the last fillup, older date with higher odometer,
+  same-day duplicate within 5 mi, future date, odometer jump > 2,000 mi,
+  and volume under 0.5 gal / 2 L. Each issue renders as one line in a
+  consolidated amber chip with a single `[Submit anyway]` override. Six
+  checks ship in v0.2.0; a cost / volume ratio check is deferred to a
+  future release. User guide:
+  [`docs/user/smart-checks.md`](docs/user/smart-checks.md). Internals:
+  [`docs/technical/smart-checks.md`](docs/technical/smart-checks.md).
+- **Settings → Smart checks toggle.** New on/off card in `/settings`,
+  default `On`. Persists in localStorage as
+  `quicklogger.prefs.smartChecksEnabled`.
 
 ### Changed
 
@@ -94,6 +107,13 @@ All notable changes to this project are documented here. Format roughly follows 
   audit log records `rotationApplied: number` on every row (always
   present, defaults to 0). JSONL field-additive — old log readers
   ignore the field; rollback leaves rows without it.
+- `prefs.ts` gains a sixth field, `smartChecksEnabled` (default `true`).
+  Free migration via the existing spread-merge in `loadPrefs()`.
+- `ODOMETER_MAX_DELTA_MI` (2,000) is now exported from
+  `src/lib/client/smart-checks.ts`; the OCR-side relative-range warning
+  in `src/routes/+page.svelte` imports from there instead of declaring
+  its own copy, so the smart-check evaluator and the OCR warning share
+  one source.
 
 ### Fixed
 
@@ -121,6 +141,16 @@ All notable changes to this project are documented here. Format roughly follows 
 - Existing pump/odometer/error-path specs in
   [`tests/e2e/ocr-flow.spec.ts`](tests/e2e/ocr-flow.spec.ts) updated to
   click `[Send for OCR]` after picking the file.
+- New unit suite [`src/lib/client/smart-checks.test.ts`](src/lib/client/smart-checks.test.ts):
+  per-check boundary cases (A/B/C/D/E/G), aggregator ordering, the
+  test-injectable `now` arg for check D, and the year-boundary lex
+  comparison.
+- Extended [`src/lib/client/prefs.test.ts`](src/lib/client/prefs.test.ts)
+  for the new `smartChecksEnabled` field — default, round-trip,
+  cross-key preservation, and legacy-JSON migration via spread-merge.
+- New e2e spec [`tests/e2e/smart-checks.spec.ts`](tests/e2e/smart-checks.spec.ts):
+  clean submit, single-issue chip with override, multi-issue chip,
+  field-edit-clears-chip, master toggle off.
 
 ## [0.1.4] — 2026-05-13
 
