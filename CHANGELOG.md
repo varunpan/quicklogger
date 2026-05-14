@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **About menu — version + GitHub link.** Drawer footer now shows the
+  running app version (e.g. `v0.2.0`) and a `GitHub ↗` link to the
+  source repo. Version is injected at build time from
+  `package.json#version` via a Vite `define`, so it stays in sync with
+  whatever `release-ship` bumped to. See
+  [`docs/user/app-pages.md`](docs/user/app-pages.md).
 - **Photo OCR for gas-pump displays.** New camera chip between Volume
   and Cost on the main form. Tap → iOS camera → server-side OCR (local
   ollama, OpenRouter Gemini Flash Lite fallback) → confirm chip with

@@ -5,6 +5,11 @@ hamburger): **Log Fuel**, **History**, **Maintenance**, **Vehicles**,
 **Settings**. The active page is highlighted in the drawer. This
 page walks through each one.
 
+At the bottom of the drawer, a small footer shows the running app
+version (e.g. `v0.2.0`) alongside a `GitHub ↗` link that opens the
+source repo in a new tab. Useful for confirming a deploy went through
+and for finding release notes.
+
 ## Log Fuel (`/`)
 
 The home page. Everything that follows assumes a vehicle is selected; on

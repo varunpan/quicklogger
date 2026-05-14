@@ -11,7 +11,7 @@ export default [
   {
     files: ['**/*.svelte', 'src/lib/client/**/*.ts', 'src/routes/**/*.ts'],
     languageOptions: {
-      globals: { ...globals.browser }
+      globals: { ...globals.browser, __APP_VERSION__: 'readonly' }
     }
   },
   {

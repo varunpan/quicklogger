@@ -1,6 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
+import pkg from './package.json' with { type: 'json' };
 
 export default defineConfig(({ command, mode }) => {
 	// `vite dev` and `vite preview` need .env in process.env so server-side
@@ -14,6 +15,9 @@ export default defineConfig(({ command, mode }) => {
 		}
 	}
 	return {
-		plugins: [tailwindcss(), sveltekit()]
+		plugins: [tailwindcss(), sveltekit()],
+		define: {
+			__APP_VERSION__: JSON.stringify(pkg.version)
+		}
 	};
 });

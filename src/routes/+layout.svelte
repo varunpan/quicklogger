@@ -123,4 +123,21 @@
       {/each}
     </ul>
   </nav>
+
+  <footer class="mt-auto pt-6 text-xs text-zinc-500 flex items-center gap-2">
+    <span>v{__APP_VERSION__}</span>
+    <span aria-hidden="true">·</span>
+    <a
+      href="https://github.com/varunpan/quicklogger"
+      target="_blank"
+      rel="noopener"
+      class="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-200 active:text-zinc-100"
+    >
+      GitHub
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7 17L17 7" />
+        <path d="M8 7h9v9" />
+      </svg>
+    </a>
+  </footer>
 </aside>

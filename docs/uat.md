@@ -226,3 +226,16 @@ For 5+ real pump fillups + 5+ real odometer reads, record:
 
 Use mismatches to refine the system prompt in `ocrModes.ts` via patch
 releases (v0.2.x).
+
+## Drawer footer (v0.2.0)
+
+- [ ] Open the drawer (top-right hamburger). Bottom of the drawer shows
+      a footer line: `v<MAJOR>.<MINOR>.<PATCH>  ·  GitHub ↗`. Version
+      matches the currently-deployed release (cross-check against the
+      latest GitHub release tag).
+- [ ] Tap `GitHub ↗`. Opens `https://github.com/varunpan/quicklogger`
+      in a new tab (or the system browser if installed as a PWA).
+      Original tab remains on whatever page it was.
+- [ ] Footer is pinned to the bottom of the drawer regardless of which
+      nav item is active — open / close / reopen confirms the spacing
+      is stable.
