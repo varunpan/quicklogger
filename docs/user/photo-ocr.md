@@ -8,7 +8,7 @@ one OCR provider is configured.
 | | Pump mode | Odometer mode |
 | --- | --- | --- |
 | **What it reads** | Volume + Cost (+ price/unit) from the pump display | Mileage from your odometer or a phone app showing it |
-| **Where the chip lives** | Between Volume and Cost on the form | Inside the Odometer cell, beside the existing `+N mi` chip |
+| **Where the chip lives** | Top of the form, in the capture row under the vehicle picker | Same — the capture row holds both photo pills |
 | **What `[Use]` fills** | Volume, Volume unit (Gal/L), Cost | Odometer |
 | **Safety check** | Cross-field consistency (cost ≈ volume × price/unit within 5%) | Relative-range vs your last fillup (must be ≥ last and ≤ last + 2000 mi) |
 
@@ -53,8 +53,11 @@ Full env-var reference:
 ### Pump mode
 
 1. Open the form (`/`).
-2. Tap **Photo pump display** (the blue chip between Volume and Cost).
-3. iPhone pops the camera; photograph the pump display.
+2. Tap **Pump display photo** (the left pill in the capture row, just
+   below the vehicle picker).
+3. iPhone shows its chooser sheet. Pick **Take Photo or Video** to use
+   the camera, or **Photo Library** to pick a photo you already took.
+   On Android the standard picker covers both paths in one screen.
 4. ~2–15 s later a blue chip appears showing the detected values:
    *Detected: 11.2 gal · $42.18 · $3.78/gal*
 5. Tap **Use** → Volume + Cost (+ unit) populate. **Discard** dismisses
@@ -62,13 +65,14 @@ Full env-var reference:
 
 ### Odometer mode
 
-1. Tap **Photo** (the smaller blue chip inside the Odometer cell).
-2. Photograph either:
+1. Tap **Odometer photo** (the right pill in the capture row).
+2. Pick or shoot one of:
    - your dashboard odometer, **or**
    - a screenshot of a phone app showing the mileage (Carfax,
      FuelEconomy.gov, your car's companion app — anything that displays
      the number).
-3. A blue chip appears: *Detected: 87,612 mi*. Tap **Use** to populate.
+3. A blue chip appears in the feedback zone under the capture row:
+   *Detected: 87,612 mi*. Tap **Use** to populate.
 4. If the detected reading is **lower than your last fillup** or
    **more than 2000 mi above it**, you'll see an amber warning chip
    instead of `[Use]`. Tap **Dismiss** and type the value manually.

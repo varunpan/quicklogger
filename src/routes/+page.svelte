@@ -382,6 +382,125 @@
     <span class="text-zinc-500" aria-hidden="true">›</span>
   </button>
 
+  {#if pumpModeEnabled() || odoModeEnabled()}
+    <div class="flex gap-2 mb-3">
+      {#if pumpModeEnabled()}
+        <button
+          type="button"
+          class="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-2"
+          aria-label="Read pump display from photo"
+          onclick={openPumpCamera}
+          disabled={pumpOcrPending}
+        >
+          {#if pumpOcrPending}
+            <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
+            <span class="truncate">Reading photo…</span>
+          {:else}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
+              <circle cx="12" cy="13" r="3.5"/>
+            </svg>
+            <span class="truncate">Pump display photo</span>
+          {/if}
+        </button>
+        <input
+          bind:this={pumpCameraInput}
+          type="file"
+          accept="image/*"
+          class="hidden"
+          onchange={handlePumpCamera}
+        />
+      {/if}
+      {#if odoModeEnabled()}
+        <button
+          type="button"
+          class="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-2"
+          aria-label="Read odometer from photo"
+          onclick={openOdoCamera}
+          disabled={odoOcrPending}
+        >
+          {#if odoOcrPending}
+            <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
+            <span class="truncate">Reading photo…</span>
+          {:else}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
+              <circle cx="12" cy="13" r="3.5"/>
+            </svg>
+            <span class="truncate">Odometer photo</span>
+          {/if}
+        </button>
+        <input
+          bind:this={odoCameraInput}
+          type="file"
+          accept="image/*"
+          class="hidden"
+          onchange={handleOdoCamera}
+        />
+      {/if}
+    </div>
+
+    {#if pumpSuggestion}
+      <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
+        <div class="flex items-start gap-2">
+          <svg class="text-blue-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
+            <circle cx="12" cy="13" r="3.5"/>
+          </svg>
+          <div class="text-xs text-blue-200 flex-1 leading-relaxed">
+            <span class="text-blue-300/70">Detected:</span>
+            <span class="font-semibold">{pumpSuggestion.volume} {pumpSuggestion.volumeUnit} · ${pumpSuggestion.cost}</span>
+            <span class="text-blue-300/70"> · ${pumpSuggestion.pricePerUnit}/{pumpSuggestion.volumeUnit}</span>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-2 ml-6">
+          <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={applyPumpOcr}>Use</button>
+          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={discardPumpOcr}>Discard</button>
+        </div>
+      </div>
+    {/if}
+
+    {#if odoSuggestion}
+      <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
+        <div class="flex items-start gap-2">
+          <svg class="text-blue-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
+            <circle cx="12" cy="13" r="3.5"/>
+          </svg>
+          <div class="text-xs text-blue-200 flex-1 leading-relaxed">
+            <span class="text-blue-300/70">Detected:</span>
+            <span class="font-semibold">{formatOdometer(String(odoSuggestion.odometer))} mi</span>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-2 ml-6">
+          <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={applyOdoOcr}>Use</button>
+          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={discardOdoOcr}>Discard</button>
+        </div>
+      </div>
+    {/if}
+
+    {#if odoWarning}
+      <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 mb-2" role="alert">
+        <div class="flex items-start gap-2">
+          <svg class="text-amber-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+          </svg>
+          <div class="text-xs text-amber-300 flex-1 leading-relaxed">
+            <span class="font-semibold">Detected: {formatOdometer(String(odoWarning.detected))} mi</span> —
+            {#if odoWarning.reason === 'lower'}
+              lower than last fillup. Try again or type manually.
+            {:else}
+              jumped &gt; {ODOMETER_MAX_DELTA_MI} mi from last fillup. Try again or type manually.
+            {/if}
+          </div>
+        </div>
+        <div class="flex gap-2 mt-2 ml-6">
+          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={dismissOdoWarning}>Dismiss</button>
+        </div>
+      </div>
+    {/if}
+  {/if}
+
   <div class="grid grid-cols-2 gap-2 mb-3">
     <div class="field min-w-0">
       <label for="odometer" class="field-label">Odometer</label>
@@ -397,44 +516,6 @@
           </span>
         {/if}
       </div>
-      {#if odoSuggestion}
-        <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mt-2" role="status">
-          <div class="flex items-start gap-2">
-            <svg class="text-blue-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-              <circle cx="12" cy="13" r="3.5"/>
-            </svg>
-            <div class="text-xs text-blue-200 flex-1 leading-relaxed">
-              <span class="text-blue-300/70">Detected:</span>
-              <span class="font-semibold">{formatOdometer(String(odoSuggestion.odometer))} mi</span>
-            </div>
-          </div>
-          <div class="flex gap-2 mt-2 ml-6">
-            <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={applyOdoOcr}>Use</button>
-            <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={discardOdoOcr}>Discard</button>
-          </div>
-        </div>
-      {/if}
-      {#if odoWarning}
-        <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 mt-2" role="alert">
-          <div class="flex items-start gap-2">
-            <svg class="text-amber-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
-            </svg>
-            <div class="text-xs text-amber-300 flex-1 leading-relaxed">
-              <span class="font-semibold">Detected: {formatOdometer(String(odoWarning.detected))} mi</span> —
-              {#if odoWarning.reason === 'lower'}
-                lower than last fillup. Try again or type manually.
-              {:else}
-                jumped &gt; {ODOMETER_MAX_DELTA_MI} mi from last fillup. Try again or type manually.
-              {/if}
-            </div>
-          </div>
-          <div class="flex gap-2 mt-2 ml-6">
-            <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={dismissOdoWarning}>Dismiss</button>
-          </div>
-        </div>
-      {/if}
       {#if odometerDelta !== null}
         <div class="text-xs text-zinc-500 mt-1 px-1">
           <span class="text-blue-400 font-semibold">{odometerDelta > 0 ? '+' : ''}{odometerDelta} mi</span> this tank
@@ -445,45 +526,15 @@
       <span class="field-label">Date</span>
       <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate} />
     </label>
-    {#if (prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0) || (odoModeEnabled() && !odoSuggestion && !odoWarning)}
+    {#if prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0}
       <div class="col-span-2 flex flex-wrap gap-2">
-        {#if prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0}
-          <button
-            type="button"
-            class="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
-            onclick={bumpOdometer}
-          >
-            <span aria-hidden="true">↑</span>+{prefs.odometerIncrementMi} mi
-          </button>
-        {/if}
-        {#if odoModeEnabled() && !odoSuggestion && !odoWarning}
-          <button
-            type="button"
-            class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
-            aria-label="Read odometer from photo"
-            onclick={openOdoCamera}
-            disabled={odoOcrPending}
-          >
-            {#if odoOcrPending}
-              <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
-              Reading photo…
-            {:else}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-                <circle cx="12" cy="13" r="3.5"/>
-              </svg>
-              Photo
-            {/if}
-          </button>
-          <input
-            bind:this={odoCameraInput}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            class="hidden"
-            onchange={handleOdoCamera}
-          />
-        {/if}
+        <button
+          type="button"
+          class="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
+          onclick={bumpOdometer}
+        >
+          <span aria-hidden="true">↑</span>+{prefs.odometerIncrementMi} mi
+        </button>
       </div>
     {/if}
   </div>
@@ -501,55 +552,6 @@
       </div>
     </div>
   </label>
-
-  {#if pumpModeEnabled() && !pumpSuggestion}
-    <button
-      type="button"
-      class="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
-      aria-label="Read pump display from photo"
-      onclick={openPumpCamera}
-      disabled={pumpOcrPending}
-    >
-      {#if pumpOcrPending}
-        <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
-        Reading photo…
-      {:else}
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-          <circle cx="12" cy="13" r="3.5"/>
-        </svg>
-        Photo pump display
-      {/if}
-    </button>
-    <input
-      bind:this={pumpCameraInput}
-      type="file"
-      accept="image/*"
-      capture="environment"
-      class="hidden"
-      onchange={handlePumpCamera}
-    />
-  {/if}
-
-  {#if pumpSuggestion}
-    <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-3" role="status">
-      <div class="flex items-start gap-2">
-        <svg class="text-blue-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-          <circle cx="12" cy="13" r="3.5"/>
-        </svg>
-        <div class="text-xs text-blue-200 flex-1 leading-relaxed">
-          <span class="text-blue-300/70">Detected:</span>
-          <span class="font-semibold">{pumpSuggestion.volume} {pumpSuggestion.volumeUnit} · ${pumpSuggestion.cost}</span>
-          <span class="text-blue-300/70"> · ${pumpSuggestion.pricePerUnit}/{pumpSuggestion.volumeUnit}</span>
-        </div>
-      </div>
-      <div class="flex gap-2 mt-2 ml-6">
-        <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={applyPumpOcr}>Use</button>
-        <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={discardPumpOcr}>Discard</button>
-      </div>
-    </div>
-  {/if}
 
   <label class="field mb-3">
     <span class="field-label">Cost</span>

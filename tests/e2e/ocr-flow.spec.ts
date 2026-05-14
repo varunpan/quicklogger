@@ -24,10 +24,11 @@ async function commonRoutes(page: Page, lastFuelup: object | null = null) {
   );
 }
 
-// DOM ordering in src/routes/+page.svelte (verified against C3 markup):
-//   - odometer file input renders first (inside the odometer cell, line ~426)
-//   - pump file input renders second (after the Volume row, line ~518)
-// So `nth=0` targets the odometer trigger and `nth=1` targets the pump trigger.
+// DOM ordering in src/routes/+page.svelte after feat/photo-capture-refinements:
+// pump and odometer file inputs both render in the top capture row, in that
+// order — pump first, then odometer.
+//   - pump file input is nth=0
+//   - odometer file input is nth=1
 
 test('pump: chip appears + Use populates Volume + Cost', async ({ page }) => {
   await commonRoutes(page);
@@ -44,10 +45,8 @@ test('pump: chip appears + Use populates Volume + Cost', async ({ page }) => {
   const pumpTrigger = page.getByRole('button', { name: /Read pump display from photo/i });
   await expect(pumpTrigger).toBeVisible();
 
-  // Pump file input is nth=1 (odometer is nth=0). The `lastFuelup` mock is
-  // null, so the odometer chip is hidden but the odometer file input is still
-  // rendered because `odoModeEnabled()` only checks ocrEnabled + modes.
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  // Pump file input is nth=0 (top capture row renders pump first, odometer second).
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
   // Wait for confirm chip rendering
   await expect(page.getByText(/Detected:/)).toBeVisible();
   await expect(page.getByText(/11\.2 gal · \$42\.18/)).toBeVisible();
@@ -68,7 +67,7 @@ test('pump: Discard dismisses chip without populating', async ({ page }) => {
     });
   });
   await gotoHomeViaClientRouter(page);
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
   await page.getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(page.getByText(/Detected:/)).toHaveCount(0);
   await expect(page.locator('input[placeholder="11.2"]')).toHaveValue('');
@@ -92,8 +91,8 @@ test('odometer: chip appears + Use populates Odometer', async ({ page }) => {
   const odoTrigger = page.getByRole('button', { name: /Read odometer from photo/i });
   await expect(odoTrigger).toBeVisible();
 
-  // Odometer file input is nth=0 (renders first in DOM order).
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  // Odometer file input is nth=1 (top capture row: pump first, odometer second).
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
   await expect(page.getByText(/Detected: 87,612 mi/)).toBeVisible();
   await page.getByRole('button', { name: 'Use', exact: true }).click();
   await expect(page.locator('input#odometer')).toHaveValue('87612');
@@ -110,7 +109,7 @@ test('odometer: detected > last + 2000 → amber warning, no Use', async ({ page
     return route.fulfill({ json: { mode: 'odometer', odometer: 92500 } });
   });
   await gotoHomeViaClientRouter(page);
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
   await expect(page.getByText(/jumped > 2000 mi/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Dismiss', exact: true })).toBeVisible();
@@ -127,7 +126,7 @@ test('odometer: detected < last → amber warning', async ({ page }) => {
     return route.fulfill({ json: { mode: 'odometer', odometer: 80000 } });
   });
   await gotoHomeViaClientRouter(page);
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
   await expect(page.getByText(/lower than last fillup/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use', exact: true })).toHaveCount(0);
 });
@@ -153,8 +152,8 @@ test('429 surfaces as a toast with Retry-After', async ({ page }) => {
     });
   });
   await gotoHomeViaClientRouter(page);
-  // pump trigger (nth=1 — odometer trigger first in DOM order)
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  // pump trigger (nth=0 — pump file input renders first in the top capture row)
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
   await expect(page.getByText(/OCR rate limit reached, try again in 120s/)).toBeVisible();
 });
 
@@ -167,35 +166,13 @@ test('502 surfaces as service-unreachable toast', async ({ page }) => {
     return route.fulfill({ status: 502, json: { error: 'upstream' } });
   });
   await gotoHomeViaClientRouter(page);
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
   await expect(page.getByText(/OCR service unreachable/)).toBeVisible();
 });
 
-test('odometer: increment chip and photo chip render on the same row', async ({ page }) => {
-  await commonRoutes(page, {
-    date: '2026-05-08', odometer: 87432, fuelConsumed: 11.2, cost: 42.18, notes: ''
-  });
-  await page.route('**/api/ocr', (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({ json: { enabled: true, modes: ['pump', 'odometer'] } });
-    }
-    return route.fulfill({ json: { mode: 'odometer', odometer: 87612 } });
-  });
-  await gotoHomeViaClientRouter(page);
-
-  const incChip = page.getByRole('button', { name: /\+\d+ mi/ });
-  const photoChip = page.getByRole('button', { name: /Read odometer from photo/i });
-  await expect(incChip).toBeVisible();
-  await expect(photoChip).toBeVisible();
-
-  const incBox = await incChip.boundingBox();
-  const photoBox = await photoChip.boundingBox();
-  if (!incBox || !photoBox) throw new Error('chip bounding boxes not measurable');
-  const incCenter = incBox.y + incBox.height / 2;
-  const photoCenter = photoBox.y + photoBox.height / 2;
-  // Same row: centers within half a chip-height; wrapping pushes one >1 chip-height down.
-  expect(Math.abs(incCenter - photoCenter)).toBeLessThan(incBox.height / 2);
-});
+// (Removed in feat/photo-capture-refinements — odometer photo trigger now
+// lives in the top capture row, not next to the +N mi chip. Kept here as a
+// breadcrumb so a future contributor doesn't recreate the assertion.)
 
 test('422 cross-field surfaces as "Couldn\'t read clearly"', async ({ page }) => {
   await commonRoutes(page);
@@ -206,6 +183,6 @@ test('422 cross-field surfaces as "Couldn\'t read clearly"', async ({ page }) =>
     return route.fulfill({ status: 422, json: { error: 'cross-field drift 58%' } });
   });
   await gotoHomeViaClientRouter(page);
-  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
   await expect(page.getByText(/Couldn't read clearly/)).toBeVisible();
 });

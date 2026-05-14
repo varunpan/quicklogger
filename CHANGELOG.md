@@ -52,6 +52,19 @@ All notable changes to this project are documented here. Format roughly follows 
 
 - `.env.example` and `compose.example.yml` gain a commented Photo OCR
   block with placeholders.
+- **Photo OCR capture row.** Both photo triggers (`Pump display photo`,
+  `Odometer photo`) now live in a single row at the top of the form,
+  directly under the vehicle picker. Inline triggers are gone; OCR
+  result chips render full-width in a single feedback zone under the
+  capture row instead of next to the field they fill. Renamed from the
+  v0.2.0 dev labels (`Photo pump display`, `Photo`) to self-describing
+  copy that no longer depends on inline placement. The `+N mi`
+  increment chip stays in the odometer cell.
+- **Gallery picker on iOS.** Dropped the `capture="environment"`
+  attribute on both photo file inputs so iOS users get the native
+  chooser sheet (Take Photo / Photo Library / Choose File) instead of
+  jumping straight to the camera. Android picker behavior is
+  unchanged. See [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md).
 
 ### Fixed
 

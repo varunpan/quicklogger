@@ -61,9 +61,14 @@ bigger picture: see the `/` page section in
 - [`src/routes/+page.ts`](../../src/routes/+page.ts) — probes
   `GET /api/ocr` and surfaces `ocrEnabled` + `ocrModes` to the page.
   Failure to probe = `enabled: false`; page load never blocks on OCR.
-- [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — camera
-  chips, confirm chips, odometer warning chip, and the relative-range
-  check (`checkOdometerRelative` against `data.lastFuelup`).
+- [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — top
+  capture row (Pump display photo / Odometer photo pills), OCR feedback
+  zone (pump chip, odometer chip, odometer warning chip — all stacked
+  full-form-width below the capture row), and the relative-range check
+  (`checkOdometerRelative` against `data.lastFuelup`). Inline photo
+  triggers from the original v0.2.0 layout were removed — the trigger
+  no longer needs to sit next to the field it fills, since the labels
+  ("Pump display photo", "Odometer photo") are self-describing.
 
 ## Data model
 
@@ -104,7 +109,9 @@ audit log persists the same shape under `parsed`, plus a top-level
 
 ### Request path (success)
 
-1. Browser captures image via `<input type="file" capture="environment">`.
+1. Browser opens the OS chooser via `<input type="file" accept="image/*">`
+   (no `capture` attribute — iOS users get the native sheet with both
+   *Take Photo* and *Photo Library* options).
 2. `resizeForOcr(file)` runs in a hidden Canvas — 1024 px long edge,
    JPEG q=0.8, EXIF stripped. Output is ~150–300 KB.
 3. `postOcr(blob, mode)` POSTs `multipart/form-data` with 90 s client
@@ -118,10 +125,12 @@ audit log persists the same shape under `parsed`, plus a top-level
    `{ ok: true, result, ... }`.
 6. Route handler increments budget, appends audit row, returns the
    discriminated `OcrResult`.
-7. Client: pump mode renders the blue confirm chip below the trigger
-   slot. Odometer mode runs `checkOdometerRelative` against
-   `data.lastFuelup` first; ok → blue confirm chip, fail → amber
-   warning chip with no `[Use]`.
+7. Client: chip renders in the OCR feedback zone immediately under the
+   capture row (full form width, not next to the field). Pump goes
+   straight to the blue confirm chip. Odometer runs
+   `checkOdometerRelative` against `data.lastFuelup` first; ok → blue
+   confirm chip, warning → amber chip with `[Use anyway]` + `[Dismiss]`
+   (warnings are advisory in v0.2.0+ — see Edge cases below).
 8. User taps `[Use]` → form fields populate; chip dismisses.
 
 ### Provider selection (per-request)
