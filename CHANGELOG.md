@@ -173,6 +173,23 @@ All notable changes to this project are documented here. Format roughly follows 
 - New e2e spec [`tests/e2e/smart-checks.spec.ts`](tests/e2e/smart-checks.spec.ts):
   clean submit, single-issue chip with override, multi-issue chip,
   field-edit-clears-chip, master toggle off.
+- New e2e spec [`tests/e2e/ocr-preview-crop.spec.ts`](tests/e2e/ocr-preview-crop.spec.ts):
+  drag → Done → Send sends `cropX/Y/W/H` form fields with decimals in
+  `[0, 1]`; skip-crop send omits all four (wire-compat regression
+  guard); Cancel-crop preserves prior state and omits crop fields.
+- New unit specs: `src/lib/client/cropCoords.test.ts` (display↔source
+  conversion round-trip across all four rotations) and
+  `src/lib/client/CropOverlay.test.ts` (handles render, corner /
+  interior drag, 200 source-px floor, Reset, Cancel).
+- Extended `src/lib/client/image.test.ts` with crop branch + combined
+  rotation×crop + defensive-parse cases (single-canvas-pass invariant
+  asserted via drawImage call count).
+- Extended `src/lib/server/ocrAudit.test.ts` to round-trip
+  `cropApplied` + `cropRect`.
+- Extended `src/routes/api/ocr/server.test.ts` with four crop cases
+  (all-four-valid, three-of-four, out-of-range, old-shape).
+- Extended `src/lib/client/OcrPreview.test.ts` with six new cases for
+  the crop sub-mode state machine.
 
 ## [0.1.4] — 2026-05-13
 
