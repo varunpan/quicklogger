@@ -3,6 +3,8 @@ export interface Vehicle {
 	year?: number;
 	make?: string;
 	model?: string;
+	licensePlate?: string;
+	vin?: string;
 	[key: string]: unknown;
 }
 
