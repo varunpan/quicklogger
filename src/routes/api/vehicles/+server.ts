@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { loadEnv } from '$lib/server/env';
 import { LubeLoggerClient, LubeLoggerError } from '$lib/server/lubelogger';
 import { TtlCache } from '$lib/server/cache';
+import { normalizeVehicleIdentifiers } from '$lib/server/vehicle-identifiers';
 
 const cache = new TtlCache<unknown>(5 * 60 * 1000);
 
@@ -15,7 +16,10 @@ export const GET: RequestHandler = async () => {
       baseUrl: env.lubeloggerUrl,
       apiKey: env.lubeloggerApiKey
     });
-    const vehicles = await cache.get('vehicles', () => client.listVehicles());
+    const vehicles = await cache.get('vehicles', async () => {
+      const raw = await client.listVehicles();
+      return raw.map(normalizeVehicleIdentifiers);
+    });
     return json(vehicles);
   } catch (err) {
     if (err instanceof LubeLoggerError) {

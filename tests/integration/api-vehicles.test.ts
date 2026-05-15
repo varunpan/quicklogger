@@ -50,4 +50,55 @@ describe('GET /api/vehicles', () => {
     const res = await GET({} as Parameters<typeof GET>[0]);
     expect(res.status).toBe(502);
   });
+
+  it('hoists VIN from extraFields into a top-level vin field', async () => {
+    upstream.use(
+      http.get('http://lubelog:8080/api/vehicles', () =>
+        HttpResponse.json([
+          {
+            id: 1,
+            year: 2014,
+            make: 'Honda',
+            model: 'Accord',
+            licensePlate: 'MBL4635',
+            extraFields: [
+              { name: 'VIN', value: '1HGCR2F80EA00735', isRequired: false, fieldType: 0 },
+              { name: 'Trim', value: 'EX-L', isRequired: false, fieldType: 0 }
+            ]
+          }
+        ])
+      )
+    );
+    const res = await GET({} as Parameters<typeof GET>[0]);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body[0].vin).toBe('1HGCR2F80EA00735');
+    expect(body[0].licensePlate).toBe('MBL4635');
+    // extraFields still passes through unchanged.
+    expect(body[0].extraFields).toEqual([
+      { name: 'VIN', value: '1HGCR2F80EA00735', isRequired: false, fieldType: 0 },
+      { name: 'Trim', value: 'EX-L', isRequired: false, fieldType: 0 }
+    ]);
+  });
+
+  it('omits the vin key when extraFields has no VIN row', async () => {
+    upstream.use(
+      http.get('http://lubelog:8080/api/vehicles', () =>
+        HttpResponse.json([
+          {
+            id: 1,
+            year: 2014,
+            make: 'Honda',
+            model: 'Accord',
+            licensePlate: 'MBL4635',
+            extraFields: [{ name: 'Trim', value: 'EX-L' }]
+          }
+        ])
+      )
+    );
+    const res = await GET({} as Parameters<typeof GET>[0]);
+    const body = await res.json();
+    expect('vin' in body[0]).toBe(false);
+    expect(body[0].licensePlate).toBe('MBL4635');
+  });
 });
