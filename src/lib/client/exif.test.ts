@@ -117,6 +117,34 @@ describe('readPhotoDate — JPEG', () => {
     expect(date!.getDate()).toBe(12);
   });
 
+  it('walks past JFIF APP0 segment to find EXIF APP1', async () => {
+    // Real iPhone JPEGs (and most Android) emit FFE0 (JFIF APP0) before
+    // FFE1 (EXIF APP1). The parser must skip APP0 and find APP1.
+    const exifJpeg = buildExifJpeg({ dateTimeOriginal: '2026:03:20 10:15:00' });
+    // Build a minimal APP0 segment: FF E0 + length(2) + "JFIF\0" + version(2)
+    // + units(1) + xdens(2) + ydens(2) + xthumb(1) + ythumb(1) = 16 bytes payload
+    // (length field includes itself, so length = 16).
+    const app0 = new Uint8Array([
+      0xff, 0xe0, // APP0 marker
+      0x00, 0x10, // length = 16
+      0x4a, 0x46, 0x49, 0x46, 0x00, // "JFIF\0"
+      0x01, 0x01, // version 1.1
+      0x00,       // units = 0 (no units)
+      0x00, 0x48, 0x00, 0x48, // 72x72 density
+      0x00, 0x00  // no thumbnail
+    ]);
+    // Splice APP0 between SOI (bytes 0..1) and the existing APP1 (bytes 2+).
+    const composite = new Uint8Array(2 + app0.length + (exifJpeg.length - 2));
+    composite.set(exifJpeg.subarray(0, 2), 0);
+    composite.set(app0, 2);
+    composite.set(exifJpeg.subarray(2), 2 + app0.length);
+    const date = await readPhotoDate(buildBlob(composite));
+    expect(date).not.toBeNull();
+    expect(date!.getFullYear()).toBe(2026);
+    expect(date!.getMonth()).toBe(2); // March
+    expect(date!.getDate()).toBe(20);
+  });
+
   it('returns a Date for big-endian (MM) JPEG with DateTimeOriginal', async () => {
     const blob = buildBlob(
       buildExifJpeg({ dateTimeOriginal: '2025:11:01 09:00:00', byteOrder: 'MM' })
@@ -283,8 +311,7 @@ describe('readPhotoDate — HEIC', () => {
     infeBody[p++] = 0x78;
     infeBody[p++] = 0x69;
     infeBody[p++] = 0x66;
-    // eslint-disable-next-line no-useless-assignment -- final pointer write completes the byte stream; the unused post-increment keeps the symmetric byte-writer style readable.
-    infeBody[p++] = 0x00;
+    infeBody[p] = 0x00; // last write — no need to bump p, it's not read again
 
     const infe = box('infe', infeBody);
 
@@ -344,8 +371,7 @@ describe('readPhotoDate — HEIC', () => {
     ilocBody[q++] = (extentLen >> 24) & 0xff;
     ilocBody[q++] = (extentLen >> 16) & 0xff;
     ilocBody[q++] = (extentLen >> 8) & 0xff;
-    // eslint-disable-next-line no-useless-assignment -- final pointer write completes the byte stream; the unused post-increment keeps the symmetric byte-writer style readable.
-    ilocBody[q++] = extentLen & 0xff;
+    ilocBody[q] = extentLen & 0xff; // last write — no need to bump q, it's not read again
 
     const iloc = box('iloc', ilocBody);
 
@@ -397,16 +423,12 @@ describe('readPhotoDate — read cap', () => {
     const huge = new Uint8Array(8 * 1024 * 1024);
     huge.set(validPrefix, 0);
 
-    let _arrayBufferCallCount = 0;
     const originalSlice = Blob.prototype.slice;
     const blob = new Blob([huge], { type: 'image/jpeg' });
     const spied = new Proxy(blob, {
       get(target, prop, receiver) {
         if (prop === 'arrayBuffer') {
-          return async () => {
-            _arrayBufferCallCount += 1;
-            return target.arrayBuffer.call(target);
-          };
+          return async () => target.arrayBuffer.call(target);
         }
         if (prop === 'slice') {
           return function (this: Blob, ...args: unknown[]) {

@@ -145,11 +145,17 @@ function findExifInHeic(b: Uint8Array): Uint8Array | null {
   const { offset, length } = extent;
   if (offset + length > b.length) return null;
   const itemBytes = b.subarray(offset, offset + length);
-  // Per HEIF: the Exif item payload starts with a 4-byte big-endian
-  // ItemDataLength giving the length of the optional item identifier name
-  // (which we don't need). Skip that 4-byte prefix to land at the TIFF block.
+  // Exif item payload begins with a 4-byte big-endian `tiff_header_offset`
+  // (ISO/IEC 23008-12) — the TIFF header starts at offset (4 + tiff_header_offset)
+  // inside the extent. iOS HEIC writes 0 here so "skip 4" works in practice,
+  // but a producer that writes a non-zero offset would misparse without the
+  // decode. Bounds-checked; out-of-range returns null per the outer contract.
   if (itemBytes.length < 4) return null;
-  return itemBytes.subarray(4);
+  const tiffHeaderOffset =
+    (itemBytes[0] << 24) | (itemBytes[1] << 16) | (itemBytes[2] << 8) | itemBytes[3];
+  const skip = 4 + (tiffHeaderOffset >>> 0);
+  if (skip > itemBytes.length) return null;
+  return itemBytes.subarray(skip);
 }
 
 interface BoxRef {
