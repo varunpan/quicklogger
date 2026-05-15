@@ -175,10 +175,10 @@ audit log persists the same shape under `parsed`, plus a top-level
    cropped.
 4. Server: rate-limit check (in-memory sliding window, per-IP) →
    budget check (`/data/ocr-budget.json`) → multipart parse (incl.
-   defensive parse of optional `rotation`, `cropX/Y/W/H` fields) →
-   mode whitelist → image size + magic-byte sniff. Adversarial /
-   partial crop fields are silently zeroed; the OCR call still runs
-   on whatever bytes the client actually sent.
+   defensive parse of optional `rotation`, `cropX/Y/W/H`, and
+   `lastOdometerMi` fields) → mode whitelist → image size + magic-byte
+   sniff. Adversarial / partial crop fields are silently zeroed; the
+   OCR call still runs on whatever bytes the client actually sent.
 5. `runOcrPipeline` looks up `MODES[mode]` → calls `provider.extract`
    with the contract's prompt + schema → validates schema → range
    check → cross-field check (pump only) → returns
@@ -215,6 +215,7 @@ request re-selects.
   rotationApplied: number,                    // 0 | 90 | 180 | 270 — preview screen rotation
   cropApplied: boolean,                       // true iff valid crop fields received (all-four-or-nothing)
   cropRect: { x: number, y: number, w: number, h: number } | null,  // un-rotated source coords, [0,1]; null when cropApplied=false
+  lastOdometerMi?: number,                    // odometer-mode prompt hint; present only when the client sent a finite positive value
   ipHash: 'sha256:<16-hex>',                  // HMAC-SHA-256 (key, ip), 64 bits
   imgHash: 'sha256:<64-hex>',                 // SHA-256 of post-resize bytes
   imgBytes: number,                           // post-resize size
@@ -284,6 +285,29 @@ returns a `ValidationResult<T>` with the discriminator (`mode: 'pump'`
 or `mode: 'odometer'`) attached. The dispatcher narrows on the
 discriminator via TypeScript's exhaustiveness machinery — adding a
 mode without updating call sites becomes a type error.
+
+**The odometer prompt is dynamic; pump is static.** `ModeContract.prompt`
+is `(ctx?: PromptContext) => string`, not a fixed `string`. Pump ignores
+`ctx`; odometer optionally bakes `ctx.lastOdometerMi` into the prompt as
+a soft sanity-check hint ("the previous reading was approximately X
+miles — use this as a sanity check, not as the answer"). Background:
+UAT against `qwen2.5vl:7b` (Q4_K_M, ollama-served) reliably truncated
+the leading digit on 6+-digit readings — `111074 mi` became `11074 mi`
+across multiple captures. The rewritten prompt now also instructs the
+model to read every digit left-to-right (no assumed digit count) and to
+ignore any visible trip meter. The hint is informational only — there
+is **no** server-side validator that compares the model's output against
+`lastOdometerMi`; legitimate cases (replaced cluster, odometer rollover,
+data entry into a freshly-onboarded vehicle whose `lastFuelup` is the
+delivery odometer) flow through unchanged. The client-side relative-
+range check (`checkOdometerRelative`) on the OCR result is the only
+guard, and it's advisory with a `[Use anyway]` override. Wire shape:
+multipart gains an optional `lastOdometerMi` decimal-string field,
+omitted by old clients and by pump-mode sends; defensively parsed
+server-side (non-finite, non-positive, or absent → no hint, no audit
+record). Audit rows gain an optional top-level `lastOdometerMi` field
+when present — useful for forensics like "did the hint help on this
+capture?"
 
 **Cross-field check on pump only.** `cost ≈ volume × pricePerUnit`
 within 5%. Currency- and unit-agnostic — the relationship holds

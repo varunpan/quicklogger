@@ -16,6 +16,10 @@ export interface AuditRecord {
   rotationApplied: number;
   cropApplied: boolean;
   cropRect: AuditCropRect | null;
+  // Optional — present only when the client passed `lastOdometerMi` on an
+  // odometer-mode request. Forensic field: pairs with `parsed.odometer`
+  // to surface "model dropped the leading digit despite the hint" cases.
+  lastOdometerMi?: number;
   ipHash: string;
   imgHash: string;
   imgBytes: number;

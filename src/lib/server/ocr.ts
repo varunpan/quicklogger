@@ -81,6 +81,11 @@ interface PipelineInput {
 	mode: OcrMode;
 	provider: OcrProvider;
 	env: Env;
+	// Optional per-request prompt context. Only `odometer` mode uses
+	// `lastOdometerMi` today — pump ignores it. Forwarded into the mode
+	// contract's `prompt(ctx)` function; defensively dropped here if not
+	// a finite positive number.
+	lastOdometerMi?: number;
 }
 
 export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutcome> {
@@ -99,9 +104,20 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
 	}
 
+	// Build the prompt context. Defensive — only forward `lastOdometerMi`
+	// when it's a finite positive number; otherwise drop it so the prompt
+	// builder doesn't emit a "previous reading was NaN miles" hint.
+	const promptCtx =
+		typeof input.lastOdometerMi === 'number' &&
+		Number.isFinite(input.lastOdometerMi) &&
+		input.lastOdometerMi > 0
+			? { lastOdometerMi: input.lastOdometerMi }
+			: undefined;
+	const promptStr = contract.prompt(promptCtx);
+
 	let raw: unknown;
 	try {
-		raw = await input.provider.extract(input.bytes, contract.prompt, contract.schema);
+		raw = await input.provider.extract(input.bytes, promptStr, contract.schema);
 	} catch (err) {
 		const code = err instanceof OcrProviderError ? err.code : 'UNKNOWN';
 		return { ok: false, statusCode: 502, error: `provider failed: ${code}`, imageType, latencyMs: Date.now() - t0 };

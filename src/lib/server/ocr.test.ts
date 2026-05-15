@@ -195,4 +195,69 @@ describe('runOcrPipeline', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.statusCode).toBe(422);
   });
+
+  it('odometer: forwards lastOdometerMi into the prompt when finite positive', async () => {
+    let seenPrompt = '';
+    const recordingProvider: OcrProvider = {
+      name: 'ollama',
+      estimateCostCents: () => 0,
+      extract: async (_bytes, prompt) => {
+        seenPrompt = prompt;
+        return { odometer: 111120 };
+      }
+    };
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'odometer',
+      provider: recordingProvider,
+      env: envOverrides({ ollamaVisionUrl: 'x' }),
+      lastOdometerMi: 111074
+    });
+    expect(r.ok).toBe(true);
+    expect(seenPrompt).toMatch(/previous odometer reading/i);
+    expect(seenPrompt).toContain('111074');
+  });
+
+  it('odometer: drops non-finite lastOdometerMi (no hint baked in)', async () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 0, -50]) {
+      let seenPrompt = '';
+      const recordingProvider: OcrProvider = {
+        name: 'ollama',
+        estimateCostCents: () => 0,
+        extract: async (_bytes, prompt) => {
+          seenPrompt = prompt;
+          return { odometer: 87432 };
+        }
+      };
+      const r = await runOcrPipeline({
+        bytes: JPEG,
+        mode: 'odometer',
+        provider: recordingProvider,
+        env: envOverrides({ ollamaVisionUrl: 'x' }),
+        lastOdometerMi: bad
+      });
+      expect(r.ok).toBe(true);
+      expect(seenPrompt).not.toMatch(/previous odometer reading/i);
+    }
+  });
+
+  it('odometer: no hint when lastOdometerMi is unset', async () => {
+    let seenPrompt = '';
+    const recordingProvider: OcrProvider = {
+      name: 'ollama',
+      estimateCostCents: () => 0,
+      extract: async (_bytes, prompt) => {
+        seenPrompt = prompt;
+        return { odometer: 87432 };
+      }
+    };
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'odometer',
+      provider: recordingProvider,
+      env: envOverrides({ ollamaVisionUrl: 'x' })
+    });
+    expect(r.ok).toBe(true);
+    expect(seenPrompt).not.toMatch(/previous odometer reading/i);
+  });
 });

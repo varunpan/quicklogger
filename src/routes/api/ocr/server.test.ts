@@ -258,6 +258,61 @@ describe('POST /api/ocr', () => {
     expect(body).toMatchObject({ mode: 'odometer', odometer: 87612 });
   });
 
+  it('records lastOdometerMi in the audit row when a positive number is sent', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({ message: { content: '{"odometer":111120}' } })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'odometer');
+    fd.set('lastOdometerMi', '111074');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.lastOdometerMi).toBe(111074);
+  });
+
+  it('omits lastOdometerMi from the audit row on a garbage value', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({ message: { content: '{"odometer":87432}' } })
+      )
+    );
+    for (const bad of ['', 'banana', 'NaN', 'Infinity', '0', '-100']) {
+      const fd = new FormData();
+      fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+      fd.set('mode', 'odometer');
+      fd.set('lastOdometerMi', bad);
+      const res = await POST(makeRequest(fd));
+      expect(res.status).toBe(200);
+      const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+      const row = JSON.parse(auditLine);
+      expect(row.lastOdometerMi).toBeUndefined();
+    }
+  });
+
+  it('omits lastOdometerMi from the audit row when not sent (old-shape request)', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({ message: { content: '{"odometer":87432}' } })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'odometer');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.lastOdometerMi).toBeUndefined();
+  });
+
   it('429 with Retry-After after rate-limit cap', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434', OCR_RATE_LIMIT_PER_HOUR: '1' });
     ollamaServer.use(

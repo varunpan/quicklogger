@@ -166,7 +166,18 @@
     toast = null;
     try {
       const blob = await resizeForOcr(file, { rotation, crop });
-      const result = await postOcr(blob, mode, rotation, crop);
+      // Odometer-mode only: pass the prior fillup's odometer (when one
+      // exists and parses cleanly) as a soft sanity-check hint for the
+      // vision model. UAT surfaced that small open-source models
+      // (qwen2.5vl:7b @ Q4_K_M) reliably drop the leading digit on
+      // 6+-digit readings; the hint anchors them on a known-recent
+      // ballpark. Pump mode never gets the field.
+      let lastOdoHint: number | undefined;
+      if (mode === 'odometer' && data.lastFuelup) {
+        const candidate = Number(data.lastFuelup.odometer);
+        if (Number.isFinite(candidate) && candidate > 0) lastOdoHint = candidate;
+      }
+      const result = await postOcr(blob, mode, rotation, crop, lastOdoHint);
       if (result.mode === 'pump') {
         pumpSuggestion = result;
       } else if (result.mode === 'odometer') {

@@ -142,6 +142,16 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Odometer OCR accuracy.** The odometer prompt now instructs the
+  vision model to read every digit left-to-right (no assumed digit
+  count) and to ignore any trip-meter display. When a previous fillup
+  exists for the vehicle, its odometer value is passed to the model
+  as a sanity-check hint — anchors small open-source models like
+  `qwen2.5vl:7b` so they don't truncate the leading digit on 6+ digit
+  readings. The hint is informational, not a constraint; legitimate
+  cases (replaced cluster, rollover) flow through unchanged. See
+  [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
+
 ### Tests
 
 - Unit suites: `ocrRateLimit`, `ocrBudget`, `ocrAudit` (incl. HMAC key
@@ -193,6 +203,18 @@ All notable changes to this project are documented here. Format roughly follows 
   (all-four-valid, three-of-four, out-of-range, old-shape).
 - Extended `src/lib/client/OcrPreview.test.ts` with six new cases for
   the crop sub-mode state machine.
+- Extended `src/lib/server/ocrModes.test.ts` with a dedicated suite for
+  the dynamic odometer prompt: digit-counting + trip-meter directives,
+  hint inclusion only when `lastOdometerMi` is finite positive,
+  rounding behavior on non-integer hints, and absence of the hint when
+  context is missing / NaN / non-positive.
+- Extended `src/lib/server/ocr.test.ts` with three pipeline cases that
+  capture the prompt string handed to the provider and assert that
+  `lastOdometerMi` is forwarded only when finite positive.
+- Extended `src/routes/api/ocr/server.test.ts` with three cases for the
+  new wire field: valid value audit-logged, garbage values dropped
+  from the audit row, old-shape (no field) request omits the field
+  entirely.
 
 ## [0.1.4] — 2026-05-13
 

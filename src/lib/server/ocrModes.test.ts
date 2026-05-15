@@ -28,8 +28,13 @@ describe('MODES map', () => {
 
   it('every contract exposes prompt, schema, validateSchema, validateRanges', () => {
     for (const m of Object.values(MODES) as ModeContract[]) {
-      expect(typeof m.prompt).toBe('string');
-      expect(m.prompt.length).toBeGreaterThan(20);
+      // `prompt` is a function — call it with no context and assert the
+      // result is a non-trivial string. Both pump and odometer must accept
+      // an undefined context.
+      expect(typeof m.prompt).toBe('function');
+      const promptStr = m.prompt();
+      expect(typeof promptStr).toBe('string');
+      expect(promptStr.length).toBeGreaterThan(20);
       expect(typeof m.schema).toBe('object');
       expect(typeof m.validateSchema).toBe('function');
       expect(typeof m.validateRanges).toBe('function');
@@ -145,5 +150,61 @@ describe('odometer contract', () => {
 
   it('has no validateCrossField (single field)', () => {
     expect(odo.validateCrossField).toBeUndefined();
+  });
+});
+
+describe('odometer prompt', () => {
+  const odo = MODES.odometer;
+
+  it('mentions reading every digit left-to-right', () => {
+    const p = odo.prompt();
+    expect(p).toMatch(/every digit/i);
+    expect(p).toMatch(/left to right/i);
+  });
+
+  it('instructs the model to ignore trip-meter displays', () => {
+    const p = odo.prompt();
+    expect(p).toMatch(/trip/i);
+    // The phrasing should be "ignore" not just "trip meter" mentioned
+    // in passing.
+    expect(p).toMatch(/ignore/i);
+  });
+
+  it('does NOT include a sanity-check hint when no context is passed', () => {
+    const p = odo.prompt();
+    expect(p).not.toMatch(/previous odometer reading/i);
+    expect(p).not.toMatch(/sanity check/i);
+  });
+
+  it('does NOT include a sanity-check hint when lastOdometerMi is missing', () => {
+    const p = odo.prompt({});
+    expect(p).not.toMatch(/previous odometer reading/i);
+  });
+
+  it('does NOT include a sanity-check hint on non-finite lastOdometerMi', () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      const p = odo.prompt({ lastOdometerMi: bad });
+      expect(p).not.toMatch(/previous odometer reading/i);
+    }
+  });
+
+  it('does NOT include a sanity-check hint on zero / negative lastOdometerMi', () => {
+    expect(odo.prompt({ lastOdometerMi: 0 })).not.toMatch(/previous odometer/i);
+    expect(odo.prompt({ lastOdometerMi: -100 })).not.toMatch(/previous odometer/i);
+  });
+
+  it('includes the lastOdometerMi value verbatim (rounded) when provided', () => {
+    const p = odo.prompt({ lastOdometerMi: 111074 });
+    expect(p).toMatch(/previous odometer reading/i);
+    expect(p).toContain('111074');
+    // Phrased as guidance, not a constraint
+    expect(p).toMatch(/sanity check/i);
+    expect(p).toMatch(/may be higher or lower/i);
+  });
+
+  it('rounds a non-integer lastOdometerMi to the nearest integer in the prompt', () => {
+    const p = odo.prompt({ lastOdometerMi: 87431.6 });
+    // Math.round(87431.6) === 87432
+    expect(p).toContain('87432');
   });
 });

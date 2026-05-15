@@ -113,6 +113,15 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   const cropApplied = cropParsed !== null;
   const cropRect = cropParsed;
 
+  // Optional `lastOdometerMi` form field — only meaningful for odometer
+  // mode. Plumbed end-to-end into the prompt as a soft sanity-check hint
+  // for vision models that struggle with long digit sequences (see
+  // `buildOdometerPrompt` in ocrModes.ts). Defensive parse: any value
+  // that isn't a finite positive number is silently dropped, so an
+  // adversarial / malformed wire field can't poison the prompt or the
+  // audit log. Wire-additive — old clients omit the field entirely.
+  const lastOdometerMi = parseLastOdometerMi(form);
+
   const file = form.get('image');
   if (!(file instanceof File)) return json({ error: 'image required' }, { status: 400 });
   if (file.size === 0) return json({ error: 'empty image' }, { status: 400 });
@@ -121,7 +130,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   }
 
   const arr = new Uint8Array(await file.arrayBuffer());
-  const outcome = await runOcrPipeline({ bytes: arr, mode, provider, env });
+  const outcome = await runOcrPipeline({ bytes: arr, mode, provider, env, lastOdometerMi });
 
   const ipHash = hashIp(ip, hmacKey!);
   const imgHash = hashImage(arr);
@@ -134,6 +143,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       rotationApplied,
       cropApplied,
       cropRect,
+      ...(lastOdometerMi !== undefined ? { lastOdometerMi } : {}),
       ipHash, imgHash, imgBytes: arr.byteLength,
       imageType: outcome.imageType,
       provider: outcome.provider,
@@ -150,6 +160,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
     rotationApplied,
     cropApplied,
     cropRect,
+    ...(lastOdometerMi !== undefined ? { lastOdometerMi } : {}),
     ipHash, imgHash, imgBytes: arr.byteLength,
     imageType: outcome.imageType ?? 'jpeg',
     provider: provider.name === 'openrouter' ? 'openrouter' : 'ollama',
@@ -181,4 +192,17 @@ function parseCropFields(form: FormData): { x: number; y: number; w: number; h: 
   if (xn < 0 || yn < 0 || wn <= 0 || hn <= 0) return null;
   if (xn + wn > 1 || yn + hn > 1) return null;
   return { x: xn, y: yn, w: wn, h: hn };
+}
+
+// Defensive parse of the optional `lastOdometerMi` multipart field. Returns
+// the numeric value only when it parses to a finite positive number;
+// anything else (missing, empty, non-numeric, NaN, infinite, zero,
+// negative) collapses to `undefined` so the prompt builder skips the hint
+// and the audit row omits the field.
+function parseLastOdometerMi(form: FormData): number | undefined {
+  const raw = form.get('lastOdometerMi');
+  if (typeof raw !== 'string' || raw === '') return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
 }
