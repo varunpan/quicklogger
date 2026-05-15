@@ -672,7 +672,7 @@
       <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate}
              oninput={() => { clearSmartCheckIssues(); photoDateCue = null; }} />
       {#if photoDateCue === 'set'}
-        <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status">
+        <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status" data-testid="photo-date-cue">
           <svg class="text-blue-300 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
             <circle cx="12" cy="13" r="3.5"/>
@@ -680,7 +680,7 @@
           <span class="text-[11px] font-semibold text-blue-200">set from photo</span>
         </div>
       {:else if photoDateCue === 'missing'}
-        <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status">
+        <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status" data-testid="photo-date-cue">
           <svg class="text-amber-300 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
           </svg>

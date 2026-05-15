@@ -5,6 +5,7 @@ import { gotoHomeViaClientRouter, pinClock } from './fixtures';
 test.use({ serviceWorkers: 'block' });
 
 const FIXTURE = path.resolve('tests/e2e/sample.jpg');
+const CUE = '[data-testid="photo-date-cue"]';
 
 async function commonRoutes(page: Page) {
   await page.route('**/api/vehicles', (route) =>
@@ -36,7 +37,8 @@ test('missing cue: sample.jpg has no DateTimeOriginal → amber chip appears', a
   // Pump file input is the first file input on the page.
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
 
-  await expect(page.getByText('no date in photo')).toBeVisible();
+  await expect(page.locator(CUE)).toBeVisible();
+  await expect(page.locator(CUE)).toContainText('no date in photo');
   // Date stays at today (May 15)
   await expect(page.locator('input[type="date"]')).toHaveValue('2026-05-15');
 });
@@ -47,11 +49,11 @@ test('cue clears when user manually edits the date', async ({ page }) => {
   await gotoHomeViaClientRouter(page);
 
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
-  await expect(page.getByText('no date in photo')).toBeVisible();
+  await expect(page.locator(CUE)).toBeVisible();
 
   // Manually edit the date.
   await page.locator('input[type="date"]').fill('2026-05-10');
-  await expect(page.getByText('no date in photo')).toHaveCount(0);
+  await expect(page.locator(CUE)).not.toBeVisible();
 });
 
 test('cue persists when user dismisses the OCR preview', async ({ page }) => {
@@ -60,15 +62,14 @@ test('cue persists when user dismisses the OCR preview', async ({ page }) => {
   await gotoHomeViaClientRouter(page);
 
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
-  await expect(page.getByText('no date in photo')).toBeVisible();
+  await expect(page.locator(CUE)).toBeVisible();
 
   // Cancel the OCR preview.
   const cancelButton = page.getByRole('button', { name: 'Cancel', exact: true });
-  if (await cancelButton.count() > 0) {
-    await cancelButton.click();
-  }
+  await expect(cancelButton).toBeVisible();
+  await cancelButton.click();
   // Cue should still be visible.
-  await expect(page.getByText('no date in photo')).toBeVisible();
+  await expect(page.locator(CUE)).toBeVisible();
 });
 
 test('picking a second photo replaces the cue', async ({ page }) => {
@@ -77,16 +78,38 @@ test('picking a second photo replaces the cue', async ({ page }) => {
   await gotoHomeViaClientRouter(page);
 
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
-  await expect(page.getByText('no date in photo')).toBeVisible();
+  await expect(page.locator(CUE)).toBeVisible();
 
-  // Dismiss preview if present, then pick the same fixture again.
+  // Dismiss preview, then pick the same fixture again.
   const cancelButton = page.getByRole('button', { name: 'Cancel', exact: true });
-  if (await cancelButton.count() > 0) {
-    await cancelButton.click();
-  }
+  await expect(cancelButton).toBeVisible();
+  await cancelButton.click();
 
   // Re-open and re-pick.
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
   // Cue is still 'missing' (same fixture). Assertion: chip exists, single instance.
-  await expect(page.getByText('no date in photo')).toHaveCount(1);
+  await expect(page.locator(CUE)).toHaveCount(1);
+});
+
+test('cue persists when user clicks Retake in the preview', async ({ page }) => {
+  await commonRoutes(page);
+  await pinClock(page, '2026-05-15T12:00:00');
+  await gotoHomeViaClientRouter(page);
+
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+  await expect(page.locator(CUE)).toBeVisible();
+
+  // Click the Retake button inside the OCR preview. This re-fires the file
+  // input and re-runs handlePumpCamera → prefillDateFromPhoto.
+  const retakeButton = page.getByRole('button', { name: 'Retake', exact: true });
+  await expect(retakeButton).toBeVisible();
+  await retakeButton.click();
+
+  // Re-pick the same fixture so the new readPhotoDate resolves.
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+
+  // The cue should still be 'missing' (same fixture). Assert it's visible
+  // and there's a single instance.
+  await expect(page.locator(CUE)).toBeVisible();
+  await expect(page.locator(CUE)).toHaveCount(1);
 });
