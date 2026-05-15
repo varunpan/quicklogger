@@ -58,9 +58,12 @@ bigger picture: see the `/` page section in
   `OffscreenCanvas`; falls back to `HTMLImageElement` +
   `HTMLCanvasElement` on older Safari (where EXIF orientation may not
   be honored — ~2% of iOS users, accepted). Optional
-  `opts.rotation: 0 | 90 | 180 | 270` is applied as a single
-  translate+rotate transform inside the same canvas pass (no double
-  re-encode). Used by the preview screen.
+  `opts.rotation: 0 | 90 | 180 | 270` and `opts.crop?: NormalizedRect`
+  (un-rotated source coords, all components in `[0, 1]`) are applied
+  inside the same canvas pass via a 9-arg `drawImage` — one pixel
+  encoding event per send, even with both crop and rotation. The
+  1024 px long-edge clamp applies to the **cropped** region; a tight
+  crop produces a smaller output JPEG.
 - [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
   — full-screen modal mounted between capture and OCR submit.
   CSS-rotates the `<img>` while the user picks an orientation;

@@ -7,17 +7,26 @@
 // where available; older Safari falls back to HTMLCanvasElement where
 // orientation may not be honored (~2% of iOS users, accepted trade-off).
 //
-// Optional `{ rotation }` — when set, applied as a single transform inside
-// the same canvas pass (no double re-encode). Used by the preview screen
-// after the user taps `[↺ 90°]` / `[↻ 90°]`.
+// Optional `{ rotation, crop }` — both applied as a single canvas pass.
+// `crop` is in normalized [0..1] un-rotated source coords; the 1024 px clamp
+// applies to the cropped region, so the cost reduction comes from fewer
+// source pixels feeding the same long-edge ceiling.
 
 const MAX_LONG_EDGE = 1024;
 const JPEG_QUALITY = 0.8;
 
 export type Rotation = 0 | 90 | 180 | 270;
 
+export interface NormalizedRect {
+  x: number;  // 0..1, relative to un-rotated image width
+  y: number;  // 0..1, relative to un-rotated image height
+  w: number;  // 0..1
+  h: number;  // 0..1
+}
+
 export interface ResizeOptions {
   rotation?: Rotation;
+  crop?: NormalizedRect | null;  // null and undefined behave identically
 }
 
 export async function resizeForOcr(
@@ -25,6 +34,7 @@ export async function resizeForOcr(
   opts: ResizeOptions = {}
 ): Promise<Blob> {
   const rotation = (opts.rotation ?? 0) as Rotation;
+  const crop = sanitizeCrop(opts.crop);
 
   // Preferred path — uses createImageBitmap (honors EXIF) + OffscreenCanvas.
   if (typeof createImageBitmap !== 'undefined' && typeof OffscreenCanvas !== 'undefined') {
@@ -36,7 +46,7 @@ export async function resizeForOcr(
       bitmap = await createImageBitmap(file);
     }
     try {
-      return await renderToJpegBlob(bitmap, rotation);
+      return await renderToJpegBlob(bitmap, rotation, crop);
     } finally {
       bitmap.close();
     }
@@ -47,10 +57,22 @@ export async function resizeForOcr(
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImage(url);
-    return await renderToJpegBlob(img, rotation);
+    return await renderToJpegBlob(img, rotation, crop);
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+// Defensive parse — any invalid rect collapses to `null` (= full image).
+// Same posture as the existing rotation defensive parse.
+function sanitizeCrop(c: NormalizedRect | null | undefined): NormalizedRect | null {
+  if (!c) return null;
+  const { x, y, w, h } = c;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return null;
+  if (x < 0 || y < 0 || w <= 0 || h <= 0) return null;
+  if (x + w > 1 || y + h > 1) return null;
+  return { x, y, w, h };
 }
 
 interface Dimensioned {
@@ -60,11 +82,19 @@ interface Dimensioned {
 
 async function renderToJpegBlob(
   source: CanvasImageSource & Dimensioned,
-  rotation: Rotation
+  rotation: Rotation,
+  crop: NormalizedRect | null
 ): Promise<Blob> {
-  const scale = Math.min(1, MAX_LONG_EDGE / Math.max(source.width, source.height));
-  const baseW = Math.max(1, Math.round(source.width * scale));
-  const baseH = Math.max(1, Math.round(source.height * scale));
+  // Source rect: full image when crop is null, else the cropped region.
+  const sx = crop ? Math.round(crop.x * source.width) : 0;
+  const sy = crop ? Math.round(crop.y * source.height) : 0;
+  const sw = crop ? Math.round(crop.w * source.width) : source.width;
+  const sh = crop ? Math.round(crop.h * source.height) : source.height;
+
+  // Destination size derives from the (possibly cropped) source rect.
+  const scale = Math.min(1, MAX_LONG_EDGE / Math.max(sw, sh));
+  const baseW = Math.max(1, Math.round(sw * scale));
+  const baseH = Math.max(1, Math.round(sh * scale));
 
   // Output canvas dimensions transpose for 90/270.
   const transpose = rotation === 90 || rotation === 270;
@@ -76,7 +106,7 @@ async function renderToJpegBlob(
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('OffscreenCanvas 2d context unavailable');
     applyRotation(ctx as unknown as CanvasRenderingContext2D, rotation, baseW, baseH);
-    ctx.drawImage(source as CanvasImageSource, 0, 0, baseW, baseH);
+    ctx.drawImage(source as CanvasImageSource, sx, sy, sw, sh, 0, 0, baseW, baseH);
     return await canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
   }
 
@@ -86,7 +116,7 @@ async function renderToJpegBlob(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas 2d context unavailable');
   applyRotation(ctx, rotation, baseW, baseH);
-  ctx.drawImage(source as CanvasImageSource, 0, 0, baseW, baseH);
+  ctx.drawImage(source as CanvasImageSource, sx, sy, sw, sh, 0, 0, baseW, baseH);
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error('toBlob returned null'))),
