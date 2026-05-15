@@ -20,6 +20,7 @@
     type LastFuelupForCheck
   } from '$lib/client/smart-checks';
   import OcrPreview from '$lib/client/OcrPreview.svelte';
+  import { readPhotoDate, interpretPhotoDate, formatLocalDate } from '$lib/client/exif';
   import type { Rotation, NormalizedRect } from '$lib/client/image';
 
   let { data } = $props();
@@ -61,6 +62,10 @@
   let pumpOcrPending: boolean = $state(false);
   let pumpSuggestion: OcrPumpResult | null = $state(null);
   let pumpCameraInput: HTMLInputElement | undefined = $state();
+
+  // Photo-date prefill cue. 'set' / 'missing' chip variants per the spec.
+  let photoDateCue: 'set' | 'missing' | null = $state(null);
+  let photoDatePickSeq = 0; // last-write-wins for racing readPhotoDate calls
 
   let odoOcrPending: boolean = $state(false);
   let odoSuggestion: OcrOdometerResult | null = $state(null);
@@ -136,6 +141,25 @@
     input.value = '';
     if (!file) return;
     pendingCapture = { file, mode: 'pump' };
+    void prefillDateFromPhoto(file);
+  }
+
+  // EXIF read + state-machine apply. Errors (parser throws, file deleted
+  // between pick and read, etc.) collapse to the 'missing' cue — never
+  // affects the parallel OCR pipeline.
+  async function prefillDateFromPhoto(file: File) {
+    const seq = ++photoDatePickSeq;
+    try {
+      const photoDate = await readPhotoDate(file);
+      if (seq !== photoDatePickSeq) return; // a newer pick won
+      const today = formatLocalDate(new Date());
+      const result = interpretPhotoDate(photoDate, today);
+      if (result.newIsoDate !== undefined) isoDate = result.newIsoDate;
+      photoDateCue = result.cue;
+    } catch {
+      if (seq !== photoDatePickSeq) return;
+      photoDateCue = 'missing';
+    }
   }
 
   function handleOdoCamera(ev: Event) {
@@ -429,6 +453,8 @@
       volume = '';
       cost = '';
       pumpSuggestion = null;
+      photoDateCue = null;
+      photoDatePickSeq++; // invalidate any in-flight readPhotoDate
       odoSuggestion = null;
       odoWarning = null;
       smartCheckIssues = [];
@@ -644,7 +670,23 @@
     <label class="field min-w-0">
       <span class="field-label">Date</span>
       <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate}
-             oninput={clearSmartCheckIssues} />
+             oninput={() => { clearSmartCheckIssues(); photoDateCue = null; }} />
+      {#if photoDateCue === 'set'}
+        <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status">
+          <svg class="text-blue-300 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
+            <circle cx="12" cy="13" r="3.5"/>
+          </svg>
+          <span class="text-[11px] font-semibold text-blue-200">set from photo</span>
+        </div>
+      {:else if photoDateCue === 'missing'}
+        <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status">
+          <svg class="text-amber-300 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+          </svg>
+          <span class="text-[11px] font-semibold text-amber-300">no date in photo</span>
+        </div>
+      {/if}
     </label>
     {#if prefs.odometerPrefillEnabled && prefs.odometerIncrementMi > 0}
       <div class="col-span-2 flex flex-wrap gap-2">

@@ -12,6 +12,15 @@ hidden. User guide:
 bigger picture: see the `/` page section in
 [`docs/architecture.md`](../architecture.md#---main-form).
 
+### Date prefill from photo (v0.2.0+)
+
+Adjacent feature with the same trigger (a pump-photo pick) but an independent
+pipeline. Reads the photo's EXIF `DateTimeOriginal` and pre-fills the form's
+Date field when the photo is older than today. Fresh-camera captures (EXIF
+date === today) are a no-op. The EXIF read runs in parallel with the OCR
+upload and never blocks or affects it. User guide:
+[`docs/user/photo-ocr.md`](../user/photo-ocr.md#date-prefill-from-photo-v020).
+
 ## Files
 
 ### Server
@@ -115,6 +124,13 @@ bigger picture: see the `/` page section in
   triggers from the original v0.2.0 layout were removed — the trigger
   no longer needs to sit next to the field it fills, since the labels
   ("Pump display photo", "Odometer photo") are self-describing.
+- [`src/lib/client/exif.ts`](../../src/lib/client/exif.ts) — pure
+  hand-rolled EXIF parser for JPEG (APP1 marker walk) and HEIC (ISO BMFF
+  `meta`/`iinf`/`iloc` walk). Public API: `readPhotoDate(file)` returns
+  `Date | null`. Reads at most 128 KB of the file. Also exports
+  `interpretPhotoDate(photoDate, todayIso)` (the state-machine helper that
+  applies the fresh-camera suppression rule) and `formatLocalDate(date)`
+  (local-time YYYY-MM-DD). No DOM access; unit-testable in isolation.
 
 ## Data model
 
@@ -150,6 +166,18 @@ audit log persists the same shape under `parsed`, plus a top-level
 | `ocr-budget.json` | `{ date: 'YYYY-MM-DD', calls, costCents }` | UTC date; replaced (not appended) on each `add()`. |
 | `ocr-audit.jsonl` | one JSON object per line (incl. `rotationApplied: number` since v0.2.0+) | Append-only. Truncated to 0 bytes when next append would cross 10 MiB. Old entries discarded, not archived. |
 | `ocr-audit-key.txt` | 32 random bytes, 0600 | Auto-generated if `OCR_AUDIT_HMAC_KEY` is unset and the file is absent. Persists across container restarts. |
+
+### Date prefill (v0.2.0+)
+
+One new client-only state slot in `+page.svelte`:
+
+```ts
+let photoDateCue: 'set' | 'missing' | null = $state(null);
+```
+
+No new persisted fields, no new wire-format fields, no new prefs. The cue
+chip is reactive UI bound to this single slot. The Date input continues to
+bind to the existing `isoDate: string` state.
 
 ## Lifecycle
 
@@ -248,6 +276,27 @@ Rows persisted before the image-crop feature lack `cropApplied` and
 the rect. The 10 MiB truncate-rotate behavior naturally retires
 old-era rows over time; no backfill.
 
+### Date prefill (v0.2.0+)
+
+1. User picks a file via the Pump-display photo input.
+2. `handlePumpCamera` stashes the file in `pendingCapture` (existing OCR
+   preview flow) AND fires `prefillDateFromPhoto(file)` — `void`-ed, runs
+   in parallel with OCR.
+3. `prefillDateFromPhoto` bumps `photoDatePickSeq` so racing reads
+   (`A → B → A-resolves`) are last-write-wins; only the most recent pick's
+   resolution updates state.
+4. `readPhotoDate(file)` slices the first 128 KB, sniffs the format, walks
+   the EXIF block, returns a `Date | null`.
+5. `interpretPhotoDate(photoDate, today)` collapses the result into
+   `{ newIsoDate?, cue }` per the state-machine rule:
+     - `null` → `cue: 'missing'`, no date change
+     - same local YYYY-MM-DD as today → `cue: null`, no date change
+     - else → `cue: 'set'`, `newIsoDate` = local YYYY-MM-DD
+6. Apply: write `isoDate` (if `newIsoDate` present) and write `photoDateCue`.
+7. Cue clears on: a) next photo pick (step 1 re-fires), b) manual edit of
+   the Date input (`oninput` clears `photoDateCue`), c) successful form
+   submit (existing reset path clears it alongside `pumpSuggestion`).
+
 ## Edge cases & invariants
 
 | Scenario | Behaviour | Why |
@@ -274,6 +323,18 @@ old-era rows over time; no backfill.
 | User taps `[Crop]` then `[✕ Cancel crop]` without dragging | Returns to preview with prior `crop` value unchanged (or `null`) | Cancel = "discard my in-progress edit," not "reset the prior crop" |
 | User shrinks rect to the 200 source-px floor and keeps dragging | Handle stops moving; no haptic | Soft stop — floor is UX safety net, not a security gate |
 | Old client (no rotation field) on new server | Audit row records `rotationApplied: 0` | Field-additive change — `0` is the documented default, not "absent" |
+
+### Date prefill (v0.2.0+)
+
+| Scenario | Behavior | Why |
+| --- | --- | --- |
+| Fresh-camera photo, EXIF date === today | No update, no cue | Useless to rewrite today over today; the closest heuristic available since File API doesn't expose `<input capture>` vs library-pick |
+| Photo with no EXIF (screenshot / edited export) | `cue: 'missing'`, date unchanged | User sees we tried |
+| HEIC from iPhone | Box-walked to extract TIFF block, parsed identically to JPEG | Same downstream parser once TIFF block is found |
+| Two picks in quick succession, slow read on first | Pick-seq counter ensures last-write wins | Avoids stale prior-pick overwriting fresh state |
+| `readPhotoDate` throws | Caught → `cue: 'missing'` | Never breaks OCR or the form |
+| Late-evening pick at 11:55 PM local, EXIF on today | Local-component compare → "today" check works | `toISOString().slice(0,10)` would UTC-shift; helper uses `getFullYear()`/`getMonth()`/`getDate()` |
+| Existing `isoDate` default at `+page.svelte:42` uses `toISOString().slice(0,10)` | Unchanged — out of scope | Latent bug; new code uses local-component formatting correctly |
 
 ## Non-obvious decisions
 
@@ -440,6 +501,33 @@ current file but re-opens the same input the user originally tapped
 the second photo flows through the preview again. Both clear the
 pending state — they differ only in whether a follow-up file picker
 opens.
+
+### Date prefill (v0.2.0+)
+
+- **Fresh-camera check is `=== today`, not `!== isoDate`.** Users who manually
+  set a date and then pick a photo should still get the photo's date if it's
+  older. Comparing against `today` reflects the "fresh capture vs older photo"
+  distinction cleanly; comparing against current `isoDate` would let manual
+  edits anchor future overwrites in a confusing way.
+- **Hand-rolled parser, not a library.** `exifr` is ~75 KB minified. Reading
+  only `DateTimeOriginal` from JPEG APP1 and HEIC `meta` boxes is ~250 LOC.
+  Tradeoff: we own the parser; if a new HEIC variant or EXIF quirk shows up,
+  we extend it. Worth it for the bundle savings.
+- **128 KB read cap, no streaming.** EXIF in JPEG is in the first APP1 marker
+  (typically <16 KB). HEIC `meta` is usually within the first 8-16 KB. 128 KB
+  is comfortable upper bound — beyond that we accept that some unusual files
+  won't parse.
+- **`set`-cue persists across OCR cancel / retake.** The EXIF date was
+  extracted *before* the preview mounted. If the user discards or retakes the
+  OCR result, the date is still independently useful. Only manual date edit,
+  next photo pick, or successful submit clears it.
+- **Returns a `Date`, not a string, from `readPhotoDate`.** Internal API; the
+  caller formats it via `formatLocalDate` (local components). Keeps EXIF
+  parser and date formatter independently testable.
+- **Cue chip on the field, not as a global toast.** Spatial coupling: the cue
+  is about the Date field, so it lives directly under it. Visual: trimmed
+  version of the OCR-validation chip family (same border/bg vocabulary,
+  smaller icon, no action buttons) so the form's chip system stays coherent.
 
 ## Prompt content (verbatim, for reference)
 
