@@ -105,6 +105,14 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       ? rotationParsed
       : 0;
 
+  // Optional crop fields — all four required, all four must parse to finite
+  // numbers in [0, 1], with cropX + cropW <= 1 and cropY + cropH <= 1, and
+  // neither cropW nor cropH may be zero. Any failure → un-cropped audit.
+  // Wire-additive, defensive parse — same posture as rotation.
+  const cropParsed = parseCropFields(form);
+  const cropApplied = cropParsed !== null;
+  const cropRect = cropParsed;
+
   const file = form.get('image');
   if (!(file instanceof File)) return json({ error: 'image required' }, { status: 400 });
   if (file.size === 0) return json({ error: 'empty image' }, { status: 400 });
@@ -124,6 +132,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
     await audit!.append({
       mode,
       rotationApplied,
+      cropApplied,
+      cropRect,
       ipHash, imgHash, imgBytes: arr.byteLength,
       imageType: outcome.imageType,
       provider: outcome.provider,
@@ -138,6 +148,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   await audit!.append({
     mode,
     rotationApplied,
+    cropApplied,
+    cropRect,
     ipHash, imgHash, imgBytes: arr.byteLength,
     imageType: outcome.imageType ?? 'jpeg',
     provider: provider.name === 'openrouter' ? 'openrouter' : 'ollama',
@@ -149,3 +161,24 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   });
   return json({ error: outcome.error }, { status: outcome.statusCode });
 };
+
+function parseCropFields(form: FormData): { x: number; y: number; w: number; h: number } | null {
+  const x = form.get('cropX');
+  const y = form.get('cropY');
+  const w = form.get('cropW');
+  const h = form.get('cropH');
+  // All four or nothing.
+  if (typeof x !== 'string' || typeof y !== 'string' || typeof w !== 'string' || typeof h !== 'string') {
+    return null;
+  }
+  const xn = Number(x);
+  const yn = Number(y);
+  const wn = Number(w);
+  const hn = Number(h);
+  if (!Number.isFinite(xn) || !Number.isFinite(yn) || !Number.isFinite(wn) || !Number.isFinite(hn)) {
+    return null;
+  }
+  if (xn < 0 || yn < 0 || wn <= 0 || hn <= 0) return null;
+  if (xn + wn > 1 || yn + hn > 1) return null;
+  return { x: xn, y: yn, w: wn, h: hn };
+}

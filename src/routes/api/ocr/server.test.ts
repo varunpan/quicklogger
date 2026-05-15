@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GET, POST, _resetForTests } from './+server';
@@ -148,6 +148,98 @@ describe('POST /api/ocr', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toMatchObject({ mode: 'pump', volume: 11.2, cost: 42.18 });
+  });
+
+  it('records cropApplied=true and cropRect when all four crop fields are valid', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({
+          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+        })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    fd.set('cropX', '0.1');
+    fd.set('cropY', '0.2');
+    fd.set('cropW', '0.6');
+    fd.set('cropH', '0.4');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    // Audit row reflects the crop fields.
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.cropApplied).toBe(true);
+    expect(row.cropRect).toEqual({ x: 0.1, y: 0.2, w: 0.6, h: 0.4 });
+  });
+
+  it('records cropApplied=false when only three crop fields are present', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({
+          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+        })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    fd.set('cropX', '0.1');
+    fd.set('cropY', '0.2');
+    fd.set('cropW', '0.6');
+    // cropH missing
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.cropApplied).toBe(false);
+    expect(row.cropRect).toBeNull();
+  });
+
+  it('records cropApplied=false when crop fields are out of range (x + w > 1)', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({
+          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+        })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    fd.set('cropX', '0.8');
+    fd.set('cropY', '0.1');
+    fd.set('cropW', '0.5');  // 0.8 + 0.5 = 1.3 — invalid
+    fd.set('cropH', '0.2');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.cropApplied).toBe(false);
+  });
+
+  it('records cropApplied=false on old-shape request (no crop fields at all)', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({
+          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+        })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.cropApplied).toBe(false);
+    expect(row.cropRect).toBeNull();
   });
 
   it('odometer happy path returns discriminated result', async () => {

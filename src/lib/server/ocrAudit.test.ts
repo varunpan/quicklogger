@@ -10,6 +10,8 @@ function pumpRecord(extra: Partial<AuditRecord> = {}): AuditRecord {
   return {
     mode: 'pump',
     rotationApplied: 0,
+    cropApplied: false,
+    cropRect: null,
     ipHash: 'sha256:abc',
     imgHash: 'sha256:def',
     imgBytes: 100,
@@ -72,6 +74,22 @@ describe('OcrAudit', () => {
     expect(lines).toHaveLength(2);
     expect(JSON.parse(lines[0]).rotationApplied).toBe(0);
     expect(JSON.parse(lines[1]).rotationApplied).toBe(90);
+  });
+
+  it('round-trips cropApplied + cropRect through append + read', async () => {
+    const audit = new OcrAudit({ path, maxBytes: 1_048_576 });
+    await audit.append(pumpRecord());  // default cropApplied: false, cropRect: null
+    await audit.append(pumpRecord({
+      cropApplied: true,
+      cropRect: { x: 0.1, y: 0.2, w: 0.6, h: 0.4 }
+    }));
+    const lines = readFileSync(path, 'utf-8').trim().split('\n');
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[0]).cropApplied).toBe(false);
+    expect(JSON.parse(lines[0]).cropRect).toBeNull();
+    const second = JSON.parse(lines[1]);
+    expect(second.cropApplied).toBe(true);
+    expect(second.cropRect).toEqual({ x: 0.1, y: 0.2, w: 0.6, h: 0.4 });
   });
 
   it('truncates the file when the next append would exceed maxBytes', async () => {

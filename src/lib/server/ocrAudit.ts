@@ -4,9 +4,18 @@ import { dirname } from 'node:path';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import type { OcrMode, OcrResult } from '$lib/shared/types';
 
+export interface AuditCropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface AuditRecord {
   mode: OcrMode;
   rotationApplied: number;
+  cropApplied: boolean;
+  cropRect: AuditCropRect | null;
   ipHash: string;
   imgHash: string;
   imgBytes: number;

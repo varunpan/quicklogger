@@ -164,8 +164,11 @@ audit log persists the same shape under `parsed`, plus a top-level
    all-four-or-nothing — omitted when no crop, all four present when
    cropped.
 4. Server: rate-limit check (in-memory sliding window, per-IP) →
-   budget check (`/data/ocr-budget.json`) → multipart parse → mode
-   whitelist → image size + magic-byte sniff.
+   budget check (`/data/ocr-budget.json`) → multipart parse (incl.
+   defensive parse of optional `rotation`, `cropX/Y/W/H` fields) →
+   mode whitelist → image size + magic-byte sniff. Adversarial /
+   partial crop fields are silently zeroed; the OCR call still runs
+   on whatever bytes the client actually sent.
 5. `runOcrPipeline` looks up `MODES[mode]` → calls `provider.extract`
    with the contract's prompt + schema → validates schema → range
    check → cross-field check (pump only) → returns
@@ -200,6 +203,8 @@ request re-selects.
   ts: string,                                 // ISO 8601
   mode: 'pump' | 'odometer',
   rotationApplied: number,                    // 0 | 90 | 180 | 270 — preview screen rotation
+  cropApplied: boolean,                       // true iff valid crop fields received (all-four-or-nothing)
+  cropRect: { x: number, y: number, w: number, h: number } | null,  // un-rotated source coords, [0,1]; null when cropApplied=false
   ipHash: 'sha256:<16-hex>',                  // HMAC-SHA-256 (key, ip), 64 bits
   imgHash: 'sha256:<64-hex>',                 // SHA-256 of post-resize bytes
   imgBytes: number,                           // post-resize size
@@ -224,6 +229,12 @@ Privacy properties:
 - Truncation is destructive — when the next append would cross 10 MiB,
   the file is truncated to 0 bytes. Old entries are not archived.
 
+Rows persisted before the image-crop feature lack `cropApplied` and
+`cropRect`. `jq` queries that need to handle both eras should use
+`.cropApplied // false` for the boolean and `.cropRect // null` for
+the rect. The 10 MiB truncate-rotate behavior naturally retires
+old-era rows over time; no backfill.
+
 ## Edge cases & invariants
 
 | Scenario | Behaviour | Why |
@@ -240,6 +251,15 @@ Privacy properties:
 | `OCR_AUDIT_HMAC_KEY` unset, no key file | Generate 32 random bytes, write `0600`, persist | Stable across restarts via the `/data` bind mount |
 | Rollback to v0.1.x with v0.2.0 data files present | `/data/ocr-*` files become orphans; harmless | Not referenced by anything in v0.1.x |
 | Client sends `rotation` form field with non-{0,90,180,270} value | Server collapses to 0 | Wire-additive, defensive parse — adversarial values can't poison the audit log |
+| Wire payload arrives with `cropX=1.2` or `cropW=0` or `cropX=0.8, cropW=0.5` | Server treats as un-cropped; audit row records `cropApplied: false, cropRect: null`; OCR still runs | Defensive parse — adversarial values can't poison audit log |
+| Wire payload arrives with `cropX` but missing `cropY/W/H` | Server treats as un-cropped (all-four-or-nothing) | Prevents partial crops in audit log |
+| Old client (no crop fields) hits new server | Audit row has `cropApplied: false, cropRect: null`; OCR runs normally | Wire-additive change |
+| New client (with crop) hits old server during rollback | Old server ignores extra multipart fields; OCR runs on the (already-cropped) JPEG anyway | Bytes are already cropped client-side; server awareness is audit-only |
+| User commits crop, returns to preview, taps `[Rotate]` | Rotate buttons work in preview mode; crop persists (it's in un-rotated source coords) | Sequential lock applies only *inside* crop mode |
+| Crop committed, then `[Retake]` | New file replaces old; `crop = null`, `rotation = 0` | All transforms reset — prior crop was tied to prior image content, not coords |
+| User taps `[Crop]` → `[Reset]` → `[Done]` | `crop = null`, preview shows un-cropped image again | Reset is explicit "no crop"; Done commits the (null) state |
+| User taps `[Crop]` then `[✕ Cancel crop]` without dragging | Returns to preview with prior `crop` value unchanged (or `null`) | Cancel = "discard my in-progress edit," not "reset the prior crop" |
+| User shrinks rect to the 200 source-px floor and keeps dragging | Handle stops moving; no haptic | Soft stop — floor is UX safety net, not a security gate |
 | Old client (no rotation field) on new server | Audit row records `rotationApplied: 0` | Field-additive change — `0` is the documented default, not "absent" |
 
 ## Non-obvious decisions
@@ -291,6 +311,30 @@ out-of-context is worse UX than no OCR at all. Existing `/api/fuelup`
 queueing is unaffected — image POSTs go straight to the network with no
 SW involvement (POST is already excluded by the SW's `req.method !==
 'GET'` guard).
+
+**Crop rect persists in un-rotated source coordinates, not display
+coordinates.** Storing in display-space makes the audit row ambiguous:
+`cropRect: {x:0.1, y:0.2, w:0.6, h:0.4}` means something different if
+the image was rotated 90° vs 0°. Source-space keys the rect to a stable
+origin and lets the preview remap on rotate without re-asking the user.
+The display→source conversion is ~15 lines of switch-on-rotation math
+in `cropCoords.ts`; living once at commit-time beats living everywhere
+downstream.
+
+**`cropApplied: boolean` AND `cropRect: rect|null` both on every row,
+not derivable from each other.** Symmetry's lost vs rotation's single
+field, but `jq '. | select(.cropApplied)'` is the kind of one-liner
+future-you will write at 11pm to debug a streak of bad OCR results.
+Forcing the reader to write `select(.cropRect != null)` is the kind of
+needless papercut that compounds.
+
+**Server never re-crops or re-validates image bytes against the
+claimed rect.** The bytes were cropped client-side; the wire fields
+exist for the audit log only. If a hostile client sends
+`cropX=0,cropY=0,cropW=1,cropH=1` plus an un-cropped JPEG, the audit
+row lies — but the audit is for *our* debugging, not adversarial trace.
+The legitimate-user invariant is "client cropped before encoding," and
+there's no benefit to making the server prove it.
 
 **HMAC key auto-generated to `/data/ocr-audit-key.txt`, not derived from
 `LUBELOGGER_API_KEY`.** Original plan derived it; new plan generates and
