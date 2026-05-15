@@ -63,7 +63,8 @@
   // committed-crop shroud land on pre-rotation coords. queueMicrotask
   // defers the read until after the reactive style commit.
   $effect(() => {
-    rotation; // explicit dependency
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    rotation; // explicit dependency — Svelte 5 tracks reads inside $effect
     if (!imgEl) return;
     queueMicrotask(measureImg);
   });
