@@ -57,6 +57,17 @@
     return () => window.removeEventListener('resize', onResize);
   });
 
+  // Re-measure on rotation change. CSS transform: rotate swaps the
+  // axis-aligned bounding box returned by getBoundingClientRect, so
+  // imgRendered must be refreshed or CropOverlay handles and the
+  // committed-crop shroud land on pre-rotation coords. queueMicrotask
+  // defers the read until after the reactive style commit.
+  $effect(() => {
+    rotation; // explicit dependency
+    if (!imgEl) return;
+    queueMicrotask(measureImg);
+  });
+
   onDestroy(() => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   });
