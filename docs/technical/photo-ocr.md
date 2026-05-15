@@ -70,6 +70,16 @@ bigger picture: see the `/` page section in
   rect the user touched (inside `CropOverlay`) and the un-rotated
   normalized rect that lives in `OcrPreview` state and rides the wire.
   No DOM access; testable in isolation.
+- [`src/lib/client/CropOverlay.svelte`](../../src/lib/client/CropOverlay.svelte)
+  — pointer-driven crop UI. Four corner + four edge handles, interior
+  drag-to-translate, dimmed shroud, rule-of-thirds grid. Refuses to
+  shrink below a configurable floor on the shortest source-space edge
+  (default 200 source px, derived back into display px via the
+  image's scale factor). `touch-action: none` and `setPointerCapture`
+  keep gestures alive even if the finger drifts outside the overlay.
+  Emits the chosen rect in display-space pixels on `[Done]`; emits
+  nothing on `[Cancel]`. Stateless across host re-mounts — the host
+  owns `crop` state and passes the prior rect via `initial`.
 - [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
   — full-screen modal mounted between capture and OCR submit.
   CSS-rotates the `<img>` while the user picks an orientation;
