@@ -64,6 +64,12 @@ bigger picture: see the `/` page section in
   encoding event per send, even with both crop and rotation. The
   1024 px long-edge clamp applies to the **cropped** region; a tight
   crop produces a smaller output JPEG.
+- [`src/lib/client/cropCoords.ts`](../../src/lib/client/cropCoords.ts) —
+  pure `displayToSource(rect, displaySize, rotation)` /
+  `sourceToDisplay(...)` helpers. Convert between the display-space
+  rect the user touched (inside `CropOverlay`) and the un-rotated
+  normalized rect that lives in `OcrPreview` state and rides the wire.
+  No DOM access; testable in isolation.
 - [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
   — full-screen modal mounted between capture and OCR submit.
   CSS-rotates the `<img>` while the user picks an orientation;
