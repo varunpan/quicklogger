@@ -23,7 +23,10 @@ the bigger picture: see the `/maintenance` section of
   extraction work).
 - [`src/lib/client/VehicleIdentifiersCard.svelte`](../../src/lib/client/VehicleIdentifiersCard.svelte) —
   the UI component. Two `<button>` rows, one per present field. Calls
-  `navigator.clipboard.writeText` and flashes `Copied ✓` for 1500 ms.
+  `writeToClipboard()`, which tries `navigator.clipboard.writeText`
+  first and falls back to a `document.execCommand('copy')` shim for
+  non-secure contexts (HTTP on a LAN IP). Flashes `Copied ✓` for
+  1500 ms only when the write actually succeeded.
 - [`src/routes/maintenance/+page.svelte`](../../src/routes/maintenance/+page.svelte) —
   mounts the card between the picker `<a>` and the error / reminders
   blocks. Guards `licensePlate` and `vin` with `typeof === 'string'`
@@ -80,10 +83,15 @@ interface Props {
    trimming each. If both are empty, `showCard` is `false` and the
    wrapper `<div>` isn't rendered — the maintenance page visually
    reverts to picker → reminders.
-5. User taps a row → `copy(field, value)` runs:
-   `navigator.clipboard.writeText(value)` →
-   `copiedField = field` → 1500 ms `setTimeout` resets
-   `copiedField` to `null`.
+5. User taps a row → `copy(field, value)` calls
+   `writeToClipboard(value)`. That tries
+   `navigator.clipboard.writeText` first; if the API is missing
+   (insecure context — HTTP on a LAN IP) or rejects, it falls back to
+   `execCommandCopy(value)`, which appends a transient on-screen
+   textarea, runs the iOS-friendly Range/Selection dance, and calls
+   `document.execCommand('copy')`. Returns `true` only when one of the
+   two paths actually wrote. On success, `copiedField = field` and a
+   1500 ms `setTimeout` resets it to `null`.
 6. While `copiedField === field`, that row's label swaps from
    `Plate` / `VIN` to `Copied ✓` and the trailing icon hides. The
    value text stays visible the whole time.
@@ -102,7 +110,9 @@ interface Props {
 | `VIN` name in mixed case (`Vin`, `vin`, `  VIN  `) | Still matches | `trim().toLowerCase() === 'vin'` |
 | Non-string `name` or `value` in `extraFields` | Row skipped, no throws | Defensive against upstream type drift |
 | Both plate and VIN empty | Component returns nothing (no wrapper) | `{#if showCard}` gate; layout reverts to picker → reminders |
-| Clipboard write rejected (insecure context, denied permission) | Silent fallback, no flash | `try/catch` around `writeText`; iOS Safari long-press select-and-copy still works because no `user-select: none` |
+| `navigator.clipboard` undefined (HTTP on LAN IP — homelab default) | `execCommand('copy')` fallback fires; flash still shows | Modern API requires a secure context; the fallback uses a transient on-screen textarea + iOS-friendly Range/Selection. Without it, every tap on a homelab deploy was a silent no-op. |
+| `clipboard.writeText` rejects (denied permission, transient) | Falls through to the same `execCommand` path | The two paths are tried in order, not as either/or |
+| Both clipboard paths fail | No flash, no copy | Truly broken environment; iOS Safari long-press select-and-copy on the value text still works because no `user-select: none` |
 | User taps plate, then VIN within 1.5 s | Plate flash ends immediately, VIN flash starts | Single `copiedField` state + timer reset |
 | User navigates away mid-flash | No cleanup needed | Page unmount destroys the component; timer ref is GC'd |
 | Cached `/api/vehicles` payload | Already normalized | Normalizer runs inside the TtlCache loader, not after |
@@ -139,6 +149,22 @@ whole row) keeps that promise. Layout shift is avoided on the value's
 left edge because the value `<span>` is `flex-1` — when the icon
 disappears, the value expands rightward into the freed space rather
 than the label / value jumping.
+
+**Two-path clipboard write, not just `navigator.clipboard`.** The
+modern Async Clipboard API only exists in a secure context — HTTPS or
+`localhost`/`127.0.0.1`. quicklogger's homelab deploy is reverse-proxied
+behind TLS in production, but UAT and bare-IP installs land on
+`http://<lan-ip>:5173`, which fails the secure-context check in every
+browser (Safari, Chrome, Firefox). `navigator.clipboard` is `undefined`
+there, so the original single-path implementation hit a silent catch
+on every tap. The fallback uses `document.execCommand('copy')` against a
+transient on-screen `<textarea>`, with the iOS-Safari-specific
+Range/Selection dance — `select()` alone doesn't populate the selection
+on Mobile Safari. `execCommand` is deprecated but still universally
+supported in 2026 and is the only API that works on plain HTTP. The
+flash is gated on the actual write succeeding (`return ok`), not on the
+`try` running, so a fully-broken environment stays silent rather than
+lying about a copy that didn't happen.
 
 **Render-boundary trim, not extractor-only trim.** The extractor
 already trims, but `licensePlate` arrives directly from upstream

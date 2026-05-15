@@ -121,3 +121,57 @@ test('neither plate nor VIN: card not rendered', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Upcoming maintenance' })).toBeVisible();
   await expect(page.locator('[data-testid="vehicle-identifiers-card"]')).toHaveCount(0);
 });
+
+// Insecure-context fallback: when navigator.clipboard is unavailable
+// (HTTP on a LAN IP, the homelab default), the component must fall back
+// to document.execCommand('copy') rather than silently swallowing the
+// click. This test removes navigator.clipboard before the page script
+// runs, then stubs execCommand to capture the textarea value at call
+// time. Both the captured value and the Copied ✓ flash must appear.
+async function installFallbackStub(page: Page) {
+  await page.addInitScript(() => {
+    const copies: string[] = [];
+    Object.defineProperty(window, '__copies', {
+      value: copies,
+      writable: false,
+      configurable: true
+    });
+    // Force the modern API to look unavailable, mirroring an
+    // insecure-context browser environment.
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined
+    });
+    const originalExec = document.execCommand.bind(document);
+    document.execCommand = function (command: string, ...rest: unknown[]) {
+      if (command === 'copy') {
+        const active = document.activeElement;
+        if (active instanceof HTMLTextAreaElement) {
+          copies.push(active.value);
+          return true;
+        }
+      }
+      return (originalExec as (cmd: string, ...args: unknown[]) => boolean)(command, ...rest);
+    } as typeof document.execCommand;
+  });
+}
+
+test('insecure context: falls back to execCommand and still flashes', async ({ page }) => {
+  await installFallbackStub(page);
+  await baseStubs(page, VEHICLE_BOTH);
+  await gotoMaintenanceViaDrawer(page);
+
+  const plateRow = page.locator('[data-testid="vehicle-identifiers-plate"]');
+  const vinRow = page.locator('[data-testid="vehicle-identifiers-vin"]');
+
+  await plateRow.click();
+  expect(await readCopies(page)).toEqual([PLATE]);
+  await expect(plateRow).toContainText('Copied ✓');
+  await expect(plateRow).toContainText(PLATE);
+
+  await expect(plateRow).toContainText('Plate', { timeout: 3000 });
+
+  await vinRow.click();
+  expect(await readCopies(page)).toEqual([PLATE, VIN]);
+  await expect(vinRow).toContainText('Copied ✓');
+});

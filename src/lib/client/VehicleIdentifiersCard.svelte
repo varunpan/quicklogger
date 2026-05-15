@@ -15,20 +15,77 @@
   let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function copy(field: 'plate' | 'vin', value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // Clipboard write blocked (rare: insecure context, permissions).
-      // Fall back silently — iOS Safari long-press select-and-copy on the
-      // value text still works because we don't use user-select: none.
-      return;
-    }
+    const ok = await writeToClipboard(value);
+    if (!ok) return;
     copiedField = field;
     if (copiedTimer) clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => {
       copiedField = null;
       copiedTimer = null;
     }, 1500);
+  }
+
+  async function writeToClipboard(value: string): Promise<boolean> {
+    // Modern path requires a secure context (HTTPS or localhost). On a
+    // homelab LAN over plain HTTP, navigator.clipboard is undefined in
+    // every browser, so we have to fall back.
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch {
+        // Permission denied or transient failure — fall through to the
+        // execCommand path rather than giving up.
+      }
+    }
+    return execCommandCopy(value);
+  }
+
+  function execCommandCopy(value: string): boolean {
+    if (typeof document === 'undefined') return false;
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    // iOS Safari refuses to copy from off-screen elements, so the
+    // textarea has to be on-screen but visually inert.
+    textarea.style.position = 'fixed';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    textarea.style.width = '1px';
+    textarea.style.height = '1px';
+    textarea.style.padding = '0';
+    textarea.style.border = 'none';
+    textarea.style.outline = 'none';
+    textarea.style.boxShadow = 'none';
+    textarea.style.background = 'transparent';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    const previousActive = document.activeElement as HTMLElement | null;
+    try {
+      // Focus has to land on the textarea so document.execCommand('copy')
+      // sees it as activeElement. Without this WebKit copies an empty
+      // selection (or nothing at all).
+      textarea.focus({ preventScroll: true });
+      // Mobile Safari ignores plain .select() on programmatically-added
+      // textareas; the Range/Selection dance is the path that works on
+      // both desktop and iOS WebKit.
+      const range = document.createRange();
+      range.selectNodeContents(textarea);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      textarea.setSelectionRange(0, value.length);
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      document.body.removeChild(textarea);
+      // Restore focus so the page's keyboard / scroll position isn't
+      // perturbed by the temporary textarea. Failing the restore is
+      // harmless — the worst case is the body becomes the active
+      // element, which is the default state anyway.
+      previousActive?.focus?.({ preventScroll: true });
+    }
   }
 </script>
 
