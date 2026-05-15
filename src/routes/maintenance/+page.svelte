@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Reminder, ReminderUrgency } from '$lib/server/lubelogger';
   import { formatOdometer, formatDueDate, humanCountdown } from '$lib/client/format';
+  import VehicleIdentifiersCard from '$lib/client/VehicleIdentifiersCard.svelte';
 
   let { data } = $props();
 
@@ -111,6 +112,13 @@
       </div>
       <span class="text-zinc-500" aria-hidden="true">›</span>
     </a>
+  {/if}
+
+  {#if data.vehicle}
+    <VehicleIdentifiersCard
+      licensePlate={typeof data.vehicle.licensePlate === 'string' ? data.vehicle.licensePlate : undefined}
+      vin={typeof data.vehicle.vin === 'string' ? data.vehicle.vin : undefined}
+    />
   {/if}
 
   {#if data.error}

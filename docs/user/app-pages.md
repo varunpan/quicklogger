@@ -153,6 +153,14 @@ States you may see:
 - **Pick a vehicle first** — quicklogger doesn't know which vehicle
   to show. Tap through to `/vehicles` and select one.
 
+Below the vehicle picker, a **Plate + VIN** card shows the active
+vehicle's license plate and VIN (pulled from LubeLogger). Tap either
+row to copy the value to your clipboard — handy at a parts counter
+or filling in an insurance form. Each row briefly flashes
+`Copied ✓` for confirmation. If your vehicle doesn't have one of
+the two fields set in LubeLogger, that row hides; if neither is
+set, the card hides entirely.
+
 A small "← Back to Log Fuel" link at the bottom returns you to the
 form.
 

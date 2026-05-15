@@ -6,6 +6,15 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Plate + VIN tap-to-copy on /maintenance.** New card between the
+  vehicle picker and reminders shows the active vehicle's license
+  plate and VIN. Tap either row → value copies to the clipboard,
+  row flashes `Copied ✓` for ~1.5 s. Rows hide individually when
+  the field is empty in LubeLogger; card hides entirely when both
+  are empty. Server now hoists VIN out of `extraFields[]` into a
+  top-level `vin?` field on `/api/vehicles`. See
+  [`docs/user/app-pages.md`](docs/user/app-pages.md) and
+  [`docs/technical/vehicle-identifiers.md`](docs/technical/vehicle-identifiers.md).
 - **About menu — version + GitHub link.** Drawer footer now shows the
   running app version (e.g. `v0.2.0`) and a `GitHub ↗` link to the
   source repo. Version is injected at build time from

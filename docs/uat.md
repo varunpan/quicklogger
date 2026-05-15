@@ -239,3 +239,13 @@ releases (v0.2.x).
 - [ ] Footer is pinned to the bottom of the drawer regardless of which
       nav item is active — open / close / reopen confirms the spacing
       is stable.
+
+## Plate + VIN tap-to-copy (v0.2.0)
+
+- [ ] Open `/maintenance` for a vehicle that has both `licensePlate` and a `VIN` row in `extraFields` in LubeLogger. Confirm the new card renders both rows between the vehicle picker and reminders.
+- [ ] Tap the **Plate** row. Confirm the row briefly flashes `Copied ✓` (~1.5 s), then reverts to `Plate`. Paste into Notes / Messages — value matches what LubeLogger has.
+- [ ] Tap the **VIN** row. Same flash, paste matches.
+- [ ] Switch to a vehicle whose `licensePlate` is empty in LubeLogger (or temporarily blank it). Reload `/maintenance`. Confirm only the VIN row renders.
+- [ ] Switch to a vehicle whose `extraFields` has no `VIN` row (or one with an empty value). Reload. Confirm only the plate row renders.
+- [ ] Switch to a vehicle missing both. Confirm no card renders at all — page reverts to picker → reminders.
+- [ ] With LubeLogger upstream down: confirm the existing "Couldn't reach LubeLogger" banner shows and the Plate + VIN card hides (no vehicle data to draw from).
