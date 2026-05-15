@@ -84,16 +84,26 @@ bigger picture: see the `/` page section in
   — full-screen modal mounted between capture and OCR submit. Holds
   the user's rotation choice and (optionally) a crop rect in
   un-rotated normalized source coords. The modal has two sub-modes:
-  `preview` and `crop`. In `preview`, rotate / retake / crop / send
-  controls render alongside a `Cropped` chip when a rect is set. In
-  `crop`, rotate buttons and Send-for-OCR are unrendered (not just
-  disabled — disabling them in a sub-flow implies "you can still
-  send, just not yet" which is the wrong mental model) and the
-  `CropOverlay` mounts on top of the image. The display↔source
-  conversion runs once at commit time inside `OcrPreview`, via
-  `cropCoords`. Cumulative rotation + (sanitized) crop are handed to
+  `preview` and `crop`. In `preview` with `crop == null`, renders the
+  full image inside an `<img>` with CSS `transform: rotate()`. In
+  `preview` with `crop != null`, swaps the `<img>` for a `<canvas>`
+  that shows ONLY the cropped+rotated region of the original photo,
+  scaled to fit. The canvas is drawn via `createImageBitmap +
+  ctx.drawImage(sx, sy, sw, sh, 0, 0, baseW, baseH)` using the same
+  source-rect derivation, 1024 px long-edge clamp, and rotation
+  transform as `resizeForOcr` — the preview is byte-shape-equivalent
+  to the wire output. The bitmap is decoded lazily and cached per
+  modal mount; the canvas re-renders via `$effect` whenever
+  `previewMode`, `crop`, or `rotation` changes. A `Cropped` chip in
+  the header is the redundant text cue. In `crop`, rotate buttons
+  and Send-for-OCR are unrendered (not just disabled — disabling
+  them in a sub-flow implies "you can still send, just not yet"
+  which is the wrong mental model) and the `CropOverlay` mounts on
+  top of the original `<img>`. The display↔source conversion runs
+  once at commit time inside `OcrPreview`, via `cropCoords`.
+  Cumulative rotation + (sanitized) crop are handed to
   `resizeForOcr({ rotation, crop })` on `[Send for OCR]`. Object URL
-  revoked on unmount.
+  revoked on unmount; the cached `ImageBitmap` closed on unmount.
 - [`src/routes/+page.ts`](../../src/routes/+page.ts) — probes
   `GET /api/ocr` and surfaces `ocrEnabled` + `ocrModes` to the page.
   Failure to probe = `enabled: false`; page load never blocks on OCR.

@@ -78,6 +78,10 @@ test('crop: drag → Done → Send POSTs cropX/Y/W/H form fields', async ({ page
   await dialog.getByRole('button', { name: /^Done$/i }).click();
   // Cropped chip visible in header
   await expect(dialog.getByText(/^Cropped$/)).toBeVisible();
+  // Preview now shows the cropped canvas — the original full-size <img>
+  // is no longer in the DOM (replaced by <canvas aria-label="Cropped preview">).
+  await expect(dialog.locator('canvas[aria-label="Cropped preview"]')).toBeVisible();
+  await expect(dialog.locator('img[alt="Captured for OCR preview"]')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Send for OCR', exact: true }).click();
   await expect(page.getByText(/11\.2 gal · \$42\.18/)).toBeVisible();
 

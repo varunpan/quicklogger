@@ -29,6 +29,31 @@
   // Intrinsic image size in un-rotated source pixels. Set on load.
   let sourceSize: { w: number; h: number } = $state({ w: 0, h: 0 });
 
+  // Canvas used for the post-crop preview. Only mounts when previewMode ===
+  // 'preview' && crop != null. We render the cropped+rotated bitmap onto it
+  // so the preview literally shows what `resizeForOcr` will send on the wire.
+  let previewCanvas: HTMLCanvasElement | undefined = $state();
+  // Lazily-decoded ImageBitmap of the original file. Cached because both
+  // canvas renders (preview after Done, plus re-renders on rotation change)
+  // hit the same source bytes — decoding once per modal mount is enough.
+  let bitmapCache: ImageBitmap | null = null;
+  let bitmapPromise: Promise<ImageBitmap> | null = null;
+
+  // Long-edge clamp for the preview canvas. Mirrors the constant inside
+  // resizeForOcr so the preview is byte-shape-equivalent to the wire output
+  // (modulo JPEG encoding) — what you see is literally what you send.
+  const PREVIEW_MAX_LONG_EDGE = 1024;
+
+  async function getBitmap(): Promise<ImageBitmap> {
+    if (bitmapCache) return bitmapCache;
+    if (!bitmapPromise) {
+      bitmapPromise = createImageBitmap(file, { imageOrientation: 'from-image' })
+        .catch(() => createImageBitmap(file));  // Safari fallback, same as image.ts
+    }
+    bitmapCache = await bitmapPromise;
+    return bitmapCache;
+  }
+
   // Live, in-progress rect from CropOverlay — host drives its own [Done] /
   // [Reset] action buttons against this bound state.
   let cropLive: { x: number; y: number; w: number; h: number } = $state({
@@ -71,6 +96,9 @@
 
   onDestroy(() => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
+    bitmapCache?.close();
+    bitmapCache = null;
+    bitmapPromise = null;
   });
 
   function rotateRight() {
@@ -149,15 +177,82 @@
     }
   }
 
-  // Display-space rect for rendering the committed-crop shroud in preview
-  // mode. Null when no crop is set or measurements aren't ready yet.
-  const committedShroud = $derived.by(() => {
-    if (!crop) return null;
-    if (imgRendered.w === 0 || imgRendered.h === 0) return null;
-    return sourceToDisplay(crop, imgRendered, rotation);
+  const modeLabel = $derived(mode === 'pump' ? 'Pump display' : 'Odometer');
+
+  // Render the cropped+rotated region into the preview canvas when in
+  // 'preview' mode with a committed crop. Re-runs whenever previewMode flips
+  // to 'preview', the crop rect changes, or the rotation changes. The math
+  // here mirrors resizeForOcr's renderToJpegBlob: same source rect derivation
+  // from the normalized crop, same long-edge clamp, same transpose-for-90/270
+  // rotation handling. The preview is literally a draft of the wire bytes.
+  $effect(() => {
+    const m = previewMode;
+    const c = crop;
+    const r = rotation;
+    const canvas = previewCanvas;
+    if (m !== 'preview' || !c || !canvas) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const bitmap = await getBitmap();
+        if (cancelled) return;
+        const sx = Math.round(c.x * bitmap.width);
+        const sy = Math.round(c.y * bitmap.height);
+        const sw = Math.round(c.w * bitmap.width);
+        const sh = Math.round(c.h * bitmap.height);
+        const scale = Math.min(1, PREVIEW_MAX_LONG_EDGE / Math.max(sw, sh));
+        const baseW = Math.max(1, Math.round(sw * scale));
+        const baseH = Math.max(1, Math.round(sh * scale));
+        const transpose = r === 90 || r === 270;
+        canvas.width = transpose ? baseH : baseW;
+        canvas.height = transpose ? baseW : baseH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);  // reset between re-renders
+        switch (r) {
+          case 0:
+            break;
+          case 90:
+            ctx.translate(baseH, 0);
+            ctx.rotate(Math.PI / 2);
+            break;
+          case 180:
+            ctx.translate(baseW, baseH);
+            ctx.rotate(Math.PI);
+            break;
+          case 270:
+            ctx.translate(0, baseW);
+            ctx.rotate(-Math.PI / 2);
+            break;
+        }
+        ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, baseW, baseH);
+      } catch {
+        // Swallow — preview just stays blank. The user can re-enter crop
+        // mode (which re-renders the source <img>) and try again. Real
+        // wire-encoding errors surface from resizeForOcr at Send time.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   });
 
-  const modeLabel = $derived(mode === 'pump' ? 'Pump display' : 'Odometer');
+  // After a cropped → un-cropped transition (e.g. Reset → Done) the <img>
+  // re-mounts, but a cached blob URL may resolve synchronously before the
+  // load listener attaches. Manually invoke measureImg when imgEl appears
+  // already-complete so CropOverlay positioning is correct on the next Crop
+  // entry. The reactive read of imgEl re-triggers when it (re)mounts.
+  $effect(() => {
+    const el = imgEl;
+    if (!el) return;
+    if (el.complete && el.naturalWidth > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      previewMode;  // re-run when the template swaps img back in
+      measureImg();
+    }
+  });
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
@@ -209,40 +304,45 @@
 
   <div class="flex-1 flex items-center justify-center bg-zinc-950 px-6 py-6 overflow-hidden">
     {#if objectUrl}
-      <div class="relative inline-block">
-        <img
-          bind:this={imgEl}
-          src={objectUrl}
-          alt="Captured for OCR preview"
-          class="max-w-full max-h-full object-contain transition-transform duration-150 block"
-          style="transform: rotate({rotation}deg)"
-          onload={measureImg}
-        />
-
-        {#if previewMode === 'preview' && committedShroud}
-          <!-- Dimmed-outside frame visualizing the committed crop. -->
-          <div data-shroud-committed class="absolute pointer-events-none bg-black/60" style="left: 0; top: 0; width: {imgRendered.w}px; height: {committedShroud.y}px;"></div>
-          <div data-shroud-committed class="absolute pointer-events-none bg-black/60" style="left: 0; top: {committedShroud.y + committedShroud.h}px; width: {imgRendered.w}px; height: {imgRendered.h - committedShroud.y - committedShroud.h}px;"></div>
-          <div data-shroud-committed class="absolute pointer-events-none bg-black/60" style="left: 0; top: {committedShroud.y}px; width: {committedShroud.x}px; height: {committedShroud.h}px;"></div>
-          <div data-shroud-committed class="absolute pointer-events-none bg-black/60" style="left: {committedShroud.x + committedShroud.w}px; top: {committedShroud.y}px; width: {imgRendered.w - committedShroud.x - committedShroud.w}px; height: {committedShroud.h}px;"></div>
-          <div class="absolute pointer-events-none border border-white/50" style="left: {committedShroud.x}px; top: {committedShroud.y}px; width: {committedShroud.w}px; height: {committedShroud.h}px; box-sizing: border-box;"></div>
-        {/if}
-
-        {#if previewMode === 'crop' && imgRendered.w > 0 && sourceSize.w > 0}
-          <CropOverlay
-            imageDisplayRect={{ x: 0, y: 0, w: imgRendered.w, h: imgRendered.h }}
-            sourceSize={sourceSize}
-            initial={cropInitial}
-            floorSourcePx={200}
-            showOwnCancel={false}
-            showOwnDone={false}
-            showOwnReset={false}
-            bind:liveRect={cropLive}
-            oncommit={commitCrop}
-            oncancel={cancelCrop}
+      {#if previewMode === 'preview' && crop}
+        <!--
+          Post-crop preview: render only the cropped+rotated region into a
+          canvas. Replaces the prior shroud-outside-the-rect visualization,
+          which was effectively invisible on dark photos. The canvas content
+          is byte-shape-equivalent to what resizeForOcr will send.
+        -->
+        <canvas
+          bind:this={previewCanvas}
+          class="max-w-full max-h-full block object-contain"
+          aria-label="Cropped preview"
+        ></canvas>
+      {:else}
+        <div class="relative inline-block">
+          <img
+            bind:this={imgEl}
+            src={objectUrl}
+            alt="Captured for OCR preview"
+            class="max-w-full max-h-full object-contain transition-transform duration-150 block"
+            style="transform: rotate({rotation}deg)"
+            onload={measureImg}
           />
-        {/if}
-      </div>
+
+          {#if previewMode === 'crop' && imgRendered.w > 0 && sourceSize.w > 0}
+            <CropOverlay
+              imageDisplayRect={{ x: 0, y: 0, w: imgRendered.w, h: imgRendered.h }}
+              sourceSize={sourceSize}
+              initial={cropInitial}
+              floorSourcePx={200}
+              showOwnCancel={false}
+              showOwnDone={false}
+              showOwnReset={false}
+              bind:liveRect={cropLive}
+              oncommit={commitCrop}
+              oncancel={cancelCrop}
+            />
+          {/if}
+        </div>
+      {/if}
     {/if}
   </div>
 

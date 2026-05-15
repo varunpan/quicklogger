@@ -84,10 +84,13 @@ All notable changes to this project are documented here. Format roughly follows 
   `quicklogger.prefs.smartChecksEnabled`.
 - **Crop before OCR send.** New `[Crop]` button in the photo preview
   modal alongside `[Retake]` / `[Rotate]`. Drag handles to box in the
-  pump display or odometer digits; a small `Cropped` chip in the
-  header shows when a crop is set. Crop is applied inside the same
-  canvas pass as the existing resize + rotation — one pixel encoding
-  per send. Wire-additive: `/api/ocr` POST grows four optional
+  pump display or odometer digits; after `[Done]`, the preview
+  renders ONLY the cropped+rotated region directly to a `<canvas>`
+  (scaled to fit) so what you see is byte-shape-equivalent to what
+  gets sent on the wire. A small `Cropped` chip in the header is the
+  redundant text cue. Crop is applied inside the same canvas pass as
+  the existing resize + rotation on send — one pixel encoding per
+  send. Wire-additive: `/api/ocr` POST grows four optional
   decimal-string fields `cropX/Y/W/H`; the audit log gains
   `cropApplied: boolean` and `cropRect: { x, y, w, h } | null` on
   every row. Cuts OCR cost (fewer tiles on cloud providers) and
