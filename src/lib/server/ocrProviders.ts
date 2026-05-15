@@ -88,6 +88,15 @@ interface OpenRouterOptions {
 // we round up to 0.006 cents — conservative for the daily budget gate.
 const OPENROUTER_COST_CENTS = 0.006;
 
+// Anti-runaway output cap. Valid responses top out at ~30 tokens (pump)
+// or ~10 tokens (odometer), so 256 gives ~8× headroom on the largest
+// legitimate output and bounds worst-case per-call cost at ~0.01¢ on
+// Gemini Flash Lite ($0.40/M output tokens). Sized to make truncating
+// a real response effectively impossible while still hard-capping cost
+// against a model that misbehaves or that the structured-output path
+// fails to constrain.
+const OPENROUTER_MAX_TOKENS = 256;
+
 export class OpenRouterOcrProvider implements OcrProvider {
 	readonly name = 'openrouter' as const;
 	private readonly fetchImpl: typeof fetch;
@@ -112,6 +121,7 @@ export class OpenRouterOcrProvider implements OcrProvider {
 					]
 				}
 			],
+			max_tokens: OPENROUTER_MAX_TOKENS,
 			response_format: {
 				type: 'json_schema',
 				json_schema: {

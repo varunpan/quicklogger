@@ -120,6 +120,9 @@ describe('OpenRouterOcrProvider', () => {
 			.messages[0].content;
 		expect(content[0].type).toBe('text');
 		expect(content[1].type).toBe('image_url');
+		// Anti-runaway: request body must cap output tokens. Real responses
+		// are ~30 tokens (pump) / ~10 (odometer); 256 is the headroom value.
+		expect((observedBody as { max_tokens: number }).max_tokens).toBe(256);
 	});
 
 	it('throws OcrProviderError on non-2xx', async () => {

@@ -10,6 +10,14 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Cap OpenRouter OCR output at 256 tokens.** Bounds per-call cost
+  when the model produces an unexpectedly long response. The daily
+  budget gate (`OCR_DAILY_BUDGET_USD`) is unchanged — this is a
+  tighter inner ring at the per-request boundary. Real responses are
+  ~30 tokens (pump) or ~10 (odometer), so legitimate output is
+  untouched. Ollama path is unaffected (local + structured-output
+  already constrain it).
+
 ### Tests
 
 ## [0.2.0] — 2026-05-15

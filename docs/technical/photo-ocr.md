@@ -425,6 +425,21 @@ headroom while still failing-fast on a wedged connection. Pairs with
 the 60 s server-side ollama timeout — server fails first under normal
 load, client takes over only on broken network.
 
+**OpenRouter request body sets `max_tokens: 256`, hardcoded.** Anti-
+runaway cap, not a usage budget — same framing as
+`OCR_DAILY_BUDGET_USD`. Valid pump responses are ~30 tokens and
+odometer responses are ~10, so 256 is ~8× headroom on the largest
+legitimate output. Worst-case per-call cost is then bounded at
+~0.01¢ on Gemini Flash Lite ($0.40/M output) — 1000 runaway calls
+≈ 10¢, against an unbounded ceiling of $0.01+/call (~217× the
+`OPENROUTER_COST_CENTS` estimate) if Gemini's 65k-token output
+ceiling were ever hit. Not env-configurable on purpose: operators
+shouldn't have to tune the anti-runaway value, and the `MODES` map
+is the right surface if a future mode (e.g. v0.2.1 receipt mode,
+which returns more fields) needs a different cap. Ollama path is
+unaffected — local inference is free and `format: schema` already
+constrains output naturally.
+
 **No image queue-for-replay in the service worker.** Images are
 ~300 KB → IDB bloats fast. By the time network returns, the user has
 typically typed values manually; an OCR result arriving minutes later
