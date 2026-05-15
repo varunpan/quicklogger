@@ -260,4 +260,69 @@ describe('runOcrPipeline', () => {
     expect(r.ok).toBe(true);
     expect(seenPrompt).not.toMatch(/previous odometer reading/i);
   });
+
+  it('pump: forwards lastPricePerUnit into the prompt when finite positive', async () => {
+    let seenPrompt = '';
+    const recordingProvider: OcrProvider = {
+      name: 'ollama',
+      estimateCostCents: () => 0,
+      extract: async (_bytes, prompt) => {
+        seenPrompt = prompt;
+        return { volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 };
+      }
+    };
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      provider: recordingProvider,
+      env: envOverrides({ ollamaVisionUrl: 'x' }),
+      lastPricePerUnit: 3.6789
+    });
+    expect(r.ok).toBe(true);
+    expect(seenPrompt).toMatch(/most recent fuel price recorded/i);
+    expect(seenPrompt).toContain('3.679');
+  });
+
+  it('pump: drops non-finite / zero / negative lastPricePerUnit (no hint baked in)', async () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 0, -2.5]) {
+      let seenPrompt = '';
+      const recordingProvider: OcrProvider = {
+        name: 'ollama',
+        estimateCostCents: () => 0,
+        extract: async (_bytes, prompt) => {
+          seenPrompt = prompt;
+          return { volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 };
+        }
+      };
+      const r = await runOcrPipeline({
+        bytes: JPEG,
+        mode: 'pump',
+        provider: recordingProvider,
+        env: envOverrides({ ollamaVisionUrl: 'x' }),
+        lastPricePerUnit: bad
+      });
+      expect(r.ok).toBe(true);
+      expect(seenPrompt).not.toMatch(/most recent fuel price recorded/i);
+    }
+  });
+
+  it('pump: no hint when lastPricePerUnit is unset', async () => {
+    let seenPrompt = '';
+    const recordingProvider: OcrProvider = {
+      name: 'ollama',
+      estimateCostCents: () => 0,
+      extract: async (_bytes, prompt) => {
+        seenPrompt = prompt;
+        return { volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 };
+      }
+    };
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      provider: recordingProvider,
+      env: envOverrides({ ollamaVisionUrl: 'x' })
+    });
+    expect(r.ok).toBe(true);
+    expect(seenPrompt).not.toMatch(/most recent fuel price recorded/i);
+  });
 });

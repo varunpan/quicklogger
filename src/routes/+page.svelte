@@ -166,18 +166,42 @@
     toast = null;
     try {
       const blob = await resizeForOcr(file, { rotation, crop });
-      // Odometer-mode only: pass the prior fillup's odometer (when one
-      // exists and parses cleanly) as a soft sanity-check hint for the
-      // vision model. UAT surfaced that small open-source models
+      // Per-mode soft sanity-check hints baked into the prompt. Each
+      // mode reads only its own field — pump ignores lastOdoHint,
+      // odometer ignores lastPriceHint. Both are best-effort: we send
+      // the hint when the prior fillup parses cleanly, and the server
+      // is defensive about garbage anyway.
+      //
+      // Odometer: UAT surfaced that small open-source models
       // (qwen2.5vl:7b @ Q4_K_M) reliably drop the leading digit on
       // 6+-digit readings; the hint anchors them on a known-recent
-      // ballpark. Pump mode never gets the field.
+      // ballpark.
+      //
+      // Pump: three close-magnitude decimal numbers on the same
+      // panel (cost / volume / price-per-unit) are easy for the model
+      // to swap, and US pumps use fractional cents. The hint is
+      // derived as cost / fuelConsumed and is currency-unit-agnostic
+      // on purpose — `lastFuelup.cost` is FX-normalized to USD for
+      // upstream rows but in entered currency for offline-queue rows,
+      // and the pump itself may read gal or L. The model uses the
+      // magnitude as a sanity check, not as a unit-locked anchor.
       let lastOdoHint: number | undefined;
+      let lastPriceHint: number | undefined;
       if (mode === 'odometer' && data.lastFuelup) {
         const candidate = Number(data.lastFuelup.odometer);
         if (Number.isFinite(candidate) && candidate > 0) lastOdoHint = candidate;
       }
-      const result = await postOcr(blob, mode, rotation, crop, lastOdoHint);
+      if (mode === 'pump' && data.lastFuelup && data.lastFuelup.cost != null) {
+        const cost = Number(data.lastFuelup.cost);
+        const gallons = Number(data.lastFuelup.fuelConsumed);
+        if (
+          Number.isFinite(cost) && cost > 0 &&
+          Number.isFinite(gallons) && gallons > 0
+        ) {
+          lastPriceHint = cost / gallons;
+        }
+      }
+      const result = await postOcr(blob, mode, rotation, crop, lastOdoHint, lastPriceHint);
       if (result.mode === 'pump') {
         pumpSuggestion = result;
       } else if (result.mode === 'odometer') {

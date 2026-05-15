@@ -151,6 +151,15 @@ All notable changes to this project are documented here. Format roughly follows 
   readings. The hint is informational, not a constraint; legitimate
   cases (replaced cluster, rollover) flow through unchanged. See
   [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
+- **Pump OCR accuracy.** The pump prompt got the same rigor pass as
+  the odometer prompt. It now disambiguates the three close-magnitude
+  numbers on a pump display (total cost vs volume vs price-per-unit),
+  preserves fractional-cent prices (e.g. `3.699`, not `3.70`), and
+  accepts the prior fillup's derived price-per-unit as a soft
+  sanity-check hint — parallel to the existing odometer hint. Reduces
+  silent cost/volume/price swaps that previously slipped through the
+  5% cross-field check. Verbatim prompt text is in
+  [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
 
 ### Tests
 

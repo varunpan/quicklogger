@@ -313,6 +313,67 @@ describe('POST /api/ocr', () => {
     expect(row.lastOdometerMi).toBeUndefined();
   });
 
+  it('records lastPricePerUnit in the audit row when a positive number is sent', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({
+          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+        })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    fd.set('lastPricePerUnit', '3.679');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.lastPricePerUnit).toBe(3.679);
+  });
+
+  it('omits lastPricePerUnit from the audit row on a garbage value', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({
+          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+        })
+      )
+    );
+    for (const bad of ['', 'banana', 'NaN', 'Infinity', '0', '-2.5']) {
+      const fd = new FormData();
+      fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+      fd.set('mode', 'pump');
+      fd.set('lastPricePerUnit', bad);
+      const res = await POST(makeRequest(fd));
+      expect(res.status).toBe(200);
+      const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+      const row = JSON.parse(auditLine);
+      expect(row.lastPricePerUnit).toBeUndefined();
+    }
+  });
+
+  it('omits lastPricePerUnit from the audit row when not sent (old-shape request)', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    ollamaServer.use(
+      http.post('http://ollama:11434/api/chat', () =>
+        HttpResponse.json({
+          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+        })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(200);
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.lastPricePerUnit).toBeUndefined();
+  });
+
   it('429 with Retry-After after rate-limit cap', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434', OCR_RATE_LIMIT_PER_HOUR: '1' });
     ollamaServer.use(

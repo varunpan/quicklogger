@@ -113,14 +113,16 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   const cropApplied = cropParsed !== null;
   const cropRect = cropParsed;
 
-  // Optional `lastOdometerMi` form field — only meaningful for odometer
-  // mode. Plumbed end-to-end into the prompt as a soft sanity-check hint
-  // for vision models that struggle with long digit sequences (see
-  // `buildOdometerPrompt` in ocrModes.ts). Defensive parse: any value
-  // that isn't a finite positive number is silently dropped, so an
-  // adversarial / malformed wire field can't poison the prompt or the
-  // audit log. Wire-additive — old clients omit the field entirely.
+  // Optional `lastOdometerMi` / `lastPricePerUnit` form fields — each
+  // meaningful only to its own mode (odometer / pump respectively).
+  // Plumbed end-to-end into the prompt as soft sanity-check hints (see
+  // `buildOdometerPrompt` / `buildPumpPrompt` in ocrModes.ts). Defensive
+  // parse: any value that isn't a finite positive number is silently
+  // dropped, so an adversarial / malformed wire field can't poison the
+  // prompt or the audit log. Wire-additive — old clients omit the field
+  // entirely.
   const lastOdometerMi = parseLastOdometerMi(form);
+  const lastPricePerUnit = parseLastPricePerUnit(form);
 
   const file = form.get('image');
   if (!(file instanceof File)) return json({ error: 'image required' }, { status: 400 });
@@ -130,7 +132,10 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   }
 
   const arr = new Uint8Array(await file.arrayBuffer());
-  const outcome = await runOcrPipeline({ bytes: arr, mode, provider, env, lastOdometerMi });
+  const outcome = await runOcrPipeline({
+    bytes: arr, mode, provider, env,
+    lastOdometerMi, lastPricePerUnit
+  });
 
   const ipHash = hashIp(ip, hmacKey!);
   const imgHash = hashImage(arr);
@@ -144,6 +149,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       cropApplied,
       cropRect,
       ...(lastOdometerMi !== undefined ? { lastOdometerMi } : {}),
+      ...(lastPricePerUnit !== undefined ? { lastPricePerUnit } : {}),
       ipHash, imgHash, imgBytes: arr.byteLength,
       imageType: outcome.imageType,
       provider: outcome.provider,
@@ -161,6 +167,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
     cropApplied,
     cropRect,
     ...(lastOdometerMi !== undefined ? { lastOdometerMi } : {}),
+    ...(lastPricePerUnit !== undefined ? { lastPricePerUnit } : {}),
     ipHash, imgHash, imgBytes: arr.byteLength,
     imageType: outcome.imageType ?? 'jpeg',
     provider: provider.name === 'openrouter' ? 'openrouter' : 'ollama',
@@ -201,6 +208,18 @@ function parseCropFields(form: FormData): { x: number; y: number; w: number; h: 
 // and the audit row omits the field.
 function parseLastOdometerMi(form: FormData): number | undefined {
   const raw = form.get('lastOdometerMi');
+  if (typeof raw !== 'string' || raw === '') return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
+}
+
+// Defensive parse of the optional `lastPricePerUnit` multipart field —
+// same shape as `parseLastOdometerMi`. Pump-mode-meaningful soft hint
+// (e.g., 3.679 for a $3.679/gal prior fillup). Currency-agnostic on
+// purpose; the prompt embeds the magnitude alone.
+function parseLastPricePerUnit(form: FormData): number | undefined {
+  const raw = form.get('lastPricePerUnit');
   if (typeof raw !== 'string' || raw === '') return undefined;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return undefined;

@@ -78,6 +78,7 @@ export async function postOcr(
   rotation: Rotation = 0,
   crop: NormalizedRect | null = null,
   lastOdometerMi?: number,
+  lastPricePerUnit?: number,
   fetchImpl = fetch
 ): Promise<OcrResult> {
   const fd = new FormData();
@@ -92,16 +93,23 @@ export async function postOcr(
     fd.set('cropW', String(crop.w));
     fd.set('cropH', String(crop.h));
   }
-  // Wire-additive: only attach `lastOdometerMi` when it's a finite positive
-  // number. Server is defensive about this too, but keeping the client tight
-  // means the un-hinted multipart shape stays byte-identical to v0.2.0+
-  // (important for the e2e regression suite).
+  // Wire-additive: only attach `lastOdometerMi` / `lastPricePerUnit` when
+  // they're finite positive numbers. Server is defensive about this too,
+  // but keeping the client tight means the un-hinted multipart shape stays
+  // byte-identical to v0.2.0+ (important for the e2e regression suite).
   if (
     typeof lastOdometerMi === 'number' &&
     Number.isFinite(lastOdometerMi) &&
     lastOdometerMi > 0
   ) {
     fd.set('lastOdometerMi', String(lastOdometerMi));
+  }
+  if (
+    typeof lastPricePerUnit === 'number' &&
+    Number.isFinite(lastPricePerUnit) &&
+    lastPricePerUnit > 0
+  ) {
+    fd.set('lastPricePerUnit', String(lastPricePerUnit));
   }
   // 90s client-side timeout — generous enough for ollama CPU inference,
   // shorter than indefinite hang on broken network.

@@ -81,11 +81,13 @@ interface PipelineInput {
 	mode: OcrMode;
 	provider: OcrProvider;
 	env: Env;
-	// Optional per-request prompt context. Only `odometer` mode uses
-	// `lastOdometerMi` today — pump ignores it. Forwarded into the mode
-	// contract's `prompt(ctx)` function; defensively dropped here if not
-	// a finite positive number.
+	// Optional per-request prompt context. Each mode reads the field that
+	// matters to it (odometer → `lastOdometerMi`, pump → `lastPricePerUnit`).
+	// Forwarded into the mode contract's `prompt(ctx)` function; defensively
+	// dropped here if not a finite positive number, so the prompt builder
+	// never embeds a `NaN` or negative-value hint.
 	lastOdometerMi?: number;
+	lastPricePerUnit?: number;
 }
 
 export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutcome> {
@@ -104,15 +106,27 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
 	}
 
-	// Build the prompt context. Defensive — only forward `lastOdometerMi`
-	// when it's a finite positive number; otherwise drop it so the prompt
-	// builder doesn't emit a "previous reading was NaN miles" hint.
-	const promptCtx =
+	// Build the prompt context. Defensive on both hint fields — only forward
+	// when finite positive; otherwise drop so the prompt builder never emits
+	// a "previous reading was NaN" hint. The result is undefined (no
+	// context) when neither hint passes the gate, so old callers that pass
+	// nothing observe identical behaviour to v0.2.0+.
+	const ctx: { lastOdometerMi?: number; lastPricePerUnit?: number } = {};
+	if (
 		typeof input.lastOdometerMi === 'number' &&
 		Number.isFinite(input.lastOdometerMi) &&
 		input.lastOdometerMi > 0
-			? { lastOdometerMi: input.lastOdometerMi }
-			: undefined;
+	) {
+		ctx.lastOdometerMi = input.lastOdometerMi;
+	}
+	if (
+		typeof input.lastPricePerUnit === 'number' &&
+		Number.isFinite(input.lastPricePerUnit) &&
+		input.lastPricePerUnit > 0
+	) {
+		ctx.lastPricePerUnit = input.lastPricePerUnit;
+	}
+	const promptCtx = Object.keys(ctx).length > 0 ? ctx : undefined;
 	const promptStr = contract.prompt(promptCtx);
 
 	let raw: unknown;
