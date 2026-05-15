@@ -59,10 +59,17 @@ Full env-var reference:
    the camera, or **Photo Library** to pick a photo you already took.
    On Android the standard picker covers both paths in one screen.
 4. After you pick or shoot the photo, the **preview screen** takes
-   over. You can tap the rotate buttons to spin the image to the right
-   orientation, **Retake** to pick another photo, or **Cancel** to
-   bail out without sending. When the orientation looks right, tap
-   **Send for OCR**.
+   over. You can:
+   - **Rotate** the image (`[↺]` / `[↻]`) to fix orientation.
+   - **Crop** the image — tap `[Crop]`, drag the corners or edges to
+     box in the pump display (or just the digits), tap `[Done]`. A
+     small **Cropped** chip appears in the header. Tap `[Crop]` again
+     to refine; tap `[Reset]` then `[Done]` inside crop mode to
+     remove the crop.
+   - **Retake** to pick another photo, or **Cancel** to bail out
+     without sending.
+
+   When the framing looks right, tap **Send for OCR**.
 5. ~2–15 s later a blue chip appears in the feedback zone showing
    the detected values: *Detected: 11.2 gal · $42.18 · $3.78/gal*
 6. Tap **Use** → Volume + Cost (+ unit) populate. **Discard**
@@ -85,6 +92,21 @@ Full env-var reference:
    `[Use anyway]` and `[Dismiss]`. Both are valid: tap `Use anyway`
    if you know the reading is right (cluster swap, long road trip,
    rollover); tap `Dismiss` to type a corrected value yourself.
+
+### Why crop?
+
+Two reasons it's worth a tap:
+
+1. **Faster, cheaper OCR.** Vision models charge by image tile.
+   A tight crop around the pump display cuts the bill on cloud
+   providers and runs faster on local ollama.
+2. **Better OCR.** Glare, the neighbouring pump, dash lights — all
+   are real OCR confusion fuel. Cropping focuses the model on the
+   digits you care about.
+
+You don't *need* to crop — the model handles a fair amount of
+context. But a 2-second crop on a difficult photo turns 422
+"Couldn't read clearly" into a clean confirm chip a lot of the time.
 
 ## What gets stored
 

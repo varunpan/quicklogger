@@ -6,7 +6,7 @@ import type {
   OcrMode
 } from '$lib/shared/types';
 import type { Vehicle, GasRecord, Reminder } from '$lib/server/lubelogger';
-import type { Rotation } from './image';
+import type { Rotation, NormalizedRect } from './image';
 
 export async function listVehicles(fetchImpl = fetch): Promise<Vehicle[]> {
   const res = await fetchImpl('/api/vehicles');
@@ -76,14 +76,21 @@ export async function postOcr(
   image: Blob,
   mode: OcrMode,
   rotation: Rotation = 0,
+  crop: NormalizedRect | null = null,
   fetchImpl = fetch
 ): Promise<OcrResult> {
   const fd = new FormData();
   fd.set('image', image, 'capture.jpg');
   fd.set('mode', mode);
-  // Wire-additive: only add the form field when non-zero, so the no-rotation
-  // case is byte-identical to the v0.2.0 multipart shape.
+  // Wire-additive: only add the form field when non-zero / non-null, so the
+  // unmodified case is byte-identical to the v0.2.0 multipart shape.
   if (rotation !== 0) fd.set('rotation', String(rotation));
+  if (crop) {
+    fd.set('cropX', String(crop.x));
+    fd.set('cropY', String(crop.y));
+    fd.set('cropW', String(crop.w));
+    fd.set('cropH', String(crop.h));
+  }
   // 90s client-side timeout — generous enough for ollama CPU inference,
   // shorter than indefinite hang on broken network.
   let res: Response;

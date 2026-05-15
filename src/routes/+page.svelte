@@ -157,7 +157,7 @@
     return { ok: true };
   }
 
-  async function runOcr(file: File, mode: OcrMode, rotation: Rotation) {
+  async function runOcr(file: File, mode: OcrMode, rotation: Rotation, crop: NormalizedRect | null) {
     if (mode === 'pump') {
       pumpOcrPending = true;
     } else {
@@ -165,8 +165,8 @@
     }
     toast = null;
     try {
-      const blob = await resizeForOcr(file, { rotation });
-      const result = await postOcr(blob, mode, rotation);
+      const blob = await resizeForOcr(file, { rotation, crop });
+      const result = await postOcr(blob, mode, rotation, crop);
       if (result.mode === 'pump') {
         pumpSuggestion = result;
       } else if (result.mode === 'odometer') {
@@ -189,14 +189,11 @@
     }
   }
 
-  // TODO(Task 5): consume `crop` and pass it through to runOcr / resizeForOcr
-  // / postOcr. For now the destructure declares it so this caller satisfies
-  // the OcrPreview.onsubmit signature update made in Task 4.
-  function previewSubmit({ rotation }: { rotation: Rotation; crop: NormalizedRect | null }) {
+  function previewSubmit({ rotation, crop }: { rotation: Rotation; crop: NormalizedRect | null }) {
     if (!pendingCapture) return;
     const { file, mode } = pendingCapture;
     pendingCapture = null;
-    void runOcr(file, mode, rotation);
+    void runOcr(file, mode, rotation, crop);
   }
 
   function previewCancel() {

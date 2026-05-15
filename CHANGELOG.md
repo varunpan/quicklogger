@@ -82,6 +82,19 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Settings → Smart checks toggle.** New on/off card in `/settings`,
   default `On`. Persists in localStorage as
   `quicklogger.prefs.smartChecksEnabled`.
+- **Crop before OCR send.** New `[Crop]` button in the photo preview
+  modal alongside `[Retake]` / `[Rotate]`. Drag handles to box in the
+  pump display or odometer digits; a small `Cropped` chip in the
+  header shows when a crop is set. Crop is applied inside the same
+  canvas pass as the existing resize + rotation — one pixel encoding
+  per send. Wire-additive: `/api/ocr` POST grows four optional
+  decimal-string fields `cropX/Y/W/H`; the audit log gains
+  `cropApplied: boolean` and `cropRect: { x, y, w, h } | null` on
+  every row. Cuts OCR cost (fewer tiles on cloud providers) and
+  improves quality on photos where station background or dashboard
+  glare was confusing the model. See
+  [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md) and
+  [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
 
 ### Changed
 
