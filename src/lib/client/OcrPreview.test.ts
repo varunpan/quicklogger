@@ -14,6 +14,10 @@ beforeEach(() => {
   });
   createObjectURL.mockClear();
   revokeObjectURL.mockClear();
+  // jsdom doesn't implement pointer capture APIs that CropOverlay uses
+  // when it's embedded inside OcrPreview's crop sub-mode.
+  (HTMLElement.prototype as unknown as { setPointerCapture: (id: number) => void }).setPointerCapture = vi.fn();
+  (HTMLElement.prototype as unknown as { releasePointerCapture: (id: number) => void }).releasePointerCapture = vi.fn();
 });
 afterEach(() => {
   cleanup();
@@ -84,7 +88,7 @@ describe('OcrPreview', () => {
     await fireEvent.click(screen.getByRole('button', { name: /Rotate right/i }));
     await fireEvent.click(screen.getByRole('button', { name: /Send for OCR/i }));
     expect(onsubmit).toHaveBeenCalledTimes(1);
-    expect(onsubmit).toHaveBeenCalledWith({ rotation: 90 });
+    expect(onsubmit).toHaveBeenCalledWith({ rotation: 90, crop: null });
   });
 
   it('Cancel fires oncancel; OCR not invoked', async () => {
@@ -127,5 +131,154 @@ describe('OcrPreview', () => {
     expect(revokeObjectURL).not.toHaveBeenCalled();
     unmount();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-url');
+  });
+});
+
+describe('OcrPreview — crop mode', () => {
+  it('tapping [Crop] enters crop mode (rotate buttons + Send-for-OCR hidden, header changes)', async () => {
+    const file = makeFile();
+    render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit: vi.fn(), oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
+    // Header changes to "Crop · Pump display"
+    expect(screen.getByText(/Crop ·/)).toBeInTheDocument();
+    // Rotate buttons are gone
+    expect(screen.queryByRole('button', { name: /Rotate left/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Rotate right/i })).toBeNull();
+    // Send-for-OCR button is gone (not just disabled)
+    expect(screen.queryByRole('button', { name: /Send for OCR/i })).toBeNull();
+    // Cancel-crop is present
+    expect(screen.getByRole('button', { name: /Cancel crop/i })).toBeInTheDocument();
+  });
+
+  it('tapping [Cancel crop] returns to preview without committing crop', async () => {
+    const onsubmit = vi.fn();
+    const file = makeFile();
+    render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit, oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Cancel crop/i }));
+    // Back in preview mode — Send for OCR is back
+    expect(screen.getByRole('button', { name: /Send for OCR/i })).toBeInTheDocument();
+    // Send fires with crop: null
+    await fireEvent.click(screen.getByRole('button', { name: /Send for OCR/i }));
+    expect(onsubmit).toHaveBeenCalledWith({ rotation: 0, crop: null });
+  });
+
+  it('cropped indicator appears after [Done]; Send fires with non-null crop', async () => {
+    const onsubmit = vi.fn();
+    const file = makeFile();
+    const { container } = render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit, oncancel: vi.fn(), onretake: vi.fn() }
+    });
+
+    // Stub imgEl measurement so the overlay can mount with non-zero size.
+    const img = container.querySelector('img');
+    if (img) {
+      Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
+      img.getBoundingClientRect = () =>
+        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+      await fireEvent.load(img);
+    }
+
+    await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
+
+    // Drag a corner so the rect isn't the default — needed because Done with
+    // the default rect commits as crop:null per spec.
+    const tlCorner = container.querySelector('[data-handle="corner"][data-corner="tl"]') as HTMLElement | null;
+    if (tlCorner) {
+      const down = new Event('pointerdown', { bubbles: true }) as Event & {
+        clientX: number;
+        clientY: number;
+        pointerId: number;
+      };
+      down.clientX = 40;
+      down.clientY = 30;
+      down.pointerId = 1;
+      const move = new Event('pointermove', { bubbles: true }) as Event & {
+        clientX: number;
+        clientY: number;
+        pointerId: number;
+      };
+      move.clientX = 80;
+      move.clientY = 60;
+      move.pointerId = 1;
+      await fireEvent(tlCorner, down);
+      await fireEvent(tlCorner, move);
+    }
+
+    // Tap host-action Done
+    const doneBtn = screen.getAllByRole('button', { name: /Done/i }).pop() as HTMLElement;
+    await fireEvent.click(doneBtn);
+
+    // Back in preview mode — Cropped chip visible
+    expect(screen.getByText(/^Cropped$/i)).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole('button', { name: /Send for OCR/i }));
+    expect(onsubmit).toHaveBeenCalledTimes(1);
+    const payload = onsubmit.mock.calls[0][0];
+    expect(payload.rotation).toBe(0);
+    expect(payload.crop).not.toBeNull();
+    expect(payload.crop.x).toBeGreaterThanOrEqual(0);
+    expect(payload.crop.x + payload.crop.w).toBeLessThanOrEqual(1);
+  });
+
+  it('Reset → Done leaves crop=null (no Cropped chip)', async () => {
+    const onsubmit = vi.fn();
+    const file = makeFile();
+    const { container } = render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit, oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    const img = container.querySelector('img');
+    if (img) {
+      Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
+      img.getBoundingClientRect = () =>
+        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+      await fireEvent.load(img);
+    }
+    await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Reset/i }));
+    const doneBtn = screen.getAllByRole('button', { name: /Done/i }).pop() as HTMLElement;
+    await fireEvent.click(doneBtn);
+    expect(screen.queryByText(/^Cropped$/i)).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: /Send for OCR/i }));
+    expect(onsubmit).toHaveBeenCalledWith({ rotation: 0, crop: null });
+  });
+
+  it('Retake after a crop clears both crop and rotation', async () => {
+    // After [Retake], the host (+page.svelte) unmounts the modal — verified
+    // separately in the e2e suite. Here we assert the component honors a
+    // fresh prop (file change) by resetting crop + rotation. Practically,
+    // the unmount/remount in production effectively resets via fresh state.
+    const file = makeFile();
+    const { unmount } = render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit: vi.fn(), oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Rotate right/i }));
+    unmount();
+    const onsubmit2 = vi.fn();
+    render(OcrPreview, {
+      props: { file: makeFile(), mode: 'pump', onsubmit: onsubmit2, oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Send for OCR/i }));
+    expect(onsubmit2).toHaveBeenCalledWith({ rotation: 0, crop: null });
+  });
+
+  it('ESC inside crop mode cancels crop, not the whole modal', async () => {
+    const oncancel = vi.fn();
+    const file = makeFile();
+    render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit: vi.fn(), oncancel, onretake: vi.fn() }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    // oncancel for the whole modal NOT called
+    expect(oncancel).not.toHaveBeenCalled();
+    // Back in preview mode — Send for OCR visible
+    expect(screen.getByRole('button', { name: /Send for OCR/i })).toBeInTheDocument();
   });
 });

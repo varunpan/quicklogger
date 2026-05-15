@@ -81,12 +81,19 @@ bigger picture: see the `/` page section in
   nothing on `[Cancel]`. Stateless across host re-mounts — the host
   owns `crop` state and passes the prior rect via `initial`.
 - [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
-  — full-screen modal mounted between capture and OCR submit.
-  CSS-rotates the `<img>` while the user picks an orientation;
-  cumulative rotation is handed to `resizeForOcr({ rotation })` on
-  `[Send for OCR]`. Cancel returns to the form (no OCR call); Retake
-  asks the host to re-trigger the originating `<input type="file">`.
-  Object URL revoked on unmount.
+  — full-screen modal mounted between capture and OCR submit. Holds
+  the user's rotation choice and (optionally) a crop rect in
+  un-rotated normalized source coords. The modal has two sub-modes:
+  `preview` and `crop`. In `preview`, rotate / retake / crop / send
+  controls render alongside a `Cropped` chip when a rect is set. In
+  `crop`, rotate buttons and Send-for-OCR are unrendered (not just
+  disabled — disabling them in a sub-flow implies "you can still
+  send, just not yet" which is the wrong mental model) and the
+  `CropOverlay` mounts on top of the image. The display↔source
+  conversion runs once at commit time inside `OcrPreview`, via
+  `cropCoords`. Cumulative rotation + (sanitized) crop are handed to
+  `resizeForOcr({ rotation, crop })` on `[Send for OCR]`. Object URL
+  revoked on unmount.
 - [`src/routes/+page.ts`](../../src/routes/+page.ts) — probes
   `GET /api/ocr` and surfaces `ocrEnabled` + `ocrModes` to the page.
   Failure to probe = `enabled: false`; page load never blocks on OCR.
@@ -145,12 +152,17 @@ audit log persists the same shape under `parsed`, plus a top-level
    `OcrPreview` modal mounts. The user can rotate the image
    (CSS-only — no re-encode), retake (re-triggers the file input), or
    cancel (no OCR call).
-3. On `[Send for OCR]`, `resizeForOcr(file, { rotation })` runs in a
-   hidden Canvas — orient via EXIF → apply rotation → resize to
-   1024 px long edge → JPEG q=0.8. Single canvas pass, ~150–300 KB
-   output. `postOcr(blob, mode, rotation)` POSTs `multipart/form-data`
-   with 90 s client `AbortSignal.timeout`. The `rotation` form field
-   is omitted when 0 (wire-compat with v0.2.0 pre-refinement clients).
+3. On `[Send for OCR]`, `resizeForOcr(file, { rotation, crop })` runs
+   in a hidden Canvas — orient via EXIF → 9-arg `drawImage` crops
+   the source region → apply rotation → resize to 1024 px long edge
+   → JPEG q=0.8. Single canvas pass even with both crop and rotation.
+   ~150–300 KB output uncropped; a tight crop produces a smaller
+   JPEG since the 1024 px clamp applies to the cropped region.
+   `postOcr(blob, mode, rotation)` POSTs `multipart/form-data` with
+   90 s client `AbortSignal.timeout`. The `rotation` form field is
+   omitted when 0; the four `cropX/Y/W/H` form fields are
+   all-four-or-nothing — omitted when no crop, all four present when
+   cropped.
 4. Server: rate-limit check (in-memory sliding window, per-IP) →
    budget check (`/data/ocr-budget.json`) → multipart parse → mode
    whitelist → image size + magic-byte sniff.

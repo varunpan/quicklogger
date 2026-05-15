@@ -20,7 +20,7 @@
     type LastFuelupForCheck
   } from '$lib/client/smart-checks';
   import OcrPreview from '$lib/client/OcrPreview.svelte';
-  import type { Rotation } from '$lib/client/image';
+  import type { Rotation, NormalizedRect } from '$lib/client/image';
 
   let { data } = $props();
   const prefs = loadPrefs();
@@ -189,7 +189,10 @@
     }
   }
 
-  function previewSubmit({ rotation }: { rotation: Rotation }) {
+  // TODO(Task 5): consume `crop` and pass it through to runOcr / resizeForOcr
+  // / postOcr. For now the destructure declares it so this caller satisfies
+  // the OcrPreview.onsubmit signature update made in Task 4.
+  function previewSubmit({ rotation }: { rotation: Rotation; crop: NormalizedRect | null }) {
     if (!pendingCapture) return;
     const { file, mode } = pendingCapture;
     pendingCapture = null;
