@@ -120,6 +120,32 @@ context. But a 2-second crop on a difficult photo turns 422
 - **Daily $ tally** at `/data/ocr-budget.json` — used by the runaway
   cap. UTC rollover.
 
+## Date prefill from photo (v0.2.0+)
+
+When you pick an older pump photo from your library (the "I forgot to log
+last week's fillup" case), quicklogger reads the photo's embedded date and
+auto-fills the Date field for you.
+
+You'll see one of two small chips just under the Date field:
+
+- **blue `set from photo`** — the photo carried an embedded date and it
+  wasn't today's date — the Date field updated to match. Tap the field to
+  override if you want.
+- **amber `no date in photo`** — the photo didn't carry a usable date
+  (screenshots, edited exports, and some social-media downloads strip the
+  EXIF block). The Date field stays on today. Type the correct date in.
+
+**Fresh camera captures don't trigger a chip.** If you take a pump photo
+right at the pump, the photo's date is today, the form's date is today, and
+there's nothing useful to say. The chip only appears when the photo is
+either older than today or has no date at all.
+
+The prefill only runs for the **pump photo** input, not the odometer photo
+— odometer captures are almost always taken at the pump anyway.
+
+If you don't like the prefilled date, just edit the Date field. The chip
+disappears the moment you change the value.
+
 ## Tips & gotchas
 
 - **Pump display tilt.** The model handles ~30° tilt fine. If you get

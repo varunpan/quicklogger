@@ -98,6 +98,15 @@ All notable changes to this project are documented here. Format roughly follows 
   glare was confusing the model. See
   [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md) and
   [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
+- **Date prefill from older pump photos.** Pick a pump photo from your
+  library and the Date field auto-fills from the photo's embedded date.
+  A compact chip under the Date input shows either `set from photo` (blue)
+  or `no date in photo` (amber, for screenshots or photos with stripped
+  EXIF). Fresh-camera captures are a no-op — only older library photos
+  trigger the prefill. Pump-only (odometer photos untouched). See
+  [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md#date-prefill-from-photo-v020)
+  and
+  [`docs/technical/photo-ocr.md`](docs/technical/photo-ocr.md).
 
 ### Changed
 
