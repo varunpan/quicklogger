@@ -2,11 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.2.1] — Unreleased
-
-### Added
-
-### Changed
+## [0.2.1] — 2026-05-15
 
 ### Fixed
 
@@ -17,8 +13,6 @@ All notable changes to this project are documented here. Format roughly follows 
   ~30 tokens (pump) or ~10 (odometer), so legitimate output is
   untouched. Ollama path is unaffected (local + structured-output
   already constrain it).
-
-### Tests
 
 ## [0.2.0] — 2026-05-15
 
