@@ -5,7 +5,8 @@ import {
 	OllamaOcrProvider,
 	OcrProviderError,
 	OpenRouterOcrProvider,
-	ChainOcrProvider
+	ChainOcrProvider,
+	parseLenientJson
 } from './ocrProviders';
 import type { OcrProvider } from './ocrProviders';
 
@@ -217,5 +218,44 @@ describe('ChainOcrProvider', () => {
 		expect(chain.chain.length).toBe(2);
 		expect(chain.chain[0].name).toBe('ollama');
 		expect(chain.chain[1].name).toBe('openrouter');
+	});
+});
+
+describe('parseLenientJson', () => {
+	it('parses naked JSON (idempotent on clean input)', () => {
+		expect(parseLenientJson('{"v":42}')).toEqual({ v: 42 });
+	});
+
+	it('strips a leading markdown fence and trailing fence', () => {
+		const raw = '```json\n{"v":42,"label":"x"}\n```';
+		expect(parseLenientJson(raw)).toEqual({ v: 42, label: 'x' });
+	});
+
+	it('strips trailing prose after the object (ministral-3:14b case)', () => {
+		const raw = '```json\n{"v":1}\n```\nSanity check: this looks right.';
+		expect(parseLenientJson(raw)).toEqual({ v: 1 });
+	});
+
+	it('strips prose prefix before the object', () => {
+		const raw = 'Here is the JSON you requested:\n{"v":1}';
+		expect(parseLenientJson(raw)).toEqual({ v: 1 });
+	});
+
+	it('handles nested objects via lastIndexOf', () => {
+		const raw = '```json\n{"outer":{"inner":7}}\n```';
+		expect(parseLenientJson(raw)).toEqual({ outer: { inner: 7 } });
+	});
+
+	it('throws OcrProviderError(PARSE) when no { is present', () => {
+		expect(() => parseLenientJson('no json here at all')).toThrow(
+			expect.objectContaining({ name: 'OcrProviderError', code: 'PARSE' })
+		);
+	});
+
+	it('throws OcrProviderError(PARSE) when slice contents are malformed', () => {
+		// Has { and } but the slice between them is invalid JSON.
+		expect(() => parseLenientJson('prefix { not: json } suffix')).toThrow(
+			expect.objectContaining({ name: 'OcrProviderError', code: 'PARSE' })
+		);
 	});
 });

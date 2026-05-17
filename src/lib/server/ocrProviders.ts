@@ -8,6 +8,26 @@ export class OcrProviderError extends Error {
 	}
 }
 
+// Anchors on first `{` and last `}`. Idempotent on clean JSON. Strips
+// markdown fences and any prose before/after the object. Throws
+// OcrProviderError('PARSE', ...) if no braces are present or the slice
+// doesn't parse. Used by OllamaOcrProvider because Ollama Cloud returns
+// JSON wrapped in ```json fences and some models append a trailing
+// "Sanity check: ..." paragraph; OpenRouter is strict-parsed because
+// `response_format: json_schema` is contractually enforced there.
+export function parseLenientJson(raw: string): unknown {
+	const start = raw.indexOf('{');
+	const end = raw.lastIndexOf('}');
+	if (start < 0 || end < 0 || end <= start) {
+		throw new OcrProviderError('PARSE', `no JSON object in: ${raw.slice(0, 100)}`);
+	}
+	try {
+		return JSON.parse(raw.slice(start, end + 1));
+	} catch {
+		throw new OcrProviderError('PARSE', `content is not JSON: ${raw.slice(0, 100)}`);
+	}
+}
+
 export interface OcrProvider {
 	readonly name: 'ollama' | 'openrouter';
 	estimateCostCents(): number;
