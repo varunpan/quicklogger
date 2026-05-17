@@ -5,6 +5,9 @@ const KNOWN_FX_PROVIDERS: ReadonlySet<FxProviderName> = new Set([
   'frankfurter', 'erapi', 'fawazahmed'
 ]);
 
+// Validation set only — the OCR dispatcher's default fallback order
+// is defined in src/lib/server/ocr.ts (DEFAULT_SLOT_ORDER), not derived
+// from this set's declaration order.
 const KNOWN_OCR_SLOTS: ReadonlySet<OcrSlotName> = new Set([
   'ollama-local', 'ollama-cloud', 'openrouter', 'openai-compatible'
 ]);
@@ -80,15 +83,16 @@ function parseOcrProviderChain(): OcrSlotName[] | undefined {
   const raw = process.env.OCR_PROVIDER_CHAIN;
   if (raw === undefined || raw.trim() === '') return undefined;
   const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  const seen = new Set<string>();
+  const seen = new Set<OcrSlotName>();
   for (const p of parts) {
     if (!KNOWN_OCR_SLOTS.has(p as OcrSlotName)) {
       throw new EnvError(`Unknown OCR slot in OCR_PROVIDER_CHAIN: ${p}`);
     }
-    if (seen.has(p)) {
+    const slot = p as OcrSlotName;
+    if (seen.has(slot)) {
       throw new EnvError(`Duplicate OCR slot in OCR_PROVIDER_CHAIN: ${p}`);
     }
-    seen.add(p);
+    seen.add(slot);
   }
   return parts as OcrSlotName[];
 }

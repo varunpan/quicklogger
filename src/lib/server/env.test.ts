@@ -150,7 +150,12 @@ describe('loadEnv — OCR_PROVIDER_CHAIN parsing', () => {
   beforeEach(() => {
     process.env.LUBELOGGER_URL = 'http://lubelog:8080';
     process.env.LUBELOGGER_API_KEY = 'k';
-    delete process.env.OCR_PROVIDER_CHAIN;
+    for (const k of Object.keys(process.env)) {
+      if (k.startsWith('OLLAMA_') || k.startsWith('OPENROUTER_') ||
+          k.startsWith('OCR_') || k.startsWith('OPENAI_COMPATIBLE_')) {
+        delete process.env[k];
+      }
+    }
   });
 
   it('ocrProviderChain is undefined when OCR_PROVIDER_CHAIN is unset', () => {
@@ -185,10 +190,11 @@ describe('loadEnv — OCR_PROVIDER_CHAIN parsing', () => {
     expect(() => loadEnv()).toThrow(/bogus/);
   });
 
-  it('throws EnvError on a duplicate slot identifier', () => {
+  it('throws EnvError on a duplicate slot identifier (and names the slot)', () => {
     process.env.OCR_PROVIDER_CHAIN = 'ollama-local,openrouter,ollama-local';
     expect(() => loadEnv()).toThrow(EnvError);
     expect(() => loadEnv()).toThrow(/Duplicate/);
+    expect(() => loadEnv()).toThrow(/ollama-local/);
   });
 });
 
