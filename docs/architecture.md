@@ -48,6 +48,12 @@ Single source of truth for env-var access — other server modules call `loadEnv
 `OLLAMA_VISION_TIMEOUT_MS` (`60000`), `OLLAMA_KEEP_ALIVE` (`30m`),
 `OPENROUTER_API_KEY`, `OPENROUTER_VISION_MODEL`
 (`google/gemini-2.5-flash-lite`), `OPENROUTER_VISION_TIMEOUT_MS` (`30000`),
+`OLLAMA_CLOUD_API_KEY`, `OLLAMA_CLOUD_URL` (`https://ollama.com`),
+`OLLAMA_CLOUD_MODEL` (`gemma4:31b`), `OLLAMA_CLOUD_TIMEOUT_MS` (`30000`),
+`OPENAI_COMPATIBLE_URL`, `OPENAI_COMPATIBLE_API_KEY`,
+`OPENAI_COMPATIBLE_MODEL`, `OPENAI_COMPATIBLE_TIMEOUT_MS` (`30000`),
+`OCR_PROVIDER_CHAIN` (CSV; default = configured slots in order
+`ollama-local, openrouter, ollama-cloud, openai-compatible`),
 `OCR_DAILY_BUDGET_USD` (`1.00`), `OCR_RATE_LIMIT_PER_HOUR` (`20`),
 `OCR_BUDGET_PATH` (`/data/ocr-budget.json`), `OCR_AUDIT_PATH`
 (`/data/ocr-audit.jsonl`), `OCR_AUDIT_KEY_PATH`
@@ -55,10 +61,12 @@ Single source of truth for env-var access — other server modules call `loadEnv
 `OCR_PUMP_VOLUME_MAX` (`200`), `OCR_PUMP_COST_MAX` (`500`),
 `OCR_PUMP_PRICE_PER_UNIT_MAX` (`20`), `OCR_ODOMETER_MAX_MI` (`1000000`).
 
-The feature is enabled iff at least one of `OLLAMA_VISION_URL` or
-`OPENROUTER_API_KEY` is set. Provider selection is resolved per-request,
-not cached at startup — a transient ollama outage doesn't permanently
-disable the camera button. Full user-facing reference lives in
+The feature is enabled iff at least one of `OLLAMA_VISION_URL`,
+`OPENROUTER_API_KEY`, `OLLAMA_CLOUD_API_KEY`, or
+`OPENAI_COMPATIBLE_URL`+`KEY`+`MODEL` is set. Provider selection is
+resolved per-request — a transient outage on any slot doesn't
+permanently disable the camera button. Full user-facing reference
+lives in
 [`docs/user/configuration.md`](user/configuration.md#photo-ocr-v020).
 
 ### FX provider chain (`src/lib/server/currency.ts`)
@@ -145,48 +153,60 @@ fillup history, and the failure mode is user-recoverable.
 
 ### OCR providers (`src/lib/server/ocrProviders.ts`)
 
-Provider interface: `extract(bytes, prompt, schema) → unknown`. Providers
-don't know about modes — the dispatcher pulls `prompt` + `schema` from
-`MODES[mode]` (B7) and passes them. This keeps adding a mode to a single
-map entry.
+Provider interface: `extract(bytes, prompt, schema) → unknown`.
+Providers don't know about modes — the dispatcher pulls `prompt` +
+`schema` from `MODES[mode]` and passes them. Each provider has a
+`name: OcrSlotName` set per-instance via the constructor's
+`slotName` field.
 
-**Ollama** — POSTs to `${OLLAMA_VISION_URL}/api/chat` with
-`format: <schema>`, `temperature: 0`, `keep_alive: 30m` (default),
-`stream: false`, and the base64-encoded image bytes. Cost-cents = 0
-(local). Wrapped in `AbortSignal.timeout(OLLAMA_VISION_TIMEOUT_MS)` —
-60 s default to accommodate CPU inference.
+**Two classes, four slots.** `OllamaOcrProvider` serves both
+`ollama-local` (no auth) and `ollama-cloud` (Bearer auth, Ollama Cloud
+endpoint). `OpenRouterOcrProvider` serves both `openrouter` (fixed
+URL) and `openai-compatible` (configurable URL, key, model).
 
-**OpenRouter** — POSTs to `https://openrouter.ai/api/v1/chat/completions`
-with `Authorization: Bearer ${OPENROUTER_API_KEY}`, the OpenAI-compatible
-chat-completions shape, and `response_format: { type: 'json_schema',
-json_schema: { strict: true, schema } }`. Default model
-`google/gemini-2.5-flash-lite`. Cost-cents = 0.006 (≈ $0.00006/call,
-rounded up). Wrapped in `AbortSignal.timeout(30 000)` by default — cloud
-is reliably <5 s.
+**Ollama path** — POSTs to `${url}/api/chat` with `format: <schema>`,
+`temperature: 0`, `keep_alive: 30m` (default), `stream: false`, and
+the base64-encoded image bytes. Response is parsed through
+`parseLenientJson` (anchors on first `{` to last `}`) — Ollama Cloud
+returns JSON wrapped in markdown fences and some models append
+trailing prose, so a strict `JSON.parse` would error. Local Ollama
+returns clean JSON; the helper is idempotent on that.
 
-**ChainOcrProvider** — wraps an ordered list, tries them in order. Bounded
-at one fallback (`ChainOcrProvider([ollama, openrouter])` — 2-provider
-chain) — not a retry loop. On total failure, the last error propagates and
-the route handler maps it to `502 Bad Gateway`. `activeProvider` and
-`lastFellbackTo` getters drive audit attribution.
+**OpenRouter path** — POSTs to the configured URL (default
+`https://openrouter.ai/api/v1/chat/completions`) with
+`Authorization: Bearer ${apiKey}`, the OpenAI-compatible
+chat-completions shape, `max_tokens: 256` (anti-runaway), and
+`response_format: { type: 'json_schema', strict: true, schema }`.
+Strict `JSON.parse` on success — the `strict: true` contract is
+enforced by OpenRouter and any well-behaved OAI-compatible endpoint.
+
+**ChainOcrProvider** — wraps an ordered list of providers, tries them
+in sequence. Bounded — each slot is tried at most once per request.
+On total failure the last error propagates and the route handler
+maps it to `502 Bad Gateway`. `activeProvider` and `lastFellbackFrom`
+getters drive audit attribution. `name` getter returns the active
+provider's name (or `chain[0].name` before any extract has run).
 
 ### OCR dispatcher (`src/lib/server/ocr.ts` — pipeline)
 
-`selectProvider(env)` returns an `OcrProvider | null` based on env:
+`selectProvider(env)` returns `{ provider, chainTimeoutMs }`. It
+walks `env.ocrProviderChain ?? DEFAULT_SLOT_ORDER`, asks `buildSlot`
+to construct each named slot, and drops those whose env vars aren't
+set. `chainTimeoutMs` is the sum of surviving slots' per-slot
+`timeoutMs` values — flows through the `GET /api/ocr` probe into the
+client `postOcr` request timeout (`chainTimeoutMs + 10_000`).
 
-| ollama | openrouter | Result |
-|---|---|---|
-| set | set | `ChainOcrProvider([ollama, openrouter])` |
-| set | unset | `OllamaOcrProvider` |
-| unset | set | `OpenRouterOcrProvider` |
-| unset | unset | `null` → `/api/ocr` returns 503 |
+| Surviving slots | `selectProvider` returns |
+|---|---|
+| 0 | `{ provider: null, chainTimeoutMs: 0 }` → `/api/ocr` returns 503 |
+| 1 | `{ provider: <bare>, chainTimeoutMs: <slot> }` |
+| 2+ | `{ provider: ChainOcrProvider([...]), chainTimeoutMs: <sum> }` |
 
 `runOcrPipeline(input)` orchestrates one request: magic-byte sniff →
-`MODES[mode]` lookup → provider call → `validateSchema` → `validateRanges`
-→ `validateCrossField` (pump only) → return tagged outcome. Returns
-discriminated `OcrResult` (`OcrPumpResult` or `OcrOdometerResult`) on
-success. Selection runs per-request — a transient ollama outage doesn't
-permanently disable the feature.
+`MODES[mode]` lookup → provider call → `validateSchema` →
+`validateRanges` → `validateCrossField` (pump only) → return tagged
+outcome. Selection runs per-request — a transient outage on any slot
+doesn't permanently disable the feature.
 
 ## Frontend
 

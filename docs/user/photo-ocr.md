@@ -14,8 +14,17 @@ one OCR provider is configured.
 
 ## Setup
 
-You need at least one provider configured. Both work; if you configure
-both, **local ollama is tried first** and OpenRouter is the fallback.
+You need at least one provider configured. quicklogger chains them in
+order; the first one that returns a clean reading wins, and on
+failure (timeout, HTTP error, quota exhaustion) the next slot in the
+chain is tried automatically.
+
+| Slot identifier      | Speed         | Privacy        | Cost (per call)    | Setup difficulty |
+|----------------------|---------------|----------------|---------------------|------------------|
+| `ollama-local`       | ~15–30 s CPU  | fully local    | free                | medium (run ollama) |
+| `ollama-cloud`       | ~1 s          | request leaves the box | free (weekly GPU-time budget) | easy (one API key) |
+| `openrouter`         | ~2–5 s        | request leaves the box | ~$0.00006           | easy (one API key) |
+| `openai-compatible`  | varies        | varies         | varies              | medium (URL+key+model) |
 
 ### Option A — local ollama (recommended for privacy)
 
@@ -33,7 +42,23 @@ OLLAMA_VISION_MODEL: qwen2.5vl:7b
 CPU-only inference takes ~15–30 s per photo. A small GPU brings it
 under 5 s.
 
-### Option B — OpenRouter (Gemini Flash Lite)
+### Option B — Ollama Cloud (recommended for speed)
+
+```sh
+OLLAMA_CLOUD_API_KEY: sk-...   # from https://ollama.com
+```
+
+That's it — `OLLAMA_CLOUD_URL` and `OLLAMA_CLOUD_MODEL` default to
+sensible values (`https://ollama.com`, `gemma4:31b`). See
+[Ollama Cloud model selection](#ollama-cloud-model-selection) below
+for tested alternatives.
+
+Cloud inference takes ~1 s on the default model. Free tier comes
+with a weekly GPU-time budget that easily covers a daily-driver
+fillup cadence; once exhausted you get HTTP 429 and the chain falls
+through to the next configured slot.
+
+### Option C — OpenRouter (Gemini Flash Lite)
 
 1. Sign up at [openrouter.ai/keys](https://openrouter.ai/keys) and
    generate an API key.
@@ -41,9 +66,87 @@ under 5 s.
    ```yaml
    OPENROUTER_API_KEY: sk-or-...
    ```
-3. Default model is `google/gemini-2.5-flash-lite` (≈ $0.00006/call).
+3. Default model is `google/gemini-2.5-flash-lite` (~$0.00006/call).
    The default `OCR_DAILY_BUDGET_USD=1.00` gives you ~16,000 calls/day
    before the cap kicks in.
+
+### Option D — Any OpenAI-compatible vision endpoint
+
+Routes through the same code path as OpenRouter, but lets you point
+at any chat-completions-compatible service: Groq, Cerebras, OpenAI
+direct, a LiteLLM proxy, etc. All three vars must be set:
+
+```yaml
+OPENAI_COMPATIBLE_URL: https://api.groq.com/openai/v1/chat/completions
+OPENAI_COMPATIBLE_API_KEY: gsk_...
+OPENAI_COMPATIBLE_MODEL: llama-3.2-90b-vision-preview
+```
+
+Cost is reported to the daily budget as a placeholder `0.006¢` per
+call (same as OpenRouter). If you route to an expensive endpoint
+(e.g. OpenAI gpt-4o direct), tighten `OCR_DAILY_BUDGET_USD` to suit
+— per-slot cost overrides are out of scope as of v0.2.2.
+
+### Chaining providers
+
+If you configure more than one slot, set `OCR_PROVIDER_CHAIN` to
+control fallback order. Format is comma-separated slot identifiers:
+
+```yaml
+# Fastest free-tier first; local as backup; OpenRouter as last resort:
+OCR_PROVIDER_CHAIN: ollama-cloud,ollama-local,openrouter
+
+# Privacy first; cloud burst only when local is down:
+OCR_PROVIDER_CHAIN: ollama-local,ollama-cloud
+
+# Paid-fallback only:
+OCR_PROVIDER_CHAIN: ollama-local,openrouter
+```
+
+If you DON'T set `OCR_PROVIDER_CHAIN`, the chain auto-derives from
+your configured slots in the default order
+`[ollama-local, openrouter, ollama-cloud, openai-compatible]`. This
+preserves back-compat — adding `OLLAMA_CLOUD_API_KEY` to an existing
+deploy tacks cloud on at the END of the chain unless you override.
+
+**Boot-time warnings.** If `OCR_PROVIDER_CHAIN` lists a slot whose
+env vars aren't set, the server logs a startup WARN naming the
+missing var and drops that slot from the effective chain. Booting
+continues normally — fix the env, restart. (Default-chain slots that
+aren't configured are silent-skipped.)
+
+### Ollama Cloud model selection
+
+Ollama Cloud serves many vision-capable models, but only a few are
+actually useful for fuel-pump OCR. Speed and digit-precision matter
+most. Numbers below are from real pump-display probes against a
+free-tier account (truth: cost=46.84, volume=12.561 gal,
+ppu=3.729 computed).
+
+| Model                       | Latency | OCR result   | Notes                                                                                                       |
+|-----------------------------|---------|--------------|-------------------------------------------------------------------------------------------------------------|
+| `gemma4:31b` **(default)**  | ~1 s    | Perfect      | Reads all 3 decimals + computed price-per-unit. Best free-tier choice.                                       |
+| `qwen3-vl:235b-instruct`    | ~4 s    | Perfect      | Largest free-tier model. Slower; consumes free-tier weekly budget faster, but returns cleaner JSON.         |
+| `gemma3:27b`                | ~2 s    | Truncates    | Loses the 3rd decimal of volume (12.561 → 12.56). Don't use for pump OCR.                                   |
+| `gemma3:12b` / `gemma3:4b`  | 1–2 s   | Bad PPU      | Smaller, faster, but hallucinates price-per-unit when not shown on display. Avoid.                          |
+| `ministral-3:3b/8b/14b`     | 2–4 s   | Mixed        | 14b reads correctly but appends prose after the JSON; smaller variants misread digits. Avoid.               |
+| `devstral-small-2:24b`      | —       | Disabled     | Vision capability shown but cloud-side disables image input. HTTP 400.                                      |
+| `gemini-3-flash-preview`    | —       | Pro-only     | Requires a paid Ollama Cloud subscription (HTTP 403 on free tier).                                          |
+| `qwen3.5:397b`, `kimi-k2.*` | —       | Pro-only     | Same — Pro subscription required.                                                                           |
+
+**Avoid "thinking-mode" models for OCR.** `qwen3-vl:235b`
+(non-instruct) burns 60+ s of internal reasoning before producing
+JSON, defeating the cloud latency win. Use the `-instruct` variant.
+
+**Override the default:** set `OLLAMA_CLOUD_MODEL=<model-name>` in
+your `.env`. Default is `gemma4:31b`.
+
+**Free-tier quotas.** Free tier has a weekly GPU-time budget. When
+exhausted, calls return HTTP 429; the chain automatically falls
+through to the next configured slot (e.g. OpenRouter or local
+ollama). No proactive cooldown — the next OCR call retries cloud as
+if nothing happened, which is correct behaviour the first time the
+quota window resets.
 
 Full env-var reference:
 [`docs/user/configuration.md`](configuration.md#photo-ocr-v020).

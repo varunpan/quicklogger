@@ -6,11 +6,43 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Pluggable OCR provider chain.** Two new provider slots:
+  `ollama-cloud` (Ollama Cloud free tier) and `openai-compatible`
+  (any OpenAI-compatible vision endpoint — Groq, Cerebras, OpenAI
+  direct, LiteLLM proxies, etc.). Chain order is configurable via
+  the `OCR_PROVIDER_CHAIN` env var (CSV; same pattern as
+  `FX_PROVIDERS`). Default chain when unset preserves existing
+  behaviour (`ollama-local, openrouter` ahead of the new slots) —
+  new slots are opt-in. Cloud default model is `gemma4:31b` based
+  on design-time probes (~1 s perfect read vs. ~75 s local on
+  consumer hardware); override via `OLLAMA_CLOUD_MODEL`. Eight new
+  env vars across the two new slots, all optional with defaults.
+  See [`docs/user/photo-ocr.md`](docs/user/photo-ocr.md) for setup
+  and model selection.
+
 ### Changed
+
+- **OCR audit log shape.** The `provider` field union widens from
+  `'ollama' | 'openrouter'` to
+  `'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible'`.
+  Field `fellbackTo` renamed to `fellbackFrom` (more honest name;
+  same semantics — `chain[0].name` when fall-through occurred).
+  Old jsonl lines remain readable; new lines use the new names.
+- **Client OCR timeout now self-adjusting.** `GET /api/ocr` probe
+  response gains a `chainTimeoutMs` field (sum of effective chain's
+  per-slot timeouts). Client uses `chainTimeoutMs + 10 s` for its
+  request timeout — no more hardcoded 90 s. Server's
+  "fails-first" invariant is preserved by construction regardless
+  of chain length.
 
 ### Fixed
 
 ### Tests
+
+- ~37 new tests: `parseLenientJson` markdown-fence stripping, cloud
+  auth header, OAI-compatible URL override, chain-build defaults,
+  missing-config WARN+drop, CSV parsing edge cases, cloud-only +
+  OAI-compat-only GET probe.
 
 ## [0.2.1] — 2026-05-15
 

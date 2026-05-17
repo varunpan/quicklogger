@@ -674,6 +674,134 @@ that range — it may be higher or lower than this, but the digit count
 should be similar. Use this as a sanity check, not as the answer.
 ```
 
+## Adding a new provider
+
+The chain abstraction supports two flavors of new-provider work:
+
+- **Scenario A (common):** the new provider speaks an existing wire
+  protocol — Ollama-compatible or OpenAI-compatible. You're just
+  adding a separately-configured slot for a different service. No
+  new class.
+- **Scenario B (rarer):** the new provider speaks a different wire
+  protocol entirely. Requires a new provider class.
+
+### Scenario A — new slot, existing wire protocol
+
+Concrete example: you want to add a second OpenAI-compatible chain
+slot, distinct from `openai-compatible`, so you can chain Groq AND
+Cerebras without losing either when you rotate keys. Call it
+`openai-compatible-2`. ~6 file edits.
+
+1. **Slot identifier.** Add `'openai-compatible-2'` to
+   `KNOWN_OCR_SLOTS` in `env.ts` and to the `OcrSlotName` type.
+2. **Env vars.** Add `OPENAI_COMPATIBLE_2_URL`,
+   `OPENAI_COMPATIBLE_2_API_KEY`, `OPENAI_COMPATIBLE_2_MODEL`,
+   `OPENAI_COMPATIBLE_2_TIMEOUT_MS` to the `Env` interface and to
+   `loadEnv()` in `env.ts`.
+3. **Slot builder.** Add a new `case 'openai-compatible-2':` to
+   `buildSlot()` in `ocr.ts` — copy the existing `openai-compatible`
+   case and substitute the new env field names. Construct an
+   `OpenRouterOcrProvider` (the class already handles arbitrary
+   OAI-compatible URLs via `opts.url`).
+4. **Default chain order.** Decide whether the new slot should
+   appear in `DEFAULT_SLOT_ORDER`. Generally append rather than
+   prepend so existing deploys don't see surprise reordering.
+5. **Required-var hint.** Add to `REQUIRED_ENV_VAR_BY_SLOT` for the
+   WARN log line.
+6. **Audit log type.** Widen `AuditRecord.provider` and
+   `AuditRecord.fellbackFrom` unions in `ocrAudit.ts` (and the
+   corresponding `PipelineOutcome` types in `ocr.ts`). The
+   `modelForSlot()` helper in `ocr.ts` needs a new `case`.
+7. **Docs.** Add the new env vars to `docs/user/configuration.md`
+   and a new "Option" subsection to `docs/user/photo-ocr.md`.
+8. **Tests.** Extend `selectProvider` tests in `ocr.test.ts` for the
+   new slot + chain interactions. No new provider-class tests
+   needed (the underlying class is already covered).
+
+### Scenario B — new wire protocol
+
+Concrete example: you want to add Anthropic's native Messages API
+as a vision OCR provider. Anthropic doesn't speak the OpenAI
+chat-completions shape exactly — different request body, different
+response shape, no `format`/`response_format` field. Same checklist
+as Scenario A, plus a new provider class.
+
+The provider class implements the `OcrProvider` interface:
+
+```ts
+export interface OcrProvider {
+  readonly name: OcrSlotName;
+  estimateCostCents(): number;
+  extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown>;
+}
+```
+
+`extract()` must:
+- POST to the provider's vision endpoint with the image bytes
+  (base64-encoded per the provider's convention) and the prompt.
+- Honor a per-call timeout via `AbortSignal.timeout(this.opts.timeoutMs)`.
+- Return parsed JSON matching `schema`. If the provider doesn't
+  enforce schema natively (Ollama Cloud doesn't, despite the
+  `format` hint), reuse `parseLenientJson` to anchor on first `{`
+  to last `}`.
+- Throw `OcrProviderError` with one of these codes on failure:
+  - `'NETWORK'` for timeout, DNS, connection-refused
+  - `'HTTP'` for non-2xx responses (include status code in message)
+  - `'NO_CONTENT'` for malformed wire shape (missing expected field)
+  - `'PARSE'` for unparseable content
+  - The chain catches any `OcrProviderError` and falls through.
+
+`estimateCostCents()` returns a per-call cost in 0.01¢ units. Use
+`0` for free providers; use a conservative upper bound for paid
+ones (the daily budget gate uses this for fail-closed accounting).
+Per-slot cost overrides are out-of-scope as of v0.2.2 — if your new
+provider has wildly different per-call cost than the OpenRouter
+placeholder, that's the moment to add `<SLOT>_COST_CENTS` env config.
+
+`name` must be the slot identifier (`slotName` from the constructor,
+not a class-level literal). The audit log uses `provider.name` as
+the recorded slot.
+
+### Files touched (combined)
+
+| File                                          | Scenario A | Scenario B |
+|-----------------------------------------------|------------|------------|
+| `src/lib/server/ocrProviders.ts`              | —          | new class  |
+| `src/lib/server/ocrProviders.test.ts`         | —          | new tests  |
+| `src/lib/server/env.ts`                       | ✓          | ✓          |
+| `src/lib/server/env.test.ts`                  | ✓          | ✓          |
+| `src/lib/server/ocr.ts`                       | ✓          | ✓          |
+| `src/lib/server/ocr.test.ts`                  | ✓          | ✓          |
+| `src/lib/server/ocrAudit.ts`                  | ✓          | ✓          |
+| `docs/user/configuration.md`                  | ✓          | ✓          |
+| `docs/user/photo-ocr.md`                      | ✓          | ✓          |
+| `docs/technical/photo-ocr.md` (this file)     | append row | append row |
+| `CHANGELOG.md` (under in-flight version)      | ✓          | ✓          |
+
+### Things that are deliberately NOT pluggable
+
+If you find yourself wanting to do one of these, that's a redesign
+conversation, not a "just add a provider" change:
+
+- **Multiple instances of the same slot type** (two Ollama Cloud
+  accounts with different rate limits). The slot identifiers are
+  one-instance-per-type by design (decision #2 in the v0.2.2
+  spec). Adding multi-instance support means revisiting the
+  env-namespace shape and the chain-config syntax.
+- **Per-slot daily $ budget.** Currently a single
+  `OCR_DAILY_BUDGET_USD` is shared across all paid slots. Adding
+  per-slot budgets means a new tracker file + env-var-per-slot.
+- **Proactive rate-limit cooldowns.** Today the chain falls
+  through on 429 and immediately retries on the next call.
+  Remembering a 429 and skipping the slot for N minutes is
+  straightforward in-memory state, but it's out-of-scope and not
+  requested.
+- **Schema-fail chain retry.** If a provider returns valid JSON
+  that fails range or cross-field validation, the pipeline returns
+  502 to the client — it does NOT try the next chain link.
+  Changing this is intentional behaviour preservation; see the
+  v0.2.2 spec for rationale.
+
 ## Future considerations
 
 - **Per-vehicle odometer delta.** `ODOMETER_MAX_DELTA_MI=2000` is one
