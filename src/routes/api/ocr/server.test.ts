@@ -88,6 +88,38 @@ describe('GET /api/ocr', () => {
     expect(body.chainTimeoutMs).toBe(60_000 + 30_000 + 30_000);
   });
 
+  it('returns enabled=true with chainTimeoutMs when only OLLAMA_CLOUD_API_KEY is set', async () => {
+    setEnv({ OLLAMA_CLOUD_API_KEY: 'sk-cloud' });
+    const res = await GET({} as Parameters<typeof GET>[0]);
+    const body = await res.json();
+    expect(body.enabled).toBe(true);
+    expect(body.modes.sort()).toEqual(['odometer', 'pump']);
+    expect(body.chainTimeoutMs).toBe(30_000);
+  });
+
+  it('returns enabled=true when only OPENAI_COMPATIBLE_* are all set', async () => {
+    setEnv({
+      OPENAI_COMPATIBLE_URL: 'https://api.groq.com/openai/v1/chat/completions',
+      OPENAI_COMPATIBLE_API_KEY: 'gsk-test',
+      OPENAI_COMPATIBLE_MODEL: 'llama-3.2-90b-vision-preview'
+    });
+    const res = await GET({} as Parameters<typeof GET>[0]);
+    const body = await res.json();
+    expect(body.enabled).toBe(true);
+    expect(body.chainTimeoutMs).toBe(30_000);
+  });
+
+  it('returns enabled=false when OPENAI_COMPATIBLE_URL/KEY/MODEL are partially set', async () => {
+    setEnv({
+      OPENAI_COMPATIBLE_URL: 'https://api.groq.com/openai/v1/chat/completions',
+      OPENAI_COMPATIBLE_API_KEY: 'gsk-test'
+      // OPENAI_COMPATIBLE_MODEL deliberately missing
+    });
+    const res = await GET({} as Parameters<typeof GET>[0]);
+    const body = await res.json();
+    expect(body.enabled).toBe(false);
+  });
+
 });
 
 describe('POST /api/ocr', () => {
