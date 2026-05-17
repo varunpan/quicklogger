@@ -456,12 +456,19 @@ meaningful to the user (visible in the warning copy). Promotable to a
 Settings preference (alongside `odometerIncrementMi`) in a future v0.2.x
 if real-world travel routinely hits 2000+ mi between fillups.
 
-**90 s client `AbortSignal.timeout` — generous, not stingy.** Ollama
-CPU inference on `qwen2.5vl:7b` can take 15–30 s on a Mac mini; an over-
-loaded host pushes that higher. 90 s gives a working setup plenty of
-headroom while still failing-fast on a wedged connection. Pairs with
-the 60 s server-side ollama timeout — server fails first under normal
-load, client takes over only on broken network.
+**Client OCR timeout is server-driven, not hardcoded.** The
+`/api/ocr` GET probe returns `chainTimeoutMs` (sum of effective
+chain's per-slot timeouts). The page loader (`+page.ts`) forwards
+that value into page data, and `postOcr(...)` uses
+`(chainTimeoutMs + 10_000)` as its `AbortSignal.timeout`. The 10 s
+slack covers transit + multipart serialization so the server still
+"fails first" by construction (per-slot timeout fires before the
+client gives up). When the probe omits `chainTimeoutMs` (older
+server during rolling deploy, or the probe failed and the page is
+in degraded mode), `postOcr` falls back to a static 90 s. Adding a
+slot or bumping `OLLAMA_VISION_TIMEOUT_MS` auto-extends the client
+timeout on next page load — no client-side env or constant to keep
+in sync.
 
 **OpenRouter request body sets `max_tokens: 256`, hardcoded.** Anti-
 runaway cap, not a usage budget — same framing as

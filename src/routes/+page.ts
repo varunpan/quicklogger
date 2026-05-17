@@ -48,6 +48,10 @@ export const load: PageLoad = async ({ fetch, url }) => {
   const ocrStatus: OcrStatus = await getOcrStatus(fetch).catch(() => ({ enabled: false }));
   const ocrEnabled = ocrStatus.enabled;
   const ocrModes: OcrMode[] = ocrEnabled && ocrStatus.modes ? ocrStatus.modes : [];
+  const ocrChainTimeoutMs: number | undefined =
+    ocrEnabled && typeof ocrStatus.chainTimeoutMs === 'number' && ocrStatus.chainTimeoutMs > 0
+      ? ocrStatus.chainTimeoutMs
+      : undefined;
 
   return {
     vehicles,
@@ -56,6 +60,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
     lastFuelupSource,
     ocrEnabled,
     ocrModes,
+    ocrChainTimeoutMs,
     prefill: {
       vehicleId: url.searchParams.get('vehicleId'),
       volume: url.searchParams.get('volume'),

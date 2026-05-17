@@ -225,7 +225,7 @@
           lastPriceHint = cost / gallons;
         }
       }
-      const result = await postOcr(blob, mode, rotation, crop, lastOdoHint, lastPriceHint);
+      const result = await postOcr(blob, mode, rotation, crop, lastOdoHint, lastPriceHint, data.ocrChainTimeoutMs);
       if (result.mode === 'pump') {
         pumpSuggestion = result;
       } else if (result.mode === 'odometer') {

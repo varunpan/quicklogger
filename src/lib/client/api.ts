@@ -79,13 +79,12 @@ export async function postOcr(
   crop: NormalizedRect | null = null,
   lastOdometerMi?: number,
   lastPricePerUnit?: number,
+  timeoutMs?: number,
   fetchImpl = fetch
 ): Promise<OcrResult> {
   const fd = new FormData();
   fd.set('image', image, 'capture.jpg');
   fd.set('mode', mode);
-  // Wire-additive: only add the form field when non-zero / non-null, so the
-  // unmodified case is byte-identical to the v0.2.0 multipart shape.
   if (rotation !== 0) fd.set('rotation', String(rotation));
   if (crop) {
     fd.set('cropX', String(crop.x));
@@ -93,10 +92,6 @@ export async function postOcr(
     fd.set('cropW', String(crop.w));
     fd.set('cropH', String(crop.h));
   }
-  // Wire-additive: only attach `lastOdometerMi` / `lastPricePerUnit` when
-  // they're finite positive numbers. Server is defensive about this too,
-  // but keeping the client tight means the un-hinted multipart shape stays
-  // byte-identical to v0.2.0+ (important for the e2e regression suite).
   if (
     typeof lastOdometerMi === 'number' &&
     Number.isFinite(lastOdometerMi) &&
@@ -111,18 +106,24 @@ export async function postOcr(
   ) {
     fd.set('lastPricePerUnit', String(lastPricePerUnit));
   }
-  // 90s client-side timeout — generous enough for ollama CPU inference,
-  // shorter than indefinite hang on broken network.
+  // Client-side timeout self-adjusts to the configured chain envelope.
+  // `timeoutMs` is the server's reported chainTimeoutMs (sum of per-slot
+  // timeouts) when the probe surfaced one; falls back to the legacy 90 s
+  // when absent (older server, or probe failed and page is degraded).
+  // The +10 000 covers transit + serialization on top of the chain
+  // envelope so the server still "fails first" by construction.
+  const finalTimeoutMs = (typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0)
+    ? timeoutMs + 10_000
+    : 90_000;
   let res: Response;
   try {
     res = await fetchImpl('/api/ocr', {
       method: 'POST',
       body: fd,
-      signal: AbortSignal.timeout(90_000)
+      signal: AbortSignal.timeout(finalTimeoutMs)
     });
   } catch (err) {
     const e: OcrError = new Error(`ocr network: ${(err as Error).message}`);
-    // AbortSignal.timeout DOM exception name is 'TimeoutError'
     if ((err as { name?: string }).name === 'TimeoutError') e.status = 0;
     throw e;
   }
