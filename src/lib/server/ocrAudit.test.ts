@@ -16,9 +16,9 @@ function pumpRecord(extra: Partial<AuditRecord> = {}): AuditRecord {
     imgHash: 'sha256:def',
     imgBytes: 100,
     imageType: 'jpeg',
-    provider: 'ollama',
+    provider: 'ollama-local',
     model: 'qwen2.5vl:7b',
-    fellbackTo: null,
+    fellbackFrom: null,
     latencyMs: 1234,
     costCents: 0,
     parsed: { mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 },
@@ -52,7 +52,7 @@ describe('OcrAudit', () => {
       error: { code: 'TIMEOUT', message: 'upstream timed out' },
       provider: 'openrouter',
       model: 'google/gemini-2.5-flash-lite',
-      fellbackTo: 'ollama',
+      fellbackFrom: 'ollama-local',
       costCents: 0.006,
       latencyMs: 9999,
       imgHash: 'sha256:ghi'
@@ -61,7 +61,7 @@ describe('OcrAudit', () => {
     expect(lines).toHaveLength(2);
     const row0 = JSON.parse(lines[0]);
     const row1 = JSON.parse(lines[1]);
-    expect(row0).toMatchObject({ ok: true, mode: 'pump', provider: 'ollama' });
+    expect(row0).toMatchObject({ ok: true, mode: 'pump', provider: 'ollama-local' });
     expect(row1).toMatchObject({ ok: false, mode: 'odometer', error: { code: 'TIMEOUT' } });
     expect(typeof row0.ts).toBe('string');
   });

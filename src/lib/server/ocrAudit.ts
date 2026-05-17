@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import type { OcrMode, OcrResult } from '$lib/shared/types';
+import type { OcrSlotName } from './env';
 
 export interface AuditCropRect {
   x: number;
@@ -24,9 +25,9 @@ export interface AuditRecord {
   imgHash: string;
   imgBytes: number;
   imageType: 'jpeg' | 'png' | 'webp' | 'heic';
-  provider: 'ollama' | 'openrouter';
+  provider: OcrSlotName;
   model: string;
-  fellbackTo: 'ollama' | 'openrouter' | null;
+  fellbackFrom: OcrSlotName | null;
   latencyMs: number;
   costCents: number;
   parsed: OcrResult | null;

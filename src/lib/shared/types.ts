@@ -48,4 +48,9 @@ export type OcrResult = OcrPumpResult | OcrOdometerResult;
 export interface OcrStatus {
   enabled: boolean;
   modes?: OcrMode[];
+  // Sum of effective chain's per-slot timeouts, in milliseconds. Present
+  // only when enabled=true. Client uses (chainTimeoutMs + 10_000) as its
+  // request-side AbortSignal.timeout — falls back to a static 90 s when
+  // the field is absent (older server, or probe in degraded mode).
+  chainTimeoutMs?: number;
 }

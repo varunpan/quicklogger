@@ -69,6 +69,25 @@ describe('GET /api/ocr', () => {
     expect(body.modes.sort()).toEqual(['odometer', 'pump']);
   });
 
+  it('returns chainTimeoutMs alongside enabled=true (1-slot chain)', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://o' });
+    const res = await GET({} as Parameters<typeof GET>[0]);
+    const body = await res.json();
+    expect(body.enabled).toBe(true);
+    expect(body.chainTimeoutMs).toBe(60_000);
+  });
+
+  it('returns chainTimeoutMs as the sum across configured slots', async () => {
+    setEnv({
+      OLLAMA_VISION_URL: 'http://o',
+      OPENROUTER_API_KEY: 'sk',
+      OLLAMA_CLOUD_API_KEY: 'sk-c'
+    });
+    const res = await GET({} as Parameters<typeof GET>[0]);
+    const body = await res.json();
+    expect(body.chainTimeoutMs).toBe(60_000 + 30_000 + 30_000);
+  });
+
 });
 
 describe('POST /api/ocr', () => {

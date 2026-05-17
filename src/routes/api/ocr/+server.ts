@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { loadEnv, type Env } from '$lib/server/env';
-import { selectProvider, runOcrPipeline } from '$lib/server/ocr';
+import { loadEnv, type Env, type OcrSlotName } from '$lib/server/env';
+import { selectProvider, runOcrPipeline, modelForSlot } from '$lib/server/ocr';
+import { ChainOcrProvider } from '$lib/server/ocrProviders';
 import { OcrRateLimiter } from '$lib/server/ocrRateLimit';
 import { OcrBudget, JsonFileBudgetStore } from '$lib/server/ocrBudget';
 import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey } from '$lib/server/ocrAudit';
@@ -38,9 +39,9 @@ const ACCEPTED_WIRE_MODES = new Set<string>(['pump', 'odometer']);
 
 export const GET: RequestHandler = async () => {
   const env = loadEnv();
-  const enabled = !!env.ollamaVisionUrl || !!env.openrouterApiKey;
-  const body: OcrStatus = enabled
-    ? { enabled: true, modes: ADVERTISED_MODES }
+  const { provider, chainTimeoutMs } = selectProvider(env);
+  const body: OcrStatus = provider
+    ? { enabled: true, modes: ADVERTISED_MODES, chainTimeoutMs }
     : { enabled: false };
   return json(body);
 };
@@ -48,7 +49,7 @@ export const GET: RequestHandler = async () => {
 export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   const env = loadEnv();
   bootstrap(env);
-  const provider = selectProvider(env);
+  const { provider } = selectProvider(env);
   if (!provider) return json({ error: 'OCR not configured' }, { status: 503 });
 
   const ip = getClientAddress();
@@ -132,7 +133,6 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 
   const ipHash = hashIp(ip, hmacKey!);
   const imgHash = hashImage(arr);
-  const modelName = provider.name === 'ollama' ? env.ollamaVisionModel : env.openrouterVisionModel;
 
   if (outcome.ok) {
     await budget!.add(outcome.costCents);
@@ -146,14 +146,20 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       ipHash, imgHash, imgBytes: arr.byteLength,
       imageType: outcome.imageType,
       provider: outcome.provider,
-      model: outcome.provider === 'ollama' ? env.ollamaVisionModel : env.openrouterVisionModel,
-      fellbackTo: outcome.fellbackTo,
+      model: modelForSlot(outcome.provider, env),
+      fellbackFrom: outcome.fellbackFrom,
       latencyMs: outcome.latencyMs, costCents: outcome.costCents,
       parsed: outcome.result, ok: true
     });
     return json(outcome.result);
   }
 
+  // Failure path — record the audit row but `provider` reflects the
+  // chain's entry slot (not the active provider, since none succeeded).
+  // For a bare provider, that's just `provider.name`. For a chain, that's
+  // the first slot in the chain — which is `chain.chain[0].name`.
+  const failSlot: OcrSlotName =
+    provider instanceof ChainOcrProvider ? provider.chain[0].name : provider.name;
   await audit!.append({
     mode,
     rotationApplied,
@@ -163,9 +169,9 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
     ...(lastPricePerUnit !== undefined ? { lastPricePerUnit } : {}),
     ipHash, imgHash, imgBytes: arr.byteLength,
     imageType: outcome.imageType ?? 'jpeg',
-    provider: provider.name === 'openrouter' ? 'openrouter' : 'ollama',
-    model: modelName,
-    fellbackTo: null,
+    provider: failSlot,
+    model: modelForSlot(failSlot, env),
+    fellbackFrom: null,
     latencyMs: outcome.latencyMs, costCents: 0,
     parsed: null, ok: false,
     error: { code: String(outcome.statusCode), message: outcome.error }

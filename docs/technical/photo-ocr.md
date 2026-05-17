@@ -272,9 +272,9 @@ declarative contract.
   imgHash: 'sha256:<64-hex>',                 // SHA-256 of post-resize bytes
   imgBytes: number,                           // post-resize size
   imageType: 'jpeg' | 'png' | 'webp' | 'heic',
-  provider: 'ollama' | 'openrouter',
-  model: string,                              // resolved tag
-  fellbackTo: 'ollama' | 'openrouter' | null,
+  provider: 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible',
+  model: string,                              // resolved tag (modelForSlot)
+  fellbackFrom: 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible' | null,
   latencyMs: number,                          // receipt → response sent
   costCents: number,                          // 0 for ollama
   ok: boolean,
@@ -325,6 +325,12 @@ old-era rows over time; no backfill.
 |---|---|---|
 | No providers configured | `GET /api/ocr` → `{ enabled: false }`; UI hides chips | Feature opt-in; nothing rendered when nothing configured |
 | Ollama transient outage with both configured | Chain falls through to next configured slot; `lastFellbackFrom='ollama-local'` audited | Bounded chain — each slot tried at most once per request |
+| Ollama Cloud quota exceeded (HTTP 429) | Slot throws `OcrProviderError('HTTP', ...)`; chain falls through to next slot; no proactive cooldown — next OCR call retries cloud | Cloud's quota window resets naturally; remembering a 429 would mean lying to the user about service state. Fall-through is the circuit breaker. |
+| Cloud-only Pro-tier model selected on free tier | Slot returns HTTP 403; chain falls through | Same shape as quota-exceeded; choose a free-tier model (see photo-ocr.md model table). |
+| Slot explicitly named in `OCR_PROVIDER_CHAIN` but its env vars are missing | Server logs `WARN OCR chain slot '<name>' skipped: <ENV_VAR> not set`, drops the slot, boots normally | Best-effort startup; explicit names are first-class. |
+| Slot missing from default chain because its env vars aren't set | Silent-skip (no log) | Default chain is best-effort, not a declarative contract. |
+| Cloud model response wraps JSON in ```json fences | `OllamaOcrProvider` calls `parseLenientJson` — anchors on first `{` to last `}`, parses cleanly | Local Ollama returns naked JSON; cloud wraps it. Single helper covers both. |
+| Old audit log row read after v0.2.2 deploy (has `fellbackTo`, lacks `fellbackFrom`) | `jq '.fellbackFrom // .fellbackTo // null'` covers both eras | Forward-additive — old lines stay valid JSON, queries handle both. |
 | Pump cross-field drift > 5% | 422 + range-style toast; chip never shown | Adversarial-image / OCR-confusion guard |
 | Odometer detected < last fillup | Amber advisory chip, `[Use anyway]` writes field | Odometers don't run backwards, but legitimate cases exist (replaced cluster, odometer rollover at high mileage); user owns the call |
 | Odometer jumped > 2000 mi | Amber advisory chip, `[Use anyway]` writes field | Hardcoded `ODOMETER_MAX_DELTA_MI`; long road trips are real; user owns the call. Promotable to Settings if real travel routinely hits this |
