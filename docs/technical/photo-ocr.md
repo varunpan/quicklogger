@@ -304,7 +304,7 @@ old-era rows over time; no backfill.
 | Scenario | Behaviour | Why |
 |---|---|---|
 | No providers configured | `GET /api/ocr` → `{ enabled: false }`; UI hides chips | Feature opt-in; nothing rendered when nothing configured |
-| Ollama transient outage with both configured | Chain falls through to OpenRouter; `lastFellbackTo='ollama'` audited | Bounded single-fallback — not a retry loop |
+| Ollama transient outage with both configured | Chain falls through to next configured slot; `lastFellbackFrom='ollama-local'` audited | Bounded chain — each slot tried at most once per request |
 | Pump cross-field drift > 5% | 422 + range-style toast; chip never shown | Adversarial-image / OCR-confusion guard |
 | Odometer detected < last fillup | Amber advisory chip, `[Use anyway]` writes field | Odometers don't run backwards, but legitimate cases exist (replaced cluster, odometer rollover at high mileage); user owns the call |
 | Odometer jumped > 2000 mi | Amber advisory chip, `[Use anyway]` writes field | Hardcoded `ODOMETER_MAX_DELTA_MI`; long road trips are real; user owns the call. Promotable to Settings if real travel routinely hits this |

@@ -317,9 +317,9 @@ describe('OpenRouterOcrProvider — slot variants', () => {
 });
 
 describe('ChainOcrProvider', () => {
-	it('returns the first provider result on success; activeProvider = first; lastFellbackTo = null', async () => {
+	it('returns the first provider result on success; activeProvider = first; lastFellbackFrom = null', async () => {
 		const a: OcrProvider = {
-			name: 'ollama',
+			name: 'ollama-local',
 			estimateCostCents: () => 0,
 			extract: vi.fn(async () => ({ v: 1 }))
 		};
@@ -332,13 +332,13 @@ describe('ChainOcrProvider', () => {
 		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
 		expect(result).toEqual({ v: 1 });
 		expect(b.extract).not.toHaveBeenCalled();
-		expect(chain.activeProvider?.name).toBe('ollama');
-		expect(chain.lastFellbackTo).toBeNull();
+		expect(chain.activeProvider?.name).toBe('ollama-local');
+		expect(chain.lastFellbackFrom).toBeNull();
 	});
 
-	it('falls through to the second provider on first failure; records lastFellbackTo', async () => {
+	it('falls through to the second provider on first failure; records lastFellbackFrom = chain[0].name', async () => {
 		const a: OcrProvider = {
-			name: 'ollama',
+			name: 'ollama-local',
 			estimateCostCents: () => 0,
 			extract: vi.fn(async () => {
 				throw new OcrProviderError('NETWORK', 'down');
@@ -353,12 +353,12 @@ describe('ChainOcrProvider', () => {
 		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
 		expect(result).toEqual({ v: 42 });
 		expect(chain.activeProvider?.name).toBe('openrouter');
-		expect(chain.lastFellbackTo).toBe('ollama');
+		expect(chain.lastFellbackFrom).toBe('ollama-local');
 	});
 
 	it('throws the last error when all providers fail', async () => {
 		const a: OcrProvider = {
-			name: 'ollama',
+			name: 'ollama-local',
 			estimateCostCents: () => 0,
 			extract: vi.fn(async () => {
 				throw new OcrProviderError('TIMEOUT', 'a-down');
@@ -378,9 +378,9 @@ describe('ChainOcrProvider', () => {
 		});
 	});
 
-	it('exposes the underlying chain via `chain` accessor for selectProvider tests', () => {
+	it('exposes the underlying chain via `chain` accessor', () => {
 		const a: OcrProvider = {
-			name: 'ollama',
+			name: 'ollama-local',
 			estimateCostCents: () => 0,
 			extract: async () => ({})
 		};
@@ -391,8 +391,55 @@ describe('ChainOcrProvider', () => {
 		};
 		const chain = new ChainOcrProvider([a, b]);
 		expect(chain.chain.length).toBe(2);
-		expect(chain.chain[0].name).toBe('ollama');
+		expect(chain.chain[0].name).toBe('ollama-local');
 		expect(chain.chain[1].name).toBe('openrouter');
+	});
+
+	it('records lastFellbackFrom = chain[0].name in a 4-link chain when slot 2 succeeds', async () => {
+		const a: OcrProvider = {
+			name: 'ollama-cloud',
+			estimateCostCents: () => 0,
+			extract: vi.fn(async () => { throw new OcrProviderError('HTTP', 'cloud-down'); })
+		};
+		const b: OcrProvider = {
+			name: 'ollama-local',
+			estimateCostCents: () => 0,
+			extract: vi.fn(async () => { throw new OcrProviderError('NETWORK', 'local-down'); })
+		};
+		const c: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => ({ v: 7 }))
+		};
+		const d: OcrProvider = {
+			name: 'openai-compatible',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => ({ v: 99 }))
+		};
+		const chain = new ChainOcrProvider([a, b, c, d]);
+		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(result).toEqual({ v: 7 });
+		expect(chain.activeProvider?.name).toBe('openrouter');
+		// 2-link semantics preserved: name of chain[0], not the full breadcrumb.
+		expect(chain.lastFellbackFrom).toBe('ollama-cloud');
+		expect(d.extract).not.toHaveBeenCalled();
+	});
+
+	it('chain.name reflects the active provider when one exists, else chain[0].name', async () => {
+		const a: OcrProvider = {
+			name: 'ollama-local',
+			estimateCostCents: () => 0,
+			extract: vi.fn(async () => { throw new OcrProviderError('NETWORK', 'down'); })
+		};
+		const b: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => ({ v: 1 }))
+		};
+		const chain = new ChainOcrProvider([a, b]);
+		expect(chain.name).toBe('ollama-local');
+		await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(chain.name).toBe('openrouter');
 	});
 });
 

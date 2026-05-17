@@ -207,13 +207,14 @@ export class OpenRouterOcrProvider implements OcrProvider {
 	}
 }
 
-// Chain wrapper: at most one fallback. Records which provider served
-// the request; exposed for audit. Not a retry loop — every provider is
-// tried at most once.
+// Chain wrapper: tries providers in order, returns first success.
+// Bounded — every provider is tried at most once. Records the entry
+// slot in `lastFellbackFrom` when fall-through occurred (preserves
+// the 2-link audit semantics of the v0.2.x feature for chains of any
+// length — full breadcrumb is YAGNI for personal use).
 export class ChainOcrProvider implements OcrProvider {
-	readonly name = 'ollama' as const; // unused; chain identifies via activeProvider
 	private _activeProvider: OcrProvider | null = null;
-	private _lastFellbackTo: 'ollama' | 'openrouter' | null = null;
+	private _lastFellbackFrom: OcrSlotName | null = null;
 
 	constructor(private readonly _chain: OcrProvider[]) {
 		if (_chain.length === 0) throw new Error('ChainOcrProvider requires at least one provider');
@@ -225,8 +226,15 @@ export class ChainOcrProvider implements OcrProvider {
 	get activeProvider(): OcrProvider | null {
 		return this._activeProvider;
 	}
-	get lastFellbackTo(): 'ollama' | 'openrouter' | null {
-		return this._lastFellbackTo;
+	get lastFellbackFrom(): OcrSlotName | null {
+		return this._lastFellbackFrom;
+	}
+
+	// Reflects the active provider's slot when one has served a call;
+	// otherwise the first chain link's slot (default identity, used by
+	// audit fallback-path code before any extract has run).
+	get name(): OcrSlotName {
+		return this._activeProvider?.name ?? this._chain[0].name;
 	}
 
 	estimateCostCents(): number {
@@ -235,13 +243,13 @@ export class ChainOcrProvider implements OcrProvider {
 
 	async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
 		let lastErr: Error | undefined;
-		this._lastFellbackTo = null;
+		this._lastFellbackFrom = null;
 		for (let i = 0; i < this._chain.length; i++) {
 			const p = this._chain[i];
 			try {
 				const result = await p.extract(bytes, prompt, schema);
 				this._activeProvider = p;
-				if (i > 0) this._lastFellbackTo = this._chain[0].name;
+				if (i > 0) this._lastFellbackFrom = this._chain[0].name;
 				return result;
 			} catch (err) {
 				lastErr = err as Error;
