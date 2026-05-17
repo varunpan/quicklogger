@@ -210,7 +210,8 @@ describe('OpenRouterOcrProvider', () => {
 		const p = new OpenRouterOcrProvider({
 			apiKey: 'sk-or-test',
 			model: 'google/gemini-2.5-flash-lite',
-			timeoutMs: 5_000
+			timeoutMs: 5_000,
+			slotName: 'openrouter'
 		});
 		const result = await p.extract(Buffer.from([0xff, 0xd8, 0xff]), PROMPT, SCHEMA);
 		expect(result).toEqual({ v: 42 });
@@ -231,16 +232,87 @@ describe('OpenRouterOcrProvider', () => {
 
 	it('throws OcrProviderError on non-2xx', async () => {
 		server.use(http.post(OR_URL, () => new HttpResponse('rate limited', { status: 429 })));
-		const p = new OpenRouterOcrProvider({ apiKey: 'k', model: 'm', timeoutMs: 5_000 });
+		const p = new OpenRouterOcrProvider({
+			apiKey: 'k',
+			model: 'm',
+			timeoutMs: 5_000,
+			slotName: 'openrouter'
+		});
 		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
 			OcrProviderError
 		);
 	});
 
 	it('reports a non-zero, sub-cent cost estimate', () => {
-		const p = new OpenRouterOcrProvider({ apiKey: 'k', model: 'm', timeoutMs: 5_000 });
+		const p = new OpenRouterOcrProvider({
+			apiKey: 'k',
+			model: 'm',
+			timeoutMs: 5_000,
+			slotName: 'openrouter'
+		});
 		expect(p.estimateCostCents()).toBeGreaterThan(0);
 		expect(p.estimateCostCents()).toBeLessThan(1);
+	});
+});
+
+describe('OpenRouterOcrProvider — slot variants', () => {
+	const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+	it('POSTs to opts.url when url is provided (openai-compatible slot)', async () => {
+		let hit = false;
+		server.use(
+			http.post(GROQ_URL, () => {
+				hit = true;
+				return HttpResponse.json({ choices: [{ message: { content: '{"v":1}' } }] });
+			})
+		);
+		const p = new OpenRouterOcrProvider({
+			url: GROQ_URL,
+			apiKey: 'gsk-test',
+			model: 'llama-3.2-90b-vision-preview',
+			timeoutMs: 5_000,
+			slotName: 'openai-compatible'
+		});
+		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(hit).toBe(true);
+	});
+
+	it('POSTs to default OpenRouter URL when url is unset (openrouter slot)', async () => {
+		let hit = false;
+		server.use(
+			http.post('https://openrouter.ai/api/v1/chat/completions', () => {
+				hit = true;
+				return HttpResponse.json({ choices: [{ message: { content: '{"v":1}' } }] });
+			})
+		);
+		const p = new OpenRouterOcrProvider({
+			apiKey: 'sk-or-test',
+			model: 'google/gemini-2.5-flash-lite',
+			timeoutMs: 5_000,
+			slotName: 'openrouter'
+		});
+		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(hit).toBe(true);
+	});
+
+	it('flows slotName through to provider.name', () => {
+		const or = new OpenRouterOcrProvider({
+			apiKey: 'k', model: 'm', timeoutMs: 1, slotName: 'openrouter'
+		});
+		const oai = new OpenRouterOcrProvider({
+			url: GROQ_URL, apiKey: 'k', model: 'm', timeoutMs: 1, slotName: 'openai-compatible'
+		});
+		expect(or.name).toBe('openrouter');
+		expect(oai.name).toBe('openai-compatible');
+	});
+
+	it('error messages name the slot, not "openrouter" literally', async () => {
+		server.use(http.post(GROQ_URL, () => new HttpResponse('rate limited', { status: 429 })));
+		const p = new OpenRouterOcrProvider({
+			url: GROQ_URL, apiKey: 'k', model: 'm', timeoutMs: 5_000, slotName: 'openai-compatible'
+		});
+		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA))
+			.rejects.toThrow(/openai-compatible/);
 	});
 });
 

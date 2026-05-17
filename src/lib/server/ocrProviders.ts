@@ -104,29 +104,36 @@ export class OllamaOcrProvider implements OcrProvider {
 }
 
 interface OpenRouterOptions {
+	url?: string;
 	apiKey: string;
 	model: string;
 	timeoutMs: number;
+	slotName: 'openrouter' | 'openai-compatible';
 	fetchImpl?: typeof fetch;
 }
 
+const DEFAULT_OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
 // Per-call cost estimate (cents). Gemini Flash Lite is ≈ $0.00006/call;
 // we round up to 0.006 cents — conservative for the daily budget gate.
+// Both `openrouter` and `openai-compatible` slots report the same value;
+// per-slot override is YAGNI for personal use. Tighten OCR_DAILY_BUDGET_USD
+// if you route openai-compatible at an expensive endpoint (e.g. OpenAI direct).
 const OPENROUTER_COST_CENTS = 0.006;
 
 // Anti-runaway output cap. Valid responses top out at ~30 tokens (pump)
 // or ~10 tokens (odometer), so 256 gives ~8× headroom on the largest
 // legitimate output and bounds worst-case per-call cost at ~0.01¢ on
-// Gemini Flash Lite ($0.40/M output tokens). Sized to make truncating
-// a real response effectively impossible while still hard-capping cost
-// against a model that misbehaves or that the structured-output path
-// fails to constrain.
+// Gemini Flash Lite ($0.40/M output tokens).
 const OPENROUTER_MAX_TOKENS = 256;
 
 export class OpenRouterOcrProvider implements OcrProvider {
-	readonly name = 'openrouter' as const;
+	readonly name: 'openrouter' | 'openai-compatible';
+	private readonly url: string;
 	private readonly fetchImpl: typeof fetch;
 	constructor(private readonly opts: OpenRouterOptions) {
+		this.name = opts.slotName;
+		this.url = opts.url ?? DEFAULT_OPENROUTER_URL;
 		this.fetchImpl = opts.fetchImpl ?? fetch;
 	}
 
@@ -160,7 +167,7 @@ export class OpenRouterOcrProvider implements OcrProvider {
 
 		let res: Response;
 		try {
-			res = await this.fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
+			res = await this.fetchImpl(this.url, {
 				method: 'POST',
 				headers: {
 					authorization: `Bearer ${this.opts.apiKey}`,
@@ -172,12 +179,12 @@ export class OpenRouterOcrProvider implements OcrProvider {
 		} catch (err) {
 			throw new OcrProviderError(
 				'NETWORK',
-				`openrouter request failed: ${(err as Error).message}`
+				`${this.name} request failed: ${(err as Error).message}`
 			);
 		}
 		if (!res.ok) {
 			const txt = await res.text().catch(() => '');
-			throw new OcrProviderError('HTTP', `openrouter ${res.status}: ${txt.slice(0, 200)}`);
+			throw new OcrProviderError('HTTP', `${this.name} ${res.status}: ${txt.slice(0, 200)}`);
 		}
 		const wire = (await res.json().catch(() => null)) as {
 			choices?: { message?: { content?: string } }[];
@@ -186,7 +193,7 @@ export class OpenRouterOcrProvider implements OcrProvider {
 		if (typeof content !== 'string') {
 			throw new OcrProviderError(
 				'NO_CONTENT',
-				'openrouter response missing choices[0].message.content'
+				`${this.name} response missing choices[0].message.content`
 			);
 		}
 		try {
@@ -194,7 +201,7 @@ export class OpenRouterOcrProvider implements OcrProvider {
 		} catch {
 			throw new OcrProviderError(
 				'PARSE',
-				`openrouter content is not JSON: ${content.slice(0, 100)}`
+				`${this.name} content is not JSON: ${content.slice(0, 100)}`
 			);
 		}
 	}
