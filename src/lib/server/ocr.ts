@@ -191,11 +191,21 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 	if (!imageType) {
 		return { ok: false, statusCode: 415, error: 'unsupported image type', imageType: null, latencyMs: Date.now() - t0 };
 	}
+	// Cast to the base ModeContract so the dispatcher can pass the union result
+	// type back into validateRanges / validateCrossField. MODES preserves per-mode
+	// specificity at the call site (MODES.pump → ModeContract<OcrPumpResult>), but
+	// when keyed by a runtime OcrMode here, TypeScript widens to the union of
+	// contracts, whose validate* methods have incompatible parameter types.
 	const contract: ModeContract = MODES[input.mode];
 	if (!contract) {
 		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
 	}
 
+	// Build the prompt context. Defensive on both hint fields — only forward
+	// when finite positive; otherwise drop so the prompt builder never emits
+	// a "previous reading was NaN" hint. The result is undefined (no
+	// context) when neither hint passes the gate, so old callers that pass
+	// nothing observe identical behaviour to v0.2.0+.
 	const ctx: { lastOdometerMi?: number; lastPricePerUnit?: number } = {};
 	if (
 		typeof input.lastOdometerMi === 'number' &&
