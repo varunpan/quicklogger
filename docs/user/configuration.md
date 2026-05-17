@@ -42,14 +42,25 @@ All env vars in one table, ordered by area. Photo OCR is feature-gated
 | `OCR_PUMP_COST_MAX` | number | no | `500` | Range bound on detected pump cost (raw pump-display number). |
 | `OCR_PUMP_PRICE_PER_UNIT_MAX` | number | no | `20` | Range bound on detected price per unit. |
 | `OCR_ODOMETER_MAX_MI` | int | no | `1000000` | Absolute upper bound on odometer reading, miles. |
+| `OLLAMA_CLOUD_API_KEY` | string | no | — | If set, enables the `ollama-cloud` provider slot (Ollama Cloud free-tier). Activates Photo OCR. |
+| `OLLAMA_CLOUD_URL` | URL | no | `https://ollama.com` | Base URL of the Ollama Cloud API (override only for compatible proxies). |
+| `OLLAMA_CLOUD_MODEL` | string | no | `gemma4:31b` | Cloud model tag. See [`photo-ocr.md`](photo-ocr.md#ollama-cloud-model-selection) for tested alternatives. |
+| `OLLAMA_CLOUD_TIMEOUT_MS` | int (ms) | no | `30000` | Per-call timeout for the `ollama-cloud` slot. |
+| `OPENAI_COMPATIBLE_URL` | URL | no | — | Chat-completions endpoint URL (e.g. Groq, Cerebras, OpenAI direct). Required to enable the `openai-compatible` slot. |
+| `OPENAI_COMPATIBLE_API_KEY` | string | no | — | Bearer token for the OpenAI-compatible endpoint. Required to enable the slot. |
+| `OPENAI_COMPATIBLE_MODEL` | string | no | — | Model id at the OpenAI-compatible endpoint. Required to enable the slot. |
+| `OPENAI_COMPATIBLE_TIMEOUT_MS` | int (ms) | no | `30000` | Per-call timeout for the `openai-compatible` slot. |
+| `OCR_PROVIDER_CHAIN` | CSV | no | (configured slots in default order) | Override the fallback order. CSV of `ollama-local`, `ollama-cloud`, `openrouter`, `openai-compatible`. Unknown / duplicate names fail boot. |
 
 The startup loader fails fast (`EnvError`) if a required var is missing
 or if `FX_PROVIDERS` contains an unknown provider name.
 
 **Photo OCR activation.** The Photo OCR feature (v0.2.0+) is hidden
-unless at least one of `OLLAMA_VISION_URL` or `OPENROUTER_API_KEY` is
-set. With neither, the camera affordances stay hidden and the rest of
-the `OCR_*` and `OLLAMA_*` / `OPENROUTER_*` vars are inert defaults.
+unless at least one of `OLLAMA_VISION_URL`, `OPENROUTER_API_KEY`,
+`OLLAMA_CLOUD_API_KEY`, or `OPENAI_COMPATIBLE_API_KEY`+URL+MODEL is
+set. With none configured, the camera affordances stay hidden and
+the rest of the `OCR_*` / `OLLAMA_*` / `OPENROUTER_*` /
+`OPENAI_COMPATIBLE_*` vars are inert defaults.
 
 ## Variable details
 
@@ -266,6 +277,76 @@ Absolute upper bound on a detected odometer reading, in miles.
 Server-side hard reject (separate from the client-side advisory range
 check against the last fillup). Default `1000000` is a safety stop,
 not a typical-usage check.
+
+#### `OLLAMA_CLOUD_API_KEY`
+
+Ollama Cloud API key. Setting this enables the `ollama-cloud` chain
+slot. Sign up at [ollama.com](https://ollama.com) — the free tier
+includes a weekly GPU-time budget that covers daily fillups
+comfortably. Default chain order tacks `ollama-cloud` on after
+`openrouter` when unset; override with `OCR_PROVIDER_CHAIN` to make it
+the primary.
+
+#### `OLLAMA_CLOUD_URL`
+
+Base URL of the Ollama Cloud API. Default `https://ollama.com`.
+Override only if pointing at a compatible proxy.
+
+#### `OLLAMA_CLOUD_MODEL`
+
+Cloud model tag for OCR. Default `gemma4:31b` based on real
+pump-display probes (~1 s perfect read on free tier). See
+[`photo-ocr.md`](photo-ocr.md#ollama-cloud-model-selection) for the
+full comparison table.
+
+#### `OLLAMA_CLOUD_TIMEOUT_MS`
+
+Per-call timeout for the `ollama-cloud` slot, in milliseconds. Cloud
+inference is reliably under 5 s on default models; the 30 s default
+covers tail latency.
+
+#### `OPENAI_COMPATIBLE_URL`
+
+Chat-completions endpoint URL for the `openai-compatible` slot. All
+three of `OPENAI_COMPATIBLE_URL`, `OPENAI_COMPATIBLE_API_KEY`,
+`OPENAI_COMPATIBLE_MODEL` must be set to enable the slot. Examples:
+
+        OPENAI_COMPATIBLE_URL=https://api.groq.com/openai/v1/chat/completions
+        OPENAI_COMPATIBLE_URL=https://api.openai.com/v1/chat/completions
+
+#### `OPENAI_COMPATIBLE_API_KEY`
+
+Bearer token for the `openai-compatible` endpoint. Sent as
+`Authorization: Bearer …` on each call.
+
+#### `OPENAI_COMPATIBLE_MODEL`
+
+Vision-capable model id at the `openai-compatible` endpoint (e.g.
+`llama-3.2-90b-vision-preview` on Groq, `gpt-4o` on OpenAI direct).
+
+#### `OPENAI_COMPATIBLE_TIMEOUT_MS`
+
+Per-call timeout for the `openai-compatible` slot, in milliseconds.
+Default `30000`.
+
+#### `OCR_PROVIDER_CHAIN`
+
+Comma-separated list of provider slot identifiers, controlling the
+fallback order. Valid identifiers: `ollama-local`, `ollama-cloud`,
+`openrouter`, `openai-compatible`. Unknown or duplicate identifiers
+fail boot with `EnvError`. When unset, the chain is auto-derived from
+the configured slots in default order
+`[ollama-local, openrouter, ollama-cloud, openai-compatible]`
+(back-compat preserving — adding `OLLAMA_CLOUD_API_KEY` to an
+existing deploy tacks cloud on at the END unless you set
+`OCR_PROVIDER_CHAIN` explicitly).
+
+Slots explicitly named in `OCR_PROVIDER_CHAIN` whose required env
+vars are missing produce a startup WARN line and are dropped from
+the effective chain. Default-chain missing-config slots are
+silent-skipped. Example "fastest cloud first, local fallback":
+
+        OCR_PROVIDER_CHAIN=ollama-cloud,ollama-local,openrouter
 
 #### OCR persistence paths
 

@@ -10,7 +10,8 @@ beforeEach(() => {
       k.startsWith('FX_') ||
       k.startsWith('OLLAMA_') ||
       k.startsWith('OPENROUTER_') ||
-      k.startsWith('OCR_')
+      k.startsWith('OCR_') ||
+      k.startsWith('OPENAI_COMPATIBLE_')
     ) {
       delete process.env[k];
     }
@@ -64,7 +65,8 @@ describe('loadEnv — OCR fields', () => {
     process.env.LUBELOGGER_URL = 'http://lubelog:8080';
     process.env.LUBELOGGER_API_KEY = 'k';
     for (const k of Object.keys(process.env)) {
-      if (k.startsWith('OLLAMA_') || k.startsWith('OPENROUTER_') || k.startsWith('OCR_')) {
+      if (k.startsWith('OLLAMA_') || k.startsWith('OPENROUTER_') ||
+          k.startsWith('OCR_') || k.startsWith('OPENAI_COMPATIBLE_')) {
         delete process.env[k];
       }
     }
@@ -141,5 +143,104 @@ describe('loadEnv — OCR fields', () => {
     process.env.OCR_DAILY_BUDGET_USD = 'abc';
     expect(() => loadEnv()).toThrow(EnvError);
     expect(() => loadEnv()).toThrow(/OCR_DAILY_BUDGET_USD/);
+  });
+});
+
+describe('loadEnv — OCR_PROVIDER_CHAIN parsing', () => {
+  beforeEach(() => {
+    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
+    process.env.LUBELOGGER_API_KEY = 'k';
+    delete process.env.OCR_PROVIDER_CHAIN;
+  });
+
+  it('ocrProviderChain is undefined when OCR_PROVIDER_CHAIN is unset', () => {
+    const env = loadEnv();
+    expect(env.ocrProviderChain).toBeUndefined();
+  });
+
+  it('ocrProviderChain is undefined when OCR_PROVIDER_CHAIN is empty / whitespace', () => {
+    process.env.OCR_PROVIDER_CHAIN = '   ';
+    const env = loadEnv();
+    expect(env.ocrProviderChain).toBeUndefined();
+  });
+
+  it('parses a clean CSV of known slot identifiers', () => {
+    process.env.OCR_PROVIDER_CHAIN = 'ollama-cloud,ollama-local,openrouter,openai-compatible';
+    const env = loadEnv();
+    expect(env.ocrProviderChain).toEqual([
+      'ollama-cloud', 'ollama-local', 'openrouter', 'openai-compatible'
+    ]);
+  });
+
+  it('tolerates whitespace and empty entries inside the CSV', () => {
+    process.env.OCR_PROVIDER_CHAIN = ' ollama-cloud , , openrouter ';
+    const env = loadEnv();
+    expect(env.ocrProviderChain).toEqual(['ollama-cloud', 'openrouter']);
+  });
+
+  it('throws EnvError on an unknown slot identifier', () => {
+    process.env.OCR_PROVIDER_CHAIN = 'ollama-cloud,bogus';
+    expect(() => loadEnv()).toThrow(EnvError);
+    expect(() => loadEnv()).toThrow(/OCR_PROVIDER_CHAIN/);
+    expect(() => loadEnv()).toThrow(/bogus/);
+  });
+
+  it('throws EnvError on a duplicate slot identifier', () => {
+    process.env.OCR_PROVIDER_CHAIN = 'ollama-local,openrouter,ollama-local';
+    expect(() => loadEnv()).toThrow(EnvError);
+    expect(() => loadEnv()).toThrow(/Duplicate/);
+  });
+});
+
+describe('loadEnv — new OCR slot defaults', () => {
+  beforeEach(() => {
+    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
+    process.env.LUBELOGGER_API_KEY = 'k';
+    for (const k of Object.keys(process.env)) {
+      if (k.startsWith('OLLAMA_') || k.startsWith('OPENROUTER_') ||
+          k.startsWith('OCR_') || k.startsWith('OPENAI_COMPATIBLE_')) {
+        delete process.env[k];
+      }
+    }
+  });
+
+  it('OLLAMA_CLOUD_URL defaults to https://ollama.com', () => {
+    const env = loadEnv();
+    expect(env.ollamaCloudUrl).toBe('https://ollama.com');
+  });
+
+  it('OLLAMA_CLOUD_MODEL defaults to gemma4:31b', () => {
+    const env = loadEnv();
+    expect(env.ollamaCloudModel).toBe('gemma4:31b');
+  });
+
+  it('OLLAMA_CLOUD_TIMEOUT_MS defaults to 30000', () => {
+    const env = loadEnv();
+    expect(env.ollamaCloudTimeoutMs).toBe(30_000);
+  });
+
+  it('OPENAI_COMPATIBLE_TIMEOUT_MS defaults to 30000', () => {
+    const env = loadEnv();
+    expect(env.openaiCompatibleTimeoutMs).toBe(30_000);
+  });
+
+  it('reads OLLAMA_CLOUD_* and OPENAI_COMPATIBLE_* when set', () => {
+    process.env.OLLAMA_CLOUD_API_KEY = 'sk-cloud';
+    process.env.OLLAMA_CLOUD_URL = 'https://ollama.example';
+    process.env.OLLAMA_CLOUD_MODEL = 'qwen3-vl:235b-instruct';
+    process.env.OLLAMA_CLOUD_TIMEOUT_MS = '15000';
+    process.env.OPENAI_COMPATIBLE_URL = 'https://api.groq.com/openai/v1/chat/completions';
+    process.env.OPENAI_COMPATIBLE_API_KEY = 'gsk-1';
+    process.env.OPENAI_COMPATIBLE_MODEL = 'llama-3.2-90b-vision-preview';
+    process.env.OPENAI_COMPATIBLE_TIMEOUT_MS = '20000';
+    const env = loadEnv();
+    expect(env.ollamaCloudApiKey).toBe('sk-cloud');
+    expect(env.ollamaCloudUrl).toBe('https://ollama.example');
+    expect(env.ollamaCloudModel).toBe('qwen3-vl:235b-instruct');
+    expect(env.ollamaCloudTimeoutMs).toBe(15_000);
+    expect(env.openaiCompatibleUrl).toBe('https://api.groq.com/openai/v1/chat/completions');
+    expect(env.openaiCompatibleApiKey).toBe('gsk-1');
+    expect(env.openaiCompatibleModel).toBe('llama-3.2-90b-vision-preview');
+    expect(env.openaiCompatibleTimeoutMs).toBe(20_000);
   });
 });

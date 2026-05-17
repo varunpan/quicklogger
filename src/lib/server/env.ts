@@ -1,7 +1,12 @@
 export type FxProviderName = 'frankfurter' | 'erapi' | 'fawazahmed';
+export type OcrSlotName = 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible';
 
 const KNOWN_FX_PROVIDERS: ReadonlySet<FxProviderName> = new Set([
   'frankfurter', 'erapi', 'fawazahmed'
+]);
+
+const KNOWN_OCR_SLOTS: ReadonlySet<OcrSlotName> = new Set([
+  'ollama-local', 'ollama-cloud', 'openrouter', 'openai-compatible'
 ]);
 
 export interface Env {
@@ -14,7 +19,7 @@ export interface Env {
   port: number;
   origin: string | undefined;
 
-  // --- OCR (optional; feature is enabled iff ollamaVisionUrl or openrouterApiKey is set) ---
+  // --- OCR (optional; feature is enabled iff any provider slot is configured) ---
   ollamaVisionUrl: string | undefined;
   ollamaVisionModel: string;
   ollamaVisionTimeoutMs: number;
@@ -22,6 +27,19 @@ export interface Env {
   openrouterApiKey: string | undefined;
   openrouterVisionModel: string;
   openrouterVisionTimeoutMs: number;
+
+  // --- New slots (v0.2.2+) ---
+  ollamaCloudApiKey: string | undefined;
+  ollamaCloudUrl: string;
+  ollamaCloudModel: string;
+  ollamaCloudTimeoutMs: number;
+
+  openaiCompatibleUrl: string | undefined;
+  openaiCompatibleApiKey: string | undefined;
+  openaiCompatibleModel: string | undefined;
+  openaiCompatibleTimeoutMs: number;
+
+  ocrProviderChain: OcrSlotName[] | undefined;
 
   ocrDailyBudgetUsd: number;
   ocrRateLimitPerHour: number;
@@ -58,6 +76,23 @@ function numberOr(name: string, fallback: number): number {
   return n;
 }
 
+function parseOcrProviderChain(): OcrSlotName[] | undefined {
+  const raw = process.env.OCR_PROVIDER_CHAIN;
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  for (const p of parts) {
+    if (!KNOWN_OCR_SLOTS.has(p as OcrSlotName)) {
+      throw new EnvError(`Unknown OCR slot in OCR_PROVIDER_CHAIN: ${p}`);
+    }
+    if (seen.has(p)) {
+      throw new EnvError(`Duplicate OCR slot in OCR_PROVIDER_CHAIN: ${p}`);
+    }
+    seen.add(p);
+  }
+  return parts as OcrSlotName[];
+}
+
 export function loadEnv(): Env {
   const fxRaw = (process.env.FX_PROVIDERS ?? 'frankfurter,erapi,fawazahmed')
     .split(',')
@@ -85,6 +120,18 @@ export function loadEnv(): Env {
     openrouterApiKey: process.env.OPENROUTER_API_KEY || undefined,
     openrouterVisionModel: process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.5-flash-lite',
     openrouterVisionTimeoutMs: numberOr('OPENROUTER_VISION_TIMEOUT_MS', 30_000),
+
+    ollamaCloudApiKey: process.env.OLLAMA_CLOUD_API_KEY || undefined,
+    ollamaCloudUrl: process.env.OLLAMA_CLOUD_URL || 'https://ollama.com',
+    ollamaCloudModel: process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b',
+    ollamaCloudTimeoutMs: numberOr('OLLAMA_CLOUD_TIMEOUT_MS', 30_000),
+
+    openaiCompatibleUrl: process.env.OPENAI_COMPATIBLE_URL || undefined,
+    openaiCompatibleApiKey: process.env.OPENAI_COMPATIBLE_API_KEY || undefined,
+    openaiCompatibleModel: process.env.OPENAI_COMPATIBLE_MODEL || undefined,
+    openaiCompatibleTimeoutMs: numberOr('OPENAI_COMPATIBLE_TIMEOUT_MS', 30_000),
+
+    ocrProviderChain: parseOcrProviderChain(),
 
     ocrDailyBudgetUsd: numberOr('OCR_DAILY_BUDGET_USD', 1.0),
     ocrRateLimitPerHour: numberOr('OCR_RATE_LIMIT_PER_HOUR', 20),
