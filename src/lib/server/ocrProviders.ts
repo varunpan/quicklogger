@@ -1,3 +1,5 @@
+import type { OcrSlotName } from './env';
+
 export class OcrProviderError extends Error {
 	constructor(
 		public readonly code: string,
@@ -29,7 +31,7 @@ export function parseLenientJson(raw: string): unknown {
 }
 
 export interface OcrProvider {
-	readonly name: 'ollama' | 'openrouter';
+	readonly name: OcrSlotName;
 	estimateCostCents(): number;
 	extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown>;
 }
@@ -39,13 +41,16 @@ interface OllamaOptions {
 	model: string;
 	timeoutMs: number;
 	keepAlive: string;
+	apiKey?: string;
+	slotName: 'ollama-local' | 'ollama-cloud';
 	fetchImpl?: typeof fetch;
 }
 
 export class OllamaOcrProvider implements OcrProvider {
-	readonly name = 'ollama' as const;
+	readonly name: 'ollama-local' | 'ollama-cloud';
 	private readonly fetchImpl: typeof fetch;
 	constructor(private readonly opts: OllamaOptions) {
+		this.name = opts.slotName;
 		this.fetchImpl = opts.fetchImpl ?? fetch;
 	}
 
@@ -69,31 +74,32 @@ export class OllamaOcrProvider implements OcrProvider {
 			format: schema
 		};
 
+		const headers: Record<string, string> = { 'content-type': 'application/json' };
+		if (this.opts.apiKey) {
+			headers.authorization = `Bearer ${this.opts.apiKey}`;
+		}
+
 		let res: Response;
 		try {
 			res = await this.fetchImpl(`${this.opts.url}/api/chat`, {
 				method: 'POST',
-				headers: { 'content-type': 'application/json' },
+				headers,
 				body: JSON.stringify(body),
 				signal: AbortSignal.timeout(this.opts.timeoutMs)
 			});
 		} catch (err) {
-			throw new OcrProviderError('NETWORK', `ollama request failed: ${(err as Error).message}`);
+			throw new OcrProviderError('NETWORK', `${this.name} request failed: ${(err as Error).message}`);
 		}
 		if (!res.ok) {
 			const txt = await res.text().catch(() => '');
-			throw new OcrProviderError('HTTP', `ollama ${res.status}: ${txt.slice(0, 200)}`);
+			throw new OcrProviderError('HTTP', `${this.name} ${res.status}: ${txt.slice(0, 200)}`);
 		}
 		const wire = (await res.json().catch(() => null)) as { message?: { content?: string } } | null;
 		const content = wire?.message?.content;
 		if (typeof content !== 'string') {
-			throw new OcrProviderError('NO_CONTENT', 'ollama response missing message.content');
+			throw new OcrProviderError('NO_CONTENT', `${this.name} response missing message.content`);
 		}
-		try {
-			return JSON.parse(content);
-		} catch {
-			throw new OcrProviderError('PARSE', `ollama content is not JSON: ${content.slice(0, 100)}`);
-		}
+		return parseLenientJson(content);
 	}
 }
 

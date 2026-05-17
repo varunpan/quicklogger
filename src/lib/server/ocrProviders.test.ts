@@ -34,7 +34,8 @@ describe('OllamaOcrProvider', () => {
 			url: URL,
 			model: 'qwen2.5vl:7b',
 			timeoutMs: 5_000,
-			keepAlive: '30m'
+			keepAlive: '30m',
+			slotName: 'ollama-local'
 		});
 		const buf = Buffer.from([0xff, 0xd8, 0xff]);
 		const result = await p.extract(buf, PROMPT, SCHEMA);
@@ -52,7 +53,13 @@ describe('OllamaOcrProvider', () => {
 
 	it('throws OcrProviderError on non-2xx', async () => {
 		server.use(http.post(`${URL}/api/chat`, () => new HttpResponse('boom', { status: 500 })));
-		const p = new OllamaOcrProvider({ url: URL, model: 'm', timeoutMs: 5_000, keepAlive: '30m' });
+		const p = new OllamaOcrProvider({
+			url: URL,
+			model: 'm',
+			timeoutMs: 5_000,
+			keepAlive: '30m',
+			slotName: 'ollama-local'
+		});
 		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
 			OcrProviderError
 		);
@@ -64,14 +71,26 @@ describe('OllamaOcrProvider', () => {
 				HttpResponse.json({ message: { content: 'not valid json' } })
 			)
 		);
-		const p = new OllamaOcrProvider({ url: URL, model: 'm', timeoutMs: 5_000, keepAlive: '30m' });
+		const p = new OllamaOcrProvider({
+			url: URL,
+			model: 'm',
+			timeoutMs: 5_000,
+			keepAlive: '30m',
+			slotName: 'ollama-local'
+		});
 		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
 			OcrProviderError
 		);
 	});
 
 	it('returns 0 cost (local inference)', () => {
-		const p = new OllamaOcrProvider({ url: URL, model: 'm', timeoutMs: 5_000, keepAlive: '30m' });
+		const p = new OllamaOcrProvider({
+			url: URL,
+			model: 'm',
+			timeoutMs: 5_000,
+			keepAlive: '30m',
+			slotName: 'ollama-local'
+		});
 		expect(p.estimateCostCents()).toBe(0);
 	});
 
@@ -82,10 +101,94 @@ describe('OllamaOcrProvider', () => {
 				return HttpResponse.json({ message: { content: '{"v":1}' } });
 			})
 		);
-		const p = new OllamaOcrProvider({ url: URL, model: 'm', timeoutMs: 10, keepAlive: '30m' });
+		const p = new OllamaOcrProvider({
+			url: URL,
+			model: 'm',
+			timeoutMs: 10,
+			keepAlive: '30m',
+			slotName: 'ollama-local'
+		});
 		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
 			OcrProviderError
 		);
+	});
+});
+
+describe('OllamaOcrProvider — cloud variant', () => {
+	it('sends Authorization: Bearer when apiKey is provided', async () => {
+		let observedAuth = '';
+		server.use(
+			http.post(`${URL}/api/chat`, ({ request }) => {
+				observedAuth = request.headers.get('authorization') ?? '';
+				return HttpResponse.json({ message: { content: '{"v":1}' } });
+			})
+		);
+		const p = new OllamaOcrProvider({
+			url: URL,
+			model: 'gemma4:31b',
+			timeoutMs: 5_000,
+			keepAlive: '30m',
+			apiKey: 'sk-cloud-test',
+			slotName: 'ollama-cloud'
+		});
+		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(observedAuth).toBe('Bearer sk-cloud-test');
+	});
+
+	it('omits Authorization header when apiKey is unset', async () => {
+		let observedAuth: string | null = 'unset';
+		server.use(
+			http.post(`${URL}/api/chat`, ({ request }) => {
+				observedAuth = request.headers.get('authorization');
+				return HttpResponse.json({ message: { content: '{"v":1}' } });
+			})
+		);
+		const p = new OllamaOcrProvider({
+			url: URL,
+			model: 'qwen2.5vl:7b',
+			timeoutMs: 5_000,
+			keepAlive: '30m',
+			slotName: 'ollama-local'
+		});
+		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(observedAuth).toBeNull();
+	});
+
+	it('flows slotName through to provider.name', () => {
+		const local = new OllamaOcrProvider({
+			url: URL, model: 'm', timeoutMs: 1, keepAlive: '30m', slotName: 'ollama-local'
+		});
+		const cloud = new OllamaOcrProvider({
+			url: URL, model: 'm', timeoutMs: 1, keepAlive: '30m', apiKey: 'k', slotName: 'ollama-cloud'
+		});
+		expect(local.name).toBe('ollama-local');
+		expect(cloud.name).toBe('ollama-cloud');
+	});
+
+	it('parses fenced JSON via parseLenientJson (cloud-shape response)', async () => {
+		server.use(
+			http.post(`${URL}/api/chat`, () =>
+				HttpResponse.json({
+					message: { content: '```json\n{"v":42}\n```\nSanity check: yes.' }
+				})
+			)
+		);
+		const p = new OllamaOcrProvider({
+			url: URL, model: 'gemma4:31b', timeoutMs: 5_000,
+			keepAlive: '30m', apiKey: 'k', slotName: 'ollama-cloud'
+		});
+		const result = await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(result).toEqual({ v: 42 });
+	});
+
+	it('error messages name the slot (not the literal "ollama")', async () => {
+		server.use(http.post(`${URL}/api/chat`, () => new HttpResponse('boom', { status: 500 })));
+		const p = new OllamaOcrProvider({
+			url: URL, model: 'm', timeoutMs: 5_000, keepAlive: '30m',
+			apiKey: 'k', slotName: 'ollama-cloud'
+		});
+		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA))
+			.rejects.toThrow(/ollama-cloud/);
 	});
 });
 

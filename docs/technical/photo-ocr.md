@@ -37,10 +37,12 @@ upload and never blocks or affects it. User guide:
   `validateSchema`, `validateRanges`, and (pump only)
   `validateCrossField`. Adding a mode = one map entry.
 - [`src/lib/server/ocrProviders.ts`](../../src/lib/server/ocrProviders.ts)
-  — `OllamaOcrProvider`, `OpenRouterOcrProvider`, `ChainOcrProvider`,
-  `OcrProviderError`. Provider interface is
-  `extract(bytes, prompt, schema) → unknown` — providers don't know
-  about modes.
+  — `OllamaOcrProvider` (serves `ollama-local` + `ollama-cloud`),
+  `OpenRouterOcrProvider` (serves `openrouter` + `openai-compatible`),
+  `ChainOcrProvider`, `parseLenientJson`, `OcrProviderError`.
+  Provider interface is `extract(bytes, prompt, schema) → unknown` —
+  providers don't know about modes. Slot name is set per-instance via
+  the constructor's `slotName` field; one class per wire protocol.
 - [`src/lib/server/ocrRateLimit.ts`](../../src/lib/server/ocrRateLimit.ts)
   — in-memory sliding 1-hour window, keyed per IP. Single-replica only.
 - [`src/lib/server/ocrBudget.ts`](../../src/lib/server/ocrBudget.ts) —
@@ -341,6 +343,17 @@ old-era rows over time; no backfill.
 Providers know nothing about modes. The mode-specific logic — prompt,
 schema, validators — lives entirely in `ocrModes.ts`. Adding a new mode
 is a single `MODES` map entry; provider code doesn't change.
+
+**`OllamaOcrProvider` lenient-parses responses; `OpenRouterOcrProvider`
+does not.** Ollama Cloud returns JSON wrapped in markdown fences
+(```` ```json\n{...}\n``` ````) and the `ministral-3:14b` cloud model
+appends a trailing "Sanity check: …" paragraph after the object.
+Local Ollama returns clean JSON, but routing the entire Ollama family
+through one `parseLenientJson(raw)` helper (anchors on first `{` to
+last `}`) keeps the class single. OpenRouter / OpenAI-compatible
+keeps strict `JSON.parse` because `response_format: json_schema`
+with `strict: true` is contractually enforced — any fenced response
+there is a server bug and we want to surface it.
 
 **`MODES` is a discriminated map, not a class hierarchy.** Each entry
 returns a `ValidationResult<T>` with the discriminator (`mode: 'pump'`
