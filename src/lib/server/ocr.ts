@@ -1,4 +1,4 @@
-import type { Env } from './env';
+import type { Env, OcrSlotName } from './env';
 import {
 	ChainOcrProvider, type OcrProvider, OcrProviderError,
 	OllamaOcrProvider, OpenRouterOcrProvider
@@ -10,23 +10,18 @@ import type { OcrMode, OcrResult } from '$lib/shared/types';
 export type ImageType = 'jpeg' | 'png' | 'webp' | 'heic';
 
 export function sniffImageType(buf: Uint8Array): ImageType | null {
-	// Minimum we need to look at any byte past index 11 (HEIC brand, WebP 'WEBP' marker).
 	if (buf.length < 3) return null;
-	// JPEG: FF D8 FF
 	if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
 	if (buf.length < 8) return null;
-	// PNG: 89 50 4E 47 0D 0A 1A 0A
 	if (
 		buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
 		buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
 	) return 'png';
 	if (buf.length < 12) return null;
-	// WebP: 'RIFF' .... 'WEBP'
 	if (
 		buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
 		buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
 	) return 'webp';
-	// HEIC: bytes 4..7 == 'ftyp', followed by a heic-family brand at 8..11
 	if (
 		buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70
 	) {
@@ -36,26 +31,131 @@ export function sniffImageType(buf: Uint8Array): ImageType | null {
 	return null;
 }
 
-export function selectProvider(env: Env): OcrProvider | null {
-	const ollama = env.ollamaVisionUrl
-		? new OllamaOcrProvider({
-				url: env.ollamaVisionUrl,
-				model: env.ollamaVisionModel,
-				timeoutMs: env.ollamaVisionTimeoutMs,
-				keepAlive: env.ollamaKeepAlive
-			})
-		: null;
-	const openrouter = env.openrouterApiKey
-		? new OpenRouterOcrProvider({
-				apiKey: env.openrouterApiKey,
-				model: env.openrouterVisionModel,
+// Default chain order when OCR_PROVIDER_CHAIN is unset. Preserves
+// back-compat: existing 2-slot deploys see [ollama-local, openrouter]
+// after configured-only filtering, identical to v0.2.1 behavior.
+const DEFAULT_SLOT_ORDER: readonly OcrSlotName[] = [
+	'ollama-local',
+	'openrouter',
+	'ollama-cloud',
+	'openai-compatible'
+];
+
+// Required-var hint string for the WARN log emitted when an
+// explicitly-named slot is missing config.
+const REQUIRED_ENV_VAR_BY_SLOT: Record<OcrSlotName, string> = {
+	'ollama-local': 'OLLAMA_VISION_URL',
+	'ollama-cloud': 'OLLAMA_CLOUD_API_KEY',
+	'openrouter': 'OPENROUTER_API_KEY',
+	'openai-compatible': 'OPENAI_COMPATIBLE_API_KEY (and URL, MODEL)'
+};
+
+// Resolves the model tag for a given slot — used by the route handler
+// when writing the audit row. Exported because the route handler reads
+// the active slot's model from env, not from the provider instance.
+export function modelForSlot(slot: OcrSlotName, env: Env): string {
+	switch (slot) {
+		case 'ollama-local': return env.ollamaVisionModel;
+		case 'ollama-cloud': return env.ollamaCloudModel;
+		case 'openrouter': return env.openrouterVisionModel;
+		case 'openai-compatible': return env.openaiCompatibleModel ?? '';
+	}
+}
+
+interface BuiltSlot {
+	provider: OcrProvider;
+	timeoutMs: number;
+}
+
+function buildSlot(slot: OcrSlotName, env: Env): BuiltSlot | null {
+	switch (slot) {
+		case 'ollama-local':
+			if (!env.ollamaVisionUrl) return null;
+			return {
+				provider: new OllamaOcrProvider({
+					url: env.ollamaVisionUrl,
+					model: env.ollamaVisionModel,
+					timeoutMs: env.ollamaVisionTimeoutMs,
+					keepAlive: env.ollamaKeepAlive,
+					slotName: 'ollama-local'
+				}),
+				timeoutMs: env.ollamaVisionTimeoutMs
+			};
+		case 'ollama-cloud':
+			if (!env.ollamaCloudApiKey) return null;
+			return {
+				provider: new OllamaOcrProvider({
+					url: env.ollamaCloudUrl,
+					model: env.ollamaCloudModel,
+					timeoutMs: env.ollamaCloudTimeoutMs,
+					keepAlive: env.ollamaKeepAlive,
+					apiKey: env.ollamaCloudApiKey,
+					slotName: 'ollama-cloud'
+				}),
+				timeoutMs: env.ollamaCloudTimeoutMs
+			};
+		case 'openrouter':
+			if (!env.openrouterApiKey) return null;
+			return {
+				provider: new OpenRouterOcrProvider({
+					apiKey: env.openrouterApiKey,
+					model: env.openrouterVisionModel,
+					timeoutMs: env.openrouterVisionTimeoutMs,
+					slotName: 'openrouter'
+				}),
 				timeoutMs: env.openrouterVisionTimeoutMs
-			})
-		: null;
-	if (ollama && openrouter) return new ChainOcrProvider([ollama, openrouter]);
-	if (ollama) return ollama;
-	if (openrouter) return openrouter;
-	return null;
+			};
+		case 'openai-compatible':
+			if (!env.openaiCompatibleUrl || !env.openaiCompatibleApiKey || !env.openaiCompatibleModel) {
+				return null;
+			}
+			return {
+				provider: new OpenRouterOcrProvider({
+					url: env.openaiCompatibleUrl,
+					apiKey: env.openaiCompatibleApiKey,
+					model: env.openaiCompatibleModel,
+					timeoutMs: env.openaiCompatibleTimeoutMs,
+					slotName: 'openai-compatible'
+				}),
+				timeoutMs: env.openaiCompatibleTimeoutMs
+			};
+	}
+}
+
+interface SelectProviderLogger {
+	warn: (msg: string) => void;
+	info: (msg: string) => void;
+}
+
+export interface SelectProviderResult {
+	provider: OcrProvider | null;
+	chainTimeoutMs: number;
+}
+
+export function selectProvider(
+	env: Env,
+	logger: SelectProviderLogger = console
+): SelectProviderResult {
+	const explicitChain = env.ocrProviderChain;
+	const chain = explicitChain ?? DEFAULT_SLOT_ORDER;
+	const built: BuiltSlot[] = [];
+
+	for (const slot of chain) {
+		const b = buildSlot(slot, env);
+		if (b) {
+			built.push(b);
+		} else if (explicitChain) {
+			// WARN only when explicitly named — default chain is best-effort.
+			logger.warn(`OCR chain slot '${slot}' skipped: ${REQUIRED_ENV_VAR_BY_SLOT[slot]} not set`);
+		}
+	}
+
+	if (built.length === 0) return { provider: null, chainTimeoutMs: 0 };
+	const chainTimeoutMs = built.reduce((sum, b) => sum + b.timeoutMs, 0);
+	if (built.length === 1) return { provider: built[0].provider, chainTimeoutMs };
+
+	logger.info(`OCR chain effective: ${built.map((b) => b.provider.name).join(', ')}`);
+	return { provider: new ChainOcrProvider(built.map((b) => b.provider)), chainTimeoutMs };
 }
 
 export type PipelineOutcome =
@@ -63,8 +163,8 @@ export type PipelineOutcome =
 			ok: true;
 			imageType: ImageType;
 			result: OcrResult;
-			provider: 'ollama' | 'openrouter';
-			fellbackTo: 'ollama' | 'openrouter' | null;
+			provider: OcrSlotName;
+			fellbackFrom: OcrSlotName | null;
 			costCents: number;
 			latencyMs: number;
 		}
@@ -81,11 +181,6 @@ interface PipelineInput {
 	mode: OcrMode;
 	provider: OcrProvider;
 	env: Env;
-	// Optional per-request prompt context. Each mode reads the field that
-	// matters to it (odometer → `lastOdometerMi`, pump → `lastPricePerUnit`).
-	// Forwarded into the mode contract's `prompt(ctx)` function; defensively
-	// dropped here if not a finite positive number, so the prompt builder
-	// never embeds a `NaN` or negative-value hint.
 	lastOdometerMi?: number;
 	lastPricePerUnit?: number;
 }
@@ -96,21 +191,11 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 	if (!imageType) {
 		return { ok: false, statusCode: 415, error: 'unsupported image type', imageType: null, latencyMs: Date.now() - t0 };
 	}
-	// Cast to the base ModeContract so the dispatcher can pass the union result
-	// type back into validateRanges / validateCrossField. MODES preserves per-mode
-	// specificity at the call site (MODES.pump → ModeContract<OcrPumpResult>), but
-	// when keyed by a runtime OcrMode here, TypeScript widens to the union of
-	// contracts, whose validate* methods have incompatible parameter types.
 	const contract: ModeContract = MODES[input.mode];
 	if (!contract) {
 		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
 	}
 
-	// Build the prompt context. Defensive on both hint fields — only forward
-	// when finite positive; otherwise drop so the prompt builder never emits
-	// a "previous reading was NaN" hint. The result is undefined (no
-	// context) when neither hint passes the gate, so old callers that pass
-	// nothing observe identical behaviour to v0.2.0+.
 	const ctx: { lastOdometerMi?: number; lastPricePerUnit?: number } = {};
 	if (
 		typeof input.lastOdometerMi === 'number' &&
@@ -155,13 +240,13 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 
 	const isChain = input.provider instanceof ChainOcrProvider;
 	const active = isChain ? (input.provider as ChainOcrProvider).activeProvider ?? input.provider : input.provider;
-	const fellbackTo = isChain ? (input.provider as ChainOcrProvider).lastFellbackTo : null;
+	const fellbackFrom = isChain ? (input.provider as ChainOcrProvider).lastFellbackFrom : null;
 	return {
 		ok: true,
 		imageType,
 		result: value,
-		provider: active.name === 'openrouter' ? 'openrouter' : 'ollama',
-		fellbackTo,
+		provider: active.name,
+		fellbackFrom,
 		costCents: input.provider.estimateCostCents(),
 		latencyMs: Date.now() - t0
 	};

@@ -32,6 +32,15 @@ function envOverrides(o: Partial<Env>): Env {
     ollamaVisionTimeoutMs: 60_000, ollamaKeepAlive: '30m',
     openrouterApiKey: undefined, openrouterVisionModel: 'google/gemini-2.5-flash-lite',
     openrouterVisionTimeoutMs: 30_000,
+    ollamaCloudApiKey: undefined,
+    ollamaCloudUrl: 'https://ollama.com',
+    ollamaCloudModel: 'gemma4:31b',
+    ollamaCloudTimeoutMs: 30_000,
+    openaiCompatibleUrl: undefined,
+    openaiCompatibleApiKey: undefined,
+    openaiCompatibleModel: undefined,
+    openaiCompatibleTimeoutMs: 30_000,
+    ocrProviderChain: undefined,
     ocrDailyBudgetUsd: 1, ocrRateLimitPerHour: 20,
     ocrBudgetPath: '/tmp/b.json', ocrAuditPath: '/tmp/a.jsonl',
     ocrAuditKeyPath: '/tmp/k.txt', ocrAuditHmacKey: undefined,
@@ -42,26 +51,94 @@ function envOverrides(o: Partial<Env>): Env {
 }
 
 describe('selectProvider', () => {
-  it('returns null when neither provider is configured', () => {
-    expect(selectProvider(envOverrides({}))).toBeNull();
+  it('returns null + 0 chainTimeoutMs when no slots are configured', () => {
+    const r = selectProvider(envOverrides({}));
+    expect(r.provider).toBeNull();
+    expect(r.chainTimeoutMs).toBe(0);
   });
-  it('returns ollama-only when only ollama is set', () => {
-    const p = selectProvider(envOverrides({ ollamaVisionUrl: 'http://o' }));
-    expect(p?.name).toBe('ollama');
-    expect(p).not.toBeInstanceOf(ChainOcrProvider);
+
+  it('returns a bare provider (no chain wrapper) when one slot is configured', () => {
+    const r = selectProvider(envOverrides({ ollamaVisionUrl: 'http://o' }));
+    expect(r.provider?.name).toBe('ollama-local');
+    expect(r.provider).not.toBeInstanceOf(ChainOcrProvider);
+    expect(r.chainTimeoutMs).toBe(60_000);
   });
-  it('returns openrouter-only when only openrouter is set', () => {
-    const p = selectProvider(envOverrides({ openrouterApiKey: 'sk' }));
-    expect(p?.name).toBe('openrouter');
-    expect(p).not.toBeInstanceOf(ChainOcrProvider);
+
+  it('returns the OpenRouter slot bare when only OPENROUTER_API_KEY is set', () => {
+    const r = selectProvider(envOverrides({ openrouterApiKey: 'sk' }));
+    expect(r.provider?.name).toBe('openrouter');
+    expect(r.provider).not.toBeInstanceOf(ChainOcrProvider);
+    expect(r.chainTimeoutMs).toBe(30_000);
   });
-  it('returns a chain when both are set, ollama first', () => {
-    const p = selectProvider(envOverrides({ ollamaVisionUrl: 'http://o', openrouterApiKey: 'sk' }));
-    expect(p).toBeInstanceOf(ChainOcrProvider);
-    if (p instanceof ChainOcrProvider) {
-      expect(p.chain[0].name).toBe('ollama');
-      expect(p.chain[1].name).toBe('openrouter');
+
+  it('defaults to back-compat order [ollama-local, openrouter, ollama-cloud, openai-compatible] when OCR_PROVIDER_CHAIN is unset', () => {
+    const r = selectProvider(envOverrides({
+      ollamaVisionUrl: 'http://o',
+      openrouterApiKey: 'sk',
+      ollamaCloudApiKey: 'sk-c'
+    }));
+    expect(r.provider).toBeInstanceOf(ChainOcrProvider);
+    if (r.provider instanceof ChainOcrProvider) {
+      expect(r.provider.chain.map((p) => p.name)).toEqual([
+        'ollama-local', 'openrouter', 'ollama-cloud'
+      ]);
     }
+    expect(r.chainTimeoutMs).toBe(60_000 + 30_000 + 30_000);
+  });
+
+  it('respects explicit OCR_PROVIDER_CHAIN order', () => {
+    const r = selectProvider(envOverrides({
+      ollamaVisionUrl: 'http://o',
+      openrouterApiKey: 'sk',
+      ollamaCloudApiKey: 'sk-c',
+      ocrProviderChain: ['ollama-cloud', 'ollama-local', 'openrouter']
+    }));
+    expect(r.provider).toBeInstanceOf(ChainOcrProvider);
+    if (r.provider instanceof ChainOcrProvider) {
+      expect(r.provider.chain.map((p) => p.name)).toEqual([
+        'ollama-cloud', 'ollama-local', 'openrouter'
+      ]);
+    }
+  });
+
+  it('WARNs and drops an explicitly-named slot whose required vars are missing', () => {
+    const warnings: string[] = [];
+    const logger = { warn: (m: string) => warnings.push(m), info: () => {} };
+    const r = selectProvider(envOverrides({
+      ollamaVisionUrl: 'http://o',
+      ocrProviderChain: ['ollama-local', 'openai-compatible']
+    }), logger);
+    expect(r.provider?.name).toBe('ollama-local');
+    expect(warnings.some((w) => w.includes('openai-compatible') &&
+      w.includes('OPENAI_COMPATIBLE_API_KEY'))).toBe(true);
+  });
+
+  it('silent-skips a missing-config slot when the default chain is in effect (no WARN)', () => {
+    const warnings: string[] = [];
+    const logger = { warn: (m: string) => warnings.push(m), info: () => {} };
+    const r = selectProvider(envOverrides({
+      ollamaVisionUrl: 'http://o'
+      // no openrouter, no cloud, no oai-compat — but no explicit chain either
+    }), logger);
+    expect(r.provider?.name).toBe('ollama-local');
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('logs the effective chain at INFO when more than one slot survives', () => {
+    const infos: string[] = [];
+    const logger = { warn: () => {}, info: (m: string) => infos.push(m) };
+    selectProvider(envOverrides({
+      ollamaVisionUrl: 'http://o',
+      openrouterApiKey: 'sk'
+    }), logger);
+    expect(infos.some((m) => m.includes('ollama-local') && m.includes('openrouter'))).toBe(true);
+  });
+
+  it('does not emit the INFO chain log when only one slot survives', () => {
+    const infos: string[] = [];
+    const logger = { warn: () => {}, info: (m: string) => infos.push(m) };
+    selectProvider(envOverrides({ ollamaVisionUrl: 'http://o' }), logger);
+    expect(infos).toHaveLength(0);
   });
 });
 
@@ -70,7 +147,7 @@ describe('runOcrPipeline', () => {
 
   function fakeProvider(payload: unknown): OcrProvider {
     return {
-      name: 'ollama',
+      name: 'ollama-local',
       estimateCostCents: () => 0,
       extract: async () => payload
     };
@@ -139,7 +216,7 @@ describe('runOcrPipeline', () => {
 
   it('502 when provider throws', async () => {
     const broken: OcrProvider = {
-      name: 'ollama',
+      name: 'ollama-local',
       estimateCostCents: () => 0,
       extract: async () => { throw new Error('boom'); }
     };
@@ -199,7 +276,7 @@ describe('runOcrPipeline', () => {
   it('odometer: forwards lastOdometerMi into the prompt when finite positive', async () => {
     let seenPrompt = '';
     const recordingProvider: OcrProvider = {
-      name: 'ollama',
+      name: 'ollama-local',
       estimateCostCents: () => 0,
       extract: async (_bytes, prompt) => {
         seenPrompt = prompt;
@@ -222,7 +299,7 @@ describe('runOcrPipeline', () => {
     for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 0, -50]) {
       let seenPrompt = '';
       const recordingProvider: OcrProvider = {
-        name: 'ollama',
+        name: 'ollama-local',
         estimateCostCents: () => 0,
         extract: async (_bytes, prompt) => {
           seenPrompt = prompt;
@@ -244,7 +321,7 @@ describe('runOcrPipeline', () => {
   it('odometer: no hint when lastOdometerMi is unset', async () => {
     let seenPrompt = '';
     const recordingProvider: OcrProvider = {
-      name: 'ollama',
+      name: 'ollama-local',
       estimateCostCents: () => 0,
       extract: async (_bytes, prompt) => {
         seenPrompt = prompt;
@@ -264,7 +341,7 @@ describe('runOcrPipeline', () => {
   it('pump: forwards lastPricePerUnit into the prompt when finite positive', async () => {
     let seenPrompt = '';
     const recordingProvider: OcrProvider = {
-      name: 'ollama',
+      name: 'ollama-local',
       estimateCostCents: () => 0,
       extract: async (_bytes, prompt) => {
         seenPrompt = prompt;
@@ -287,7 +364,7 @@ describe('runOcrPipeline', () => {
     for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 0, -2.5]) {
       let seenPrompt = '';
       const recordingProvider: OcrProvider = {
-        name: 'ollama',
+        name: 'ollama-local',
         estimateCostCents: () => 0,
         extract: async (_bytes, prompt) => {
           seenPrompt = prompt;
@@ -309,7 +386,7 @@ describe('runOcrPipeline', () => {
   it('pump: no hint when lastPricePerUnit is unset', async () => {
     let seenPrompt = '';
     const recordingProvider: OcrProvider = {
-      name: 'ollama',
+      name: 'ollama-local',
       estimateCostCents: () => 0,
       extract: async (_bytes, prompt) => {
         seenPrompt = prompt;

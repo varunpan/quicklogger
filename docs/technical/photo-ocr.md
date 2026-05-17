@@ -226,16 +226,36 @@ bind to the existing `isoDate: string` state.
 
 ### Provider selection (per-request)
 
+`selectProvider(env)` returns `{ provider, chainTimeoutMs }`. It walks
+`env.ocrProviderChain ?? DEFAULT_SLOT_ORDER` and asks each slot's
+builder to construct a provider — slots whose required env vars
+aren't set return `null` and are dropped.
+
 ```text
-ollamaUrl set, openrouterKey set   → ChainOcrProvider([ollama, openrouter])
-ollamaUrl set, openrouterKey unset → OllamaOcrProvider
-ollamaUrl unset, openrouterKey set → OpenRouterOcrProvider
-both unset                          → null → /api/ocr returns 503
+DEFAULT_SLOT_ORDER (used when OCR_PROVIDER_CHAIN is unset):
+  ollama-local → openrouter → ollama-cloud → openai-compatible
+
+After filtering by what's configured:
+  0 surviving slots → { provider: null, chainTimeoutMs: 0 } → /api/ocr 503
+  1 surviving slot  → bare provider (no chain wrapper)
+  2+ surviving      → ChainOcrProvider([...])
 ```
 
+`chainTimeoutMs` is the sum of surviving slots' per-slot `timeoutMs`
+values. It's served back to the client via the `GET /api/ocr` probe
+response so the client `AbortSignal.timeout` self-adjusts to the
+configured chain length (no more hardcoded 90 s).
+
 Selection runs **per request**, not cached at startup. A transient
-ollama outage doesn't permanently disable the feature; the next
+outage on any slot doesn't permanently disable the feature; the next
 request re-selects.
+
+WARN-and-drop applies only when a slot is **explicitly named** in
+`OCR_PROVIDER_CHAIN` but unconfigured (e.g.,
+`OCR_PROVIDER_CHAIN=openrouter,openai-compatible` but no
+`OPENAI_COMPATIBLE_API_KEY` set). Default-chain missing-config slots
+are silent-skipped — the default chain is best-effort, not a
+declarative contract.
 
 ### Audit row shape
 
