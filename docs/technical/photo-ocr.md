@@ -690,7 +690,7 @@ The chain abstraction supports two flavors of new-provider work:
 Concrete example: you want to add a second OpenAI-compatible chain
 slot, distinct from `openai-compatible`, so you can chain Groq AND
 Cerebras without losing either when you rotate keys. Call it
-`openai-compatible-2`. ~6 file edits.
+`openai-compatible-2`. ~8 numbered steps across 9 files.
 
 1. **Slot identifier.** Add `'openai-compatible-2'` to
    `KNOWN_OCR_SLOTS` in `env.ts` and to the `OcrSlotName` type.
@@ -751,9 +751,7 @@ export interface OcrProvider {
   - `'PARSE'` for unparseable content
   - The chain catches any `OcrProviderError` and falls through.
 
-`estimateCostCents()` returns a per-call cost in 0.01¢ units. Use
-`0` for free providers; use a conservative upper bound for paid
-ones (the daily budget gate uses this for fail-closed accounting).
+`estimateCostCents()` returns a per-call cost in cents (1 cent = $0.01); use `0` for free providers, around `0.006` for a typical cloud-vision call. Use a conservative upper bound for paid ones (the daily budget gate uses this for fail-closed accounting).
 Per-slot cost overrides are out-of-scope as of v0.2.2 — if your new
 provider has wildly different per-call cost than the OpenRouter
 placeholder, that's the moment to add `<SLOT>_COST_CENTS` env config.
