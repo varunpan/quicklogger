@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.2.2] — Unreleased
+## [0.2.2] — 2026-05-17
 
 ### Added
 
@@ -34,8 +34,6 @@ All notable changes to this project are documented here. Format roughly follows 
   request timeout — no more hardcoded 90 s. Server's
   "fails-first" invariant is preserved by construction regardless
   of chain length.
-
-### Fixed
 
 ### Tests
 
