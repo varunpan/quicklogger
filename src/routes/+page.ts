@@ -49,7 +49,10 @@ export const load: PageLoad = async ({ fetch, url }) => {
   const ocrEnabled = ocrStatus.enabled;
   const ocrModes: OcrMode[] = ocrEnabled && ocrStatus.modes ? ocrStatus.modes : [];
   const ocrChainTimeoutMs: number | undefined =
-    ocrEnabled && typeof ocrStatus.chainTimeoutMs === 'number' && ocrStatus.chainTimeoutMs > 0
+    ocrEnabled &&
+    typeof ocrStatus.chainTimeoutMs === 'number' &&
+    Number.isFinite(ocrStatus.chainTimeoutMs) &&
+    ocrStatus.chainTimeoutMs > 0
       ? ocrStatus.chainTimeoutMs
       : undefined;
 
