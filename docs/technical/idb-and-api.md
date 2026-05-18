@@ -314,6 +314,7 @@ handler) exposes three methods mapped to LubeLogger's REST API:
 | `listGasRecords(vehicleId)` | `GET /api/vehicle/gasrecords?vehicleId=N` | `GasRecord[]` |
 | `listReminders(vehicleId)` | `GET /api/vehicle/reminders?vehicleId=N` | `Reminder[]` |
 | `addGasRecord(vehicleId, payload)` | `POST /api/vehicle/gasrecords/add?vehicleId=N` | `void` (body discarded) |
+| `fetchImage(path)` | `GET <path>` (expects `/images/<uuid>.<ext>`) | raw `Response` — caller streams the body, copies `content-type` |
 
 ### Timeout
 

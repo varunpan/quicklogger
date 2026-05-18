@@ -129,4 +129,8 @@ export class LubeLoggerClient {
 			body: fd
 		});
 	}
+
+	async fetchImage(path: string): Promise<Response> {
+		return this.request(path);
+	}
 }

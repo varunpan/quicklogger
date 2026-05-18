@@ -164,4 +164,41 @@ describe('LubeLoggerClient', () => {
 		);
 		await expect(client().listReminders(1)).rejects.toMatchObject({ status: 503 });
 	});
+
+	it('fetches an image with x-api-key and returns the raw Response', async () => {
+		let observedKey = '';
+		const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+		server.use(
+			http.get(`${BASE}/images/abc-123.jpg`, ({ request }) => {
+				observedKey = request.headers.get('x-api-key') ?? '';
+				return new HttpResponse(bytes, {
+					status: 200,
+					headers: { 'content-type': 'image/jpeg' }
+				});
+			})
+		);
+		const res = await client().fetchImage('/images/abc-123.jpg');
+		expect(observedKey).toBe(KEY);
+		expect(res.status).toBe(200);
+		expect(res.headers.get('content-type')).toBe('image/jpeg');
+		const buf = new Uint8Array(await res.arrayBuffer());
+		expect(buf).toEqual(bytes);
+	});
+
+	it('throws LubeLoggerError on fetchImage 4xx', async () => {
+		server.use(
+			http.get(`${BASE}/images/missing.jpg`, () => new HttpResponse('not found', { status: 404 }))
+		);
+		await expect(client().fetchImage('/images/missing.jpg')).rejects.toMatchObject({
+			name: 'LubeLoggerError',
+			status: 404
+		});
+	});
+
+	it('throws LubeLoggerError on fetchImage 5xx', async () => {
+		server.use(
+			http.get(`${BASE}/images/oops.jpg`, () => new HttpResponse(null, { status: 503 }))
+		);
+		await expect(client().fetchImage('/images/oops.jpg')).rejects.toMatchObject({ status: 503 });
+	});
 });
