@@ -126,6 +126,26 @@ Source: `src/routes/api/vehicles/+server.ts`.
 { id: number; year?: number; make?: string; model?: string; [k: string]: unknown }
 ```
 
+### `GET /api/vehicle/image?vehicleId=<id>`
+
+Source: `src/routes/api/vehicle/image/+server.ts`. Proxies the LubeLogger `/images/<uuid>.<ext>` path so the browser doesn't need a session cookie — the server-side `x-api-key` (added in LubeLogger v1.6.5) authenticates the upstream call.
+
+| Field | Value |
+|---|---|
+| Request | Query: `vehicleId` (required, finite number). |
+| Cache | In-memory `TtlCache<Vehicle[]>` keyed on `'vehicles'`, 5-minute TTL (separate from `/api/vehicles`'s cache — see below). |
+| Response 200 | Streamed image bytes with the upstream `content-type` (`image/jpeg` or `image/png`) and `cache-control: no-store`. |
+| Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
+| Response 404 | `{ error: 'no image' }` — vehicle id not found, or `imageLocation` is empty / not a string / not under `/images/` (defensive path guard). |
+| Response 502 | `{ error: string }` — `LubeLoggerError` from either the vehicles lookup or the image fetch. |
+| Response 500 | `{ error: string }` — anything else. |
+
+`cache-control: no-store` is deliberate: the service worker is the authoritative client-side cache for image bytes (see [`service-worker.md`](./service-worker.md#vehicle-image-cache)). Letting the HTTP cache compete would create two staleness windows for the same bytes.
+
+The path-guard refuses to proxy anything that doesn't start with `/images/`, even though we control the upstream. Defense-in-depth in case a future LubeLogger version stores arbitrary paths in `imageLocation` (e.g. external URLs).
+
+The endpoint maintains its own `TtlCache` rather than sharing with `/api/vehicles/+server.ts`. Cost: at most one extra `listVehicles()` call per 5-minute window when both endpoints run cold. Acceptable at personal-use scale — revisit if it ever matters.
+
 ### `GET /api/vehicle/last-fuelup?vehicleId=<id>`
 
 Source: `src/routes/api/vehicle/last-fuelup/+server.ts`.
