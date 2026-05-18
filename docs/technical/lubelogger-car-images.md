@@ -2,14 +2,18 @@
 
 ## Overview
 
-Replaces the generic car SVG in the home-page vehicle button (`src/routes/+page.svelte`) with the vehicle's actual photo stored in LubeLogger, proxied server-side via a new `/api/vehicle/image` endpoint and cached client-side in a dedicated service-worker cache. User view: see the "Vehicle" row in [`docs/user/app-pages.md`](../user/app-pages.md#log-fuel-). Architecture context: this is one extra entry in the `/api/*` surface — see [`docs/architecture.md`](../architecture.md).
+Replaces the generic car SVG in every vehicle-row surface — the home Log Fuel button (`src/routes/+page.svelte`), the History vehicle card (`src/routes/history/+page.svelte`), the Maintenance vehicle card (`src/routes/maintenance/+page.svelte`), and each row of the vehicle picker (`src/routes/vehicles/+page.svelte`) — with the vehicle's actual photo stored in LubeLogger, proxied server-side via a new `/api/vehicle/image` endpoint and cached client-side in a dedicated service-worker cache. User view: see the "Vehicle" row in [`docs/user/app-pages.md`](../user/app-pages.md#log-fuel-). Architecture context: this is one extra entry in the `/api/*` surface — see [`docs/architecture.md`](../architecture.md).
 
 ## Files touched
 
 - [`src/lib/server/lubelogger.ts`](../../src/lib/server/lubelogger.ts) — adds the `fetchImage(path)` method on `LubeLoggerClient`. First client method that returns a raw `Response` instead of parsed JSON.
 - [`src/routes/api/vehicle/image/+server.ts`](../../src/routes/api/vehicle/image/+server.ts) — the new endpoint: parses `vehicleId`, looks up `imageLocation` via a per-endpoint vehicles `TtlCache`, applies a defensive `/images/` path-guard, streams the upstream body with `cache-control: no-store`. Error matrix mirrors the rest of the `/api/vehicle/*` surface.
 - [`src/service-worker.ts`](../../src/service-worker.ts) — adds the fixed-name `IMG_CACHE` constant, a `staleWhileRevalidate` helper, a fetch-handler branch for `/api/vehicle/image` placed *before* the generic `/api/` network-first branch, and a tweak to the activate handler so `IMG_CACHE` survives shell upgrades.
-- [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — swaps the icon-slot region inside the vehicle button. Declares `vehicleImageOk = $state(true)` and an `$effect` keyed on `vehicle?.id` that resets the flag on vehicle switch. Renders `<img>` when `vehicleImageOk` is true; renders the existing SVG when the `<img>` `onerror` flips the flag.
+- [`src/lib/client/VehicleImage.svelte`](../../src/lib/client/VehicleImage.svelte) — shared icon-slot component. Encapsulates the `vehicleImageOk = $state(true)` flag, the `$effect` keyed on `vehicleId` that resets the flag on vehicle switch, and the `<img>` / SVG-fallback render branch. Accepts `vehicleId`, `class` (passed through to the outer wrapper so callers control sizing), and `svgSize` (defaults to 22; the picker passes 24).
+- [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — vehicle button consumes the shared `<VehicleImage>` component instead of inlining the pattern.
+- [`src/routes/history/+page.svelte`](../../src/routes/history/+page.svelte) — vehicle card consumes `<VehicleImage>` instead of the static SVG slot.
+- [`src/routes/maintenance/+page.svelte`](../../src/routes/maintenance/+page.svelte) — vehicle card consumes `<VehicleImage>` instead of the static SVG slot.
+- [`src/routes/vehicles/+page.svelte`](../../src/routes/vehicles/+page.svelte) — each list row in the picker renders its own `<VehicleImage>` instance with `class="w-14 h-14"` and `svgSize={24}`. Per-row instances each own their own `vehicleImageOk` flag — no shared bookkeeping.
 
 ## Data model
 
@@ -24,8 +28,8 @@ In-memory caches:
 
 ## Lifecycle / control flow
 
-1. User opens `/`. Layout / page load fetches the active vehicle (from URL `?vehicleId=`, the prefs `lastVehicleId`, or the first vehicle returned by LubeLogger).
-2. `+page.svelte` initialises `vehicleImageOk = true`. The vehicle-button `<img>` is rendered first, with `src` pointing at `/api/vehicle/image?vehicleId=<id>`.
+1. User opens any page that renders a vehicle row (`/`, `/history`, `/maintenance`, or the `/vehicles` picker list). Each rendered `<VehicleImage>` receives a `vehicleId` prop — either the active vehicle's id (single-vehicle surfaces) or the per-row id (picker).
+2. Each `<VehicleImage>` instance initialises `vehicleImageOk = true`. The `<img>` is rendered first, with `src` pointing at `/api/vehicle/image?vehicleId=<id>`.
 3. The browser fires a GET. The service worker fetch handler matches `/api/vehicle/image` (matched *before* the generic `/api/` branch) and routes through `staleWhileRevalidate`:
    - Open `IMG_CACHE`, look for an exact-`Request` match.
    - Kick off a network fetch in parallel; on a 2xx response, `cache.put(req, res.clone())`.
@@ -36,7 +40,7 @@ In-memory caches:
    - Find the vehicle. If missing → 404. Read `imageLocation`. If empty / not a string / doesn't start with `/images/` → 404.
    - `client.fetchImage(path)` returns a raw `Response`. Re-emit the body stream with the upstream `content-type` and `cache-control: no-store`.
 5. The browser receives the image bytes (200) or a 404. On 200, the `<img>` renders and `vehicleImageOk` stays `true`. On 404 (or any other non-2xx — the SW's SWR helper falls through), the `<img>` element's `onerror` fires and flips `vehicleImageOk = false`, triggering Svelte to re-render the slot with the fallback SVG.
-6. If the user switches vehicles (the `vehicle` `$state` reassigns), the `$effect(() => { void vehicle?.id; vehicleImageOk = true; })` re-runs and resets the flag, giving the new vehicle a fresh chance at loading its photo. The `void` prefix is purely cosmetic — it tells ESLint's `no-unused-expressions` rule that the read is intentional while still letting Svelte's reactivity tracker subscribe. The cycle repeats from step 2.
+6. If the user switches vehicles on a single-vehicle surface (the parent's `vehicle` reassigns and a new `vehicleId` flows in as a prop), the component's `$effect(() => { void vehicleId; vehicleImageOk = true; })` re-runs and resets the flag, giving the new vehicle a fresh chance at loading its photo. The `void` prefix is purely cosmetic — it tells ESLint's `no-unused-expressions` rule that the read is intentional while still letting Svelte's reactivity tracker subscribe. The cycle repeats from step 2. On the picker, each row is a separate `<VehicleImage>` instance whose `vehicleId` never changes, so the effect runs once at mount and then only if the row remounts.
 
 ## Edge cases & invariants
 
@@ -62,7 +66,9 @@ In-memory caches:
 
 **Fall-back trigger is `<img>` `onerror`, not pre-flight fetch.** A pre-flight `fetch('/api/vehicle/image?...')` to check the status would double the network cost and force the page to render with the SVG flicker, then swap. The `<img>` element's natural `onerror` event fires at the same point and lets the SVG render only on real failure.
 
-**`$effect` keyed on `vehicle?.id`, not on `vehicle` itself.** Reading the `id` property pins the effect's dependency to the primitive identifier. A bare `vehicle` read also works (Svelte 5 tracks deep), but the explicit `id` access is cheaper to reason about and makes the effect's trigger condition obvious to a future reader.
+**`$effect` keyed on `vehicleId`, not on a parent's `vehicle` object.** Reading the primitive id pins the effect's dependency to the value that actually determines which photo to load. A bare object read also works (Svelte 5 tracks deep), but the explicit id access is cheaper to reason about and makes the effect's trigger condition obvious to a future reader.
+
+**Per-instance state, not a shared `Set<number>`.** The picker renders N rows, each with its own `<VehicleImage>` instance and therefore its own `vehicleImageOk` flag. A list-level `Set` of failed ids would centralize the bookkeeping but spread the lifecycle across the parent — keeping each row self-contained is simpler and matches the pattern used on the three single-vehicle surfaces.
 
 **Path-guard refuses anything outside `/images/` even though we control the upstream.** Defensive: a future LubeLogger version could change what shows up in `imageLocation` (e.g. an external URL for off-site storage) and we don't want quicklogger to start proxying arbitrary URLs by accident.
 
@@ -73,7 +79,6 @@ In-memory caches:
 ## Future considerations
 
 - **Pre-warming `IMG_CACHE` during SW install.** Would require enumerating vehicle ids in install scope, which complicates the install handler for a marginal latency win on first vehicle view. Deferred.
-- **Image on `/history` / `/maintenance` pages.** Explicitly out of scope per the spec — those pages currently render vehicles text-only and the user said "no UI/UX changes". Easy to add later by reusing the endpoint.
 - **Image upload from quicklogger.** Read-only is enough for now. Upload would need a new write endpoint and a UI surface that doesn't exist.
 - **Multiple sizes / thumbnails.** Single 48×48 display, image bytes ~40 KB — no perf reason to vary. If `/history` and `/vehicles` start showing photos at different sizes a `?size=` query param could route through a server-side resize step.
 - **Shared `vehiclesCache` refactor.** Both `/api/vehicles` and `/api/vehicle/image` keep their own `TtlCache<Vehicle[]>`. A shared module-scoped cache would deduplicate the rare double-call, but isn't worth the refactor at this scale.

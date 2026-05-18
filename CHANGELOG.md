@@ -6,12 +6,13 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
-- **Vehicle images from LubeLogger.** The vehicle button on the Log
-  Fuel page now shows the actual vehicle photo stored in LubeLogger
-  (when set), proxied through the new `/api/vehicle/image` endpoint.
-  Unblocked by LubeLogger v1.6.5, which added API-key auth on
-  `/images/*`. The existing car icon stays as the fallback for
-  vehicles without a photo or when the image isn't reachable.
+- **Vehicle images from LubeLogger.** Every vehicle-row surface
+  (Log Fuel, History, Maintenance, vehicle picker) now shows the
+  actual vehicle photo stored in LubeLogger (when set), proxied
+  through the new `/api/vehicle/image` endpoint. Unblocked by
+  LubeLogger v1.6.5, which added API-key auth on `/images/*`. The
+  generic car icon stays as the fallback for vehicles without a
+  photo or when the image isn't reachable.
 
 ### Changed
 

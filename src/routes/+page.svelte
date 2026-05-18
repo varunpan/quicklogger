@@ -20,6 +20,7 @@
     type LastFuelupForCheck
   } from '$lib/client/smart-checks';
   import OcrPreview from '$lib/client/OcrPreview.svelte';
+  import VehicleImage from '$lib/client/VehicleImage.svelte';
   import { readPhotoDate, interpretPhotoDate, formatLocalDate } from '$lib/client/exif';
   import type { Rotation, NormalizedRect } from '$lib/client/image';
 
@@ -28,8 +29,6 @@
 
   // form state — Svelte 5 runes
   let vehicle: Vehicle | null = $state(data.initialVehicle);
-  let vehicleImageOk = $state(true);
-  $effect(() => { void vehicle?.id; vehicleImageOk = true; });
   // Initialize from last fillup when prefill is on (Decision 2 / 8). Stored
   // as raw digits because the input is type="number" and can't render
   // thousands separators — the formatted version lives in the strip only.
@@ -513,21 +512,7 @@
     class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full"
     onclick={() => navigateToVehicles()}
   >
-    <div class="w-12 h-12 rounded-lg bg-zinc-700 shrink-0 flex items-center justify-center text-zinc-500 overflow-hidden">
-      {#if vehicleImageOk}
-        <img
-          src={`/api/vehicle/image?vehicleId=${vehicle.id}`}
-          alt=""
-          class="w-full h-full object-cover"
-          onerror={() => (vehicleImageOk = false)}
-        />
-      {:else}
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 17h14M5 17v-5l2-5h10l2 5v5M5 17H3M19 17h2M7 12h10" />
-          <circle cx="8" cy="17" r="1.5" /><circle cx="16" cy="17" r="1.5" />
-        </svg>
-      {/if}
-    </div>
+    <VehicleImage vehicleId={vehicle.id} class="w-12 h-12" />
     <div class="text-left flex-1 min-w-0">
       <div class="field-label">Vehicle</div>
       <div class="text-base font-semibold truncate">
