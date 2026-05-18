@@ -34,7 +34,7 @@ means here.
 
 | Field | What it does |
 | --- | --- |
-| **Vehicle** | Button-style row showing year/make/model. Tap it to jump to the Vehicles page and pick a different one. |
+| **Vehicle** | Button-style row showing the vehicle's LubeLogger photo (when set) and year/make/model. Tap it to jump to the Vehicles page and pick a different one. The generic car icon shows as a fallback for vehicles without a photo or when the image isn't reachable. |
 | **Odometer** | Number input, pre-filled with the previous reading when prefill is on. A `prefilled` tag sits in the input until you interact. |
 | **`+N mi` chip** | One-tap increment below the odometer field. The number (`N`) reflects your **Quick increment** setting; the chip is hidden if you set it to 0 or disable prefill. |
 | **Date** | Native date picker, defaults to today. |
@@ -62,7 +62,7 @@ form. See [`photo-ocr.md`](photo-ocr.md) for setup and walkthrough.
 
 A flat list of every vehicle LubeLogger knows about. Each tile shows:
 
-- A generic car icon (LubeLogger photos aren't served).
+- A generic car icon (the Vehicles list intentionally stays text-first; the LubeLogger photo only appears on the Log Fuel vehicle button).
 - The vehicle's year + make + model, joined with spaces, skipping
   blanks.
 - The LubeLogger vehicle id underneath (small grey text). Useful for

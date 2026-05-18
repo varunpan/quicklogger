@@ -6,11 +6,32 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Vehicle images from LubeLogger.** The vehicle button on the Log
+  Fuel page now shows the actual vehicle photo stored in LubeLogger
+  (when set), proxied through the new `/api/vehicle/image` endpoint.
+  Unblocked by LubeLogger v1.6.5, which added API-key auth on
+  `/images/*`. The existing car icon stays as the fallback for
+  vehicles without a photo or when the image isn't reachable.
+
 ### Changed
+
+- **Service worker preserves a new `quicklogger-vehicle-images-v1`
+  cache across shell upgrades.** Image bytes survive new releases via
+  a fixed-name cache that the `activate` handler whitelists alongside
+  the per-version shell cache. Stale-while-revalidate semantics —
+  served from cache instantly, refreshed in the background.
 
 ### Fixed
 
 ### Tests
+
+- **`LubeLoggerClient.fetchImage` coverage** — happy path with
+  `x-api-key` header round-trip, `LubeLoggerError` on 4xx + 5xx.
+- **`/api/vehicle/image` route coverage** — 400 on missing/invalid
+  `vehicleId`, 404 on vehicle not found / empty `imageLocation` /
+  path-guard rejection, 200 with copied `content-type` +
+  `cache-control: no-store` on happy path, 502 on `LubeLoggerError`,
+  5-minute vehicles-cache deduplication.
 
 ## [0.2.2] — 2026-05-17
 

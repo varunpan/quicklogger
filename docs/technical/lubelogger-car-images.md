@@ -1,0 +1,80 @@
+# LubeLogger car images — internals
+
+## Overview
+
+Replaces the generic car SVG in the home-page vehicle button (`src/routes/+page.svelte`) with the vehicle's actual photo stored in LubeLogger, proxied server-side via a new `/api/vehicle/image` endpoint and cached client-side in a dedicated service-worker cache. User view: see the "Vehicle" row in [`docs/user/app-pages.md`](../user/app-pages.md#log-fuel-). Architecture context: this is one extra entry in the `/api/*` surface — see [`docs/architecture.md`](../architecture.md).
+
+## Files touched
+
+- [`src/lib/server/lubelogger.ts`](../../src/lib/server/lubelogger.ts) — adds the `fetchImage(path)` method on `LubeLoggerClient`. First client method that returns a raw `Response` instead of parsed JSON.
+- [`src/routes/api/vehicle/image/+server.ts`](../../src/routes/api/vehicle/image/+server.ts) — the new endpoint: parses `vehicleId`, looks up `imageLocation` via a per-endpoint vehicles `TtlCache`, applies a defensive `/images/` path-guard, streams the upstream body with `cache-control: no-store`. Error matrix mirrors the rest of the `/api/vehicle/*` surface.
+- [`src/service-worker.ts`](../../src/service-worker.ts) — adds the fixed-name `IMG_CACHE` constant, a `staleWhileRevalidate` helper, a fetch-handler branch for `/api/vehicle/image` placed *before* the generic `/api/` network-first branch, and a tweak to the activate handler so `IMG_CACHE` survives shell upgrades.
+- [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — swaps the icon-slot region inside the vehicle button. Declares `vehicleImageOk = $state(true)` and an `$effect` keyed on `vehicle?.id` that resets the flag on vehicle switch. Renders `<img>` when `vehicleImageOk` is true; renders the existing SVG when the `<img>` `onerror` flips the flag.
+
+## Data model
+
+No new types, no schema changes, no new prefs. The endpoint reads the existing `Vehicle.imageLocation` field (typed as `[key: string]: unknown` on the `Vehicle` interface in `src/lib/server/lubelogger.ts`; verified during design to be either `""` or a `/images/<uuid>.<ext>` path).
+
+In-memory caches:
+
+| Layer | Cache | Key | TTL | Reset |
+|---|---|---|---|---|
+| Endpoint | `TtlCache<Vehicle[]>` in `src/routes/api/vehicle/image/+server.ts` | `'vehicles'` | 5 min | Process restart; or `_resetCache()` in tests. Separate from `/api/vehicles`'s own cache. |
+| Service worker | `quicklogger-vehicle-images-v1` (`caches` API) | Full `Request` | Until evicted by quota or rollback (cache-name version bump) | `activate` handler whitelists this cache name so it survives shell upgrades. |
+
+## Lifecycle / control flow
+
+1. User opens `/`. Layout / page load fetches the active vehicle (from URL `?vehicleId=`, the prefs `lastVehicleId`, or the first vehicle returned by LubeLogger).
+2. `+page.svelte` initialises `vehicleImageOk = true`. The vehicle-button `<img>` is rendered first, with `src` pointing at `/api/vehicle/image?vehicleId=<id>`.
+3. The browser fires a GET. The service worker fetch handler matches `/api/vehicle/image` (matched *before* the generic `/api/` branch) and routes through `staleWhileRevalidate`:
+   - Open `IMG_CACHE`, look for an exact-`Request` match.
+   - Kick off a network fetch in parallel; on a 2xx response, `cache.put(req, res.clone())`.
+   - If there was a cache hit, return it immediately and let the network refresh complete in the background. If not, await the network fetch and return whatever it produces (or a `504` if the fetch threw).
+4. The server endpoint runs only when the SW lets the request through:
+   - Validate `vehicleId` (`Number.isFinite`).
+   - `listVehicles()` via the endpoint's own 5-min `TtlCache`.
+   - Find the vehicle. If missing → 404. Read `imageLocation`. If empty / not a string / doesn't start with `/images/` → 404.
+   - `client.fetchImage(path)` returns a raw `Response`. Re-emit the body stream with the upstream `content-type` and `cache-control: no-store`.
+5. The browser receives the image bytes (200) or a 404. On 200, the `<img>` renders and `vehicleImageOk` stays `true`. On 404 (or any other non-2xx — the SW's SWR helper falls through), the `<img>` element's `onerror` fires and flips `vehicleImageOk = false`, triggering Svelte to re-render the slot with the fallback SVG.
+6. If the user switches vehicles (the `vehicle` `$state` reassigns), the `$effect(() => { void vehicle?.id; vehicleImageOk = true; })` re-runs and resets the flag, giving the new vehicle a fresh chance at loading its photo. The `void` prefix is purely cosmetic — it tells ESLint's `no-unused-expressions` rule that the read is intentional while still letting Svelte's reactivity tracker subscribe. The cycle repeats from step 2.
+
+## Edge cases & invariants
+
+| Scenario | Behaviour | Why |
+|---|---|---|
+| Vehicle has no image (`imageLocation === ''`) | Endpoint 404 → `<img>` `onerror` → SVG fallback | The "no image" case is the same UX as a fetch failure — the user sees the original generic icon |
+| Upstream 5xx during image fetch | Endpoint 502 → SWR helper returns 502 to the browser → `<img>` `onerror` → SVG fallback | Same fallback path; user is never blocked |
+| Network offline, image cached previously | SWR returns cached bytes immediately, background refresh fails silently | This is the SWR contract; cache survives until rollback or eviction |
+| Network offline, image never cached | SWR helper awaits network fetch → throws → returns 504 → `<img>` `onerror` → SVG fallback | Graceful degradation, no UI hang |
+| Vehicle switch to one without image | `$effect` resets `vehicleImageOk` to `true` → `<img>` re-attempts → 404 → fallback re-applies | Without this reset, every vehicle after a fall-back-once vehicle would show the SVG even if it had a photo |
+| Photo added in LubeLogger for a previously-imageless vehicle | Picked up after server-side `TtlCache` TTL expires (≤5 min) — no SW invalidation needed because 404s aren't cached | The 404 was never persisted, so the next image-load attempt re-hits the server |
+| Path-guard: upstream returns a non-`/images/` path | 404 with `{ error: 'no image' }` | Defense-in-depth in case a future LubeLogger version stores arbitrary paths in `imageLocation` |
+| Vehicle id not in the upstream list | 404 with `{ error: 'no image' }` | Same code path as "no image" — both are user-invisible failures handled by the fallback |
+| Browser HTTP cache attempting to interfere | `cache-control: no-store` on the 200 response keeps the HTTP cache out of the picture | SW's `IMG_CACHE` is the single source of cached bytes |
+
+## Non-obvious decisions
+
+**Separate `TtlCache` per endpoint, not a shared module-level one.** `/api/vehicles/+server.ts` already module-scopes its cache. The new endpoint instantiating its own `TtlCache<Vehicle[]>` is the smallest viable diff. Cost: at most one extra `listVehicles()` call per 5-minute window when both endpoints run cold. Acceptable at personal-use scale; a shared cache is a future cleanup.
+
+**Endpoint returns raw `Response.body` rather than buffering into a `Buffer`.** Streaming preserves the 40 KB-or-so per-vehicle payload size and keeps the endpoint's memory footprint flat. The downstream code (Node `fetch` Response on Node 22) hands a `ReadableStream` to the new `Response()` constructor; SvelteKit / `@sveltejs/adapter-node` then streams it to the client.
+
+**`cache-control: no-store` on the 200 response is deliberate.** The service worker's `IMG_CACHE` is the authoritative client-side cache. Letting the browser's HTTP cache also store the bytes would create two staleness windows for the same resource and complicate the rollback story (a cache-name bump on `IMG_CACHE` wouldn't clear the HTTP cache).
+
+**Fall-back trigger is `<img>` `onerror`, not pre-flight fetch.** A pre-flight `fetch('/api/vehicle/image?...')` to check the status would double the network cost and force the page to render with the SVG flicker, then swap. The `<img>` element's natural `onerror` event fires at the same point and lets the SVG render only on real failure.
+
+**`$effect` keyed on `vehicle?.id`, not on `vehicle` itself.** Reading the `id` property pins the effect's dependency to the primitive identifier. A bare `vehicle` read also works (Svelte 5 tracks deep), but the explicit `id` access is cheaper to reason about and makes the effect's trigger condition obvious to a future reader.
+
+**Path-guard refuses anything outside `/images/` even though we control the upstream.** Defensive: a future LubeLogger version could change what shows up in `imageLocation` (e.g. an external URL for off-site storage) and we don't want quicklogger to start proxying arbitrary URLs by accident.
+
+**`alt=""` on the `<img>`.** The year/make/model renders next to the icon slot. Per WAI-ARIA decorative-image patterns, the image is informationally redundant — an empty alt is correct, not an oversight.
+
+**No SW unit test.** The existing service worker has none; its fetch handler is verified manually in UAT. The SWR helper has straight-line control flow — adding a SW test harness for this one branch isn't worth the setup cost.
+
+## Future considerations
+
+- **Pre-warming `IMG_CACHE` during SW install.** Would require enumerating vehicle ids in install scope, which complicates the install handler for a marginal latency win on first vehicle view. Deferred.
+- **Image on `/history` / `/maintenance` pages.** Explicitly out of scope per the spec — those pages currently render vehicles text-only and the user said "no UI/UX changes". Easy to add later by reusing the endpoint.
+- **Image upload from quicklogger.** Read-only is enough for now. Upload would need a new write endpoint and a UI surface that doesn't exist.
+- **Multiple sizes / thumbnails.** Single 48×48 display, image bytes ~40 KB — no perf reason to vary. If `/history` and `/vehicles` start showing photos at different sizes a `?size=` query param could route through a server-side resize step.
+- **Shared `vehiclesCache` refactor.** Both `/api/vehicles` and `/api/vehicle/image` keep their own `TtlCache<Vehicle[]>`. A shared module-scoped cache would deduplicate the rare double-call, but isn't worth the refactor at this scale.
+- **`IMG_CACHE` size budget.** No eviction policy in v1. Fleet size and per-photo bytes keep this comfortably under quota; revisit if either grows materially.
