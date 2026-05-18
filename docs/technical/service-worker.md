@@ -40,6 +40,20 @@ On install, every entry in `[...build, ...files]` is added to the cache:
 The cache is opaque to the rest of the app — it's only consumed by the
 fetch handler below.
 
+## Vehicle image cache
+
+Separate from the shell cache, fixed name, version baked into the constant:
+
+```ts
+const IMG_CACHE = 'quicklogger-vehicle-images-v1';
+```
+
+- Written exclusively by the `staleWhileRevalidate` helper for `GET /api/vehicle/image` responses (200 only — 404 "no image" never enters the cache).
+- Survives shell upgrades: the activate handler whitelists `IMG_CACHE` alongside the current shell `CACHE` so a new release doesn't wipe images.
+- No size budget enforcement in this version — observed bytes are ~40 KB per vehicle and the fleet size is tiny. A future eviction policy is out of scope.
+
+The cache name version suffix (`-v1`) is the rollback escape hatch: if the storage shape ever needs to change in a way that breaks consumers, bumping the suffix forces a clean rebuild on the next activation.
+
 ## Install / activate lifecycle
 
 ### Install
@@ -62,16 +76,19 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(
+        keys.filter((k) => k !== CACHE && k !== IMG_CACHE).map((k) => caches.delete(k))
+      );
       await self.clients.claim();
     })()
   );
 });
 ```
 
-- Lists every cache key, deletes any that isn't the current
-  `quicklogger-shell-${version}`. That's the pruning step — old shell
-  caches don't accumulate across releases.
+- Lists every cache key, deletes any that isn't either the current
+  `quicklogger-shell-${version}` or the fixed `quicklogger-vehicle-images-v1`.
+  That's the pruning step — old shell caches don't accumulate across
+  releases, and the vehicle-image cache survives the upgrade.
 - `clients.claim()` lets the new worker control already-open pages
   without a reload (paired with `skipWaiting`).
 
@@ -97,6 +114,39 @@ Two early exits short-circuit the handler:
   client-side — currently they aren't, but the guard is defensive).
 
 For same-origin GETs the handler branches by pathname:
+
+### `/api/vehicle/image` — stale-while-revalidate
+
+```ts
+if (url.pathname === '/api/vehicle/image') {
+  event.respondWith(staleWhileRevalidate(req));
+  return;
+}
+```
+
+Vehicle images are fetched once per vehicle per device and then near-immutable in normal use, so SWR is the right strategy: serve the cached copy synchronously, kick off a background refresh, and store the new bytes when (if) they arrive. Only 2xx responses are cached — a 404 "no image" is never persisted so a vehicle that gets a photo added in LubeLogger picks it up on the next render (after the server-side vehicles-cache 5-min TTL).
+
+Implementation:
+
+```ts
+async function staleWhileRevalidate(req: Request): Promise<Response> {
+  const cache = await caches.open(IMG_CACHE);
+  const cached = await cache.match(req);
+  const networkFetch = fetch(req)
+    .then((res) => {
+      if (res.ok) void cache.put(req, res.clone());
+      return res;
+    })
+    .catch(() => undefined);
+  if (cached) {
+    void networkFetch;  // fire-and-forget refresh
+    return cached;
+  }
+  return (await networkFetch) ?? new Response(null, { status: 504 });
+}
+```
+
+This branch is inserted *before* the generic `/api/` branch so the image path doesn't fall through to network-first. The `cache-control: no-store` header on the server response is what keeps the browser's HTTP cache out of the picture — `IMG_CACHE` is the only persistence layer for these bytes.
 
 ### `/api/*` — network-first
 

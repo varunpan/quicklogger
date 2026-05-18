@@ -10,6 +10,7 @@ import type { FuelSubmissionInput } from '$lib/shared/types';
 declare const self: ServiceWorkerGlobalScope;
 
 const CACHE = `quicklogger-shell-${version}`;
+const IMG_CACHE = 'quicklogger-vehicle-images-v1';
 const SHELL = [...build, ...files];
 
 self.addEventListener('install', (event) => {
@@ -21,7 +22,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(
+        keys.filter((k) => k !== CACHE && k !== IMG_CACHE).map((k) => caches.delete(k))
+      );
       await self.clients.claim();
     })()
   );
@@ -32,6 +35,12 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  // SWR for vehicle images — separate cache, intercept before the /api/ branch.
+  if (url.pathname === '/api/vehicle/image') {
+    event.respondWith(staleWhileRevalidate(req));
+    return;
+  }
 
   // network-first for API; cache-first for shell
   if (url.pathname.startsWith('/api/')) {
@@ -59,6 +68,23 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
   const data = event.data as SyncQueueMessage | undefined;
   if (data?.type === 'sync-queue') event.waitUntil(syncQueue());
 });
+
+async function staleWhileRevalidate(req: Request): Promise<Response> {
+  const cache = await caches.open(IMG_CACHE);
+  const cached = await cache.match(req);
+  const networkFetch = fetch(req)
+    .then((res) => {
+      if (res.ok) void cache.put(req, res.clone());
+      return res;
+    })
+    .catch(() => undefined);
+  if (cached) {
+    // fire-and-forget refresh; return cached immediately
+    void networkFetch;
+    return cached;
+  }
+  return (await networkFetch) ?? new Response(null, { status: 504 });
+}
 
 async function syncQueue() {
   const q = await Queue.open();
