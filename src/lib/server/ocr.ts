@@ -156,7 +156,10 @@ export function selectProvider(
 			built.push(b);
 		} else if (explicitChain) {
 			// WARN only when explicitly named — default chain is best-effort.
-			logger.warn(`OCR chain slot '${slot}' skipped: ${REQUIRED_ENV_VAR_BY_SLOT[slot]} not set`);
+			logger.warn('ocr chain slot skipped', {
+				slot,
+				missing_env: REQUIRED_ENV_VAR_BY_SLOT[slot]
+			});
 		}
 	}
 
@@ -164,7 +167,7 @@ export function selectProvider(
 	const chainTimeoutMs = built.reduce((sum, b) => sum + b.timeoutMs, 0);
 	if (built.length === 1) return { provider: built[0].provider, chainTimeoutMs };
 
-	logger.info(`OCR chain effective: ${built.map((b) => b.provider.name).join(', ')}`);
+	logger.info('ocr chain effective', { providers: built.map((b) => b.provider.name) });
 	return { provider: new ChainOcrProvider(built.map((b) => b.provider)), chainTimeoutMs };
 }
 

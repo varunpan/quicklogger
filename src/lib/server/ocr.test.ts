@@ -105,20 +105,28 @@ describe('selectProvider', () => {
   });
 
   it('WARNs and drops an explicitly-named slot whose required vars are missing', () => {
-    const warnings: string[] = [];
-    const logger = { warn: (m: string) => warnings.push(m), info: () => {} };
+    const warnings: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const logger = {
+      warn: (msg: string, ctx?: Record<string, unknown>) => warnings.push({ msg, ctx }),
+      info: () => {}
+    };
     const r = selectProvider(envOverrides({
       ollamaVisionUrl: 'http://o',
       ocrProviderChain: ['ollama-local', 'openai-compatible']
     }), logger);
     expect(r.provider?.name).toBe('ollama-local');
-    expect(warnings.some((w) => w.includes('openai-compatible') &&
-      w.includes('OPENAI_COMPATIBLE_API_KEY'))).toBe(true);
+    const skip = warnings.find((w) => w.msg === 'ocr chain slot skipped');
+    expect(skip).toBeDefined();
+    expect(skip?.ctx?.slot).toBe('openai-compatible');
+    expect(skip?.ctx?.missing_env).toBe('OPENAI_COMPATIBLE_API_KEY (and URL, MODEL)');
   });
 
   it('silent-skips a missing-config slot when the default chain is in effect (no WARN)', () => {
-    const warnings: string[] = [];
-    const logger = { warn: (m: string) => warnings.push(m), info: () => {} };
+    const warnings: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const logger = {
+      warn: (msg: string, ctx?: Record<string, unknown>) => warnings.push({ msg, ctx }),
+      info: () => {}
+    };
     const r = selectProvider(envOverrides({
       ollamaVisionUrl: 'http://o'
       // no openrouter, no cloud, no oai-compat — but no explicit chain either
@@ -128,18 +136,26 @@ describe('selectProvider', () => {
   });
 
   it('logs the effective chain at INFO when more than one slot survives', () => {
-    const infos: string[] = [];
-    const logger = { warn: () => {}, info: (m: string) => infos.push(m) };
+    const infos: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const logger = {
+      warn: () => {},
+      info: (msg: string, ctx?: Record<string, unknown>) => infos.push({ msg, ctx })
+    };
     selectProvider(envOverrides({
       ollamaVisionUrl: 'http://o',
       openrouterApiKey: 'sk'
     }), logger);
-    expect(infos.some((m) => m.includes('ollama-local') && m.includes('openrouter'))).toBe(true);
+    const chain = infos.find((m) => m.msg === 'ocr chain effective');
+    expect(chain).toBeDefined();
+    expect(chain?.ctx?.providers).toEqual(['ollama-local', 'openrouter']);
   });
 
   it('does not emit the INFO chain log when only one slot survives', () => {
-    const infos: string[] = [];
-    const logger = { warn: () => {}, info: (m: string) => infos.push(m) };
+    const infos: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const logger = {
+      warn: () => {},
+      info: (msg: string, ctx?: Record<string, unknown>) => infos.push({ msg, ctx })
+    };
     selectProvider(envOverrides({ ollamaVisionUrl: 'http://o' }), logger);
     expect(infos).toHaveLength(0);
   });
