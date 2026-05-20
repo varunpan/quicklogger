@@ -2,6 +2,7 @@
   import '../app.css';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
+  import { installClientLogger } from '$lib/client/logger';
 
   let { children } = $props();
 
@@ -24,6 +25,7 @@
   }
 
   onMount(() => {
+    installClientLogger();
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/service-worker.js', { type: 'module' });
 

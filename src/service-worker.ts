@@ -14,7 +14,12 @@ const IMG_CACHE = 'quicklogger-vehicle-images-v1';
 const SHELL = [...build, ...files];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((c) => c.addAll(SHELL))
+      .catch((err) => sendSwLog('error', 'sw install failed', { message: (err as Error).message }))
+  );
   void self.skipWaiting();
 });
 
@@ -84,6 +89,34 @@ async function staleWhileRevalidate(req: Request): Promise<Response> {
     return cached;
   }
   return (await networkFetch) ?? new Response(null, { status: 504 });
+}
+
+self.addEventListener('error', (event) => {
+  void sendSwLog('error', 'service-worker error', {
+    message: (event as ErrorEvent).message ?? String(event),
+    filename: (event as ErrorEvent).filename,
+    lineno: (event as ErrorEvent).lineno
+  });
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  const reason = (event as PromiseRejectionEvent).reason;
+  void sendSwLog('error', 'service-worker unhandled rejection', {
+    message: reason instanceof Error ? reason.message : String(reason)
+  });
+});
+
+async function sendSwLog(level: 'error' | 'warn' | 'info', msg: string, ctx: Record<string, unknown>) {
+  try {
+    await fetch('/api/log', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({
+        records: [{ level, msg, ts: new Date().toISOString(), ctx: { ...ctx, source: 'service-worker' } }]
+      })
+    });
+  } catch { /* swallow — we can't log a log failure */ }
 }
 
 async function syncQueue() {
