@@ -6,6 +6,16 @@ import {
 import { MODES } from './ocrModes';
 import type { ModeContract } from './ocrModes';
 import type { OcrMode, OcrResult } from '$lib/shared/types';
+import type { Logger } from './logger';
+
+// No-op logger used when runOcrPipeline is called without one. Lets callers
+// (and tests) skip the logger arg without sprinkling `if (log)` guards through
+// every branch point. `child` returns `this` so chained .child() calls also
+// degrade gracefully.
+const NOOP_LOGGER: Logger = {
+	debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+	child() { return this; }
+};
 
 export type ImageType = 'jpeg' | 'png' | 'webp' | 'heic';
 
@@ -123,8 +133,8 @@ function buildSlot(slot: OcrSlotName, env: Env): BuiltSlot | null {
 }
 
 interface SelectProviderLogger {
-	warn: (msg: string) => void;
-	info: (msg: string) => void;
+	warn: (msg: string, ctx?: Record<string, unknown>) => void;
+	info: (msg: string, ctx?: Record<string, unknown>) => void;
 }
 
 export interface SelectProviderResult {
@@ -183,12 +193,27 @@ interface PipelineInput {
 	env: Env;
 	lastOdometerMi?: number;
 	lastPricePerUnit?: number;
+	logger?: Logger;
 }
 
 export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutcome> {
+	const log = input.logger ?? NOOP_LOGGER;
 	const t0 = Date.now();
+	log.debug('ocr pipeline start', {
+		ocr_slot: input.provider.name,
+		ocr_mode: input.mode,
+		ocr_provider: input.provider.name,
+		bytes_len: input.bytes.byteLength,
+		has_hint_odometer: typeof input.lastOdometerMi === 'number',
+		has_hint_price: typeof input.lastPricePerUnit === 'number'
+	});
+
 	const imageType = sniffImageType(input.bytes);
 	if (!imageType) {
+		log.warn('ocr unsupported image type', {
+			ocr_mode: input.mode,
+			bytes_prefix_hex: Buffer.from(input.bytes.slice(0, 8)).toString('hex')
+		});
 		return { ok: false, statusCode: 415, error: 'unsupported image type', imageType: null, latencyMs: Date.now() - t0 };
 	}
 	// Cast to the base ModeContract so the dispatcher can pass the union result
@@ -198,6 +223,10 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 	// contracts, whose validate* methods have incompatible parameter types.
 	const contract: ModeContract = MODES[input.mode];
 	if (!contract) {
+		log.warn('ocr unknown mode', {
+			ocr_mode: input.mode,
+			available_modes: Object.keys(MODES)
+		});
 		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
 	}
 
@@ -228,22 +257,47 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 	try {
 		raw = await input.provider.extract(input.bytes, promptStr, contract.schema);
 	} catch (err) {
+		log.error('ocr provider failed', {
+			ocr_mode: input.mode,
+			ocr_provider: input.provider.name,
+			err
+		});
 		const code = err instanceof OcrProviderError ? err.code : 'UNKNOWN';
 		return { ok: false, statusCode: 502, error: `provider failed: ${code}`, imageType, latencyMs: Date.now() - t0 };
 	}
 
 	const schema = contract.validateSchema(raw);
 	if (!schema.ok) {
+		log.warn('ocr schema invalid', {
+			ocr_mode: input.mode,
+			ocr_provider: input.provider.name,
+			ocr_raw_full: raw,
+			ocr_validation: schema.error
+		});
 		return { ok: false, statusCode: 502, error: `schema invalid: ${schema.error}`, imageType, latencyMs: Date.now() - t0 };
 	}
 	const value = schema.value;
 	const ranges = contract.validateRanges(value, input.env);
 	if (!ranges.ok) {
+		log.warn('ocr range validation failed', {
+			ocr_mode: input.mode,
+			ocr_provider: input.provider.name,
+			ocr_parsed: value,
+			ocr_raw_full: raw,
+			ocr_validation: ranges.error
+		});
 		return { ok: false, statusCode: 422, error: ranges.error, imageType, latencyMs: Date.now() - t0 };
 	}
 	if (contract.validateCrossField) {
 		const cross = contract.validateCrossField(value);
 		if (!cross.ok) {
+			log.warn('ocr cross-field validation failed', {
+				ocr_mode: input.mode,
+				ocr_provider: input.provider.name,
+				ocr_parsed: value,
+				ocr_raw_full: raw,
+				ocr_validation: cross.error
+			});
 			return { ok: false, statusCode: 422, error: cross.error, imageType, latencyMs: Date.now() - t0 };
 		}
 	}
@@ -251,13 +305,30 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 	const isChain = input.provider instanceof ChainOcrProvider;
 	const active = isChain ? (input.provider as ChainOcrProvider).activeProvider ?? input.provider : input.provider;
 	const fellbackFrom = isChain ? (input.provider as ChainOcrProvider).lastFellbackFrom : null;
+	const latencyMs = Date.now() - t0;
+	const costCents = input.provider.estimateCostCents();
+	log.info('ocr success', {
+		ocr_mode: input.mode,
+		ocr_provider: active.name,
+		fellback_from: fellbackFrom,
+		ocr_cost_usd: costCents / 100,
+		latency_ms: latencyMs,
+		ocr_raw_preview: typeof raw === 'string' ? raw.slice(0, 200) : undefined
+	});
+	if (fellbackFrom) {
+		log.warn('ocr provider fellback', {
+			from: fellbackFrom,
+			to: active.name,
+			reason: 'previous slot failed'
+		});
+	}
 	return {
 		ok: true,
 		imageType,
 		result: value,
 		provider: active.name,
 		fellbackFrom,
-		costCents: input.provider.estimateCostCents(),
-		latencyMs: Date.now() - t0
+		costCents,
+		latencyMs
 	};
 }

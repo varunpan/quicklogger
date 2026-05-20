@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { sniffImageType, selectProvider, runOcrPipeline, type PipelineOutcome } from './ocr';
 import { ChainOcrProvider, type OcrProvider } from './ocrProviders';
 import type { Env } from './env';
+import type { Logger } from './logger';
 
 const JPEG_HEAD = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG_HEAD = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
@@ -403,5 +404,111 @@ describe('runOcrPipeline', () => {
     });
     expect(r.ok).toBe(true);
     expect(seenPrompt).not.toMatch(/most recent fuel price recorded/i);
+  });
+});
+
+interface CapturedRec { level: string; msg: string; ctx: Record<string, unknown>; }
+function captureLogger(): { logger: Logger; recs: CapturedRec[] } {
+  const recs: CapturedRec[] = [];
+  function mk(): Logger {
+    const log = (level: string) => (msg: string, ctx?: Record<string, unknown>) =>
+      void recs.push({ level, msg, ctx: ctx ?? {} });
+    return {
+      debug: log('debug') as Logger['debug'], info: log('info') as Logger['info'],
+      warn: log('warn') as Logger['warn'], error: log('error') as Logger['error'],
+      child: () => mk()
+    };
+  }
+  return { logger: mk(), recs };
+}
+
+class FakeProvider implements OcrProvider {
+  readonly name = 'ollama-local';
+  estimateCostCents() { return 0; }
+  constructor(private readonly impl: () => Promise<unknown>) {}
+  async extract(): Promise<unknown> { return await this.impl(); }
+}
+
+describe('runOcrPipeline — branch logging', () => {
+  const JPEG_HEAD = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+  const NOT_AN_IMAGE = Buffer.from('this is plain text bytes...');
+
+  it('emits "ocr pipeline start" at debug', async () => {
+    const provider = new FakeProvider(async () => ({ odometer: 12345 }));
+    const { logger, recs } = captureLogger();
+    await runOcrPipeline({
+      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+    });
+    expect(recs.find((r) => r.msg === 'ocr pipeline start')?.level).toBe('debug');
+  });
+
+  it('emits "ocr unsupported image type" at warn for non-image bytes', async () => {
+    const provider = new FakeProvider(async () => ({ odometer: 1 }));
+    const { logger, recs } = captureLogger();
+    await runOcrPipeline({
+      bytes: NOT_AN_IMAGE, mode: 'odometer', provider, env: envOverrides({}), logger
+    });
+    const w = recs.find((r) => r.msg === 'ocr unsupported image type');
+    expect(w?.level).toBe('warn');
+  });
+
+  it('emits "ocr unknown mode" at warn when mode is unknown', async () => {
+    const provider = new FakeProvider(async () => ({}));
+    const { logger, recs } = captureLogger();
+    await runOcrPipeline({
+      bytes: JPEG_HEAD, mode: 'bogus' as never, provider, env: envOverrides({}), logger
+    });
+    expect(recs.find((r) => r.msg === 'ocr unknown mode')?.level).toBe('warn');
+  });
+
+  it('emits "ocr provider failed" at error when extract throws', async () => {
+    const provider = new FakeProvider(async () => { throw new Error('boom'); });
+    const { logger, recs } = captureLogger();
+    await runOcrPipeline({
+      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+    });
+    const e = recs.find((r) => r.msg === 'ocr provider failed');
+    expect(e?.level).toBe('error');
+    expect((e?.ctx.err as Record<string, unknown>)?.message).toBe('boom');
+  });
+
+  it('emits "ocr schema invalid" with ocr_raw_full at warn when schema fails', async () => {
+    const garbage = { not_what_we_asked_for: 42 };
+    const provider = new FakeProvider(async () => garbage);
+    const { logger, recs } = captureLogger();
+    await runOcrPipeline({
+      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+    });
+    const w = recs.find((r) => r.msg === 'ocr schema invalid');
+    expect(w?.level).toBe('warn');
+    expect(w?.ctx.ocr_raw_full).toEqual(garbage);
+  });
+
+  it('emits "ocr range validation failed" with ocr_raw_full at warn when ranges fail', async () => {
+    const oversized = { volume: 9999, volumeUnit: 'gal', cost: 9999, pricePerUnit: 9999 };
+    const provider = new FakeProvider(async () => oversized);
+    const { logger, recs } = captureLogger();
+    await runOcrPipeline({
+      bytes: JPEG_HEAD, mode: 'pump', provider, env: envOverrides({}), logger
+    });
+    const w = recs.find((r) => r.msg === 'ocr range validation failed');
+    expect(w?.level).toBe('warn');
+    expect(w?.ctx.ocr_raw_full).toEqual(oversized);
+  });
+
+  it('emits "ocr success" at info on happy path', async () => {
+    const provider = new FakeProvider(async () => ({ odometer: 12345 }));
+    const { logger, recs } = captureLogger();
+    await runOcrPipeline({
+      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+    });
+    expect(recs.find((r) => r.msg === 'ocr success')?.level).toBe('info');
+  });
+
+  it('runs without a logger (no throw)', async () => {
+    const provider = new FakeProvider(async () => ({ odometer: 1 }));
+    await expect(
+      runOcrPipeline({ bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}) })
+    ).resolves.toBeDefined();
   });
 });
