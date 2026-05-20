@@ -1,6 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { BudgetStore, BudgetEntry } from './ocrBudget';
 import { OcrBudget } from './ocrBudget';
+import type { Logger } from './logger';
+
+type LogCall = { level: string; msg: string; ctx: Record<string, unknown> };
+
+function captureLogger(): { logger: Logger; calls: LogCall[] } {
+  const calls: LogCall[] = [];
+  const log = (level: string) => (msg: string, ctx?: Record<string, unknown>) =>
+    void calls.push({ level, msg, ctx: ctx ?? {} });
+  const logger = {
+    debug: log('debug'),
+    info: log('info'),
+    warn: log('warn'),
+    error: log('error'),
+    child() { return this; }
+  } as unknown as Logger;
+  return { logger, calls };
+}
 
 function inMemoryStore(initial?: BudgetEntry | null): BudgetStore {
   let data = initial ?? null;
@@ -53,5 +70,31 @@ describe('OcrBudget', () => {
     expect(loaded?.date).toBe('2026-05-11');
     expect(loaded?.calls).toBe(1);
     expect(loaded?.costCents).toBeCloseTo(0.6, 5);
+  });
+
+  it('logs a warn and proceeds when the store read fails on check()', async () => {
+    const { logger, calls } = captureLogger();
+    const store: BudgetStore = {
+      async load() { throw new Error('disk gone'); },
+      async save() {}
+    };
+    const b = new OcrBudget({ dailyUsd: 1.0, store, logger });
+    await expect(b.check()).resolves.toEqual({ ok: true });
+    expect(
+      calls.some((c) => c.level === 'warn' && c.msg === 'ocr budget read failed')
+    ).toBe(true);
+  });
+
+  it('logs an error and swallows when the store write fails on add()', async () => {
+    const { logger, calls } = captureLogger();
+    const store: BudgetStore = {
+      async load() { return null; },
+      async save() { throw new Error('disk full'); }
+    };
+    const b = new OcrBudget({ dailyUsd: 1.0, store, logger });
+    await expect(b.add(0.6)).resolves.toBeUndefined();
+    expect(
+      calls.some((c) => c.level === 'error' && c.msg === 'ocr budget write failed')
+    ).toBe(true);
   });
 });

@@ -1,5 +1,16 @@
+import type { Logger } from './logger';
+
+const NOOP_LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() { return this; }
+};
+
 export interface OcrRateLimiterOptions {
   perHour: number;
+  logger?: Logger;
 }
 
 export type RateLimitResult =
@@ -10,10 +21,12 @@ const HOUR_MS = 60 * 60 * 1000;
 
 export class OcrRateLimiter {
   private readonly perHour: number;
+  private readonly log: Logger;
   private readonly hits = new Map<string, number[]>();
 
   constructor(opts: OcrRateLimiterOptions) {
     this.perHour = opts.perHour;
+    this.log = opts.logger ?? NOOP_LOGGER;
   }
 
   check(key: string): RateLimitResult {

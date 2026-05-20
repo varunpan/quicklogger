@@ -3,6 +3,23 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, existsSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey, type AuditRecord } from './ocrAudit';
+import type { Logger } from './logger';
+
+type LogCall = { level: string; msg: string; ctx: Record<string, unknown> };
+
+function captureLogger(): { logger: Logger; calls: LogCall[] } {
+  const calls: LogCall[] = [];
+  const log = (level: string) => (msg: string, ctx?: Record<string, unknown>) =>
+    void calls.push({ level, msg, ctx: ctx ?? {} });
+  const logger = {
+    debug: log('debug'),
+    info: log('info'),
+    warn: log('warn'),
+    error: log('error'),
+    child() { return this; }
+  } as unknown as Logger;
+  return { logger, calls };
+}
 
 const TEST_KEY = Buffer.from('secret-key-for-testing-only-bytes', 'utf-8');
 
@@ -97,6 +114,20 @@ describe('OcrAudit', () => {
     for (let i = 0; i < 10; i++) await audit.append(pumpRecord());
     expect(statSync(path).size).toBeLessThanOrEqual(400);
   });
+
+  it('swallows write errors and logs an error record', async () => {
+    const { logger, calls } = captureLogger();
+    // mkdir under /dev/null cannot succeed on any unix; this exercises the catch path.
+    const audit = new OcrAudit({
+      path: '/dev/null/cannot-create-here/audit.jsonl',
+      maxBytes: 1_048_576,
+      logger
+    });
+    await expect(audit.append(pumpRecord())).resolves.toBeUndefined();
+    expect(
+      calls.some((c) => c.level === 'error' && c.msg === 'ocr audit append failed')
+    ).toBe(true);
+  });
 });
 
 describe('hashIp / hashImage', () => {
@@ -162,5 +193,23 @@ describe('resolveAuditHmacKey', () => {
     const k = resolveAuditHmacKey({ ocrAuditHmacKey: undefined, ocrAuditKeyPath: nested });
     expect(k.length).toBe(32);
     expect(existsSync(nested)).toBe(true);
+  });
+
+  it('logs an error and rethrows when the key path is inside an unwritable parent', () => {
+    const { logger, calls } = captureLogger();
+    // /dev/null is a char device — reading or mkdir-under it surfaces a
+    // non-ENOENT errno (typically ENOTDIR), forcing one of the two error paths.
+    const bad = '/dev/null/cannot-create-here/ocr-audit-key.txt';
+    expect(() =>
+      resolveAuditHmacKey({ ocrAuditHmacKey: undefined, ocrAuditKeyPath: bad, logger })
+    ).toThrow();
+    expect(
+      calls.some(
+        (c) =>
+          c.level === 'error' &&
+          (c.msg === 'ocr audit key read failed' ||
+            c.msg === 'ocr audit key generation failed')
+      )
+    ).toBe(true);
   });
 });

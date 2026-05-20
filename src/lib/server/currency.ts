@@ -1,6 +1,15 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { FxProviderName } from './env';
+import type { Logger } from './logger';
+
+const NOOP_LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() { return this; }
+};
 
 export interface FxCacheEntry {
   rate: number;
@@ -41,6 +50,7 @@ interface Options {
   providers: FxProviderName[];
   fetcher: FxFetcher;
   store: FxStore;
+  logger?: Logger;
 }
 
 function key(from: string, to: string): string {
@@ -52,14 +62,23 @@ function ageMs(fetchedAt: number): number {
 }
 
 export class CurrencyService {
-  constructor(private readonly opts: Options) {}
+  private readonly log: Logger;
+  constructor(private readonly opts: Options) {
+    this.log = opts.logger ?? NOOP_LOGGER;
+  }
 
   async getRate(from: string, to: string): Promise<FxResult> {
     if (from === to) {
       return { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 };
     }
 
-    const cache = await this.opts.store.load();
+    let cache: Record<string, FxCacheEntry>;
+    try {
+      cache = await this.opts.store.load();
+    } catch (err) {
+      this.log.warn('fx cache read failed', { err });
+      cache = {};
+    }
     const cached = cache[key(from, to)];
     if (cached && ageMs(cached.fetchedAt) < FRESH_MAX_MS) {
       return this.toResult(cached, false);
@@ -70,10 +89,14 @@ export class CurrencyService {
         const { rate } = await this.opts.fetcher(p, from, to);
         const entry: FxCacheEntry = { rate, fetchedAt: Date.now(), source: p };
         cache[key(from, to)] = entry;
-        await this.opts.store.save(cache);
+        try {
+          await this.opts.store.save(cache);
+        } catch (err) {
+          this.log.warn('fx cache write failed', { provider: p, err });
+        }
         return this.toResult(entry, false);
       } catch (err) {
-        console.warn(`[fx] provider ${p} failed: ${(err as Error).message}`);
+        this.log.warn('fx provider failed', { provider: p, err });
       }
     }
 

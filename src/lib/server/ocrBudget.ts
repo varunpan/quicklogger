@@ -1,5 +1,14 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import type { Logger } from './logger';
+
+const NOOP_LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() { return this; }
+};
 
 export interface BudgetEntry {
   date: string;        // YYYY-MM-DD (UTC)
@@ -15,6 +24,7 @@ export interface BudgetStore {
 interface Options {
   dailyUsd: number;
   store: BudgetStore;
+  logger?: Logger;
 }
 
 function utcDateStamp(now = Date.now()): string {
@@ -22,11 +32,20 @@ function utcDateStamp(now = Date.now()): string {
 }
 
 export class OcrBudget {
-  constructor(private readonly opts: Options) {}
+  private readonly log: Logger;
+  constructor(private readonly opts: Options) {
+    this.log = opts.logger ?? NOOP_LOGGER;
+  }
 
   async check(): Promise<{ ok: true } | { ok: false }> {
     const today = utcDateStamp();
-    const cur = await this.opts.store.load();
+    let cur: BudgetEntry | null;
+    try {
+      cur = await this.opts.store.load();
+    } catch (err) {
+      this.log.warn('ocr budget read failed', { err });
+      cur = null;
+    }
     if (!cur || cur.date !== today) return { ok: true };
     if (cur.costCents > this.opts.dailyUsd * 100) return { ok: false };
     return { ok: true };
@@ -34,12 +53,22 @@ export class OcrBudget {
 
   async add(costCents: number): Promise<void> {
     const today = utcDateStamp();
-    const cur = await this.opts.store.load();
+    let cur: BudgetEntry | null;
+    try {
+      cur = await this.opts.store.load();
+    } catch (err) {
+      this.log.warn('ocr budget read failed', { err });
+      cur = null;
+    }
     const next: BudgetEntry =
       !cur || cur.date !== today
         ? { date: today, calls: 1, costCents }
         : { date: today, calls: cur.calls + 1, costCents: cur.costCents + costCents };
-    await this.opts.store.save(next);
+    try {
+      await this.opts.store.save(next);
+    } catch (err) {
+      this.log.error('ocr budget write failed', { err });
+    }
   }
 }
 
