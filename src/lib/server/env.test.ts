@@ -11,7 +11,8 @@ beforeEach(() => {
       k.startsWith('OLLAMA_') ||
       k.startsWith('OPENROUTER_') ||
       k.startsWith('OCR_') ||
-      k.startsWith('OPENAI_COMPATIBLE_')
+      k.startsWith('OPENAI_COMPATIBLE_') ||
+      k.startsWith('LOG_')
     ) {
       delete process.env[k];
     }
@@ -248,5 +249,73 @@ describe('loadEnv — new OCR slot defaults', () => {
     expect(env.openaiCompatibleApiKey).toBe('gsk-1');
     expect(env.openaiCompatibleModel).toBe('llama-3.2-90b-vision-preview');
     expect(env.openaiCompatibleTimeoutMs).toBe(20_000);
+  });
+});
+
+describe('loadEnv — logging fields', () => {
+  beforeEach(() => {
+    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
+    process.env.LUBELOGGER_API_KEY = 'k';
+    delete process.env.LOG_LEVEL;
+    delete process.env.LOG_PRETTY;
+    delete process.env.LOG_FILE_PATH;
+    delete process.env.LOG_FILE_MAX_SIZE_MB;
+    delete process.env.LOG_FILE_MAX_FILES;
+    delete process.env.NODE_ENV;
+  });
+
+  it('defaults LOG_LEVEL to info, LOG_FILE_PATH to undefined', () => {
+    const env = loadEnv();
+    expect(env.logLevel).toBe('info');
+    expect(env.logFilePath).toBeUndefined();
+    expect(env.logFileMaxSizeMb).toBe(5);
+    expect(env.logFileMaxFiles).toBe(5);
+    expect(env.envWarnings).toEqual([]);
+  });
+
+  it('accepts valid LOG_LEVEL values', () => {
+    process.env.LOG_LEVEL = 'debug';
+    expect(loadEnv().logLevel).toBe('debug');
+    process.env.LOG_LEVEL = 'warn';
+    expect(loadEnv().logLevel).toBe('warn');
+    process.env.LOG_LEVEL = 'error';
+    expect(loadEnv().logLevel).toBe('error');
+  });
+
+  it('falls back to info + warns on invalid LOG_LEVEL', () => {
+    process.env.LOG_LEVEL = 'verbose';
+    const env = loadEnv();
+    expect(env.logLevel).toBe('info');
+    expect(env.envWarnings.join('|')).toMatch(/LOG_LEVEL/);
+  });
+
+  it('LOG_PRETTY=1 forces pretty; LOG_PRETTY=0 forces JSON', () => {
+    process.env.LOG_PRETTY = '1';
+    expect(loadEnv().logPretty).toBe(true);
+    process.env.LOG_PRETTY = '0';
+    expect(loadEnv().logPretty).toBe(false);
+  });
+
+  it('LOG_PRETTY auto-detects: false when NODE_ENV=production, true otherwise', () => {
+    process.env.NODE_ENV = 'production';
+    expect(loadEnv().logPretty).toBe(false);
+    process.env.NODE_ENV = 'development';
+    expect(loadEnv().logPretty).toBe(true);
+  });
+
+  it('clamps LOG_FILE_MAX_SIZE_MB to [1, 100], LOG_FILE_MAX_FILES to [1, 20]', () => {
+    process.env.LOG_FILE_MAX_SIZE_MB = '0';
+    process.env.LOG_FILE_MAX_FILES = '99';
+    const env = loadEnv();
+    expect(env.logFileMaxSizeMb).toBe(5);
+    expect(env.logFileMaxFiles).toBe(5);
+    expect(env.envWarnings.some((w) => w.includes('LOG_FILE_MAX_SIZE_MB'))).toBe(true);
+    expect(env.envWarnings.some((w) => w.includes('LOG_FILE_MAX_FILES'))).toBe(true);
+  });
+
+  it('accepts LOG_FILE_PATH as-is (no readability check at parse time)', () => {
+    process.env.LOG_FILE_PATH = '/data/logs/quicklogger.log';
+    const env = loadEnv();
+    expect(env.logFilePath).toBe('/data/logs/quicklogger.log');
   });
 });

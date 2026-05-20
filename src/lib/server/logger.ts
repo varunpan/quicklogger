@@ -1,4 +1,9 @@
 import type { Writable } from 'node:stream';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { createRequire } from 'node:module';
+
+const requireFromHere = createRequire(import.meta.url);
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -104,4 +109,102 @@ export function createLogger(opts: LoggerOptions): Logger {
   }
 
   return makeBase({});
+}
+
+export interface BootLoggerEnv {
+  logLevel: LogLevel;
+  logPretty: boolean;
+  logFilePath: string | undefined;
+  logFileMaxSizeMb: number;
+  logFileMaxFiles: number;
+  envWarnings: string[];
+}
+
+let _instance: Logger | null = null;
+let _crashHandlersRegistered = false;
+
+export function bootLogger(
+  env: BootLoggerEnv,
+  deps?: {
+    openFileSink?: (path: string, sizeMb: number, maxFiles: number) => Writable;
+    registerProcessHandlers?: boolean;
+  }
+): Logger {
+  let fileSink: Writable | undefined;
+  let fileError: string | undefined;
+  if (env.logFilePath) {
+    try {
+      mkdirSync(dirname(env.logFilePath), { recursive: true });
+      fileSink = (deps?.openFileSink ?? defaultOpenFileSink)(
+        env.logFilePath,
+        env.logFileMaxSizeMb,
+        env.logFileMaxFiles
+      );
+    } catch (err) {
+      fileError = `failed to open LOG_FILE_PATH ${env.logFilePath}: ${(err as Error).message}`;
+    }
+  }
+  const logger = createLogger({
+    level: env.logLevel,
+    pretty: env.logPretty,
+    fileStream: fileSink
+  });
+
+  logger.info('logger ready', {
+    level: env.logLevel,
+    pretty: env.logPretty,
+    file_enabled: Boolean(fileSink),
+    file_path: env.logFilePath,
+    max_size_mb: env.logFilePath ? env.logFileMaxSizeMb : undefined,
+    max_files: env.logFilePath ? env.logFileMaxFiles : undefined
+  });
+
+  for (const w of env.envWarnings) logger.warn('env validation', { detail: w });
+  if (fileError) logger.warn('log file disabled', { detail: fileError });
+
+  if (deps?.registerProcessHandlers !== false && !_crashHandlersRegistered) {
+    registerCrashHandlers(logger);
+    _crashHandlersRegistered = true;
+  }
+
+  _instance = logger;
+  return logger;
+}
+
+export function getLogger(): Logger {
+  if (!_instance) {
+    // Fallback for tests that import a server module before bootLogger runs.
+    _instance = createLogger({ level: 'info', pretty: false });
+  }
+  return _instance;
+}
+
+export function _resetLoggerForTests() {
+  _instance = null;
+  _crashHandlersRegistered = false;
+}
+
+function defaultOpenFileSink(path: string, sizeMb: number, maxFiles: number): Writable {
+  // Lazy require via createRequire keeps rotating-file-stream out of bundles that don't need
+  // it. Bare require() would crash here since this package is ESM ("type": "module").
+  const rfs = requireFromHere('rotating-file-stream') as typeof import('rotating-file-stream');
+  return rfs.createStream(path, {
+    size: `${sizeMb}M`,
+    maxFiles,
+    initialRotation: false
+  }) as unknown as Writable;
+}
+
+function registerCrashHandlers(logger: Logger): void {
+  process.on('uncaughtException', (err) => {
+    try {
+      logger.error('uncaught exception', { err });
+    } finally {
+      setTimeout(() => process.exit(1), 100).unref();
+    }
+  });
+  process.on('unhandledRejection', (reason) => {
+    const err = reason instanceof Error ? reason : new Error(String(reason));
+    logger.error('unhandled rejection', { err });
+  });
 }

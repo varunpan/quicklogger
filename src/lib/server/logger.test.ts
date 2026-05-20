@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createLogger, type Logger } from './logger';
+import { createLogger, bootLogger, getLogger, _resetLoggerForTests, type Logger } from './logger';
 import { Writable } from 'node:stream';
 
 function captureStream(): { stream: Writable; lines: string[] } {
@@ -131,5 +131,57 @@ describe('createLogger', () => {
     const { stream } = captureStream();
     const logger = createLogger({ level: 'info', pretty: false, stdout: stream });
     expect(() => logger.info('weird', { fn: () => 1, sym: Symbol('x'), big: 10n })).not.toThrow();
+  });
+});
+
+describe('bootLogger', () => {
+  beforeEach(() => _resetLoggerForTests());
+
+  it('returns a logger and sets it as the singleton', () => {
+    const logger = bootLogger(
+      {
+        logLevel: 'info',
+        logPretty: false,
+        logFilePath: undefined,
+        logFileMaxSizeMb: 5,
+        logFileMaxFiles: 5,
+        envWarnings: []
+      },
+      { registerProcessHandlers: false }
+    );
+    expect(logger).toBeDefined();
+    expect(getLogger()).toBe(logger);
+  });
+
+  it('emits warn records for envWarnings (no throw)', () => {
+    expect(() =>
+      bootLogger(
+        {
+          logLevel: 'info',
+          logPretty: false,
+          logFilePath: undefined,
+          logFileMaxSizeMb: 5,
+          logFileMaxFiles: 5,
+          envWarnings: ['LOG_LEVEL invalid', 'LOG_FILE_MAX_FILES out of range']
+        },
+        { registerProcessHandlers: false }
+      )
+    ).not.toThrow();
+  });
+
+  it('does not register crash handlers when registerProcessHandlers=false', () => {
+    const before = process.listenerCount('uncaughtException');
+    bootLogger(
+      {
+        logLevel: 'info',
+        logPretty: false,
+        logFilePath: undefined,
+        logFileMaxSizeMb: 5,
+        logFileMaxFiles: 5,
+        envWarnings: []
+      },
+      { registerProcessHandlers: false }
+    );
+    expect(process.listenerCount('uncaughtException')).toBe(before);
   });
 });

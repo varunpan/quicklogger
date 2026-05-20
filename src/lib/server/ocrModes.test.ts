@@ -26,6 +26,8 @@ function fakeEnv(overrides: Partial<Env> = {}): Env {
     ocrAuditKeyPath: '/tmp/k.txt', ocrAuditHmacKey: undefined,
     ocrPumpVolumeMax: 200, ocrPumpCostMax: 500, ocrPumpPricePerUnitMax: 20,
     ocrOdometerMaxMi: 1_000_000,
+    logLevel: 'info', logPretty: false, logFilePath: undefined,
+    logFileMaxSizeMb: 5, logFileMaxFiles: 5, envWarnings: [],
     ...overrides
   };
 }

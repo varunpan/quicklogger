@@ -56,6 +56,15 @@ export interface Env {
   ocrPumpCostMax: number;
   ocrPumpPricePerUnitMax: number;
   ocrOdometerMaxMi: number;
+
+  // --- Logging (v0.2.3+) ---
+  logLevel: 'debug' | 'info' | 'warn' | 'error';
+  logPretty: boolean;
+  logFilePath: string | undefined;
+  logFileMaxSizeMb: number;
+  logFileMaxFiles: number;
+  /** Non-fatal complaints from env parsing — flushed by bootLogger after the logger boots. */
+  envWarnings: string[];
 }
 
 export class EnvError extends Error {
@@ -77,6 +86,38 @@ function numberOr(name: string, fallback: number): number {
   const n = Number(v);
   if (!Number.isFinite(n)) throw new EnvError(`${name} must be a finite number, got "${v}"`);
   return n;
+}
+
+function parseLogLevel(warnings: string[]): 'debug' | 'info' | 'warn' | 'error' {
+  const raw = process.env.LOG_LEVEL;
+  if (raw === undefined || raw === '') return 'info';
+  if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error') return raw;
+  warnings.push(`invalid LOG_LEVEL "${raw}"; falling back to info`);
+  return 'info';
+}
+
+function parseLogPretty(): boolean {
+  const raw = process.env.LOG_PRETTY;
+  if (raw === '1') return true;
+  if (raw === '0') return false;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function parseBoundedInt(
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+  warnings: string[]
+): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min || n > max) {
+    warnings.push(`invalid ${name} "${raw}"; falling back to ${fallback}`);
+    return fallback;
+  }
+  return Math.floor(n);
 }
 
 function parseOcrProviderChain(): OcrSlotName[] | undefined {
@@ -107,6 +148,12 @@ export function loadEnv(): Env {
       throw new EnvError(`Unknown FX provider: ${p}`);
     }
   }
+  const envWarnings: string[] = [];
+  const logLevel = parseLogLevel(envWarnings);
+  const logPretty = parseLogPretty();
+  const logFilePath = process.env.LOG_FILE_PATH || undefined;
+  const logFileMaxSizeMb = parseBoundedInt('LOG_FILE_MAX_SIZE_MB', 5, 1, 100, envWarnings);
+  const logFileMaxFiles = parseBoundedInt('LOG_FILE_MAX_FILES', 5, 1, 20, envWarnings);
   return {
     lubeloggerUrl: required('LUBELOGGER_URL'),
     lubeloggerApiKey: required('LUBELOGGER_API_KEY'),
@@ -148,6 +195,13 @@ export function loadEnv(): Env {
     ocrPumpVolumeMax: numberOr('OCR_PUMP_VOLUME_MAX', 200),
     ocrPumpCostMax: numberOr('OCR_PUMP_COST_MAX', 500),
     ocrPumpPricePerUnitMax: numberOr('OCR_PUMP_PRICE_PER_UNIT_MAX', 20),
-    ocrOdometerMaxMi: numberOr('OCR_ODOMETER_MAX_MI', 1_000_000)
+    ocrOdometerMaxMi: numberOr('OCR_ODOMETER_MAX_MI', 1_000_000),
+
+    logLevel,
+    logPretty,
+    logFilePath,
+    logFileMaxSizeMb,
+    logFileMaxFiles,
+    envWarnings
   };
 }
