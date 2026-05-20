@@ -72,33 +72,78 @@ export class LubeLoggerError extends Error {
 	}
 }
 
+import type { Logger } from './logger';
+
 interface Options {
 	baseUrl: string;
 	apiKey: string;
 	fetchImpl?: typeof fetch;
 	timeoutMs?: number;
+	logger?: Logger;
 }
+
+const NOOP_LOGGER: Logger = {
+	debug: () => {},
+	info: () => {},
+	warn: () => {},
+	error: () => {},
+	child() { return this; }
+};
 
 export class LubeLoggerClient {
 	private readonly fetchImpl: typeof fetch;
 	private readonly timeoutMs: number;
+	private readonly logger: Logger;
 
 	constructor(private readonly opts: Options) {
 		this.fetchImpl = opts.fetchImpl ?? fetch;
 		this.timeoutMs = opts.timeoutMs ?? 5_000;
+		this.logger = opts.logger ?? NOOP_LOGGER;
 	}
 
 	private async request(path: string, init: RequestInit = {}): Promise<Response> {
 		const url = `${this.opts.baseUrl}${path}`;
+		const method = (init.method ?? 'GET').toUpperCase();
+		this.logger.debug('lubelogger request', {
+			upstream_method: method,
+			upstream_path: path
+		});
 		const headers = new Headers(init.headers);
 		headers.set('x-api-key', this.opts.apiKey);
-		const res = await this.fetchImpl(url, {
-			...init,
-			headers,
-			signal: AbortSignal.timeout(this.timeoutMs)
-		});
+		let res: Response;
+		try {
+			res = await this.fetchImpl(url, {
+				...init,
+				headers,
+				signal: AbortSignal.timeout(this.timeoutMs)
+			});
+		} catch (err) {
+			const isAbort = (err as Error).name === 'AbortError' ||
+				(err as Error).name === 'TimeoutError';
+			if (isAbort) {
+				this.logger.error('lubelogger timeout', {
+					upstream_method: method,
+					upstream_path: path,
+					timeout_ms: this.timeoutMs,
+					err
+				});
+			} else {
+				this.logger.error('lubelogger fetch failed', {
+					upstream_method: method,
+					upstream_path: path,
+					err
+				});
+			}
+			throw err;
+		}
 		if (!res.ok) {
 			const body = await res.text().catch(() => '');
+			this.logger.warn('lubelogger non-ok', {
+				upstream_method: method,
+				upstream_path: path,
+				upstream_status: res.status,
+				upstream_body_preview: body.slice(0, 200)
+			});
 			throw new LubeLoggerError(res.status, body);
 		}
 		return res;

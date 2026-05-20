@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { LubeLoggerClient } from './lubelogger';
+import type { Logger } from './logger';
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -201,4 +202,85 @@ describe('LubeLoggerClient', () => {
 		);
 		await expect(client().fetchImage('/images/oops.jpg')).rejects.toMatchObject({ status: 503 });
 	});
+});
+
+interface CapturedRec { level: string; msg: string; ctx: Record<string, unknown>; }
+function captureLogger(): { logger: Logger; recs: CapturedRec[] } {
+  const recs: CapturedRec[] = [];
+  function mk(): Logger {
+    const log = (level: string) => (msg: string, ctx?: Record<string, unknown>) =>
+      void recs.push({ level, msg, ctx: ctx ?? {} });
+    return {
+      debug: log('debug') as Logger['debug'],
+      info: log('info') as Logger['info'],
+      warn: log('warn') as Logger['warn'],
+      error: log('error') as Logger['error'],
+      child: () => mk()
+    };
+  }
+  return { logger: mk(), recs };
+}
+
+describe('LubeLoggerClient — logging', () => {
+  it('emits one debug record per request at start', async () => {
+    server.use(http.get(`${BASE}/api/vehicles`, () => HttpResponse.json([])));
+    const { logger, recs } = captureLogger();
+    await new LubeLoggerClient({ baseUrl: BASE, apiKey: KEY, logger }).listVehicles();
+    const debugs = recs.filter((r) => r.level === 'debug');
+    expect(debugs).toHaveLength(1);
+    expect(debugs[0].msg).toBe('lubelogger request');
+    expect(debugs[0].ctx.upstream_method).toBe('GET');
+    expect(debugs[0].ctx.upstream_path).toBe('/api/vehicles');
+  });
+
+  it('emits one warn record on non-OK upstream response', async () => {
+    server.use(http.get(`${BASE}/api/vehicles`, () => new HttpResponse('not authorized', { status: 401 })));
+    const { logger, recs } = captureLogger();
+    const client = new LubeLoggerClient({ baseUrl: BASE, apiKey: KEY, logger });
+    await expect(client.listVehicles()).rejects.toMatchObject({ name: 'LubeLoggerError' });
+    const warns = recs.filter((r) => r.level === 'warn');
+    expect(warns).toHaveLength(1);
+    expect(warns[0].msg).toBe('lubelogger non-ok');
+    expect(warns[0].ctx.upstream_status).toBe(401);
+    expect(warns[0].ctx.upstream_body_preview).toContain('not authorized');
+  });
+
+  it('emits one error record on network failure', async () => {
+    const { logger, recs } = captureLogger();
+    const failFetch: typeof fetch = () => Promise.reject(new TypeError('ECONNREFUSED'));
+    const client = new LubeLoggerClient({ baseUrl: BASE, apiKey: KEY, fetchImpl: failFetch, logger });
+    await expect(client.listVehicles()).rejects.toThrow('ECONNREFUSED');
+    const errors = recs.filter((r) => r.level === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].msg).toBe('lubelogger fetch failed');
+    expect(errors[0].ctx.upstream_method).toBe('GET');
+    expect(errors[0].ctx.upstream_path).toBe('/api/vehicles');
+    const errCtx = errors[0].ctx.err as Record<string, unknown> | undefined;
+    expect(errCtx?.message).toBe('ECONNREFUSED');
+  });
+
+  it('emits one error record on AbortSignal timeout', async () => {
+    const { logger, recs } = captureLogger();
+    const slowFetch: typeof fetch = (_u, init) =>
+      new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        if (signal) {
+          signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }
+      });
+    const client = new LubeLoggerClient({
+      baseUrl: BASE, apiKey: KEY, fetchImpl: slowFetch, timeoutMs: 10, logger
+    });
+    await expect(client.listVehicles()).rejects.toThrow();
+    const errors = recs.filter((r) => r.level === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].msg).toBe('lubelogger timeout');
+    expect(errors[0].ctx.timeout_ms).toBe(10);
+  });
+
+  it('client works without a logger (no-op)', async () => {
+    server.use(http.get(`${BASE}/api/vehicles`, () => HttpResponse.json([])));
+    const client = new LubeLoggerClient({ baseUrl: BASE, apiKey: KEY });
+    await expect(client.listVehicles()).resolves.toEqual([]);
+  });
 });
