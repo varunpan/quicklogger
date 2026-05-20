@@ -42,6 +42,14 @@ services:
       # OCR_PUMP_COST_MAX: 500
       # OCR_PUMP_PRICE_PER_UNIT_MAX: 20
       # OCR_ODOMETER_MAX_MI: 1000000
+      # --- Logging (v0.2.3+) -----------------------------------------------
+      # Default is JSON to stdout at info level. Uncomment to tune.
+      #
+      # LOG_LEVEL: info                       # debug | info | warn | error
+      # LOG_PRETTY: "0"                       # 1 = pretty stdout (dev); auto by NODE_ENV
+      # LOG_FILE_PATH: /data/logs/quicklogger.log   # opt-in rotating file
+      # LOG_FILE_MAX_SIZE_MB: "5"
+      # LOG_FILE_MAX_FILES: "5"
     volumes:
       - ./data:/data
     ports:
@@ -58,3 +66,8 @@ services:
       - no-new-privileges:true            # block setuid escalation paths
     pids_limit: 100                       # bound fork-bomb blast radius
     mem_limit: 256m                       # OOM-kill the container before it hurts the host
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

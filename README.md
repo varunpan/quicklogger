@@ -152,6 +152,10 @@ Minimum vars to run:
 
 For the full reference (every var, type, default, override scenarios), see [`docs/user/configuration.md`](docs/user/configuration.md).
 
+### Logging
+
+Structured JSON to stdout by default. Set `LOG_FILE_PATH` to also write a rotating logfile. Full reference in [`docs/user/configuration.md`](docs/user/configuration.md#logging-v023) and the internals in [`docs/technical/logging.md`](docs/technical/logging.md).
+
 ## Development
 
 ### Dev prerequisites

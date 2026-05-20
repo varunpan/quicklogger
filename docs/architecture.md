@@ -23,6 +23,7 @@ The system has three surfaces:
     ├── /api/vehicle/reminders
     ├── /api/fuelup       ←──── form submits land here
     ├── /api/fx
+    ├── /api/log          ←──── client + sw error forwarding
     └── /healthz
             │
             │ HTTP (Docker internal network when co-located)
@@ -195,6 +196,10 @@ to construct each named slot, and drops those whose env vars aren't
 set. `chainTimeoutMs` is the sum of surviving slots' per-slot
 `timeoutMs` values — flows through the `GET /api/ocr` probe into the
 client `postOcr` request timeout (`chainTimeoutMs + 10_000`).
+
+### Observability — structured logger (`src/lib/server/logger.ts`)
+
+Every server request gets a short `request_id` from `src/hooks.server.ts`, attached to a child logger on `event.locals.logger` and exposed as `X-Request-ID` on the response. Each request emits one access-log JSON record at request end; modules along the way (`LubeLoggerClient`, `runOcrPipeline`, `CurrencyService`, `OcrBudget`, `OcrAudit`) log at the level that matches the event — debug for normal flow, warn for handled degradation, error for failed requests. The client + service worker forward `window error` / `unhandledrejection` records to `/api/log`, which routes them through the same logger so phone-side failures land in the same stream as server activity. See [`docs/technical/logging.md`](./technical/logging.md) for the level taxonomy and env-var reference.
 
 | Surviving slots | `selectProvider` returns |
 |---|---|

@@ -29,6 +29,7 @@ test-results/
 
 # data
 data/
+data/logs/
 fx-cache.json
 
 # editor

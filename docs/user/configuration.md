@@ -360,6 +360,20 @@ them to a writable location, e.g.:
         OCR_AUDIT_PATH=./data/ocr-audit.jsonl
         OCR_AUDIT_KEY_PATH=./data/ocr-audit-key.txt
 
+## Logging (v0.2.3+)
+
+quicklogger emits a JSON record to stdout for every request and every notable event. By default, that's all — `docker logs quicklogger` shows the stream. Set the env vars below to tune verbosity or also persist to a rotating logfile.
+
+| Var | Default | Notes |
+|---|---|---|
+| `LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error`. Invalid values fall back to `info` and emit a single warn at boot. |
+| `LOG_FILE_PATH` | unset | If set, writes the same JSON records to this rotating file. Compose example uses `/data/logs/quicklogger.log`. |
+| `LOG_FILE_MAX_SIZE_MB` | `5` | Rotation threshold. Ignored if `LOG_FILE_PATH` is unset. |
+| `LOG_FILE_MAX_FILES` | `5` | Historical files kept on disk. Oldest deleted on rotation. |
+| `LOG_PRETTY` | auto | `1` = colorized human-readable stdout; `0` = JSON. Auto-detected from `NODE_ENV` when unset. |
+
+The browser and service worker also forward thrown errors to the server, so phone-side failures land in the same log stream — no separate client log to chase down. The full level taxonomy and grep recipes live in [`docs/technical/logging.md`](../technical/logging.md).
+
 ## Cross-reference
 
 The repo's [`README.md`](../../README.md) §Configuration shows a

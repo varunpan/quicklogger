@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createLogger, bootLogger, getLogger, _resetLoggerForTests, type Logger } from './logger';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createLogger, bootLogger, getLogger, _resetLoggerForTests } from './logger';
 import { Writable } from 'node:stream';
 
 function captureStream(): { stream: Writable; lines: string[] } {

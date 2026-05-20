@@ -311,6 +311,18 @@ The endpoint never persists image bytes. The audit log at
 `/data/ocr-audit.jsonl` records HMAC-keyed IP hash, SHA-256 image hash,
 and the parsed numeric fields only.
 
+### `POST /api/log` (v0.2.3+)
+
+Browser + service worker forward `error` / `unhandledrejection` records here. Server tags each with `source: client` (or `source: service-worker`), the `User-Agent`, and the pathname from `Referer`. Rate-limited 60 req/min per IP, batches capped at 20 records / 100kb total, individual records capped at 8kb. Returns `204 No Content` on success.
+
+Request body:
+
+```json
+{ "records": [{ "level": "error", "msg": "window error", "ts": "...", "ctx": {} }] }
+```
+
+See [`logging.md`](./logging.md) for the full record shape and the client-logger contract.
+
 ### Why no `/api/manifest.webmanifest`
 
 `manifest.webmanifest` is a static file under `static/`, served by the

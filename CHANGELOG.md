@@ -13,6 +13,16 @@ All notable changes to this project are documented here. Format roughly follows 
   LubeLogger v1.6.5, which added API-key auth on `/images/*`. The
   generic car icon stays as the fallback for vehicles without a
   photo or when the image isn't reachable.
+- **Structured server logger** with JSON stdout, optional rotating
+  logfile, per-request `request_id` (also exposed as `X-Request-ID`),
+  and secret redaction. Env vars: `LOG_LEVEL`, `LOG_PRETTY`,
+  `LOG_FILE_PATH`, `LOG_FILE_MAX_SIZE_MB`, `LOG_FILE_MAX_FILES`.
+  Defaults preserve current behaviour (stdout only, info level).
+- **Client + service-worker error forwarding** via the new
+  `POST /api/log` endpoint. `window.error` and `unhandledrejection`
+  from the browser, plus install / runtime errors from the service
+  worker, now land in the server log stream tagged `source: client` or
+  `source: service-worker`.
 
 ### Changed
 
@@ -21,8 +31,16 @@ All notable changes to this project are documented here. Format roughly follows 
   a fixed-name cache that the `activate` handler whitelists alongside
   the per-version shell cache. Stale-while-revalidate semantics —
   served from cache instantly, refreshed in the background.
+- **LubeLogger upstream errors return structured JSON** instead of a
+  passthrough of the upstream message. Bodies now include `upstream`
+  (which call), `upstream_status`, and `upstream_body_preview` so
+  client-side error UI can say *which* upstream call failed.
 
 ### Fixed
+
+- **OCR misclassifications now log the raw LLM response** alongside
+  the validation error, so an odometer photo sent to the fuel-pump
+  slot can be diagnosed from logs without re-running the request.
 
 ### Tests
 
@@ -33,6 +51,16 @@ All notable changes to this project are documented here. Format roughly follows 
   path-guard rejection, 200 with copied `content-type` +
   `cache-control: no-store` on happy path, 502 on `LubeLoggerError`,
   5-minute vehicles-cache deduplication.
+- **Logger module coverage** — JSON shape, child contexts, secret
+  redaction (depth + cycle), pretty mode, Error unpacking.
+- **Hooks coverage** — `request_id` generation, `X-Request-ID` header
+  round-trip, silenced-path carve-outs.
+- **`/api/log` coverage** — happy path, size + batch limits, rate
+  limit, level validation.
+- **Client logger coverage** — buffer overflow drop-oldest, size +
+  time flush triggers, client-side redaction.
+- **Branch-point logger assertions** on OCR pipeline + LubeLogger
+  client + currency / budget / audit modules.
 
 ## [0.2.2] — 2026-05-17
 
