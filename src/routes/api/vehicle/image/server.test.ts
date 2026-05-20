@@ -16,10 +16,15 @@ beforeAll(() => {
 
 beforeEach(() => _resetCache());
 
-function urlFor(vehicleId?: string) {
+const noopLogger = {
+	debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+	child() { return this; }
+} as unknown as import('$lib/server/logger').Logger;
+
+function eventFor(vehicleId?: string) {
 	const u = new URL('http://localhost/api/vehicle/image');
 	if (vehicleId !== undefined) u.searchParams.set('vehicleId', vehicleId);
-	return u;
+	return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<typeof GET>[0];
 }
 
 const VEHICLES = [
@@ -30,13 +35,13 @@ const VEHICLES = [
 
 describe('GET /api/vehicle/image', () => {
 	it('returns 400 when vehicleId is missing', async () => {
-		const res = await GET({ url: urlFor() } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor());
 		expect(res.status).toBe(400);
 		expect(await res.json()).toEqual({ error: 'vehicleId required' });
 	});
 
 	it('returns 400 when vehicleId is not finite', async () => {
-		const res = await GET({ url: urlFor('not-a-number') } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor('not-a-number'));
 		expect(res.status).toBe(400);
 		expect(await res.json()).toEqual({ error: 'invalid vehicleId' });
 	});
@@ -45,7 +50,7 @@ describe('GET /api/vehicle/image', () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/vehicles', () => HttpResponse.json(VEHICLES))
 		);
-		const res = await GET({ url: urlFor('999') } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor('999'));
 		expect(res.status).toBe(404);
 		expect(await res.json()).toEqual({ error: 'no image' });
 	});
@@ -54,7 +59,7 @@ describe('GET /api/vehicle/image', () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/vehicles', () => HttpResponse.json(VEHICLES))
 		);
-		const res = await GET({ url: urlFor('2') } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor('2'));
 		expect(res.status).toBe(404);
 		expect(await res.json()).toEqual({ error: 'no image' });
 	});
@@ -63,7 +68,7 @@ describe('GET /api/vehicle/image', () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/vehicles', () => HttpResponse.json(VEHICLES))
 		);
-		const res = await GET({ url: urlFor('3') } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor('3'));
 		expect(res.status).toBe(404);
 		expect(await res.json()).toEqual({ error: 'no image' });
 	});
@@ -76,7 +81,7 @@ describe('GET /api/vehicle/image', () => {
 				new HttpResponse(bytes, { status: 200, headers: { 'content-type': 'image/jpeg' } })
 			)
 		);
-		const res = await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor('1'));
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-type')).toBe('image/jpeg');
 		expect(res.headers.get('cache-control')).toBe('no-store');
@@ -89,7 +94,7 @@ describe('GET /api/vehicle/image', () => {
 			http.get('http://lubelog:8080/api/vehicles', () => HttpResponse.json(VEHICLES)),
 			http.get('http://lubelog:8080/images/abc-123.jpg', () => new HttpResponse(null, { status: 503 }))
 		);
-		const res = await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor('1'));
 		expect(res.status).toBe(502);
 	});
 
@@ -97,8 +102,22 @@ describe('GET /api/vehicle/image', () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/vehicles', () => new HttpResponse(null, { status: 503 }))
 		);
-		const res = await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
+		const res = await GET(eventFor('1'));
 		expect(res.status).toBe(502);
+	});
+
+	it('returns structured upstream-error body on LubeLogger non-OK', async () => {
+		upstream.use(
+			http.get('http://lubelog:8080/api/vehicles', () => new HttpResponse('boom', { status: 503 }))
+		);
+		const res = await GET(eventFor('1'));
+		expect(res.status).toBe(502);
+		const body = await res.json();
+		expect(body).toMatchObject({
+			error: 'Could not fetch vehicle image from LubeLogger',
+			upstream: 'GET /api/vehicles or /images/*',
+			upstream_status: 503
+		});
 	});
 
 	it('caches the vehicles list — second call within window does not re-hit /api/vehicles', async () => {
@@ -113,9 +132,9 @@ describe('GET /api/vehicle/image', () => {
 				new HttpResponse(bytes, { status: 200, headers: { 'content-type': 'image/jpeg' } })
 			)
 		);
-		await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
-		await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
-		await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
+		await GET(eventFor('1'));
+		await GET(eventFor('1'));
+		await GET(eventFor('1'));
 		expect(vehiclesCalls).toBe(1);
 	});
 });

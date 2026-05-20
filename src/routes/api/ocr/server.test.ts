@@ -47,10 +47,16 @@ afterEach(() => {
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
+const noopLogger = {
+  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+  child() { return this; }
+} as unknown as import('$lib/server/logger').Logger;
+
 function makeRequest(form: FormData, ip = '127.0.0.1'): Parameters<typeof POST>[0] {
   return {
     request: new Request('http://localhost/api/ocr', { method: 'POST', body: form }),
-    getClientAddress: () => ip
+    getClientAddress: () => ip,
+    locals: { logger: noopLogger, requestId: 't' }
   } as unknown as Parameters<typeof POST>[0];
 }
 

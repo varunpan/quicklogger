@@ -13,10 +13,15 @@ beforeAll(() => {
   process.env.LUBELOGGER_API_KEY = 'k';
 });
 
-function urlFor(vehicleId?: string) {
+const noopLogger = {
+  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+  child() { return this; }
+} as unknown as import('../../src/lib/server/logger').Logger;
+
+function eventFor(vehicleId?: string) {
   const u = new URL('http://localhost/api/vehicle/last-fuelup');
   if (vehicleId !== undefined) u.searchParams.set('vehicleId', vehicleId);
-  return u;
+  return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<typeof GET>[0];
 }
 
 describe('GET /api/vehicle/last-fuelup', () => {
@@ -30,7 +35,7 @@ describe('GET /api/vehicle/last-fuelup', () => {
         ])
       )
     );
-    const res = await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
+    const res = await GET(eventFor('1'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.id).toBe('2');
@@ -42,13 +47,13 @@ describe('GET /api/vehicle/last-fuelup', () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicle/gasrecords', () => HttpResponse.json([]))
     );
-    const res = await GET({ url: urlFor('1') } as unknown as Parameters<typeof GET>[0]);
+    const res = await GET(eventFor('1'));
     expect(res.status).toBe(200);
     expect(await res.json()).toBeNull();
   });
 
   it('returns 400 when vehicleId is missing', async () => {
-    const res = await GET({ url: urlFor() } as unknown as Parameters<typeof GET>[0]);
+    const res = await GET(eventFor());
     expect(res.status).toBe(400);
   });
 });

@@ -16,17 +16,19 @@ let budget: OcrBudget | null = null;
 let audit: OcrAudit | null = null;
 let hmacKey: Buffer | null = null;
 
-function bootstrap(env: Env) {
+function bootstrap(env: Env, logger?: import('$lib/server/logger').Logger) {
   if (rateLimiter && budget && audit && hmacKey) return;
-  rateLimiter = new OcrRateLimiter({ perHour: env.ocrRateLimitPerHour });
+  rateLimiter = new OcrRateLimiter({ perHour: env.ocrRateLimitPerHour, logger });
   budget = new OcrBudget({
     dailyUsd: env.ocrDailyBudgetUsd,
-    store: new JsonFileBudgetStore(env.ocrBudgetPath)
+    store: new JsonFileBudgetStore(env.ocrBudgetPath),
+    logger
   });
-  audit = new OcrAudit({ path: env.ocrAuditPath, maxBytes: AUDIT_MAX_BYTES });
+  audit = new OcrAudit({ path: env.ocrAuditPath, maxBytes: AUDIT_MAX_BYTES, logger });
   hmacKey = resolveAuditHmacKey({
     ocrAuditHmacKey: env.ocrAuditHmacKey,
-    ocrAuditKeyPath: env.ocrAuditKeyPath
+    ocrAuditKeyPath: env.ocrAuditKeyPath,
+    logger
   });
 }
 
@@ -46,10 +48,10 @@ export const GET: RequestHandler = async () => {
   return json(body);
 };
 
-export const POST: RequestHandler = async ({ request, getClientAddress }) => {
+export const POST: RequestHandler = async ({ request, getClientAddress, locals }) => {
   const env = loadEnv();
-  bootstrap(env);
-  const { provider } = selectProvider(env);
+  bootstrap(env, locals.logger);
+  const { provider } = selectProvider(env, locals.logger);
   if (!provider) return json({ error: 'OCR not configured' }, { status: 503 });
 
   const ip = getClientAddress();
@@ -128,7 +130,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   const arr = new Uint8Array(await file.arrayBuffer());
   const outcome = await runOcrPipeline({
     bytes: arr, mode, provider, env,
-    lastOdometerMi, lastPricePerUnit
+    lastOdometerMi, lastPricePerUnit,
+    logger: locals.logger
   });
 
   const ipHash = hashIp(ip, hmacKey!);

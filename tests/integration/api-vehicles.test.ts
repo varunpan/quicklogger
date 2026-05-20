@@ -15,6 +15,15 @@ beforeAll(() => {
 
 beforeEach(() => _resetCache());
 
+const noopLogger = {
+  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+  child() { return this; }
+} as unknown as import('../../src/lib/server/logger').Logger;
+
+function eventFor(): Parameters<typeof GET>[0] {
+  return { locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<typeof GET>[0];
+}
+
 describe('GET /api/vehicles', () => {
   it('proxies to lubelogger and returns the vehicle array', async () => {
     upstream.use(
@@ -22,7 +31,7 @@ describe('GET /api/vehicles', () => {
         HttpResponse.json([{ id: 1, year: 2019, make: 'Honda', model: 'Civic Si' }])
       )
     );
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(eventFor());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveLength(1);
@@ -37,9 +46,9 @@ describe('GET /api/vehicles', () => {
         return HttpResponse.json([{ id: 1 }]);
       })
     );
-    await GET({} as Parameters<typeof GET>[0]);
-    await GET({} as Parameters<typeof GET>[0]);
-    await GET({} as Parameters<typeof GET>[0]);
+    await GET(eventFor());
+    await GET(eventFor());
+    await GET(eventFor());
     expect(calls).toBe(1);
   });
 
@@ -47,7 +56,7 @@ describe('GET /api/vehicles', () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicles', () => new HttpResponse(null, { status: 503 }))
     );
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(eventFor());
     expect(res.status).toBe(502);
   });
 
@@ -69,7 +78,7 @@ describe('GET /api/vehicles', () => {
         ])
       )
     );
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(eventFor());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body[0].vin).toBe('1HGCR2F80EA00735');
@@ -96,7 +105,7 @@ describe('GET /api/vehicles', () => {
         ])
       )
     );
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(eventFor());
     const body = await res.json();
     expect('vin' in body[0]).toBe(false);
     expect(body[0].licensePlate).toBe('MBL4635');

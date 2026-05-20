@@ -33,6 +33,18 @@ function makeRequest(body: unknown, contentType = 'application/json') {
   });
 }
 
+const noopLogger = {
+  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+  child() { return this; }
+} as unknown as import('../../src/lib/server/logger').Logger;
+
+function eventFor(body: unknown, contentType = 'application/json'): Parameters<typeof POST>[0] {
+  return {
+    request: makeRequest(body, contentType),
+    locals: { logger: noopLogger, requestId: 't' }
+  } as unknown as Parameters<typeof POST>[0];
+}
+
 const baseInput = {
   vehicleId: 1,
   date: '2026-05-07',
@@ -57,8 +69,7 @@ describe('POST /api/fuelup', () => {
       })
     );
 
-    const req = makeRequest(baseInput);
-    const res = await POST({ request: req } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor(baseInput));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
@@ -81,7 +92,7 @@ describe('POST /api/fuelup', () => {
     for (const [k, v] of Object.entries({ ...baseInput, currency: 'USD', volumeUnit: 'gal' })) {
       usp.set(k, String(v));
     }
-    const res = await POST({ request: makeRequest(usp.toString(), 'application/x-www-form-urlencoded') } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor(usp.toString(), 'application/x-www-form-urlencoded'));
     expect(res.status).toBe(200);
   });
 
@@ -90,7 +101,7 @@ describe('POST /api/fuelup', () => {
       http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => new HttpResponse('upstream down', { status: 503 }))
     );
-    const res = await POST({ request: makeRequest(baseInput) } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor(baseInput));
     expect(res.status).toBe(502);
   });
 
@@ -103,20 +114,20 @@ describe('POST /api/fuelup', () => {
         return HttpResponse.json({ success: true });
       })
     );
-    await POST({ request: makeRequest(baseInput) } as Parameters<typeof POST>[0]);
-    const dup = await POST({ request: makeRequest(baseInput) } as Parameters<typeof POST>[0]);
+    await POST(eventFor(baseInput));
+    const dup = await POST(eventFor(baseInput));
     expect(dup.status).toBe(200);
     expect(upstreamCalls).toBe(1);
   });
 
   it('returns 400 on missing required fields', async () => {
     const incomplete = { ...baseInput, vehicleId: undefined };
-    const res = await POST({ request: makeRequest(incomplete) } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor(incomplete));
     expect(res.status).toBe(400);
   });
 
   it('returns 400 when odometer is 0 (positive-numeric guard)', async () => {
-    const res = await POST({ request: makeRequest({ ...baseInput, odometer: 0 }) } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor({ ...baseInput, odometer: 0 }));
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/invalid fields/);
@@ -124,7 +135,7 @@ describe('POST /api/fuelup', () => {
   });
 
   it('returns 400 when volume is 0', async () => {
-    const res = await POST({ request: makeRequest({ ...baseInput, volume: 0 }) } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor({ ...baseInput, volume: 0 }));
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/invalid fields/);
@@ -132,7 +143,7 @@ describe('POST /api/fuelup', () => {
   });
 
   it('returns 400 when cost is negative', async () => {
-    const res = await POST({ request: makeRequest({ ...baseInput, cost: -5 }) } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor({ ...baseInput, cost: -5 }));
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/invalid fields/);
@@ -140,7 +151,7 @@ describe('POST /api/fuelup', () => {
   });
 
   it('returns 400 when date is empty string', async () => {
-    const res = await POST({ request: makeRequest({ ...baseInput, date: '' }) } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor({ ...baseInput, date: '' }));
     expect(res.status).toBe(400);
     const body = await res.json();
     // date='' falls through the missing-check (it's a defined string), so it
@@ -153,7 +164,7 @@ describe('POST /api/fuelup', () => {
     upstream.use(
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
     );
-    const res = await POST({ request: makeRequest({ ...baseInput, manualFxRate: 0.72 }) } as Parameters<typeof POST>[0]);
+    const res = await POST(eventFor({ ...baseInput, manualFxRate: 0.72 }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.submitted.fxRate).toBe(0.72);

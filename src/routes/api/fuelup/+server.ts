@@ -10,13 +10,14 @@ let cur: CurrencyService | null = null;
 const idempotencyMap = new Map<string, { ts: number; result: Response }>();
 const IDEMPOTENCY_WINDOW_MS = 60_000;
 
-function currency() {
+function currency(logger?: import('$lib/server/logger').Logger) {
   if (cur) return cur;
   const env = loadEnv();
   cur = new CurrencyService({
     providers: env.fxProviders,
     fetcher: realFetcher,
-    store: new JsonFileStore(env.fxCachePath)
+    store: new JsonFileStore(env.fxCachePath),
+    logger
   });
   return cur;
 }
@@ -99,7 +100,7 @@ async function cloneJsonResponse(res: Response): Promise<Response> {
   });
 }
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
   let parsed: Partial<FuelSubmissionInput>;
   try {
     parsed = await parseBody(request);
@@ -134,13 +135,14 @@ export const POST: RequestHandler = async ({ request }) => {
       {
         targetVolumeUnit: env.lubeloggerVolumeUnit,
         targetCurrency: env.lubeloggerCurrency,
-        currencyService: currency()
+        currencyService: currency(locals.logger)
       }
     );
 
     const client = new LubeLoggerClient({
       baseUrl: env.lubeloggerUrl,
-      apiKey: env.lubeloggerApiKey
+      apiKey: env.lubeloggerApiKey,
+      logger: locals.logger
     });
     await client.addGasRecord(input.vehicleId, {
       date: isoToLubeloggerDate(input.date),
@@ -168,7 +170,12 @@ export const POST: RequestHandler = async ({ request }) => {
   } catch (err) {
     if (err instanceof LubeLoggerError) {
       return json(
-        { error: err.message, status: err.status, body: err.body },
+        {
+          error: 'Could not submit fillup to LubeLogger',
+          upstream: 'POST /api/vehicle/gasrecords/add',
+          upstream_status: err.status,
+          upstream_body_preview: err.body.slice(0, 200)
+        },
         { status: err.status >= 500 ? 502 : err.status }
       );
     }
