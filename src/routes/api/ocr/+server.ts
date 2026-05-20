@@ -39,9 +39,9 @@ export function _resetForTests() {
 const ADVERTISED_MODES: OcrMode[] = ['pump', 'odometer'];
 const ACCEPTED_WIRE_MODES = new Set<string>(['pump', 'odometer']);
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ locals }) => {
   const env = loadEnv();
-  const { provider, chainTimeoutMs } = selectProvider(env);
+  const { provider, chainTimeoutMs } = selectProvider(env, locals.logger);
   const body: OcrStatus = provider
     ? { enabled: true, modes: ADVERTISED_MODES, chainTimeoutMs }
     : { enabled: false };

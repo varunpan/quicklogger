@@ -60,16 +60,22 @@ function makeRequest(form: FormData, ip = '127.0.0.1'): Parameters<typeof POST>[
   } as unknown as Parameters<typeof POST>[0];
 }
 
+function makeGetEvent(): Parameters<typeof GET>[0] {
+  return {
+    locals: { logger: noopLogger, requestId: 't' }
+  } as unknown as Parameters<typeof GET>[0];
+}
+
 describe('GET /api/ocr', () => {
   it('returns enabled=false (no modes) when no provider configured', async () => {
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(makeGetEvent());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ enabled: false });
   });
 
   it('returns enabled=true with pump+odometer modes when ollama is set', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://o' });
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(makeGetEvent());
     const body = await res.json();
     expect(body.enabled).toBe(true);
     expect(body.modes.sort()).toEqual(['odometer', 'pump']);
@@ -77,7 +83,7 @@ describe('GET /api/ocr', () => {
 
   it('returns chainTimeoutMs alongside enabled=true (1-slot chain)', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://o' });
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(makeGetEvent());
     const body = await res.json();
     expect(body.enabled).toBe(true);
     expect(body.chainTimeoutMs).toBe(60_000);
@@ -89,14 +95,14 @@ describe('GET /api/ocr', () => {
       OPENROUTER_API_KEY: 'sk',
       OLLAMA_CLOUD_API_KEY: 'sk-c'
     });
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(makeGetEvent());
     const body = await res.json();
     expect(body.chainTimeoutMs).toBe(60_000 + 30_000 + 30_000);
   });
 
   it('returns enabled=true with chainTimeoutMs when only OLLAMA_CLOUD_API_KEY is set', async () => {
     setEnv({ OLLAMA_CLOUD_API_KEY: 'sk-cloud' });
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(makeGetEvent());
     const body = await res.json();
     expect(body.enabled).toBe(true);
     expect(body.modes.sort()).toEqual(['odometer', 'pump']);
@@ -109,7 +115,7 @@ describe('GET /api/ocr', () => {
       OPENAI_COMPATIBLE_API_KEY: 'gsk-test',
       OPENAI_COMPATIBLE_MODEL: 'llama-3.2-90b-vision-preview'
     });
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(makeGetEvent());
     const body = await res.json();
     expect(body.enabled).toBe(true);
     expect(body.chainTimeoutMs).toBe(30_000);
@@ -121,9 +127,25 @@ describe('GET /api/ocr', () => {
       OPENAI_COMPATIBLE_API_KEY: 'gsk-test'
       // OPENAI_COMPATIBLE_MODEL deliberately missing
     });
-    const res = await GET({} as Parameters<typeof GET>[0]);
+    const res = await GET(makeGetEvent());
     const body = await res.json();
     expect(body.enabled).toBe(false);
+  });
+
+  it('routes selectProvider logs through locals.logger (not console)', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://o', OLLAMA_CLOUD_API_KEY: 'sk-c' });
+    const infos: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const capturing = {
+      ...noopLogger,
+      info: (msg: string, ctx?: Record<string, unknown>) => infos.push({ msg, ctx })
+    } as unknown as import('$lib/server/logger').Logger;
+    const event = {
+      locals: { logger: capturing, requestId: 't' }
+    } as unknown as Parameters<typeof GET>[0];
+    await GET(event);
+    const chain = infos.find((m) => m.msg === 'ocr chain effective');
+    expect(chain).toBeDefined();
+    expect(chain?.ctx?.providers).toEqual(['ollama-local', 'ollama-cloud']);
   });
 
 });
