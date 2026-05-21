@@ -17,6 +17,17 @@ const NOOP_LOGGER: Logger = {
 	child() { return this; }
 };
 
+// Process-level memoization for `ocr chain effective` emission. The chain
+// is fixed by env vars at boot and never changes inside one process, so
+// emitting the same line on every page-loader GET /api/ocr (which fires
+// on every page navigation) is constant noise. We log once per *distinct*
+// composition; `ensureBoot()` warms this on startup so the announcement
+// lands next to `server start` instead of riding on the first request.
+let _lastEmittedChainSignature: string | null = null;
+export function _resetChainMemoForTests(): void {
+	_lastEmittedChainSignature = null;
+}
+
 export type ImageType = 'jpeg' | 'png' | 'webp' | 'heic';
 
 export function sniffImageType(buf: Uint8Array): ImageType | null {
@@ -167,7 +178,12 @@ export function selectProvider(
 	const chainTimeoutMs = built.reduce((sum, b) => sum + b.timeoutMs, 0);
 	if (built.length === 1) return { provider: built[0].provider, chainTimeoutMs };
 
-	logger.info('ocr chain effective', { providers: built.map((b) => b.provider.name) });
+	const providers = built.map((b) => b.provider.name);
+	const signature = providers.join(',');
+	if (signature !== _lastEmittedChainSignature) {
+		logger.info('ocr chain effective', { providers });
+		_lastEmittedChainSignature = signature;
+	}
 	return { provider: new ChainOcrProvider(built.map((b) => b.provider)), chainTimeoutMs };
 }
 

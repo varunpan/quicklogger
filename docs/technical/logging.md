@@ -63,9 +63,10 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 1. `loadEnv()` parses `LOG_*` vars. Invalid values are coerced to defaults and a string is pushed onto `envWarnings`. Required vars throwing here happens *before* the logger exists — that's intentional and unchanged.
 2. First request triggers `ensureBoot()` in `src/hooks.server.ts`. `bootLogger(env)` opens the optional file sink (lazy `createRequire('rotating-file-stream')`), emits one `logger ready` info record, flushes `envWarnings`, registers `uncaughtException` / `unhandledRejection` handlers, and stashes the singleton.
 3. The next line emits `server start` with version, host, configured OCR / FX providers, and `log_file_enabled`.
-4. Every request gets `requestId = _newRequestId()`, `locals.requestId = requestId`, `locals.logger = getLogger().child({ request_id, route })`.
-5. Routes pull `locals.logger` and either log directly or pass it as `logger?: Logger` into the consumer module (`CurrencyService`, `OcrBudget`, `OcrAudit`, `OcrRateLimit`, `runOcrPipeline`, `LubeLoggerClient`).
-6. After `resolve(event)`, the hook checks the response; if it didn't already carry an `X-Request-ID`, the hook clones the response and sets one. Then one access-log record fires: `level = error` for 5xx, `warn` for 4xx (except 404 → `info`), `info` otherwise. Silenced paths (`/healthz`, `/service-worker.js`, `/favicon.ico`, `/_app/*`) skip the access-log line.
+4. `ensureBoot` then calls `selectProvider(env, getLogger())` to warm the OCR provider chain. If two or more slots survive env validation, this emits a single `ocr chain effective` line listing the effective fallback order. The same call populates the process-level chain memo so subsequent per-request `selectProvider` calls stay silent for the same composition — the chain is fixed by env at boot and never changes inside one process, so logging it per request would be constant noise.
+5. Every request gets `requestId = _newRequestId()`, `locals.requestId = requestId`, `locals.logger = getLogger().child({ request_id, route })`.
+6. Routes pull `locals.logger` and either log directly or pass it as `logger?: Logger` into the consumer module (`CurrencyService`, `OcrBudget`, `OcrAudit`, `OcrRateLimit`, `runOcrPipeline`, `LubeLoggerClient`).
+7. After `resolve(event)`, the hook checks the response; if it didn't already carry an `X-Request-ID`, the hook clones the response and sets one. Then one access-log record fires: `level = error` for 5xx, `warn` for 4xx (except 404 → `info`), `info` otherwise. Silenced paths (`/healthz`, `/service-worker.js`, `/favicon.ico`, `/_app/*`) skip the access-log line.
 
 **Client:**
 
@@ -90,6 +91,7 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 | `OcrAudit` rotation truncation throws | Same — `warn`, swallow | Same reasoning as the append branch |
 | Cyclic / function / symbol / bigint in `ctx` | Redactor handles each: cycle → `'[cycle]'`, function / symbol → dropped, bigint → stringified | `JSON.stringify` would throw otherwise |
 | Two requests in flight on the same Node process | Each has its own `request_id`; child loggers are independent | `child({ … })` returns a fresh closure over `baseCtx`; no shared mutable state |
+| `selectProvider` called repeatedly with the same env (every page load, every OCR submit) | Emits `ocr chain effective` only once per distinct chain composition via a process-level memo. `ensureBoot` warms it at startup, so the line lands next to `server start` and per-request callers stay silent | The chain is fixed by env at boot; logging it on every request was constant noise (~one line per page navigation). Memoizing on the comma-joined provider names re-fires only if the composition would actually differ — defensive cover for a hypothetical hot-reload that doesn't exist today |
 
 ## Non-obvious decisions
 

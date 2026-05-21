@@ -10,6 +10,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GET, POST, _resetForTests } from './+server';
+import { _resetChainMemoForTests } from '$lib/server/ocr';
 
 const ollamaServer = setupServer();
 beforeAll(() => ollamaServer.listen({ onUnhandledRequest: 'bypass' }));
@@ -39,6 +40,7 @@ function setEnv(o: Record<string, string | undefined>) {
 beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), 'ocr-route-'));
   setEnv({});
+  _resetChainMemoForTests();
 });
 afterEach(() => {
   process.env = { ...ORIGINAL };

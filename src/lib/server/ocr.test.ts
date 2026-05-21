@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { sniffImageType, selectProvider, runOcrPipeline, type PipelineOutcome } from './ocr';
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  sniffImageType, selectProvider, runOcrPipeline,
+  _resetChainMemoForTests, type PipelineOutcome
+} from './ocr';
 import { ChainOcrProvider, type OcrProvider } from './ocrProviders';
 import type { Env } from './env';
 import type { Logger } from './logger';
@@ -54,6 +57,8 @@ function envOverrides(o: Partial<Env>): Env {
 }
 
 describe('selectProvider', () => {
+  beforeEach(() => _resetChainMemoForTests());
+
   it('returns null + 0 chainTimeoutMs when no slots are configured', () => {
     const r = selectProvider(envOverrides({}));
     expect(r.provider).toBeNull();
@@ -158,6 +163,41 @@ describe('selectProvider', () => {
     };
     selectProvider(envOverrides({ ollamaVisionUrl: 'http://o' }), logger);
     expect(infos).toHaveLength(0);
+  });
+
+  it('memoizes the chain so repeated calls with the same composition emit only once', () => {
+    const infos: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const logger = {
+      warn: () => {},
+      info: (msg: string, ctx?: Record<string, unknown>) => infos.push({ msg, ctx })
+    };
+    const env = envOverrides({ ollamaVisionUrl: 'http://o', openrouterApiKey: 'sk' });
+    selectProvider(env, logger);
+    selectProvider(env, logger);
+    selectProvider(env, logger);
+    const chainLogs = infos.filter((m) => m.msg === 'ocr chain effective');
+    expect(chainLogs).toHaveLength(1);
+    expect(chainLogs[0].ctx?.providers).toEqual(['ollama-local', 'openrouter']);
+  });
+
+  it('re-emits when the chain composition changes between calls', () => {
+    const infos: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const logger = {
+      warn: () => {},
+      info: (msg: string, ctx?: Record<string, unknown>) => infos.push({ msg, ctx })
+    };
+    selectProvider(envOverrides({
+      ollamaVisionUrl: 'http://o',
+      openrouterApiKey: 'sk'
+    }), logger);
+    selectProvider(envOverrides({
+      ollamaVisionUrl: 'http://o',
+      ollamaCloudApiKey: 'sk-c'
+    }), logger);
+    const chainLogs = infos.filter((m) => m.msg === 'ocr chain effective');
+    expect(chainLogs).toHaveLength(2);
+    expect(chainLogs[0].ctx?.providers).toEqual(['ollama-local', 'openrouter']);
+    expect(chainLogs[1].ctx?.providers).toEqual(['ollama-local', 'ollama-cloud']);
   });
 });
 

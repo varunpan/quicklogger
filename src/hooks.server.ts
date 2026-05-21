@@ -1,6 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 import { loadEnv } from '$lib/server/env';
 import { bootLogger, getLogger } from '$lib/server/logger';
+import { selectProvider } from '$lib/server/ocr';
 
 const SILENCED_PATHS = new Set(['/healthz', '/service-worker.js', '/favicon.ico']);
 function isSilencedPath(pathname: string): boolean {
@@ -26,6 +27,12 @@ function ensureBoot() {
     fx_providers: env.fxProviders,
     log_file_enabled: Boolean(env.logFilePath)
   });
+  // Warm the OCR provider chain so the `ocr chain effective` line is emitted
+  // once at boot (next to `server start`) instead of riding on the first
+  // request. Memoization inside selectProvider keeps subsequent per-request
+  // calls silent for the same composition. Safe no-op when 0 or 1 slots
+  // survive — those branches don't emit a chain-effective line at all.
+  selectProvider(env, getLogger());
   _booted = true;
 }
 
