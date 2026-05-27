@@ -41,6 +41,11 @@ All notable changes to this project are documented here. Format roughly follows 
 - **OCR misclassifications now log the raw LLM response** alongside
   the validation error, so an odometer photo sent to the fuel-pump
   slot can be diagnosed from logs without re-running the request.
+- **Crop handles stay grabbable at the image edge** — when the crop
+  rectangle is dragged flush against an image boundary, the corner
+  and edge handles now clamp inside the image instead of spilling
+  into the modal padding where the host's `overflow-hidden` made
+  them unreachable.
 
 ### Tests
 

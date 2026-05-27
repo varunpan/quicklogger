@@ -88,6 +88,12 @@ upload and never blocks or affects it. User guide:
   (default 200 source px, derived back into display px via the
   image's scale factor). `touch-action: none` and `setPointerCapture`
   keep gestures alive even if the finger drifts outside the overlay.
+  Handle visual positions are clamped to stay fully inside
+  `imageDisplayRect`, so the rect can be pushed flush against any
+  image boundary without losing access to the handle on that side —
+  the host modal's `overflow-hidden` would otherwise clip the half of
+  the handle that straddles the corner/edge. The clamp affects
+  rendering only; `liveRect` and pointer-event math are unchanged.
   Emits the chosen rect in display-space pixels on `[Done]`; emits
   nothing on `[Cancel]`. Stateless across host re-mounts — the host
   owns `crop` state and passes the prior rect via `initial`.

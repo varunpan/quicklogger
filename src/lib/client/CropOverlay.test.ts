@@ -148,4 +148,44 @@ describe('CropOverlay', () => {
     expect(oncancel).toHaveBeenCalledTimes(1);
     expect(oncommit).not.toHaveBeenCalled();
   });
+
+  it('keeps every handle fully inside imageDisplayRect when the rect is flush against the image bounds', () => {
+    // Rect fills the entire 400×300 image — every handle would straddle a
+    // boundary if positions weren't clamped, ending up outside the overlay's
+    // box where the host modal's overflow-hidden makes them unreachable.
+    const { container } = mountWith({
+      initial: { x: 0, y: 0, w: 400, h: 300 }
+    });
+
+    const imgW = 400;
+    const imgH = 300;
+    const CORNER = 14;
+    const EDGE_LONG = 14;
+    const EDGE_SHORT = 4;
+
+    const px = (el: HTMLElement, key: 'left' | 'top') =>
+      parseFloat(el.style[key]);
+
+    for (const el of container.querySelectorAll<HTMLElement>('[data-handle="corner"]')) {
+      const left = px(el, 'left');
+      const top = px(el, 'top');
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(top).toBeGreaterThanOrEqual(0);
+      expect(left).toBeLessThanOrEqual(imgW - CORNER);
+      expect(top).toBeLessThanOrEqual(imgH - CORNER);
+    }
+
+    for (const el of container.querySelectorAll<HTMLElement>('[data-handle="edge"]')) {
+      const left = px(el, 'left');
+      const top = px(el, 'top');
+      const edge = el.getAttribute('data-edge');
+      const isVertical = edge === 'l' || edge === 'r';
+      const w = isVertical ? EDGE_SHORT : EDGE_LONG;
+      const h = isVertical ? EDGE_LONG : EDGE_SHORT;
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(top).toBeGreaterThanOrEqual(0);
+      expect(left).toBeLessThanOrEqual(imgW - w);
+      expect(top).toBeLessThanOrEqual(imgH - h);
+    }
+  });
 });

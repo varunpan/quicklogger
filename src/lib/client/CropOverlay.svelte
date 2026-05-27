@@ -226,14 +226,18 @@
     <div data-grid-line class="absolute bg-white/35" style="left: {(liveRect.w * 2) / 3}px; top: 0; width: 1px; height: {liveRect.h}px;"></div>
   </div>
 
-  <!-- Corner handles -->
+  <!-- Corner handles. Each handle's visual position is clamped to stay
+       fully inside imageDisplayRect, so the rect can be pushed flush
+       against any image edge without losing access to the handle on
+       that side. Clamping affects rendering only; drag-state math
+       (liveRect, onPointerMove) is unchanged. -->
   <button
     type="button"
     data-handle="corner"
     data-corner="tl"
     aria-label="Top-left handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {liveRect.x - 7}px; top: {liveRect.y - 7}px; width: 14px; height: 14px;"
+    style="left: {clamp(liveRect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('tl', ev)}
   ></button>
   <button
@@ -242,7 +246,7 @@
     data-corner="tr"
     aria-label="Top-right handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {liveRect.x + liveRect.w - 7}px; top: {liveRect.y - 7}px; width: 14px; height: 14px;"
+    style="left: {clamp(liveRect.x + liveRect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('tr', ev)}
   ></button>
   <button
@@ -251,7 +255,7 @@
     data-corner="bl"
     aria-label="Bottom-left handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {liveRect.x - 7}px; top: {liveRect.y + liveRect.h - 7}px; width: 14px; height: 14px;"
+    style="left: {clamp(liveRect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y + liveRect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('bl', ev)}
   ></button>
   <button
@@ -260,7 +264,7 @@
     data-corner="br"
     aria-label="Bottom-right handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {liveRect.x + liveRect.w - 7}px; top: {liveRect.y + liveRect.h - 7}px; width: 14px; height: 14px;"
+    style="left: {clamp(liveRect.x + liveRect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y + liveRect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('br', ev)}
   ></button>
 
@@ -271,7 +275,7 @@
     data-edge="t"
     aria-label="Top edge"
     class="absolute bg-white rounded-sm"
-    style="left: {liveRect.x + liveRect.w / 2 - 7}px; top: {liveRect.y - 2}px; width: 14px; height: 4px;"
+    style="left: {clamp(liveRect.x + liveRect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
     onpointerdown={(ev) => onPointerDownEdge('t', ev)}
   ></button>
   <button
@@ -280,7 +284,7 @@
     data-edge="b"
     aria-label="Bottom edge"
     class="absolute bg-white rounded-sm"
-    style="left: {liveRect.x + liveRect.w / 2 - 7}px; top: {liveRect.y + liveRect.h - 2}px; width: 14px; height: 4px;"
+    style="left: {clamp(liveRect.x + liveRect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y + liveRect.h - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
     onpointerdown={(ev) => onPointerDownEdge('b', ev)}
   ></button>
   <button
@@ -289,7 +293,7 @@
     data-edge="l"
     aria-label="Left edge"
     class="absolute bg-white rounded-sm"
-    style="left: {liveRect.x - 2}px; top: {liveRect.y + liveRect.h / 2 - 7}px; width: 4px; height: 14px;"
+    style="left: {clamp(liveRect.x - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(liveRect.y + liveRect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
     onpointerdown={(ev) => onPointerDownEdge('l', ev)}
   ></button>
   <button
@@ -298,7 +302,7 @@
     data-edge="r"
     aria-label="Right edge"
     class="absolute bg-white rounded-sm"
-    style="left: {liveRect.x + liveRect.w - 2}px; top: {liveRect.y + liveRect.h / 2 - 7}px; width: 4px; height: 14px;"
+    style="left: {clamp(liveRect.x + liveRect.w - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(liveRect.y + liveRect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
     onpointerdown={(ev) => onPointerDownEdge('r', ev)}
   ></button>
 </div>
