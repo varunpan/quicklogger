@@ -38,6 +38,23 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **iOS Safari pump OCR failed with `400 multipart parse failed`** —
+  pump submissions from iOS Safari intermittently sent an `image`
+  multipart part containing zero bytes, triggering a server-side
+  multipart parse error. Two compounding causes: `prefillDateFromPhoto`
+  racing against the OCR pipeline's `createImageBitmap` on the same
+  PHAsset-backed HEIC File, and `OffscreenCanvas.convertToBlob`
+  intermittently returning zero-byte Blobs on iOS Safari 16.4+. Two
+  defensive fixes: photos are now buffered into memory at pick time
+  (so EXIF prefill and OCR resize operate on independent in-memory
+  copies, not the original File), and `resizeForOcr` detects zero-byte
+  `OffscreenCanvas.convertToBlob` output and falls back to
+  `HTMLCanvasElement.toBlob`, which iOS Safari handles reliably.
+- **Opaque `"OCR failed (400)"` toast** — the toast now surfaces the
+  server's specific rejection reason (e.g., `"OCR rejected photo:
+  multipart parse failed"`, `"OCR rejected photo: empty image"`)
+  instead of the bare status code, so 400s are diagnosable on-device
+  without server-log access.
 - **OCR misclassifications now log the raw LLM response** alongside
   the validation error, so an odometer photo sent to the fuel-pump
   slot can be diagnosed from logs without re-running the request.

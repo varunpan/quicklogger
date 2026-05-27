@@ -70,6 +70,10 @@ export async function getOcrStatus(fetchImpl = fetch): Promise<OcrStatus> {
 export interface OcrError extends Error {
   status?: number;
   retryAfter?: number;
+  // Server's `error` string from a 400 response body. Used by the client
+  // toast to surface the specific rejection reason (e.g., "empty image",
+  // "multipart parse failed") instead of an opaque "OCR failed (400)".
+  serverError?: string;
 }
 
 export async function postOcr(
@@ -131,6 +135,14 @@ export async function postOcr(
     const text = await res.text().catch(() => '');
     const err: OcrError = new Error(`ocr ${res.status}: ${text}`);
     err.status = res.status;
+    if (res.status === 400) {
+      try {
+        const body = JSON.parse(text);
+        if (body && typeof body.error === 'string') err.serverError = body.error;
+      } catch {
+        // Non-JSON body (e.g., proxy HTML error page); leave serverError unset.
+      }
+    }
     if (res.status === 429) {
       const ra = res.headers.get('retry-after');
       err.retryAfter = ra ? Number(ra) : 60;

@@ -205,3 +205,98 @@ describe('resizeForOcr', () => {
     expect(canvasCalls[0].drawImageCalls).toBe(1);
   });
 });
+
+// iOS Safari's OffscreenCanvas.convertToBlob intermittently returns a
+// zero-byte Blob for valid drawn canvases — proven via Web Inspector capture
+// of a failing pump submission (request body had an `image` part with zero
+// bytes between the multipart headers and the next boundary, triggering a
+// server-side `multipart parse failed` 400). The fix falls back to
+// HTMLCanvasElement.toBlob, which uses a separate decode/encode chain that
+// iOS Safari handles reliably. These tests pin that behaviour.
+describe('resizeForOcr — zero-byte OffscreenCanvas fallback', () => {
+  let htmlCanvasCalls: CanvasCall[];
+
+  // Restore spies (createElement, console.warn) between tests in this block.
+  // The file-level afterEach only does unstubAllGlobals, which doesn't reset
+  // vi.spyOn — without this, console.warn call history leaks across tests
+  // and assertions about "warn was/wasn't called" become unreliable.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function stubOffscreenCanvasReturning(blob: Blob) {
+    class ZeroByteOffscreenCanvas extends FakeOffscreenCanvas {
+      async convertToBlob() { return blob; }
+    }
+    vi.stubGlobal('OffscreenCanvas', ZeroByteOffscreenCanvas);
+  }
+
+  function stubHtmlCanvasToBlobReturning(blob: Blob | null) {
+    htmlCanvasCalls = [];
+    const realCreate = Document.prototype.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+      if (tag !== 'canvas') return realCreate(tag as 'div');
+      const call: CanvasCall = { width: 0, height: 0, drawImage: null, drawImageCalls: 0, transformCalls: [] };
+      htmlCanvasCalls.push(call);
+      const fake = {
+        getContext(kind: string) {
+          if (kind !== '2d') return null;
+          return new FakeCtx(call);
+        },
+        toBlob(cb: (b: Blob | null) => void) {
+          cb(blob);
+        }
+      };
+      Object.defineProperty(fake, 'width', {
+        set(v: number) { call.width = v; },
+        get() { return call.width; }
+      });
+      Object.defineProperty(fake, 'height', {
+        set(v: number) { call.height = v; },
+        get() { return call.height; }
+      });
+      return fake as unknown as HTMLCanvasElement;
+    }) as typeof document.createElement);
+  }
+
+  it('OffscreenCanvas returns 0-byte blob → falls back to HTMLCanvasElement and returns its non-zero blob', async () => {
+    stubOffscreenCanvasReturning(new Blob([], { type: 'image/jpeg' }));
+    stubHtmlCanvasToBlobReturning(new Blob(['xxxx'], { type: 'image/jpeg' }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
+    const result = await resizeForOcr(file, { rotation: 0 });
+
+    expect(result.size).toBeGreaterThan(0);
+    // Both paths were exercised: OffscreenCanvas first (canvasCalls), then
+    // HTMLCanvasElement as fallback (htmlCanvasCalls).
+    expect(canvasCalls).toHaveLength(1);
+    expect(htmlCanvasCalls).toHaveLength(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('OffscreenCanvas'),
+      expect.objectContaining({ sourceW: 2000, sourceH: 1000 })
+    );
+  });
+
+  it('OffscreenCanvas non-zero blob → never invokes HTMLCanvasElement fallback', async () => {
+    // Use the default FakeOffscreenCanvas from beforeEach (returns 'x' / 1 byte).
+    stubHtmlCanvasToBlobReturning(new Blob(['xxxx'], { type: 'image/jpeg' }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
+    await resizeForOcr(file, { rotation: 0 });
+
+    expect(canvasCalls).toHaveLength(1);
+    expect(htmlCanvasCalls).toHaveLength(0);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('both paths return 0-byte blob → rejects with descriptive error', async () => {
+    stubOffscreenCanvasReturning(new Blob([], { type: 'image/jpeg' }));
+    stubHtmlCanvasToBlobReturning(new Blob([], { type: 'image/jpeg' }));
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
+    await expect(resizeForOcr(file, { rotation: 0 })).rejects.toThrow(/0 bytes/);
+  });
+});

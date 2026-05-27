@@ -121,12 +121,15 @@
   }
 
   function ocrErrorToast(err: unknown): { kind: 'error'; text: string } {
-    const e = err as Error & { status?: number; retryAfter?: number };
+    const e = err as Error & { status?: number; retryAfter?: number; serverError?: string };
     const s = e.status;
     if (s === 0) return { kind: 'error', text: 'OCR took too long — please type values' };
     if (s === 429) {
       const ra = e.retryAfter ?? 60;
       return { kind: 'error', text: `OCR rate limit reached, try again in ${ra}s` };
+    }
+    if (s === 400) {
+      return { kind: 'error', text: e.serverError ? `OCR rejected photo: ${e.serverError}` : 'OCR rejected photo' };
     }
     if (s === 402) return { kind: 'error', text: 'OCR budget for today reached' };
     if (s === 413) return { kind: 'error', text: 'Photo too large — try again' };
@@ -136,13 +139,36 @@
     return { kind: 'error', text: `OCR failed (${s ?? 'network'})` };
   }
 
-  function handlePumpCamera(ev: Event) {
+  async function handlePumpCamera(ev: Event) {
     const input = ev.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const picked = input.files?.[0];
     input.value = '';
+    if (!picked) return;
+    const file = await bufferPickedPhoto(picked);
     if (!file) return;
     pendingCapture = { file, mode: 'pump' };
     void prefillDateFromPhoto(file);
+  }
+
+  // Read the picked File fully into memory and return a fresh in-memory File.
+  // On iOS Safari, photos picked from the Photo Library are PHAsset-backed
+  // (HEIC, decoded lazily); concurrent reads of the same File (EXIF prefill
+  // racing the OCR pipeline's createImageBitmap) intermittently leave one of
+  // them with empty bytes, producing a zero-byte multipart image part and a
+  // "multipart parse failed" 400. Buffering eagerly forces a single decode
+  // and gives every downstream consumer an independent in-memory copy.
+  async function bufferPickedPhoto(picked: File): Promise<File | null> {
+    try {
+      const bytes = await picked.arrayBuffer();
+      if (bytes.byteLength === 0) {
+        toast = { kind: 'error', text: "Couldn't read photo — try again" };
+        return null;
+      }
+      return new File([bytes], picked.name || 'capture.jpg', { type: picked.type || 'image/jpeg' });
+    } catch {
+      toast = { kind: 'error', text: "Couldn't read photo — try again" };
+      return null;
+    }
   }
 
   // EXIF read + state-machine apply. Errors (parser throws, file deleted
@@ -163,10 +189,12 @@
     }
   }
 
-  function handleOdoCamera(ev: Event) {
+  async function handleOdoCamera(ev: Event) {
     const input = ev.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const picked = input.files?.[0];
     input.value = '';
+    if (!picked) return;
+    const file = await bufferPickedPhoto(picked);
     if (!file) return;
     pendingCapture = { file, mode: 'odometer' };
   }

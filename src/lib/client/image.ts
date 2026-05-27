@@ -80,11 +80,17 @@ interface Dimensioned {
   height: number;
 }
 
-async function renderToJpegBlob(
-  source: CanvasImageSource & Dimensioned,
+interface RenderDims {
+  sx: number; sy: number; sw: number; sh: number;
+  baseW: number; baseH: number;
+  canvasW: number; canvasH: number;
+}
+
+function computeRenderDims(
+  source: Dimensioned,
   rotation: Rotation,
   crop: NormalizedRect | null
-): Promise<Blob> {
+): RenderDims {
   // Source rect: full image when crop is null, else the cropped region.
   const sx = crop ? Math.round(crop.x * source.width) : 0;
   const sy = crop ? Math.round(crop.y * source.height) : 0;
@@ -101,22 +107,34 @@ async function renderToJpegBlob(
   const canvasW = transpose ? baseH : baseW;
   const canvasH = transpose ? baseW : baseH;
 
-  if (typeof OffscreenCanvas !== 'undefined') {
-    const canvas = new OffscreenCanvas(canvasW, canvasH);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('OffscreenCanvas 2d context unavailable');
-    applyRotation(ctx as unknown as CanvasRenderingContext2D, rotation, baseW, baseH);
-    ctx.drawImage(source as CanvasImageSource, sx, sy, sw, sh, 0, 0, baseW, baseH);
-    return await canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
-  }
+  return { sx, sy, sw, sh, baseW, baseH, canvasW, canvasH };
+}
 
+async function renderViaOffscreenCanvas(
+  source: CanvasImageSource & Dimensioned,
+  rotation: Rotation,
+  d: RenderDims
+): Promise<Blob> {
+  const canvas = new OffscreenCanvas(d.canvasW, d.canvasH);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('OffscreenCanvas 2d context unavailable');
+  applyRotation(ctx as unknown as CanvasRenderingContext2D, rotation, d.baseW, d.baseH);
+  ctx.drawImage(source as CanvasImageSource, d.sx, d.sy, d.sw, d.sh, 0, 0, d.baseW, d.baseH);
+  return await canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
+}
+
+async function renderViaHtmlCanvas(
+  source: CanvasImageSource & Dimensioned,
+  rotation: Rotation,
+  d: RenderDims
+): Promise<Blob> {
   const canvas = document.createElement('canvas');
-  canvas.width = canvasW;
-  canvas.height = canvasH;
+  canvas.width = d.canvasW;
+  canvas.height = d.canvasH;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas 2d context unavailable');
-  applyRotation(ctx, rotation, baseW, baseH);
-  ctx.drawImage(source as CanvasImageSource, sx, sy, sw, sh, 0, 0, baseW, baseH);
+  applyRotation(ctx, rotation, d.baseW, d.baseH);
+  ctx.drawImage(source as CanvasImageSource, d.sx, d.sy, d.sw, d.sh, 0, 0, d.baseW, d.baseH);
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error('toBlob returned null'))),
@@ -124,6 +142,38 @@ async function renderToJpegBlob(
       JPEG_QUALITY
     );
   });
+}
+
+async function renderToJpegBlob(
+  source: CanvasImageSource & Dimensioned,
+  rotation: Rotation,
+  crop: NormalizedRect | null
+): Promise<Blob> {
+  const d = computeRenderDims(source, rotation, crop);
+
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const blob = await renderViaOffscreenCanvas(source, rotation, d);
+    if (blob.size > 0) return blob;
+    // iOS Safari's OffscreenCanvas.convertToBlob intermittently returns a
+    // zero-byte Blob (WebKit bug class affecting 16.4+). Falling through to
+    // HTMLCanvasElement.toBlob uses a separate decode/encode chain that
+    // iOS Safari handles reliably. Diagnostic warn so the failure mode is
+    // visible in the server log via /api/log forwarding.
+    console.warn('OffscreenCanvas.convertToBlob returned 0 bytes, falling back to HTMLCanvasElement', {
+      sourceW: source.width,
+      sourceH: source.height,
+      crop,
+      rotation,
+      canvasW: d.canvasW,
+      canvasH: d.canvasH
+    });
+  }
+
+  const fallback = await renderViaHtmlCanvas(source, rotation, d);
+  if (fallback.size === 0) {
+    throw new Error('image encode produced 0 bytes on both OffscreenCanvas and HTMLCanvasElement');
+  }
+  return fallback;
 }
 
 function applyRotation(
