@@ -1,8 +1,31 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
-  import type { VolumeUnit } from '$lib/shared/types';
+  import { loadServerInfo, saveServerInfo } from '$lib/client/server-info';
+  import type { ServerInfo, VolumeUnit } from '$lib/shared/types';
 
   let prefs = $state(loadPrefs());
+
+  // Server-info SWR: paint the cached value instantly, fetch live on mount.
+  let serverInfo = $state<ServerInfo | null>(loadServerInfo());
+  let checking = $state(serverInfo === null);
+
+  onMount(async () => {
+    try {
+      const res = await fetch('/api/server-info');
+      if (res.ok) {
+        const info = (await res.json()) as ServerInfo;
+        serverInfo = info;
+        saveServerInfo(info);
+      }
+    } catch {
+      // /api/server-info normally returns 200 even when LubeLogger is down;
+      // a throw here means quicklogger itself is unreachable. Keep any cached
+      // value; the {:else} branch renders the unreachable state if there is none.
+    } finally {
+      checking = false;
+    }
+  });
 
   function updateUnit(u: VolumeUnit) {
     prefs.defaultVolumeUnit = u;
@@ -146,6 +169,59 @@
         >Off</button>
       </div>
     </div>
+  </div>
+
+  <div
+    class="rounded-xl bg-zinc-900 border border-zinc-800 p-4 flex flex-col gap-3"
+    data-testid="server-info"
+  >
+    <div class="field-label">LubeLogger server</div>
+
+    {#if checking && !serverInfo}
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-zinc-600 shrink-0"></span>
+          <span class="text-sm font-medium text-zinc-400">Checking…</span>
+        </div>
+        <span class="h-3 w-12 rounded bg-zinc-800"></span>
+      </div>
+    {:else if serverInfo?.status === 'ok'}
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+          <span class="text-sm font-medium text-zinc-200">Connected</span>
+        </div>
+        <span class="text-sm text-zinc-400 tabular-nums" data-testid="server-version"
+          >v{serverInfo.currentVersion}</span
+        >
+      </div>
+      {#if serverInfo.updateAvailable}
+        <div class="flex items-center gap-2 text-xs text-zinc-400" data-testid="update-available">
+          <span
+            class="text-[10px] uppercase tracking-wider font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded px-1.5 py-0.5"
+            >Update available</span
+          >
+          <span class="tabular-nums">v{serverInfo.currentVersion} → v{serverInfo.latestVersion}</span>
+        </div>
+      {/if}
+    {:else if serverInfo?.status === 'unauthorized'}
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+        <span class="text-sm font-medium text-zinc-200">API key rejected</span>
+      </div>
+      <p class="text-xs text-zinc-500 leading-relaxed">
+        LubeLogger refused the API key. Check
+        <span class="text-zinc-400 font-mono">LUBELOGGER_API_KEY</span>.
+      </p>
+    {:else}
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+        <span class="text-sm font-medium text-zinc-200">Can't reach LubeLogger</span>
+      </div>
+      <p class="text-xs text-zinc-500 leading-relaxed">
+        No response from the server. It may be down, restarting, or unreachable from here.
+      </p>
+    {/if}
   </div>
 
   <p class="text-xs text-zinc-500">

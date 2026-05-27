@@ -23,6 +23,13 @@ All notable changes to this project are documented here. Format roughly follows 
   from the browser, plus install / runtime errors from the service
   worker, now land in the server log stream tagged `source: client` or
   `source: service-worker`.
+- **LubeLogger server info on Settings.** The Settings page now shows a
+  read-only LubeLogger block: a connection indicator (connected / API key
+  rejected / can't reach), the running LubeLogger version, and an "update
+  available" hint when a newer LubeLogger release exists. Backed by the new
+  `GET /api/server-info` health probe, which merges LubeLogger's `/api/info`
+  and `/api/version` and always returns 200. Cached per-device under
+  `quicklogger-server-info` for instant paint.
 
 ### Changed
 

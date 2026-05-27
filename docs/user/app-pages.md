@@ -115,6 +115,27 @@ A small footer reminds you:
 > Server converts to the LubeLogger-configured target unit and currency
 > before posting. These prefs only affect form defaults.
 
+### LubeLogger server
+
+At the bottom of Settings is a read-only **LubeLogger server** block. It does
+not change anything — it just reports what quicklogger sees when it talks to
+your LubeLogger instance:
+
+- **Connection status** — a coloured dot and label:
+  - 🟢 **Connected** — LubeLogger is reachable and the API key is accepted.
+  - 🔴 **API key rejected** — LubeLogger refused the key; check
+    `LUBELOGGER_API_KEY` (see [`configuration.md`](configuration.md)).
+  - 🟡 **Can't reach LubeLogger** — no response; it may be down, restarting,
+    or unreachable from this device's network.
+- **Version** — the running LubeLogger version (e.g. `v1.6.5`).
+- **Update available** — an amber badge with the newer version (e.g.
+  `v1.6.5 → v1.7.0`) when LubeLogger reports a newer release. There's no update
+  button — quicklogger can't update LubeLogger, it only surfaces the hint.
+
+The result is cached per-device (localStorage key `quicklogger-server-info`) so
+the block paints instantly on revisit, then refreshes in the background each
+time you open Settings.
+
 ## Maintenance (`/maintenance`)
 
 A read-only list of upcoming maintenance reminders pulled from
