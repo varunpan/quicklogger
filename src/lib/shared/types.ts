@@ -54,3 +54,20 @@ export interface OcrStatus {
   // the field is absent (older server, or probe in degraded mode).
   chainTimeoutMs?: number;
 }
+
+// --- LubeLogger server info (v0.2.3+) ---
+export type ServerInfoStatus = 'ok' | 'unauthorized' | 'unreachable';
+
+export interface ServerInfo {
+  /** True iff at least one upstream call (/api/info or /api/version) resolved. */
+  reachable: boolean;
+  status: ServerInfoStatus;
+  currentVersion: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  // Cached from /api/info; unused this branch (consumed by the follow-up).
+  locale: string | null;
+  currencySymbol: string | null;
+  decimalSeparator: string | null;
+  dateFormat: string | null;
+}

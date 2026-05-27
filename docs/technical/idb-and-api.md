@@ -323,6 +323,39 @@ Request body:
 
 See [`logging.md`](./logging.md) for the full record shape and the client-logger contract.
 
+### `GET /api/server-info` (v0.2.3+)
+
+Source: `src/routes/api/server-info/+server.ts`. **Health probe** — always
+`200 application/json`, even when LubeLogger is down ("I checked and it's down"
+is a successful result). Merges LubeLogger's `/api/info` and `/api/version` via
+`Promise.allSettled`. Consumed by the Settings page, which caches the body in
+localStorage under `quicklogger-server-info` (`src/lib/client/server-info.ts`)
+for instant SWR paint.
+
+| Field | Value |
+|---|---|
+| Request | No params. |
+| Cache | None server-side. Client caches the body under `quicklogger-server-info`. |
+| Response 200 | `ServerInfo` (`src/lib/shared/types.ts`) — see below. Always 200. |
+
+```ts
+interface ServerInfo {
+  reachable: boolean;                              // ≥1 upstream call resolved
+  status: 'ok' | 'unauthorized' | 'unreachable';   // distinguishes 401 from down
+  currentVersion: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;                        // guarded numeric semver compare
+  locale: string | null;                           // cached, unused this branch
+  currencySymbol: string | null;
+  decimalSeparator: string | null;
+  dateFormat: string | null;
+}
+```
+
+`status` is `ok` when reachable; `unauthorized` if every upstream rejection is a
+`LubeLoggerError` 401; else `unreachable` (404 / 5xx / network / timeout). See
+[`server-info.md`](./server-info.md) for the full merge rules.
+
 ### Why no `/api/manifest.webmanifest`
 
 `manifest.webmanifest` is a static file under `static/`, served by the
@@ -347,6 +380,8 @@ handler) exposes three methods mapped to LubeLogger's REST API:
 | `listReminders(vehicleId)` | `GET /api/vehicle/reminders?vehicleId=N` | `Reminder[]` |
 | `addGasRecord(vehicleId, payload)` | `POST /api/vehicle/gasrecords/add?vehicleId=N` | `void` (body discarded) |
 | `fetchImage(path)` | `GET <path>` (expects `/images/<uuid>.<ext>`) | raw `Response` — caller streams the body, copies `content-type` |
+| `getInfo()` | `GET /api/info` | `LubeLoggerInfo` (version + locale/format fields) |
+| `getVersion()` | `GET /api/version` | `LubeLoggerVersion` (`currentVersion` + `latestVersion`) |
 
 ### Timeout
 
