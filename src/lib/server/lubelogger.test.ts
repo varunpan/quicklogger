@@ -202,6 +202,57 @@ describe('LubeLoggerClient', () => {
 		);
 		await expect(client().fetchImage('/images/oops.jpg')).rejects.toMatchObject({ status: 503 });
 	});
+
+	it('getInfo() sends x-api-key and parses the flat info payload', async () => {
+		let observedKey = '';
+		server.use(
+			http.get(`${BASE}/api/info`, ({ request }) => {
+				observedKey = request.headers.get('x-api-key') ?? '';
+				return HttpResponse.json({
+					currentVersion: '1.6.5',
+					locale: 'en-US',
+					currencySymbol: '$',
+					decimalSeparator: '.',
+					dateFormat: 'M/d/yyyy'
+				});
+			})
+		);
+		const info = await client().getInfo();
+		expect(observedKey).toBe(KEY);
+		expect(info.currentVersion).toBe('1.6.5');
+		expect(info.locale).toBe('en-US');
+		expect(info.currencySymbol).toBe('$');
+		expect(info.decimalSeparator).toBe('.');
+		expect(info.dateFormat).toBe('M/d/yyyy');
+	});
+
+	it('getVersion() sends x-api-key and parses currentVersion + latestVersion', async () => {
+		let observedKey = '';
+		server.use(
+			http.get(`${BASE}/api/version`, ({ request }) => {
+				observedKey = request.headers.get('x-api-key') ?? '';
+				return HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.7.0' });
+			})
+		);
+		const version = await client().getVersion();
+		expect(observedKey).toBe(KEY);
+		expect(version.currentVersion).toBe('1.6.5');
+		expect(version.latestVersion).toBe('1.7.0');
+	});
+
+	it('getInfo() throws LubeLoggerError on 401', async () => {
+		server.use(
+			http.get(`${BASE}/api/info`, () => new HttpResponse('unauthorized', { status: 401 }))
+		);
+		await expect(client().getInfo()).rejects.toMatchObject({ name: 'LubeLoggerError', status: 401 });
+	});
+
+	it('getVersion() throws LubeLoggerError on 404 (older LubeLogger / missing endpoint)', async () => {
+		server.use(
+			http.get(`${BASE}/api/version`, () => new HttpResponse('', { status: 404 }))
+		);
+		await expect(client().getVersion()).rejects.toMatchObject({ name: 'LubeLoggerError', status: 404 });
+	});
 });
 
 interface CapturedRec { level: string; msg: string; ctx: Record<string, unknown>; }

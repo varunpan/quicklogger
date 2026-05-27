@@ -49,6 +49,27 @@ export interface Reminder {
 	[key: string]: unknown;
 }
 
+/** Shape returned by GET /api/info. Flat, all-string (verified against
+ *  LubeLogger v1.6.5 during design). `currentVersion` is repeated here and
+ *  on /api/version; the locale/currency/format fields are cached but unused
+ *  this branch (the follow-up branch consumes them for display formatting). */
+export interface LubeLoggerInfo {
+	currentVersion: string;
+	locale: string;
+	currencySymbol: string;
+	decimalSeparator: string;
+	dateFormat: string;
+	[key: string]: unknown;
+}
+
+/** Shape returned by GET /api/version. The only endpoint carrying
+ *  `latestVersion` (drives the update-available check). */
+export interface LubeLoggerVersion {
+	currentVersion: string;
+	latestVersion: string;
+	[key: string]: unknown;
+}
+
 /** Form-data payload accepted by POST /api/vehicle/gasrecords/add (LubeLogger
  *  is case-insensitive on the form-data field names; we send lowercase). */
 export interface AddGasRecordPayload {
@@ -162,6 +183,16 @@ export class LubeLoggerClient {
 	async listReminders(vehicleId: number): Promise<Reminder[]> {
 		const res = await this.request(`/api/vehicle/reminders?vehicleId=${vehicleId}`);
 		return res.json() as Promise<Reminder[]>;
+	}
+
+	async getInfo(): Promise<LubeLoggerInfo> {
+		const res = await this.request('/api/info');
+		return res.json() as Promise<LubeLoggerInfo>;
+	}
+
+	async getVersion(): Promise<LubeLoggerVersion> {
+		const res = await this.request('/api/version');
+		return res.json() as Promise<LubeLoggerVersion>;
 	}
 
 	async addGasRecord(vehicleId: number, payload: AddGasRecordPayload): Promise<void> {
