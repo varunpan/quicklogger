@@ -61,16 +61,23 @@ test('unreachable: shows Can\'t reach LubeLogger', async ({ page }) => {
 });
 
 test('SWR: paints the cached value, then updates from the live fetch', async ({ page }) => {
-  // Seed a stale cached "unreachable" before scripts run; live fetch returns ok.
+  // Seed a stale cached "unreachable" before scripts run.
   await page.addInitScript(() => {
     localStorage.setItem('quicklogger-server-info', JSON.stringify({
       reachable: false, status: 'unreachable', currentVersion: null, latestVersion: null,
       updateAvailable: false, locale: null, currencySymbol: null, decimalSeparator: null, dateFormat: null
     }));
   });
-  await mockServerInfo(page, fullInfo({ currentVersion: '1.6.5' }));
+  // Delay the live response so the stale cache is observably painted first.
+  await page.route('**/api/server-info', async (route) => {
+    await new Promise((r) => setTimeout(r, 300));
+    await route.fulfill({ json: fullInfo({ currentVersion: '1.6.5' }) });
+  });
   await page.goto('/settings');
+  const block = page.getByTestId('server-info');
+  // Stale cache paints immediately (before the delayed live response resolves).
+  await expect(block.getByText("Can't reach LubeLogger")).toBeVisible();
   // Live fetch resolves and the block flips to Connected.
-  await expect(page.getByTestId('server-info').getByText('Connected')).toBeVisible();
+  await expect(block.getByText('Connected')).toBeVisible();
   await expect(page.getByTestId('server-version')).toHaveText('v1.6.5');
 });
