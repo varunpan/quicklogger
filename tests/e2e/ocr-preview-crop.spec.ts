@@ -128,6 +128,67 @@ test('crop: skip-crop send omits all four crop form fields (wire-compat)', async
   }
 });
 
+const PORTRAIT_FIXTURE = path.resolve('tests/e2e/sample-portrait.jpg');
+
+test('crop: tall portrait image fits viewport — every handle is reachable', async ({ page }) => {
+  // Regression: pre-fix, `max-h-full` on the <img> inside an inline-block
+  // wrapper was a circular percentage reference (parent height = auto = img
+  // content height) — tall portraits rendered at their natural pixel height
+  // and overflowed the viewport, dragging the CropOverlay corner handles
+  // out of reach. Fix moved the constraint to viewport units directly on the
+  // img (max-h: calc(100dvh - 14rem)).
+  await commonRoutes(page);
+  await page.route('**/api/ocr', (route) =>
+    route.fulfill({ json: { enabled: true, modes: ['pump', 'odometer'] } })
+  );
+
+  await gotoHomeViaClientRouter(page);
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', PORTRAIT_FIXTURE);
+
+  const dialog = page.getByRole('dialog', { name: /Photo preview/i });
+  await dialog.getByRole('button', { name: /Crop image/i }).click();
+  // Wait for the overlay to mount — measureImg() needs the img bounding rect.
+  await expect(dialog.locator('[data-handle="corner"][data-corner="tl"]')).toBeVisible();
+
+  const result = await page.evaluate(() => {
+    const img = document.querySelector('img[alt="Captured for OCR preview"]') as HTMLImageElement | null;
+    if (!img) return { ok: false };
+    const ir = img.getBoundingClientRect();
+    const corners = ['tl', 'tr', 'bl', 'br'].map((c) => {
+      const el = document.querySelector(`[data-corner="${c}"]`) as HTMLElement | null;
+      if (!el) return { c, on: false };
+      const b = el.getBoundingClientRect();
+      return {
+        c,
+        on:
+          b.x >= 0 &&
+          b.y >= 0 &&
+          b.x + b.width <= window.innerWidth &&
+          b.y + b.height <= window.innerHeight
+      };
+    });
+    return {
+      ok: true,
+      viewport: { w: window.innerWidth, h: window.innerHeight },
+      img_natural: { w: img.naturalWidth, h: img.naturalHeight },
+      img_rect: { x: ir.x, y: ir.y, w: ir.width, h: ir.height },
+      img_overflows:
+        ir.x < 0 || ir.y < 0 || ir.x + ir.width > window.innerWidth || ir.y + ir.height > window.innerHeight,
+      corners
+    };
+  });
+
+  expect(result.ok).toBe(true);
+  // Sanity: the fixture is tall enough that pre-fix it would overflow.
+  expect(result.img_natural!.h).toBeGreaterThan(result.viewport!.h);
+  // Image stays inside the viewport.
+  expect(result.img_overflows).toBe(false);
+  // All four corner handles reachable.
+  for (const c of result.corners!) {
+    expect(c.on, `corner ${c.c} should be on-screen`).toBe(true);
+  }
+});
+
 test('crop: Cancel crop returns to preview with prior state, Send omits crop fields', async ({ page }) => {
   await commonRoutes(page);
   let bodySaw = '';

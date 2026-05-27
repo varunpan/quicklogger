@@ -102,7 +102,17 @@ upload and never blocks or affects it. User guide:
   the user's rotation choice and (optionally) a crop rect in
   un-rotated normalized source coords. The modal has two sub-modes:
   `preview` and `crop`. In `preview` with `crop == null`, renders the
-  full image inside an `<img>` with CSS `transform: rotate()`. In
+  full image inside an `<img>` with CSS `transform: rotate()`. The
+  `<img>` carries viewport-relative max sizes — `max-w: calc(100vw -
+  3rem)` and `max-h: calc(100dvh - 14rem)` — directly on the element
+  rather than via `max-w-full` / `max-h-full` against the inline-block
+  wrapper. The percentage form was a circular reference (the wrapper's
+  `height` is `auto`, so the img's `max-h: 100%` resolved against the
+  img's own content height), which let tall portrait photos render at
+  their natural pixel height and push the CropOverlay handles off the
+  visible viewport. The calc values size the photo against the dynamic
+  viewport with a safety margin large enough to cover the
+  preview-mode footer's height. In
   `preview` with `crop != null`, swaps the `<img>` for a `<canvas>`
   that shows ONLY the cropped+rotated region of the original photo,
   scaled to fit. The canvas is drawn via `createImageBitmap +

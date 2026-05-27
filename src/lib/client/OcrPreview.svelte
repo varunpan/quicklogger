@@ -317,12 +317,27 @@
           aria-label="Cropped preview"
         ></canvas>
       {:else}
+        <!--
+          Viewport-relative max sizes live directly on the <img>, not the
+          wrapper. The previous `max-w-full max-h-full` on the img was
+          chained off `inline-block` parents that have `height: auto`,
+          which makes the img's `max-h: 100%` a circular reference —
+          tall portrait photos rendered at their natural pixel height,
+          overflowing the viewport and dragging the CropOverlay handles
+          off-screen. Calc against the dynamic viewport gives the img a
+          definite max regardless of wrapper sizing chains. 14rem covers
+          the worst-case chrome (header + preview-mode footer + py-6
+          padding) with a small safety margin; 3rem covers the side
+          px-6 padding. The wrapper stays `inline-block` so it hugs the
+          (now-clamped) image and CropOverlay's `absolute inset-0`
+          continues to match the img's display rect exactly.
+        -->
         <div class="relative inline-block">
           <img
             bind:this={imgEl}
             src={objectUrl}
             alt="Captured for OCR preview"
-            class="max-w-full max-h-full object-contain transition-transform duration-150 block"
+            class="max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_14rem)] object-contain transition-transform duration-150 block"
             style="transform: rotate({rotation}deg)"
             onload={measureImg}
           />

@@ -41,6 +41,12 @@ All notable changes to this project are documented here. Format roughly follows 
 - **OCR misclassifications now log the raw LLM response** alongside
   the validation error, so an odometer photo sent to the fuel-pump
   slot can be diagnosed from logs without re-running the request.
+- **Crop modal fits tall portrait photos to the viewport** — the
+  full-screen image used to render at its natural pixel height on
+  desktop browsers, pushing the corner handles above and below the
+  visible window so the rectangle couldn't be resized. The image is
+  now bounded by the viewport on every screen size, keeping every
+  handle reachable.
 - **Crop handles stay grabbable at the image edge** — when the crop
   rectangle is dragged flush against an image boundary, the corner
   and edge handles now clamp inside the image instead of spilling
