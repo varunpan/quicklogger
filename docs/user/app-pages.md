@@ -136,6 +136,21 @@ The result is cached per-device (localStorage key `quicklogger-server-info`) so
 the block paints instantly on revisit, then refreshes in the background each
 time you open Settings.
 
+### quicklogger updates
+
+quicklogger also checks **its own** version against the latest quicklogger
+GitHub release and shows an informational "update available" hint. It never
+updates itself — deploy stays manual (`docker compose pull && docker compose
+up -d`). The hint appears in three places.
+
+**Settings → quicklogger block.** A sibling of the LubeLogger server block:
+
+- 🟢 **Up to date** — running the latest release (or the check couldn't reach
+  GitHub); shows just the running version, e.g. `v0.2.3`.
+- 🟡 **Update available** — a newer release exists; shows `v0.2.3 → v0.2.4`, a
+  **Release notes** link to the GitHub release, and a reminder to
+  `docker compose pull && up -d` when you're ready.
+
 ## Maintenance (`/maintenance`)
 
 A read-only list of upcoming maintenance reminders pulled from

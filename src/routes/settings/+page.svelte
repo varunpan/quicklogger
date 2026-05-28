@@ -200,6 +200,53 @@
     {/if}
   </div>
 
+  <div
+    class="rounded-xl bg-zinc-900 border border-zinc-800 p-4 flex flex-col gap-3"
+    data-testid="app-info"
+  >
+    <div class="field-label">quicklogger</div>
+
+    {#if serverInfo?.appUpdateAvailable && serverInfo.appLatestVersion}
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+          <span class="text-sm font-medium text-zinc-200">Update available</span>
+        </div>
+        <span class="text-sm text-zinc-400 tabular-nums" data-testid="app-version"
+          >v{serverInfo.appCurrentVersion} → v{serverInfo.appLatestVersion}</span
+        >
+      </div>
+      {#if serverInfo.appReleaseUrl}
+        <a
+          href={serverInfo.appReleaseUrl}
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 self-start"
+          data-testid="app-release-notes"
+        >
+          Release notes
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M7 17L17 7" /><path d="M8 7h9v9" />
+          </svg>
+        </a>
+      {/if}
+      <p class="text-xs text-zinc-500 leading-relaxed">
+        Pull the new image when you're ready —
+        <span class="font-mono text-zinc-400">docker compose pull &amp;&amp; up -d</span>.
+      </p>
+    {:else}
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+          <span class="text-sm font-medium text-zinc-200">Up to date</span>
+        </div>
+        <span class="text-sm text-zinc-400 tabular-nums" data-testid="app-version"
+          >v{serverInfo?.appCurrentVersion ?? __APP_VERSION__}</span
+        >
+      </div>
+    {/if}
+  </div>
+
   <p class="text-xs text-zinc-500">
     Server converts to the LubeLogger-configured target unit and currency before
     posting. These prefs only affect form defaults.
