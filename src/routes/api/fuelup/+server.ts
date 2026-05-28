@@ -27,11 +27,6 @@ export function _resetForTests() {
   idempotencyMap.clear();
 }
 
-function isoToLubeloggerDate(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return `${m}/${d}/${y}`;
-}
-
 async function parseBody(req: Request): Promise<Partial<FuelSubmissionInput>> {
   const ct = req.headers.get('content-type') ?? '';
   if (ct.includes('application/json')) {
@@ -145,7 +140,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       logger: locals.logger
     });
     await client.addGasRecord(input.vehicleId, {
-      date: isoToLubeloggerDate(input.date),
+      date: input.date,                          // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant
       odometer: String(input.odometer),
       fuelconsumed: conv.gallons.toFixed(3),
       isfilltofull: input.isFillToFull ? 'true' : 'false',

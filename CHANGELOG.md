@@ -66,6 +66,12 @@ All notable changes to this project are documented here. Format roughly follows 
   per-entry code for queue rows, instance currency for upstream rows.
   Replaces the hardcoded `$` prefix on the home strip and history list.
 
+### Removed
+
+- **`isoToLubeloggerDate` (the ISO→`M/D/YYYY` converter in `/api/fuelup`).**
+  POST now sends ISO `YYYY-MM-DD` directly under `culture-invariant: true`;
+  LubeLogger parses with invariant culture.
+
 ### Fixed
 
 - **iOS Safari pump OCR failed with `400 multipart parse failed`** —
