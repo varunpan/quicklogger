@@ -156,6 +156,14 @@ top of the Log Fuel page reads `quicklogger v0.2.4 available` with a **Release
 notes** link. Dismissing it (×) hides it for that version; a newer release
 brings the banner back. Dismissal is per-device.
 
+**Drawer footer dot.** A small amber dot next to the version in the menu drawer
+footer, shown only when an update is available. Purely indicative — the GitHub
+link beside it is unchanged.
+
+The version comparison is cached per-device with the rest of the server info
+(localStorage key `quicklogger-server-info`); the dismissed banner version lives
+under `quicklogger.dismissedUpdateVersion`.
+
 ## Maintenance (`/maintenance`)
 
 A read-only list of upcoming maintenance reminders pulled from

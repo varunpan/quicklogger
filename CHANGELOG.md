@@ -38,6 +38,16 @@ All notable changes to this project are documented here. Format roughly follows 
   entries** written under LubeLogger's instance locale — parsed using
   cached `dateFormat` from `/api/info`. Unknown patterns / empty cache
   degrade to cache miss; upstream refetch repopulates on next call.
+- **quicklogger self-update check.** quicklogger now compares its own running
+  version against the latest quicklogger GitHub release and surfaces an
+  informational "update available" hint in three places — a Settings
+  `quicklogger` block (amber badge + `v{current} → v{latest}` + a release-notes
+  link), a dismissible home banner, and an amber dot in the drawer footer.
+  Backed by the new server module `src/lib/server/github-release.ts` (3 s
+  timeout, 1 h TTL cache, hardcoded `varunpan/quicklogger` repo), folded into
+  the existing `GET /api/server-info` probe as a third `Promise.allSettled` arm
+  that can't disturb the LubeLogger fields. Deploy stays manual
+  (`docker compose pull && up -d`) — no auto-update, no Docker-socket access.
 
 ### Changed
 

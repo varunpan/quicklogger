@@ -3,11 +3,15 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { installClientLogger } from '$lib/client/logger';
-  import { saveServerInfo } from '$lib/client/server-info';
+  import { loadServerInfo, saveServerInfo } from '$lib/client/server-info';
 
   let { children } = $props();
 
   let drawerOpen = $state(false);
+
+  // Amber dot in the footer when a newer quicklogger release exists. Seeded from
+  // the cache for instant paint, then refreshed by the boot-refresh below.
+  let appUpdateAvailable = $state(loadServerInfo()?.appUpdateAvailable ?? false);
 
   const navItems = [
     { href: '/', label: 'Log Fuel' },
@@ -34,7 +38,11 @@
     void (async () => {
       try {
         const res = await fetch('/api/server-info');
-        if (res.ok) saveServerInfo(await res.json());
+        if (res.ok) {
+          const info = await res.json();
+          saveServerInfo(info);
+          appUpdateAvailable = info.appUpdateAvailable ?? false;
+        }
       } catch {
         /* keep cached value */
       }
@@ -141,7 +149,12 @@
   </nav>
 
   <footer class="mt-auto pt-6 text-xs text-zinc-500 flex items-center gap-2">
-    <span>v{__APP_VERSION__}</span>
+    <span class="inline-flex items-center gap-1.5">
+      <span>v{__APP_VERSION__}</span>
+      {#if appUpdateAvailable}
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-500" title="Update available" data-testid="drawer-update-dot"></span>
+      {/if}
+    </span>
     <span aria-hidden="true">·</span>
     <a
       href="https://github.com/varunpan/quicklogger"
