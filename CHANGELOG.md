@@ -46,6 +46,10 @@ All notable changes to this project are documented here. Format roughly follows 
   passthrough of the upstream message. Bodies now include `upstream`
   (which call), `upstream_status`, and `upstream_body_preview` so
   client-side error UI can say *which* upstream call failed.
+- **`/api/server-info` boot refresh moves to the root layout.** Settings now
+  paints from cache only; the layout fires the refresh on every app boot so
+  cached locale / currency / dateFormat are fresh for client-side rendering
+  consumers.
 
 ### Fixed
 

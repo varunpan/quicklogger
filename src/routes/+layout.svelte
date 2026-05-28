@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { installClientLogger } from '$lib/client/logger';
+  import { saveServerInfo } from '$lib/client/server-info';
 
   let { children } = $props();
 
@@ -26,6 +27,19 @@
 
   onMount(() => {
     installClientLogger();
+
+    // Boot-refresh the LubeLogger /api/server-info cache so consumers
+    // (format.ts locale, last-fillup.ts tolerant-read, etc.) read fresh
+    // values app-wide. Silent on failure — keep whatever the cache holds.
+    void (async () => {
+      try {
+        const res = await fetch('/api/server-info');
+        if (res.ok) saveServerInfo(await res.json());
+      } catch {
+        /* keep cached value */
+      }
+    })();
+
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/service-worker.js', { type: 'module' });
 

@@ -31,8 +31,12 @@ rendering knows the instance currency without re-reading env on every paint.
   `ServerInfoStatus` (the route's response and the cache's stored shape).
 - [`src/lib/client/server-info.ts`](../../src/lib/client/server-info.ts) —
   localStorage cache (`quicklogger-server-info`), separate from `prefs`.
+- [`src/routes/+layout.svelte`](../../src/routes/+layout.svelte) — boot-refreshes
+  the cache via `GET /api/server-info` from the root `onMount`, so locale /
+  currency / dateFormat are fresh app-wide before any consumer renders.
 - [`src/routes/settings/+page.svelte`](../../src/routes/settings/+page.svelte)
-  — the consumer: paints the cached value, fetches `/api/server-info` on mount.
+  — reads the cache only (`loadServerInfo()` at script-run time); does not
+  fetch or write. Single-writer invariant for `quicklogger-server-info`.
 
 ## Data model
 
@@ -69,11 +73,15 @@ so consumers can paint locale-driven displays from the cache without re-fetching
 
 ## Lifecycle / control flow
 
-1. **Settings mount.** The page reads the cache (`loadServerInfo()`) and paints
-   it instantly (SWR). If the cache is empty it shows a "Checking…" state.
-2. **Live fetch.** `onMount` fires `GET /api/server-info`. On resolve the page
-   updates state and writes the cache (`saveServerInfo`).
-3. **Route.** Builds a `LubeLoggerClient` from `LUBELOGGER_URL` +
+1. **Root layout mount.** `+layout.svelte` `onMount` fires `GET /api/server-info`
+   and writes the result via `saveServerInfo()`. Fire-and-forget; silent on
+   failure (keeps whatever cache holds).
+2. **Settings render.** Reads the cache via `loadServerInfo()` and paints it.
+   No fetch on the Settings page itself.
+3. **Refresh model.** To get fresh server-info, reload the app — the layout's
+   onMount runs again. There is no explicit "Refresh" button; this is
+   acceptable given how rarely server config changes.
+4. **Route.** Builds a `LubeLoggerClient` from `LUBELOGGER_URL` +
    `LUBELOGGER_API_KEY` (no new env), runs `Promise.allSettled([getInfo,
    getVersion])`, and merges.
 
@@ -120,10 +128,10 @@ Merge rules (`_buildServerInfo`):
 - **Both endpoints, not one.** `/api/version` is the only one carrying
   `latestVersion` (update check); `/api/info` carries the locale/format fields
   (cached for the follow-up). `/api/info` repeats `currentVersion` as a fallback.
-- **Fetch on Settings mount, not a root-layout boot fetch.** The only consumer of
-  the cache this branch is the Settings page; a boot fetch would be a network call
-  on every page load with no consumer. The boot refresh moves to the follow-up,
-  where locale-driven formatting needs `locale` fresh app-wide.
+- **Boot refresh in +layout.svelte, not Settings.** Branch 2 needs locale
+  and currency fresh app-wide (format.ts, last-fillup.ts read the cache on
+  every page), not only when the user visits Settings. Moving the writer
+  to the layout keeps the single-writer invariant intact.
 - **No new env var.** Same `LubeLoggerClient` from the existing
   `LUBELOGGER_URL` + `LUBELOGGER_API_KEY` as every other upstream route.
 

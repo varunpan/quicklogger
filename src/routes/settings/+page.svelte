@@ -1,31 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
-  import { loadServerInfo, saveServerInfo } from '$lib/client/server-info';
+  import { loadServerInfo } from '$lib/client/server-info';
   import type { ServerInfo, VolumeUnit } from '$lib/shared/types';
 
   let prefs = $state(loadPrefs());
 
-  // Server-info SWR: paint the cached value instantly, fetch live on mount.
-  let serverInfo = $state<ServerInfo | null>(loadServerInfo());
-  let checking = $state(serverInfo === null);
-
-  onMount(async () => {
-    try {
-      const res = await fetch('/api/server-info');
-      if (res.ok) {
-        const info = (await res.json()) as ServerInfo;
-        serverInfo = info;
-        saveServerInfo(info);
-      }
-    } catch {
-      // /api/server-info normally returns 200 even when LubeLogger is down;
-      // a throw here means quicklogger itself is unreachable. Keep any cached
-      // value; the {:else} branch renders the unreachable state if there is none.
-    } finally {
-      checking = false;
-    }
-  });
+  // Reader-only — boot refresh lives in +layout.svelte so cached server-info
+  // is fresh app-wide before consumers (format.ts, last-fillup.ts) run.
+  // Paint whatever the cache holds; an empty cache shows the unreachable
+  // fallback below (boot refresh will land on next reload).
+  const serverInfo: ServerInfo | null = loadServerInfo();
 
   function updateUnit(u: VolumeUnit) {
     prefs.defaultVolumeUnit = u;
@@ -177,15 +161,7 @@
   >
     <div class="field-label">LubeLogger server</div>
 
-    {#if checking && !serverInfo}
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-zinc-600 shrink-0"></span>
-          <span class="text-sm font-medium text-zinc-400">Checking…</span>
-        </div>
-        <span class="h-3 w-12 rounded bg-zinc-800"></span>
-      </div>
-    {:else if serverInfo?.status === 'ok'}
+    {#if serverInfo?.status === 'ok'}
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
@@ -219,7 +195,7 @@
         <span class="text-sm font-medium text-zinc-200">Can't reach LubeLogger</span>
       </div>
       <p class="text-xs text-zinc-500 leading-relaxed">
-        No response from the server. It may be down, restarting, or unreachable from here.
+        No response from the server. Reload the app to retry.
       </p>
     {/if}
   </div>
