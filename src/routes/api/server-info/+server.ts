@@ -7,7 +7,12 @@ import {
   type LubeLoggerInfo,
   type LubeLoggerVersion
 } from '$lib/server/lubelogger';
+import { getLatestRelease, type GithubRelease } from '$lib/server/github-release';
 import type { ServerInfo } from '$lib/shared/types';
+
+// __APP_VERSION__ is a Vite compile-time define (vite.config.ts). It is NOT
+// defined under vitest, so guard with typeof — same pattern as hooks.server.ts.
+const APP_VERSION: string | null = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : null;
 
 const UNREACHABLE: ServerInfo = {
   reachable: false,
@@ -19,7 +24,11 @@ const UNREACHABLE: ServerInfo = {
   currencySymbol: null,
   decimalSeparator: null,
   dateFormat: null,
-  lubeloggerCurrency: null
+  lubeloggerCurrency: null,
+  appCurrentVersion: APP_VERSION,
+  appLatestVersion: null,
+  appUpdateAvailable: false,
+  appReleaseUrl: null
 };
 
 /** Guarded numeric semver compare. Returns false on missing versions, any
@@ -44,7 +53,9 @@ export function _isUpdateAvailable(current: string | null, latest: string | null
 export function _buildServerInfo(
   infoR: PromiseSettledResult<LubeLoggerInfo>,
   versionR: PromiseSettledResult<LubeLoggerVersion>,
-  lubeloggerCurrency: string
+  lubeloggerCurrency: string,
+  releaseR: PromiseSettledResult<GithubRelease | null>,
+  appCurrentVersion: string | null
 ): ServerInfo {
   const info = infoR.status === 'fulfilled' ? infoR.value : null;
   const version = versionR.status === 'fulfilled' ? versionR.value : null;
@@ -66,6 +77,9 @@ export function _buildServerInfo(
   const currentVersion = version?.currentVersion ?? info?.currentVersion ?? null;
   const latestVersion = version?.latestVersion ?? null;
 
+  const release = releaseR.status === 'fulfilled' ? releaseR.value : null;
+  const appLatestVersion = release?.latestVersion ?? null;
+
   return {
     reachable,
     status,
@@ -76,7 +90,11 @@ export function _buildServerInfo(
     currencySymbol: info?.currencySymbol ?? null,
     decimalSeparator: info?.decimalSeparator ?? null,
     dateFormat: info?.dateFormat ?? null,
-    lubeloggerCurrency
+    lubeloggerCurrency,
+    appCurrentVersion,
+    appLatestVersion,
+    appUpdateAvailable: _isUpdateAvailable(appCurrentVersion, appLatestVersion),
+    appReleaseUrl: release?.releaseUrl ?? null
   };
 }
 
@@ -91,8 +109,12 @@ export const GET: RequestHandler = async ({ locals }) => {
       apiKey: env.lubeloggerApiKey,
       logger: locals.logger
     });
-    const [infoR, versionR] = await Promise.allSettled([client.getInfo(), client.getVersion()]);
-    return json(_buildServerInfo(infoR, versionR, env.lubeloggerCurrency));
+    const [infoR, versionR, releaseR] = await Promise.allSettled([
+      client.getInfo(),
+      client.getVersion(),
+      getLatestRelease(locals.logger)
+    ]);
+    return json(_buildServerInfo(infoR, versionR, env.lubeloggerCurrency, releaseR, APP_VERSION));
   } catch (err) {
     // loadEnv() misconfiguration or any unexpected throw — report unreachable
     // rather than 500, to keep the Settings block's contract (always parseable).

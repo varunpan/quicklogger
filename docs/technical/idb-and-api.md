@@ -350,12 +350,17 @@ interface ServerInfo {
   decimalSeparator: string | null;                 // cached from /api/info
   dateFormat: string | null;                       // cached from /api/info
   lubeloggerCurrency: string | null;               // LubeLogger instance currency (ISO 4217); from server env LUBELOGGER_CURRENCY (default 'USD'), null on UNREACHABLE
+  appCurrentVersion: string | null;                // app's own __APP_VERSION__ (runtime); null on UNREACHABLE
+  appLatestVersion: string | null;                 // latest quicklogger GitHub release tag, v-stripped
+  appUpdateAvailable: boolean;                     // guarded compare of appCurrentVersion vs appLatestVersion
+  appReleaseUrl: string | null;                    // GitHub release html_url
 }
 ```
 
 `status` is `ok` when reachable; `unauthorized` if every upstream rejection is a
 `LubeLoggerError` 401; else `unreachable` (404 / 5xx / network / timeout). See
 [`server-info.md`](./server-info.md) for the full merge rules.
+The `app*` fields come from a third `Promise.allSettled` arm calling the GitHub `releases/latest` endpoint via `src/lib/server/github-release.ts` (3 s timeout, 1 h TTL cache); a GitHub failure cannot disturb the LubeLogger fields.
 
 ### Why no `/api/manifest.webmanifest`
 

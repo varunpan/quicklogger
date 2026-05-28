@@ -23,6 +23,12 @@ rendering knows the instance currency without re-reading env on every paint.
   `LubeLoggerInfo` / `LubeLoggerVersion` types and `getInfo()` / `getVersion()`,
   thin wrappers over the existing `request()` helper (gets `x-api-key`, the 5 s
   timeout, structured logging, and `LubeLoggerError`-on-non-2xx for free).
+- [`src/lib/server/github-release.ts`](../../src/lib/server/github-release.ts) —
+  owns the GitHub `releases/latest` call: a 3 s `AbortSignal.timeout`, a
+  module-level 1 h TTL cache, v-prefix stripping, and never-throws error
+  handling (timeout / network / non-200 / 404 / malformed → last-known-good or
+  null, all logged via the request logger). Kept separate from
+  `LubeLoggerClient` because GitHub is a different upstream.
 - [`src/routes/api/server-info/+server.ts`](../../src/routes/api/server-info/+server.ts)
   — the route. Runs both upstream calls with `Promise.allSettled`, merges via the
   pure `_buildServerInfo`, computes `updateAvailable` via the pure
@@ -56,6 +62,10 @@ interface ServerInfo {
   decimalSeparator: string | null;    // cached from /api/info
   dateFormat: string | null;          // cached from /api/info
   lubeloggerCurrency: string | null;  // LubeLogger instance currency (ISO); sourced from env.lubeloggerCurrency
+  appCurrentVersion: string | null;   // __APP_VERSION__ at runtime; null only on the unreachable fallback
+  appLatestVersion: string | null;    // latest GitHub release tag, v-stripped; null if unknown
+  appUpdateAvailable: boolean;        // _isUpdateAvailable(appCurrentVersion, appLatestVersion)
+  appReleaseUrl: string | null;       // GitHub release html_url; null if unknown
 }
 ```
 
@@ -134,6 +144,39 @@ Merge rules (`_buildServerInfo`):
   to the layout keeps the single-writer invariant intact.
 - **No new env var.** Same `LubeLoggerClient` from the existing
   `LUBELOGGER_URL` + `LUBELOGGER_API_KEY` as every other upstream route.
+
+## quicklogger self-update check (GitHub release)
+
+A third upstream — the quicklogger GitHub repo — folds into the same probe so
+the app can hint when it is itself out of date. Deploy stays manual (homelab
+pins `:latest`, `docker compose pull && up -d`); the check never acts.
+
+- **Module.** `src/lib/server/github-release.ts` calls
+  `GET https://api.github.com/repos/varunpan/quicklogger/releases/latest` with
+  `Accept: application/vnd.github+json` and a 3 s timeout. The owner/repo slug is
+  **hardcoded** (`varunpan/quicklogger`) — personal tool, no fork support, matches
+  the hardcoded footer link. It strips the leading `v` from `tag_name`.
+- **TTL cache.** Module-level `{ checkedAt, release }`. Inside 1 h → cached value,
+  no GitHub call. Past 1 h → one attempt; success updates the cache, any failure
+  (timeout / network / non-200 / 404 / malformed) stamps `checkedAt = now` but
+  **keeps last-known-good** (`release` stays null only on a cold start with GitHub
+  unreachable). Bounds GitHub to <=1/hour, far under the 60/hour unauthenticated
+  per-IP limit.
+- **Logging.** Timeout / network / non-200 / malformed → `warn`. A 404 ("no
+  releases yet") → `info` (expected-ish, not a fault). Success logs nothing. The
+  TTL means a persistent outage logs ~once/hour, not once per request.
+- **Route integration.** `getLatestRelease(locals.logger)` is a **third
+  `Promise.allSettled` arm** alongside `getInfo()` / `getVersion()`. The module
+  never throws, so the arm always fulfils with `GithubRelease | null`;
+  `_buildServerInfo` reads it defensively (`releaseR.status === 'fulfilled' ?
+  releaseR.value : null`). A GitHub failure therefore cannot disturb the
+  LubeLogger fields, and the route keeps its always-200 contract.
+- **App fields.** `appCurrentVersion` is `__APP_VERSION__` (a Vite compile-time
+  define; guarded with `typeof` since it is undefined under vitest — same pattern
+  as `hooks.server.ts`). `appLatestVersion` / `appReleaseUrl` come from the
+  release (or null). `appUpdateAvailable` reuses the pure `_isUpdateAvailable`, so
+  running *ahead* of latest, a non-integer version part, or a missing version all
+  yield `false`.
 
 ## Follow-up consumption (branch 2)
 

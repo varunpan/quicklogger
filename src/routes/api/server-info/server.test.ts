@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { GET, _buildServerInfo, _isUpdateAvailable } from './+server';
+import { _resetReleaseCache, type GithubRelease } from '$lib/server/github-release';
 import type { LubeLoggerInfo, LubeLoggerVersion } from '$lib/server/lubelogger';
 import { LubeLoggerError } from '$lib/server/lubelogger';
 
@@ -29,6 +30,12 @@ const INFO = {
 	currentVersion: '1.6.5', locale: 'en-US', currencySymbol: '$',
 	decimalSeparator: '.', dateFormat: 'M/d/yyyy'
 };
+
+const GH_URL = 'https://api.github.com/repos/varunpan/quicklogger/releases/latest';
+const GH_RELEASE = { tag_name: 'v0.2.4', html_url: 'https://github.com/varunpan/quicklogger/releases/tag/v0.2.4' };
+const NO_RELEASE: PromiseSettledResult<GithubRelease | null> = { status: 'fulfilled', value: null };
+
+afterEach(() => _resetReleaseCache());
 
 describe('_isUpdateAvailable', () => {
 	it('latest > current → true', () => {
@@ -58,19 +65,54 @@ describe('_buildServerInfo', () => {
 		const out = _buildServerInfo(
 			{ status: 'fulfilled', value: INFO as LubeLoggerInfo },
 			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.7.0' } as LubeLoggerVersion },
-			'USD'
+			'USD',
+			NO_RELEASE,
+			null
 		);
 		expect(out).toEqual({
 			reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.7.0',
 			updateAvailable: true, locale: 'en-US', currencySymbol: '$',
-			decimalSeparator: '.', dateFormat: 'M/d/yyyy', lubeloggerCurrency: 'USD'
+			decimalSeparator: '.', dateFormat: 'M/d/yyyy', lubeloggerCurrency: 'USD',
+			appCurrentVersion: null, appLatestVersion: null, appUpdateAvailable: false, appReleaseUrl: null
 		});
+	});
+
+	it('release fulfilled + newer version → app fields populated, appUpdateAvailable true', () => {
+		const out = _buildServerInfo(
+			{ status: 'fulfilled', value: INFO as LubeLoggerInfo },
+			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion },
+			'USD',
+			{ status: 'fulfilled', value: { latestVersion: '0.2.4', releaseUrl: 'https://example/r' } },
+			'0.2.3'
+		);
+		expect(out.appCurrentVersion).toBe('0.2.3');
+		expect(out.appLatestVersion).toBe('0.2.4');
+		expect(out.appUpdateAvailable).toBe(true);
+		expect(out.appReleaseUrl).toBe('https://example/r');
+		expect(out.currentVersion).toBe('1.6.5');
+		expect(out.reachable).toBe(true);
+	});
+
+	it('release rejected → app fields null/false, LubeLogger fields intact', () => {
+		const out = _buildServerInfo(
+			{ status: 'fulfilled', value: INFO as LubeLoggerInfo },
+			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion },
+			'USD',
+			{ status: 'rejected', reason: new Error('boom') },
+			'0.2.3'
+		);
+		expect(out.appLatestVersion).toBeNull();
+		expect(out.appReleaseUrl).toBeNull();
+		expect(out.appUpdateAvailable).toBe(false);
+		expect(out.currentVersion).toBe('1.6.5');
 	});
 	it('info fulfilled, version rejected → reachable, ok, latestVersion null', () => {
 		const out = _buildServerInfo(
 			{ status: 'fulfilled', value: INFO as LubeLoggerInfo },
 			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
-			'USD'
+			'USD',
+			NO_RELEASE,
+			null
 		);
 		expect(out.reachable).toBe(true);
 		expect(out.status).toBe('ok');
@@ -83,7 +125,9 @@ describe('_buildServerInfo', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
 			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion },
-			'USD'
+			'USD',
+			NO_RELEASE,
+			null
 		);
 		expect(out.reachable).toBe(true);
 		expect(out.currentVersion).toBe('1.6.5');
@@ -94,7 +138,9 @@ describe('_buildServerInfo', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(401, '') },
 			{ status: 'rejected', reason: new LubeLoggerError(401, '') },
-			'USD'
+			'USD',
+			NO_RELEASE,
+			null
 		);
 		expect(out.reachable).toBe(false);
 		expect(out.status).toBe('unauthorized');
@@ -106,7 +152,9 @@ describe('_buildServerInfo', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
 			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
-			'USD'
+			'USD',
+			NO_RELEASE,
+			null
 		);
 		expect(out.reachable).toBe(false);
 		expect(out.status).toBe('unreachable');
@@ -115,7 +163,9 @@ describe('_buildServerInfo', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(401, '') },
 			{ status: 'rejected', reason: new TypeError('ECONNREFUSED') },
-			'USD'
+			'USD',
+			NO_RELEASE,
+			null
 		);
 		expect(out.status).toBe('unreachable');
 	});
@@ -126,7 +176,8 @@ describe('GET /api/server-info', () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/info', () => HttpResponse.json(INFO)),
 			http.get('http://lubelog:8080/api/version', () =>
-				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.6.5' }))
+				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.6.5' })),
+			http.get(GH_URL, () => HttpResponse.json(GH_RELEASE))
 		);
 		const res = await GET(event());
 		expect(res.status).toBe(200);
@@ -138,7 +189,8 @@ describe('GET /api/server-info', () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/info', () => HttpResponse.json(INFO)),
 			http.get('http://lubelog:8080/api/version', () =>
-				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.7.0' }))
+				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.7.0' })),
+			http.get(GH_URL, () => HttpResponse.json(GH_RELEASE))
 		);
 		const res = await GET(event());
 		const body = await res.json();
@@ -149,7 +201,8 @@ describe('GET /api/server-info', () => {
 	it('both 401 → 200 with status unauthorized and null data', async () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/info', () => new HttpResponse('', { status: 401 })),
-			http.get('http://lubelog:8080/api/version', () => new HttpResponse('', { status: 401 }))
+			http.get('http://lubelog:8080/api/version', () => new HttpResponse('', { status: 401 })),
+			http.get(GH_URL, () => HttpResponse.json(GH_RELEASE))
 		);
 		const res = await GET(event());
 		expect(res.status).toBe(200);
@@ -160,7 +213,8 @@ describe('GET /api/server-info', () => {
 	it('both 404 → 200 with status unreachable', async () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/info', () => new HttpResponse('', { status: 404 })),
-			http.get('http://lubelog:8080/api/version', () => new HttpResponse('', { status: 404 }))
+			http.get('http://lubelog:8080/api/version', () => new HttpResponse('', { status: 404 })),
+			http.get(GH_URL, () => HttpResponse.json(GH_RELEASE))
 		);
 		const res = await GET(event());
 		expect(res.status).toBe(200);
@@ -173,7 +227,8 @@ describe('GET /api/server-info', () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/info', () => HttpResponse.json(INFO)),
 			http.get('http://lubelog:8080/api/version', () =>
-				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.6.5' }))
+				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.6.5' })),
+			http.get(GH_URL, () => HttpResponse.json(GH_RELEASE))
 		);
 		try {
 			const res = await GET(event());
@@ -182,5 +237,20 @@ describe('GET /api/server-info', () => {
 		} finally {
 			delete process.env.LUBELOGGER_CURRENCY;
 		}
+	});
+
+	it('GitHub failure leaves LubeLogger fields intact, still 200', async () => {
+		upstream.use(
+			http.get('http://lubelog:8080/api/info', () => HttpResponse.json(INFO)),
+			http.get('http://lubelog:8080/api/version', () =>
+				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.6.5' })),
+			http.get(GH_URL, () => new HttpResponse('', { status: 500 }))
+		);
+		const res = await GET(event());
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.currentVersion).toBe('1.6.5');
+		expect(body.appLatestVersion).toBeNull();
+		expect(body.appUpdateAvailable).toBe(false);
 	});
 });

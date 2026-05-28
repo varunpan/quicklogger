@@ -75,4 +75,11 @@ export interface ServerInfo {
   // /api/info: it's the value the server uses when converting submissions,
   // so it's authoritative for rendering upstream-cached entries.
   lubeloggerCurrency: string | null;
+  // --- quicklogger self-update check (v0.2.3+) ---
+  // The app's own version vs the latest quicklogger GitHub release. Deploy
+  // stays manual; these only drive an informational "update available" hint.
+  appCurrentVersion: string | null; // __APP_VERSION__ at runtime; null only in the unreachable fallback
+  appLatestVersion: string | null; // latest GitHub release tag, v-stripped; null if unknown
+  appUpdateAvailable: boolean; // _isUpdateAvailable(appCurrentVersion, appLatestVersion)
+  appReleaseUrl: string | null; // GitHub release html_url; null if unknown
 }

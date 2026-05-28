@@ -5,7 +5,10 @@ import type { ServerInfo } from '$lib/shared/types';
 const SAMPLE: ServerInfo = {
   reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.7.0',
   updateAvailable: true, locale: 'en-US', currencySymbol: '$',
-  decimalSeparator: '.', dateFormat: 'M/d/yyyy', lubeloggerCurrency: 'USD'
+  decimalSeparator: '.', dateFormat: 'M/d/yyyy',
+  lubeloggerCurrency: 'USD',
+  appCurrentVersion: '0.2.3', appLatestVersion: '0.2.4', appUpdateAvailable: true,
+  appReleaseUrl: 'https://github.com/varunpan/quicklogger/releases/tag/v0.2.4'
 };
 
 beforeEach(() => localStorage.clear());
@@ -43,5 +46,16 @@ describe('server-info cache', () => {
     expect(got).not.toBeNull();
     expect(got!.locale).toBe('en-US');
     expect((got as Partial<ServerInfo>).lubeloggerCurrency).toBeUndefined();
+  });
+  it('tolerates absence of app* fields (older cache shape)', () => {
+    const legacy = {
+      reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.6.5',
+      updateAvailable: false, locale: 'en-US', currencySymbol: '$',
+      decimalSeparator: '.', dateFormat: 'M/d/yyyy', lubeloggerCurrency: 'USD'
+    };
+    localStorage.setItem('quicklogger-server-info', JSON.stringify(legacy));
+    const got = loadServerInfo();
+    expect(got).not.toBeNull();
+    expect((got as Partial<ServerInfo>).appUpdateAvailable).toBeUndefined();
   });
 });
