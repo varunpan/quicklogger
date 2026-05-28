@@ -76,7 +76,7 @@ describe('POST /api/fuelup', () => {
     expect(body.submitted.gallons).toBeCloseTo(13.21, 2);
     expect(body.submitted.cost).toBeCloseTo(47.45, 2);
 
-    expect(observedForm?.get('date')).toBe('05/07/2026');
+    expect(observedForm?.get('date')).toBe('2026-05-07');
     expect(observedForm?.get('odometer')).toBe('87432');
     expect(Number(observedForm?.get('fuelconsumed') as string)).toBeCloseTo(13.21, 2);
     expect(observedForm?.get('isfilltofull')).toBe('true');
