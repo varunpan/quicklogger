@@ -362,6 +362,15 @@ interface ServerInfo {
 [`server-info.md`](./server-info.md) for the full merge rules.
 The `app*` fields come from a third `Promise.allSettled` arm calling the GitHub `releases/latest` endpoint via `src/lib/server/github-release.ts` (3 s timeout, 1 h TTL cache); a GitHub failure cannot disturb the LubeLogger fields.
 
+#### `quicklogger.dismissedUpdateVersion` (localStorage, v0.2.3+)
+
+A single string — the `appLatestVersion` whose home update-banner the user
+dismissed (`src/lib/client/dismissed-update.ts`). The banner is hidden while
+`appLatestVersion === dismissedUpdateVersion`; a newer release brings it back.
+Separate key from `quicklogger-server-info` (network-written) and
+`quicklogger.prefs` (Settings-written) to keep one writer per key. Absent →
+banner shows (correct default). The Settings block and drawer dot ignore it.
+
 ### Why no `/api/manifest.webmanifest`
 
 `manifest.webmanifest` is a static file under `static/`, served by the
