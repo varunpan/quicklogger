@@ -36,62 +36,62 @@ test('renders three PastDue reminders sorted most-overdue first', async ({ page 
       json: [
         // NotUrgent — should be filtered out
         {
-          vehicleId: '1',
-          id: '2',
+          vehicleId: 1,
+          id: 2,
           description: 'Tire Rotation',
           urgency: 'NotUrgent',
           metric: 'Odometer',
           userMetric: 'Odometer',
-          notes: '',
-          dueDate: '10/3/2026',
-          dueOdometer: '112552',
-          dueDays: '0',
-          dueDistance: '3000',
+          notes: null,
+          dueDate: '2026-10-03',
+          dueOdometer: 112552,
+          dueDays: 0,
+          dueDistance: 3000,
           tags: ''
         },
         // PastDue, -31 days
         {
-          vehicleId: '1',
-          id: '12',
+          vehicleId: 1,
+          id: 12,
           description: 'Engine Oil change',
           urgency: 'PastDue',
           metric: 'Date',
           userMetric: 'Both',
-          notes: '',
-          dueDate: '4/12/2026',
-          dueOdometer: '115316',
-          dueDays: '-31',
-          dueDistance: '5764',
+          notes: null,
+          dueDate: '2026-04-12',
+          dueOdometer: 115316,
+          dueDays: -31,
+          dueDistance: 5764,
           tags: ''
         },
         // PastDue, -44 days — most overdue, sorts first
         {
-          vehicleId: '1',
-          id: '5',
+          vehicleId: 1,
+          id: 5,
           description: 'Brake Fluid',
           urgency: 'PastDue',
           metric: 'Date',
           userMetric: 'Date',
-          notes: '',
-          dueDate: '3/30/2026',
-          dueOdometer: '0',
-          dueDays: '-44',
-          dueDistance: '0',
+          notes: null,
+          dueDate: '2026-03-30',
+          dueOdometer: 0,
+          dueDays: -44,
+          dueDistance: 0,
           tags: ''
         },
         // PastDue, -42 days
         {
-          vehicleId: '1',
-          id: '13',
+          vehicleId: 1,
+          id: 13,
           description: 'Windshield Wipers',
           urgency: 'PastDue',
           metric: 'Date',
           userMetric: 'Date',
-          notes: '',
-          dueDate: '4/1/2026',
-          dueOdometer: '0',
-          dueDays: '-42',
-          dueDistance: '0',
+          notes: null,
+          dueDate: '2026-04-01',
+          dueOdometer: 0,
+          dueDays: -42,
+          dueDistance: 0,
           tags: ''
         }
       ]
@@ -133,17 +133,17 @@ test('shows the empty state when no items are not-OK', async ({ page }) => {
     route.fulfill({
       json: [
         {
-          vehicleId: '1',
-          id: '2',
+          vehicleId: 1,
+          id: 2,
           description: 'Tire Rotation',
           urgency: 'NotUrgent',
           metric: 'Odometer',
           userMetric: 'Odometer',
-          notes: '',
-          dueDate: '10/3/2026',
-          dueOdometer: '112552',
-          dueDays: '0',
-          dueDistance: '3000',
+          notes: null,
+          dueDate: '2026-10-03',
+          dueOdometer: 112552,
+          dueDays: 0,
+          dueDistance: 3000,
           tags: ''
         }
       ]
@@ -181,17 +181,17 @@ test('vehicle picker card switches the active vehicle and returns to /maintenanc
     return route.fulfill({
       json: [
         {
-          vehicleId: vid ?? '1',
-          id: '1',
+          vehicleId: Number(vid ?? '1'),
+          id: 1,
           description,
           urgency: 'PastDue',
           metric: 'Date',
           userMetric: 'Date',
-          notes: '',
-          dueDate: '4/1/2026',
-          dueOdometer: '0',
-          dueDays: '-10',
-          dueDistance: '0',
+          notes: null,
+          dueDate: '2026-04-01',
+          dueOdometer: 0,
+          dueDays: -10,
+          dueDistance: 0,
           tags: ''
         }
       ]

@@ -1,15 +1,20 @@
 import { Queue } from './idb';
+import { loadServerInfo } from './server-info';
 
 export type LastFillupSource = 'upstream' | 'offline' | null;
 
 // Output shape mirrors upstream `GasRecord` so the page-side render path
-// (formatOdometer, daysAgo, $cost rendering) works unchanged. `costCurrency`
-// is the only addition: null for upstream-cached records (they're already
-// FX-normalized server-side), the entered currency for queue-derived records
-// (we don't FX offline). The page uses it to render "<currency> <cost>"
-// instead of "$<cost>" when present.
+// (formatOdometer, formatLastFillupDate, formatCost) works unchanged.
+// `date` is ISO YYYY-MM-DD post-locale-invariant-parsing — both upstream
+// snapshots and queue entries pass through unchanged. Legacy cached
+// snapshots (written before this branch, under LubeLogger's instance
+// locale) are migrated in place by the tolerant-read parser.
+//
+// `costCurrency`: null for upstream-cached records (rendered via the
+// LubeLogger instance currency at format-time); the entered currency for
+// queue-derived records (we don't FX offline). `formatCost` consumes both.
 export interface LastFillupRecord {
-  date: string;          // M/D/YYYY (matches upstream)
+  date: string;          // ISO YYYY-MM-DD
   odometer: string;      // raw integer-string of miles
   fuelConsumed: string;  // gallons (always — queue L is converted)
   cost: string | null;
@@ -25,33 +30,68 @@ export function lastFuelupCacheKey(vehicleId: number): string {
 
 interface InternalCandidate {
   record: LastFillupRecord;
-  // Sortable timestamp for "freshest" pick. Day-precision; ties are broken
-  // by `tiebreak` (queue entry's enqueuedAt for queue rows; 0 for cache).
   ts: number;
   tiebreak: number;
 }
 
-function parseMDY(s: string): number | null {
-  const parts = s.split('/');
-  if (parts.length !== 3) return null;
-  const [m, d, y] = parts.map(Number);
-  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) return null;
-  return new Date(y, m - 1, d).getTime();
-}
-
+// Fast path — new entries already ISO from the wire.
 function parseISO(s: string): number | null {
   const parts = s.split('-');
   if (parts.length !== 3) return null;
   const [y, m, d] = parts.map(Number);
-  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) return null;
-  return new Date(y, m - 1, d).getTime();
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  const dt = new Date(y, m - 1, d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.getTime();
 }
 
-function isoToMDY(iso: string): string {
-  const parts = iso.split('-').map(Number);
-  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return iso;
-  const [y, m, d] = parts;
-  return `${m}/${d}/${y}`;
+// Slow path — legacy entries written before this branch under LubeLogger's
+// instance locale. Uses cached `/api/info` dateFormat to map the raw string
+// into ISO + sortable ts. Returns null on unknown patterns → caller treats
+// as cache miss (upstream refetch repopulates with new shape).
+//
+// Handles the four LubeLogger dateFormat patterns observed in the wild:
+//   "M/d/yyyy"   en-US   → "4/7/2024"
+//   "d/M/yyyy"   en-GB   → "7/4/2024"
+//   "yyyy-MM-dd" ISO     → "2024-04-07"   (the fast path also handles this)
+//   "d.M.yyyy"   de-DE   → "7.4.2024"
+function parseLegacyDate(
+  raw: string,
+  dateFormat: string
+): { iso: string; ts: number } | null {
+  const fmt = dateFormat.toLowerCase();
+  const sep = fmt.includes('/') ? '/' : fmt.includes('.') ? '.' : '-';
+  const parts = raw.split(sep).map((p) => Number(p));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+
+  const tokens = fmt.split(sep);
+  const yIdx = tokens.findIndex((t) => t.startsWith('y'));
+  const mIdx = tokens.findIndex((t) => t.startsWith('m'));
+  const dIdx = tokens.findIndex((t) => t.startsWith('d'));
+  if (yIdx < 0 || mIdx < 0 || dIdx < 0) return null;
+
+  const y = parts[yIdx], m = parts[mIdx], d = parts[dIdx];
+  const dt = new Date(y, m - 1, d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return {
+    iso: `${y.toString().padStart(4, '0')}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`,
+    ts: dt.getTime()
+  };
+}
+
+function parseDateForCache(
+  raw: string,
+  cachedDateFormat: string | null
+): { iso: string; ts: number } | null {
+  if (!raw) return null;
+  // Fast path — new entries.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const ts = parseISO(raw);
+    return ts === null ? null : { iso: raw, ts };
+  }
+  // Slow path — legacy entry. Needs cached dateFormat to disambiguate.
+  if (!cachedDateFormat) return null;
+  return parseLegacyDate(raw, cachedDateFormat);
 }
 
 function readCacheCandidate(vehicleId: number): InternalCandidate | null {
@@ -69,22 +109,23 @@ function readCacheCandidate(vehicleId: number): InternalCandidate | null {
   } catch {
     return null;
   }
-  const date = String(parsed.date ?? '');
+  const rawDate = String(parsed.date ?? '');
   const odometer = String(parsed.odometer ?? '');
   const fuelConsumed = String(parsed.fuelConsumed ?? '');
-  if (!date || !odometer) return null;
-  const ts = parseMDY(date);
-  if (ts === null) return null;
+  if (!rawDate || !odometer) return null;
+  const cachedDateFormat = loadServerInfo()?.dateFormat ?? null;
+  const parsedDate = parseDateForCache(rawDate, cachedDateFormat);
+  if (parsedDate === null) return null;
   return {
     record: {
-      date,
+      date: parsedDate.iso,
       odometer,
       fuelConsumed,
       cost: parsed.cost == null ? null : String(parsed.cost),
       costCurrency: null,
       notes: parsed.notes == null ? null : String(parsed.notes)
     },
-    ts,
+    ts: parsedDate.ts,
     tiebreak: 0
   };
 }
@@ -111,7 +152,7 @@ async function readQueueCandidates(
         : entry.input.volume / L_PER_GALLON;
     out.push({
       record: {
-        date: isoToMDY(entry.input.date),
+        date: entry.input.date,                          // already ISO from the queue
         odometer: String(Math.round(entry.input.odometer)),
         fuelConsumed: gallons.toFixed(2),
         cost: entry.input.cost.toFixed(2),

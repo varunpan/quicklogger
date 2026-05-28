@@ -12,7 +12,7 @@
     OcrOdometerResult,
     OcrMode
   } from '$lib/shared/types';
-  import { formatOdometer, formatLastFillupDate } from '$lib/client/format';
+  import { formatOdometer, formatLastFillupDate, formatCost } from '$lib/client/format';
   import {
     evaluateSmartChecks,
     ODOMETER_MAX_DELTA_MI,
@@ -81,14 +81,10 @@
   // --- Smart checks state (v0.2.0) ---
   let smartCheckIssues: SmartCheckIssue[] = $state([]);
 
-  // LubeLogger emits dates as M/D/YYYY; smart-checks compares ISO YYYY-MM-DD
-  // lexicographically. Convert once; null when input is unparseable so we
-  // safely degrade to the no-lastFuelup branch.
+  // After locale-invariant-parsing the wire date is already ISO YYYY-MM-DD.
+  // Helper survives as a defensive validator: caller wants a clean ISO or null.
   function lubeDateToIso(s: string): string | null {
-    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (!m) return null;
-    const [, mo, da, yr] = m;
-    return `${yr}-${mo.padStart(2, '0')}-${da.padStart(2, '0')}`;
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
   }
 
   function lastFuelupForCheck(): LastFuelupForCheck | null {
@@ -524,10 +520,10 @@
       </div>
       <div>
         {data.lastFuelup.fuelConsumed} Gal ·
-        {#if data.lastFuelup.costCurrency}
-          {data.lastFuelup.costCurrency} {data.lastFuelup.cost ?? '—'}
+        {#if data.lastFuelup.cost !== null}
+          {formatCost(Number(data.lastFuelup.cost), data.lastFuelup.costCurrency)}
         {:else}
-          ${data.lastFuelup.cost ?? '—'}
+          —
         {/if}
         {#if data.lastFuelup.notes}
           · {data.lastFuelup.notes}

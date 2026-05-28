@@ -107,6 +107,14 @@ Page-local state:
    badge for synced entries so the eye reaches the date and odometer
    first. The synced state is the default; only deviations are flagged.
 
+## Locale-dynamic rendering
+
+Cost and date strings render through [`format.ts`](./format.md), which reads
+the cached LubeLogger locale. For the en-US/USD instance the rendered output
+is byte-identical to the pre-branch behaviour. Non-en-US users see locale-
+correct thousands separators, currency symbols / placement, and abbreviated
+month names.
+
 ## Future considerations
 
 - Retry / dismiss controls for `failed` entries (currently the only

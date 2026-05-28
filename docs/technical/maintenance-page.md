@@ -111,6 +111,12 @@ returned object.
   is deliberately NOT used here — it appends `(N days ago)` which would
   double up with `humanCountdown`'s `(N days to go / overdue)` suffix.
 
+## Locale-dynamic rendering
+
+Date and odometer values render through [`format.ts`](./format.md), which
+reads the cached LubeLogger locale. en-US output unchanged; other locales
+get correct number / date conventions.
+
 ## Persistence
 
 None. The page touches no IndexedDB store, no localStorage key, no

@@ -4,8 +4,10 @@ import { loadEnv } from '$lib/server/env';
 import { LubeLoggerClient, LubeLoggerError, type GasRecord } from '$lib/server/lubelogger';
 
 function parseDate(s: string): number {
-  const [m, d, y] = s.split('/').map(Number);
-  return new Date(y, m - 1, d).getTime();
+  // Wire is ISO YYYY-MM-DD under culture-invariant: true.
+  // Date.parse on bare ISO is spec-defined as UTC midnight — fine for
+  // "latest record" comparison (we sort, not display).
+  return Date.parse(s);
 }
 
 export const GET: RequestHandler = async ({ url, locals }) => {

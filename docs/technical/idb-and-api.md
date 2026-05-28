@@ -159,9 +159,10 @@ Source: `src/routes/api/vehicle/last-fuelup/+server.ts`.
 | Response 502 | `{ error: string }` — `LubeLoggerError` from upstream. |
 | Response 500 | `{ error: string }` — any other error. |
 
-`GasRecord` shape: all values are LubeLogger-style stringified
-(`odometer: "87432"`, `cost: "42.18"` etc.). Date format `M/D/YYYY`.
-See `src/lib/server/lubelogger.ts` for the full type.
+`GasRecord` shape (typed under `culture-invariant: true`): primitives are
+JSON-typed (`odometer: 87432`, `cost: 42.18`, `isFillToFull: true`); dates are
+ISO `YYYY-MM-DD`; `notes` may be `null`. See `src/lib/server/lubelogger.ts`
+for the full type and § *LubeLogger upstream calls* below for the header.
 
 ### `GET /api/vehicle/reminders?vehicleId=<id>`
 
@@ -176,31 +177,30 @@ Source: `src/routes/api/vehicle/reminders/+server.ts`.
 | Response 502 | `{ error: string }` — any `LubeLoggerError` (matches the `last-fuelup` route's blanket-502 pattern). |
 | Response 500 | `{ error: string }` — anything else thrown. |
 
-`Reminder` shape (`src/lib/server/lubelogger.ts`):
+`Reminder` shape (`src/lib/server/lubelogger.ts`) — typed under `culture-invariant: true`:
 
 ```ts
 type ReminderUrgency = 'NotUrgent' | 'Urgent' | 'VeryUrgent' | 'PastDue';
 type ReminderMetric  = 'Odometer'  | 'Date'   | 'Both';
 
 interface Reminder {
-  id: string;
-  vehicleId: string;
-  description: string;       // human-readable label
+  id: number;
+  vehicleId: number;
+  description: string;        // human-readable label
   urgency: ReminderUrgency;
-  metric: ReminderMetric;    // metric the system thinks triggered urgency now
+  metric: ReminderMetric;     // metric the system thinks triggered urgency now
   userMetric: ReminderMetric; // metric the user configured to track
-  notes: string;
-  dueDate: string;           // 'M/D/YYYY'; placeholder when userMetric === 'Odometer'
-  dueOdometer: string;       // stringified int; '0' when userMetric === 'Date'
-  dueDays: string;           // stringified int countdown; negative = overdue
-  dueDistance: string;       // stringified int countdown (mi); negative = overdue
-  tags: string;
+  notes: string | null;       // can be null
+  dueDate: string;            // ISO YYYY-MM-DD; placeholder when userMetric === 'Odometer'
+  dueOdometer: number;        // 0 when userMetric === 'Date'
+  dueDays: number;            // negative = overdue
+  dueDistance: number;        // miles; negative = overdue
+  tags: string;               // possibly ''
 }
 ```
 
-All values are LubeLogger-style stringified (matches `GasRecord`).
-Page-side render logic uses `userMetric` to decide which due-side
-fields are meaningful — see
+Primitives are JSON-typed; dates ISO. Page-side render logic uses
+`userMetric` to decide which due-side fields are meaningful — see
 [`maintenance-page.md`](./maintenance-page.md).
 
 ### `GET /api/fx?from=<code>&to=<code>`
@@ -369,6 +369,11 @@ The server module `src/lib/server/lubelogger.ts` is the only place
 quicklogger talks to LubeLogger. Every request carries
 `x-api-key: ${LUBELOGGER_API_KEY}` and targets `${LUBELOGGER_URL}`.
 
+All requests carry `culture-invariant: true` in addition to `x-api-key`,
+forcing typed JSON responses (numbers, booleans) and ISO `YYYY-MM-DD` dates
+regardless of LubeLogger's instance locale. Set once in
+`LubeLoggerClient.request()`.
+
 ### Client surface
 
 `LubeLoggerClient` (instantiated per request inside each route
@@ -402,7 +407,7 @@ so the wire shape stays consistent.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `date` | `string` | yes | `M/D/YYYY` — `/api/fuelup` derives this from the ISO submission date via `isoToLubeloggerDate`. |
+| `date` | `string` | yes | ISO `YYYY-MM-DD`; LubeLogger parses under invariant culture and stores correctly. |
 | `odometer` | `string` | yes | Integer-as-string. |
 | `fuelconsumed` | `string` | yes | Decimal-as-string, in LubeLogger's configured volume unit (`gallons_us` by default; written with `.toFixed(3)`). |
 | `isfilltofull` | `string` | yes | `'true'` \| `'false'`. |
@@ -413,23 +418,24 @@ so the wire shape stays consistent.
 
 ### `GasRecord` (response shape from `listGasRecords`)
 
-LubeLogger serializes gas records as JSON with **camelCase** keys.
-All values are LubeLogger-style stringified — dates included.
+LubeLogger serializes gas records as JSON with **camelCase** keys. Under
+`culture-invariant: true` (which the client always sends) primitives are
+JSON-typed and dates are ISO.
 
-| Field | Type | Optional |
+| Field | Type | Nullable |
 |---|---|---|
-| `id` | `string` | no |
-| `vehicleId` | `string` | no |
-| `date` | `string` (`M/D/YYYY`) | no |
-| `odometer` | `string` | no |
-| `fuelConsumed` | `string` | no |
-| `cost` | `string` | yes |
-| `fuelEconomy` | `string` | yes |
-| `isFillToFull` | `string` (`'True'` \| `'False'`) | yes |
-| `missedFuelUp` | `string` (`'True'` \| `'False'`) | yes |
-| `notes` | `string` | yes |
-| `tags` | `string` (comma-separated) | yes |
-| `extraFields`, `files` | `unknown[]` | yes (usually empty) |
+| `id` | `number` | no |
+| `vehicleId` | `number` | no |
+| `date` | `string` (ISO `YYYY-MM-DD`) | no |
+| `odometer` | `number` | no |
+| `fuelConsumed` | `number` | no |
+| `cost` | `number` | no (always present) |
+| `fuelEconomy` | `number` | no (always present, `0` when not computed) |
+| `isFillToFull` | `boolean` | no |
+| `missedFuelUp` | `boolean` | no |
+| `notes` | `string \| null` | yes |
+| `tags` | `string` (comma-separated, possibly `''`) | no |
+| `extraFields`, `files` | `unknown[]` | no (usually empty) |
 
 The casing asymmetry — camelCase reads, lowercase writes — is
 LubeLogger's own quirk. `GasRecord` and `AddGasRecordPayload` mirror

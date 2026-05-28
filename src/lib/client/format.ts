@@ -1,21 +1,38 @@
-// LubeLogger returns odometer as a string; parse, round to whole miles,
-// and format with thousands separators. Falls back to the raw input on
-// parse failure so we never render "NaN" in the UI.
+import { loadServerInfo } from '$lib/client/server-info';
+
+// --- Locale / currency resolution ---
+//
+// Both helpers SSR-safe by inheritance — loadServerInfo() returns null when
+// localStorage is undefined. Fallback is en-US / USD: the en-US/USD user
+// (current primary) sees byte-identical output; other locales degrade
+// gracefully until the layout's boot refresh populates the cache.
+
+function effectiveLocale(): string {
+  return loadServerInfo()?.locale ?? 'en-US';
+}
+
+function effectiveCurrencyCode(): string {
+  return loadServerInfo()?.lubeloggerCurrency ?? 'USD';
+}
+
+// --- Number formatting ---
+
 export function formatOdometer(s: string): string {
   if (!s) return s;
   const n = Number(s);
   if (!Number.isFinite(n)) return s;
-  return new Intl.NumberFormat('en-US').format(Math.round(n));
+  return new Intl.NumberFormat(effectiveLocale()).format(Math.round(n));
 }
 
-// LubeLogger returns dates as `M/D/YYYY` (US locale). Compare against
-// the local calendar day, not UTC, so "today" matches the user's clock.
+// --- Date formatting (ISO YYYY-MM-DD only) ---
+
+// Returns relative phrase using local-calendar day arithmetic.
 export function daysAgo(s: string): string {
   if (!s) return s;
-  const parts = s.split('/');
+  const parts = s.split('-');
   if (parts.length !== 3) return s;
-  const [m, d, y] = parts.map(Number);
-  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) return s;
+  const [y, m, d] = parts.map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
   const then = new Date(y, m - 1, d);
   if (Number.isNaN(then.getTime())) return s;
   const now = new Date();
@@ -26,60 +43,46 @@ export function daysAgo(s: string): string {
   return `${diffDays} days ago`;
 }
 
-// LubeLogger returns dates as `M/D/YYYY`. Renders the date for the
-// last-fillup info strip as `Mon D, YYYY (N days ago)`. Falls back to
-// the raw input on parse failure so the UI never shows "Invalid Date".
-// Locale pinned to en-US so the rendered month order is deterministic
-// across devices (browser default would swap to D Mon in en-GB).
+// `Mon D, YYYY (N days ago)` for the home strip. Locale-driven absolute date.
 export function formatLastFillupDate(s: string): string {
   if (!s) return s;
-  const parts = s.split('/');
+  const parts = s.split('-');
   if (parts.length !== 3) return s;
-  const [m, d, y] = parts.map(Number);
-  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) return s;
+  const [y, m, d] = parts.map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
   const then = new Date(y, m - 1, d);
   if (Number.isNaN(then.getTime())) return s;
-  const abs = then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const abs = then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
   return `${abs} (${daysAgo(s)})`;
 }
 
-// Renders LubeLogger's pre-computed countdown values (`dueDays`,
-// `dueDistance`) as natural-language phrases. Positive = remaining,
-// negative = overdue, zero = "due today" / "due now". Non-finite or
-// unparseable input returns the empty string so the caller can render
-// nothing rather than "NaN ... to go".
+// Renders LubeLogger's pre-computed countdown (dueDays / dueDistance) as
+// natural-language phrases. Accepts number | string for caller flexibility —
+// dueDays is now typed `number`, but callers may still pass through string
+// inputs from other sources.
 export function humanCountdown(value: number | string, unit: 'days' | 'mi'): string {
   const n = typeof value === 'string' ? Number(value) : value;
   if (!Number.isFinite(n)) return '';
   if (n === 0) return unit === 'days' ? 'due today' : 'due now';
   const abs = Math.abs(n);
   const formatted =
-    unit === 'mi' ? new Intl.NumberFormat('en-US').format(abs) : String(abs);
+    unit === 'mi' ? new Intl.NumberFormat(effectiveLocale()).format(abs) : String(abs);
   return n > 0 ? `${formatted} ${unit} to go` : `${formatted} ${unit} overdue`;
 }
 
-// Formats a LubeLogger M/D/YYYY date as `Mon D, YYYY`. Distinct from
-// `formatLastFillupDate` which appends `(N days ago)`; for reminders
-// that suffix is supplied separately by `humanCountdown` and would
-// double up. Falls back to the raw input on parse failure.
+// `Mon D, YYYY` for maintenance reminders.
 export function formatDueDate(s: string): string {
   if (!s) return s;
-  const parts = s.split('/');
+  const parts = s.split('-');
   if (parts.length !== 3) return s;
-  const [m, d, y] = parts.map(Number);
-  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y)) return s;
+  const [y, m, d] = parts.map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
   const then = new Date(y, m - 1, d);
   if (Number.isNaN(then.getTime())) return s;
-  return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Formats an ISO `YYYY-MM-DD` date (the shape IDB stores) as
-// `Mon D, YYYY · N days ago` for /history cards. Uses the existing
-// `daysAgo` helper for the relative suffix — IDB's ISO format is
-// converted to `M/D/YYYY` first so the two share one definition of
-// "today" / "yesterday" / "N days ago". Locale pinned to en-US to
-// match `formatLastFillupDate`. Falls back to the raw input on parse
-// failure so the UI never renders "Invalid Date".
+// `Mon D, YYYY · N days ago` for /history cards.
 export function formatIsoDate(s: string): string {
   if (!s) return s;
   const parts = s.split('-');
@@ -88,6 +91,20 @@ export function formatIsoDate(s: string): string {
   if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
   const then = new Date(y, m - 1, d);
   if (Number.isNaN(then.getTime())) return s;
-  const abs = then.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${abs} · ${daysAgo(`${m}/${d}/${y}`)}`;
+  const abs = then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${abs} · ${daysAgo(s)}`;
+}
+
+// --- Currency ---
+
+// Renders a numeric cost in the entry's currency, locale-correctly.
+// Upstream-cached entries (LastFillupRecord.costCurrency = null) fall back
+// to the LubeLogger instance currency (effectiveCurrencyCode()).
+export function formatCost(cost: number, currencyCode: string | null): string {
+  if (!Number.isFinite(cost)) return '';
+  const code = currencyCode ?? effectiveCurrencyCode();
+  return new Intl.NumberFormat(effectiveLocale(), {
+    style: 'currency',
+    currency: code
+  }).format(cost);
 }

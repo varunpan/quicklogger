@@ -89,8 +89,8 @@ test('synced card renders without badge, with all optional lines', async ({ page
   await expect(page.getByText('Apr 7, 2026 · 36 days ago')).toBeVisible();
   // Odometer.
   await expect(page.getByText('105,197 mi')).toBeVisible();
-  // Fuel · cost (toFixed shapes).
-  await expect(page.getByText('14.279 gal · USD 50.96')).toBeVisible();
+  // Fuel · cost (formatCost renders USD via en-US: "$50.96").
+  await expect(page.getByText('14.279 gal · $50.96')).toBeVisible();
   // Optional lines.
   await expect(page.getByText('Fill-to-full', { exact: true })).toBeVisible();
   await expect(page.getByText(/note: clean windshield/)).toBeVisible();

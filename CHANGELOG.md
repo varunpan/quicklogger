@@ -34,6 +34,10 @@ All notable changes to this project are documented here. Format roughly follows 
   (ISO 4217) is now part of the `/api/server-info` response, sourced from
   `LUBELOGGER_CURRENCY` (default `USD`). Cached client-side and consumed
   by client-side currency rendering for upstream-cached entries.
+- **Tolerant-read migration for legacy `quicklogger.lastFuelup.*` cache
+  entries** written under LubeLogger's instance locale — parsed using
+  cached `dateFormat` from `/api/info`. Unknown patterns / empty cache
+  degrade to cache miss; upstream refetch repopulates on next call.
 
 ### Changed
 
@@ -50,6 +54,17 @@ All notable changes to this project are documented here. Format roughly follows 
   paints from cache only; the layout fires the refresh on every app boot so
   cached locale / currency / dateFormat are fresh for client-side rendering
   consumers.
+- **LubeLogger client always sends `culture-invariant: true`.** GET responses
+  return typed JSON (ISO dates, numeric fields, booleans, `notes` may be
+  null) regardless of LubeLogger's instance locale. Read path simplifies:
+  `last-fillup.ts` drops MDY↔ISO converters, `/api/vehicle/last-fuelup`'s
+  `parseDate` collapses to `Date.parse(s)`.
+- **Date and number rendering consumes LubeLogger's instance locale**
+  (from `/api/info`), not hardcoded `en-US`. `format.ts` resolves locale
+  via the cached `quicklogger-server-info` on every call.
+- **Currency rendering uses `Intl.NumberFormat({ style: 'currency' })`** —
+  per-entry code for queue rows, instance currency for upstream rows.
+  Replaces the hardcoded `$` prefix on the home strip and history list.
 
 ### Fixed
 

@@ -8,45 +8,45 @@ export interface Vehicle {
 	[key: string]: unknown;
 }
 
-/** Shape returned by GET /api/vehicle/gasrecords (camelCase, stringified values). */
+/** Shape returned by GET /api/vehicle/gasrecords under `culture-invariant: true`.
+ *  Typed primitives (numbers, booleans); ISO `YYYY-MM-DD` dates; `notes` may
+ *  be null. All fields verified always-present against LubeLogger v1.6.5
+ *  during design (no `absent_in > 0` across 75 sampled records). */
 export interface GasRecord {
-	id: string;
-	vehicleId: string;
-	date: string;
-	odometer: string;
-	fuelConsumed: string;
-	cost?: string;
-	fuelEconomy?: string;
-	isFillToFull?: string;
-	missedFuelUp?: string;
-	notes?: string;
-	tags?: string;
-	extraFields?: unknown[];
-	files?: unknown[];
-	[key: string]: unknown;
+	id: number;
+	vehicleId: number;
+	date: string;           // ISO YYYY-MM-DD
+	odometer: number;
+	fuelConsumed: number;
+	cost: number;           // always present
+	fuelEconomy: number;    // always present, 0 when not computed
+	isFillToFull: boolean;
+	missedFuelUp: boolean;
+	notes: string | null;   // can be null
+	tags: string;           // always present, possibly ""
+	extraFields: unknown[];
+	files: unknown[];
 }
 
 export type ReminderUrgency = 'NotUrgent' | 'Urgent' | 'VeryUrgent' | 'PastDue';
 export type ReminderMetric = 'Odometer' | 'Date' | 'Both';
 
-/** Shape returned by GET /api/vehicle/reminders. Every field is always
- *  present in the upstream payload (verified against LubeLogger during
- *  design). All values are strings, matching the LubeLogger
- *  stringified-everything convention also seen on GasRecord. */
+/** Shape returned by GET /api/vehicle/reminders under `culture-invariant: true`.
+ *  Typed primitives; ISO `YYYY-MM-DD` dueDate; `notes` may be null. Every
+ *  field always-present in the upstream payload (verified during design). */
 export interface Reminder {
-	id: string;
-	vehicleId: string;
+	id: number;
+	vehicleId: number;
 	description: string;
 	urgency: ReminderUrgency;
 	metric: ReminderMetric;
 	userMetric: ReminderMetric;
-	notes: string;
-	dueDate: string;       // 'M/D/YYYY'; placeholder when userMetric === 'Odometer'
-	dueOdometer: string;   // stringified int; '0' when userMetric === 'Date'
-	dueDays: string;       // stringified int countdown; negative = overdue
-	dueDistance: string;   // stringified int countdown (mi); negative = overdue
-	tags: string;
-	[key: string]: unknown;
+	notes: string | null;   // can be null
+	dueDate: string;        // ISO YYYY-MM-DD
+	dueOdometer: number;
+	dueDays: number;        // negative = overdue
+	dueDistance: number;    // negative = overdue
+	tags: string;           // always present, possibly ""
 }
 
 /** Shape returned by GET /api/info. Flat, all-string (verified against
@@ -131,6 +131,7 @@ export class LubeLoggerClient {
 		});
 		const headers = new Headers(init.headers);
 		headers.set('x-api-key', this.opts.apiKey);
+		headers.set('culture-invariant', 'true');
 		let res: Response;
 		try {
 			res = await this.fetchImpl(url, {

@@ -29,18 +29,18 @@ describe('GET /api/vehicle/last-fuelup', () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
         HttpResponse.json([
-          { id: '1', vehicleId: '1', date: '04/01/2026', odometer: '85000', fuelConsumed: '11.0', isFillToFull: 'True', missedFuelUp: 'False' },
-          { id: '2', vehicleId: '1', date: '04/15/2026', odometer: '86000', fuelConsumed: '11.5', isFillToFull: 'True', missedFuelUp: 'False' },
-          { id: '3', vehicleId: '1', date: '04/08/2026', odometer: '85500', fuelConsumed: '11.2', isFillToFull: 'True', missedFuelUp: 'False' }
+          { id: 1, vehicleId: 1, date: '2026-04-01', odometer: 85000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
+          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.5, cost: 42.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
+          { id: 3, vehicleId: 1, date: '2026-04-08', odometer: 85500, fuelConsumed: 11.2, cost: 41.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
         ])
       )
     );
     const res = await GET(eventFor('1'));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.id).toBe('2');
-    expect(body.odometer).toBe('86000');
-    expect(body.fuelConsumed).toBe('11.5');
+    expect(body.id).toBe(2);
+    expect(body.odometer).toBe(86000);
+    expect(body.fuelConsumed).toBe(11.5);
   });
 
   it('returns 200 with null when no records exist', async () => {

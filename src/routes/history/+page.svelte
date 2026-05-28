@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Queue, type QueueEntry } from '$lib/client/idb';
-  import { formatIsoDate, formatOdometer } from '$lib/client/format';
+  import { formatIsoDate, formatOdometer, formatCost } from '$lib/client/format';
   import VehicleImage from '$lib/client/VehicleImage.svelte';
 
   let { data } = $props();
@@ -52,7 +52,7 @@
   }
 
   function fuelCostLine(input: QueueEntry['input']): string {
-    return `${input.volume.toFixed(3)} ${input.volumeUnit} · ${input.currency} ${input.cost.toFixed(2)}`;
+    return `${input.volume.toFixed(3)} ${input.volumeUnit} · ${formatCost(input.cost, input.currency)}`;
   }
 
   onMount(async () => {

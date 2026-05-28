@@ -18,12 +18,10 @@
   // units, but the more-negative side correctly surfaces the more-overdue
   // reminder first within the Both subset.
   function sortValue(r: Reminder): number {
-    const days = Number(r.dueDays);
-    const dist = Number(r.dueDistance);
-    if (r.userMetric === 'Date') return Number.isFinite(days) ? days : Infinity;
-    if (r.userMetric === 'Odometer') return Number.isFinite(dist) ? dist : Infinity;
-    const ds = Number.isFinite(days) ? days : Infinity;
-    const di = Number.isFinite(dist) ? dist : Infinity;
+    if (r.userMetric === 'Date') return Number.isFinite(r.dueDays) ? r.dueDays : Infinity;
+    if (r.userMetric === 'Odometer') return Number.isFinite(r.dueDistance) ? r.dueDistance : Infinity;
+    const ds = Number.isFinite(r.dueDays) ? r.dueDays : Infinity;
+    const di = Number.isFinite(r.dueDistance) ? r.dueDistance : Infinity;
     return Math.min(ds, di);
   }
 
@@ -78,7 +76,7 @@
   }
 
   function odometerLine(r: Reminder): string {
-    const od = formatOdometer(r.dueOdometer);
+    const od = formatOdometer(String(r.dueOdometer));
     const countdown = humanCountdown(r.dueDistance, 'mi');
     if (!countdown) return od ? `Due at ${od} mi` : '';
     return od ? `Due at ${od} mi · ${countdown}` : `Due ${countdown}`;

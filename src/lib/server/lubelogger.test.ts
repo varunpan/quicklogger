@@ -17,37 +17,42 @@ function client() {
 }
 
 describe('LubeLoggerClient', () => {
-	it('lists vehicles with x-api-key header', async () => {
+	it('lists vehicles with x-api-key + culture-invariant header', async () => {
 		let observedKey = '';
+		let observedCulture = '';
 		server.use(
 			http.get(`${BASE}/api/vehicles`, ({ request }) => {
 				observedKey = request.headers.get('x-api-key') ?? '';
+				observedCulture = request.headers.get('culture-invariant') ?? '';
 				return HttpResponse.json([{ id: 1, year: 2019, make: 'Honda', model: 'Civic Si' }]);
 			})
 		);
 		const vs = await client().listVehicles();
 		expect(observedKey).toBe(KEY);
+		expect(observedCulture).toBe('true');
 		expect(vs).toHaveLength(1);
 		expect(vs[0]).toMatchObject({ id: 1, make: 'Honda' });
 	});
 
-	it('lists gas records for a vehicle', async () => {
+	it('lists gas records for a vehicle (typed-ISO wire under culture-invariant)', async () => {
 		let observedQs = '';
+		let observedCulture = '';
 		server.use(
 			http.get(`${BASE}/api/vehicle/gasrecords`, ({ request }) => {
 				observedQs = new URL(request.url).searchParams.toString();
+				observedCulture = request.headers.get('culture-invariant') ?? '';
 				return HttpResponse.json([
 					{
-						id: '100',
-						vehicleId: '1',
-						date: '04/12/2026',
-						odometer: '87000',
-						fuelConsumed: '11.2',
-						cost: '42.18',
-						fuelEconomy: '0',
-						isFillToFull: 'True',
-						missedFuelUp: 'False',
-						notes: '',
+						id: 100,
+						vehicleId: 1,
+						date: '2026-04-12',
+						odometer: 87000,
+						fuelConsumed: 11.2,
+						cost: 42.18,
+						fuelEconomy: 0,
+						isFillToFull: true,
+						missedFuelUp: false,
+						notes: null,
 						tags: '',
 						extraFields: [],
 						files: []
@@ -57,23 +62,27 @@ describe('LubeLoggerClient', () => {
 		);
 		const records = await client().listGasRecords(1);
 		expect(observedQs).toBe('vehicleId=1');
-		expect(records[0].id).toBe('100');
-		expect(records[0].fuelConsumed).toBe('11.2');
-		expect(records[0].isFillToFull).toBe('True');
+		expect(observedCulture).toBe('true');
+		expect(records[0].id).toBe(100);
+		expect(records[0].fuelConsumed).toBe(11.2);
+		expect(records[0].isFillToFull).toBe(true);
+		expect(records[0].notes).toBeNull();
 	});
 
-	it('adds a gas record as form-data', async () => {
+	it('adds a gas record as form-data (ISO date under culture-invariant)', async () => {
 		let observedQs = '';
 		let observedBody: FormData | undefined;
+		let observedCulture = '';
 		server.use(
 			http.post(`${BASE}/api/vehicle/gasrecords/add`, async ({ request }) => {
 				observedQs = new URL(request.url).searchParams.toString();
+				observedCulture = request.headers.get('culture-invariant') ?? '';
 				observedBody = await request.formData();
 				return HttpResponse.json({ success: true });
 			})
 		);
 		await client().addGasRecord(1, {
-			date: '05/07/2026',
+			date: '2026-05-07',                 // ISO directly
 			odometer: '87432',
 			fuelconsumed: '11.2',
 			isfilltofull: 'true',
@@ -81,9 +90,10 @@ describe('LubeLoggerClient', () => {
 			cost: '42.18'
 		});
 		expect(observedQs).toBe('vehicleId=1');
-		expect(observedBody?.get('date')).toBe('05/07/2026');
+		expect(observedBody?.get('date')).toBe('2026-05-07');
 		expect(observedBody?.get('fuelconsumed')).toBe('11.2');
 		expect(observedBody?.get('cost')).toBe('42.18');
+		expect(observedCulture).toBe('true');
 	});
 
 	it('throws LubeLoggerError on 401', async () => {
@@ -101,49 +111,39 @@ describe('LubeLoggerClient', () => {
 		await expect(client().listVehicles()).rejects.toMatchObject({ status: 503 });
 	});
 
-	it('lists reminders for a vehicle', async () => {
+	it('lists reminders for a vehicle (typed-ISO wire under culture-invariant)', async () => {
 		let observedQs = '';
+		let observedCulture = '';
 		server.use(
 			http.get(`${BASE}/api/vehicle/reminders`, ({ request }) => {
 				observedQs = new URL(request.url).searchParams.toString();
+				observedCulture = request.headers.get('culture-invariant') ?? '';
 				return HttpResponse.json([
 					{
-						vehicleId: '1',
-						id: '5',
-						description: 'Brake Fluid',
-						urgency: 'PastDue',
-						metric: 'Date',
-						userMetric: 'Date',
-						notes: '',
-						dueDate: '3/30/2026',
-						dueOdometer: '0',
-						dueDays: '-44',
-						dueDistance: '0',
-						tags: ''
+						vehicleId: 1, id: 5, description: 'Brake Fluid',
+						urgency: 'PastDue', metric: 'Date', userMetric: 'Date',
+						notes: null, dueDate: '2026-03-30',
+						dueOdometer: 0, dueDays: -44, dueDistance: 0, tags: ''
 					},
 					{
-						vehicleId: '1',
-						id: '12',
-						description: 'Engine Oil change',
-						urgency: 'PastDue',
-						metric: 'Date',
-						userMetric: 'Both',
-						notes: '',
-						dueDate: '4/12/2026',
-						dueOdometer: '115316',
-						dueDays: '-31',
-						dueDistance: '5764',
-						tags: ''
+						vehicleId: 1, id: 12, description: 'Engine Oil change',
+						urgency: 'PastDue', metric: 'Date', userMetric: 'Both',
+						notes: null, dueDate: '2026-04-12',
+						dueOdometer: 115316, dueDays: -31, dueDistance: 5764, tags: ''
 					}
 				]);
 			})
 		);
 		const reminders = await client().listReminders(1);
 		expect(observedQs).toBe('vehicleId=1');
+		expect(observedCulture).toBe('true');
 		expect(reminders).toHaveLength(2);
 		expect(reminders[0].description).toBe('Brake Fluid');
-		expect(reminders[0].urgency).toBe('PastDue');
+		expect(reminders[0].notes).toBeNull();
+		expect(reminders[0].dueDate).toBe('2026-03-30');
+		expect(reminders[0].dueDays).toBe(-44);
 		expect(reminders[1].userMetric).toBe('Both');
+		expect(reminders[1].dueOdometer).toBe(115316);
 	});
 
 	it('throws LubeLoggerError on reminders 4xx', async () => {
@@ -166,12 +166,14 @@ describe('LubeLoggerClient', () => {
 		await expect(client().listReminders(1)).rejects.toMatchObject({ status: 503 });
 	});
 
-	it('fetches an image with x-api-key and returns the raw Response', async () => {
+	it('fetches an image with x-api-key + culture-invariant and returns the raw Response', async () => {
 		let observedKey = '';
+		let observedCulture = '';
 		const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
 		server.use(
 			http.get(`${BASE}/images/abc-123.jpg`, ({ request }) => {
 				observedKey = request.headers.get('x-api-key') ?? '';
+				observedCulture = request.headers.get('culture-invariant') ?? '';
 				return new HttpResponse(bytes, {
 					status: 200,
 					headers: { 'content-type': 'image/jpeg' }
@@ -180,6 +182,7 @@ describe('LubeLoggerClient', () => {
 		);
 		const res = await client().fetchImage('/images/abc-123.jpg');
 		expect(observedKey).toBe(KEY);
+		expect(observedCulture).toBe('true');
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-type')).toBe('image/jpeg');
 		const buf = new Uint8Array(await res.arrayBuffer());
@@ -203,11 +206,13 @@ describe('LubeLoggerClient', () => {
 		await expect(client().fetchImage('/images/oops.jpg')).rejects.toMatchObject({ status: 503 });
 	});
 
-	it('getInfo() sends x-api-key and parses the flat info payload', async () => {
+	it('getInfo() sends x-api-key + culture-invariant and parses the flat info payload', async () => {
 		let observedKey = '';
+		let observedCulture = '';
 		server.use(
 			http.get(`${BASE}/api/info`, ({ request }) => {
 				observedKey = request.headers.get('x-api-key') ?? '';
+				observedCulture = request.headers.get('culture-invariant') ?? '';
 				return HttpResponse.json({
 					currentVersion: '1.6.5',
 					locale: 'en-US',
@@ -219,6 +224,7 @@ describe('LubeLoggerClient', () => {
 		);
 		const info = await client().getInfo();
 		expect(observedKey).toBe(KEY);
+		expect(observedCulture).toBe('true');
 		expect(info.currentVersion).toBe('1.6.5');
 		expect(info.locale).toBe('en-US');
 		expect(info.currencySymbol).toBe('$');
@@ -226,16 +232,19 @@ describe('LubeLoggerClient', () => {
 		expect(info.dateFormat).toBe('M/d/yyyy');
 	});
 
-	it('getVersion() sends x-api-key and parses currentVersion + latestVersion', async () => {
+	it('getVersion() sends x-api-key + culture-invariant and parses currentVersion + latestVersion', async () => {
 		let observedKey = '';
+		let observedCulture = '';
 		server.use(
 			http.get(`${BASE}/api/version`, ({ request }) => {
 				observedKey = request.headers.get('x-api-key') ?? '';
+				observedCulture = request.headers.get('culture-invariant') ?? '';
 				return HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.7.0' });
 			})
 		);
 		const version = await client().getVersion();
 		expect(observedKey).toBe(KEY);
+		expect(observedCulture).toBe('true');
 		expect(version.currentVersion).toBe('1.6.5');
 		expect(version.latestVersion).toBe('1.7.0');
 	});
