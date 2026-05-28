@@ -21,6 +21,14 @@ export default defineConfig({
     command: 'npm run build && npm run preview -- --port 4173',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
-    timeout: 60_000
+    timeout: 60_000,
+    // The server validates LUBELOGGER_* at boot (hooks.server.ts → loadEnv).
+    // The e2e suite mocks all upstream calls at the browser layer, so these
+    // placeholders just satisfy boot — no real LubeLogger is contacted. Keeps
+    // e2e self-contained in CI (no .env on the runner) and locally.
+    env: {
+      LUBELOGGER_URL: 'http://localhost:9999',
+      LUBELOGGER_API_KEY: 'e2e-test-key'
+    }
   }
 });
