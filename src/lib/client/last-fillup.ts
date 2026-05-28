@@ -46,30 +46,30 @@ function parseISO(s: string): number | null {
 }
 
 // Slow path — legacy entries written before this branch under LubeLogger's
-// instance locale. Uses cached `/api/info` dateFormat to map the raw string
-// into ISO + sortable ts. Returns null on unknown patterns → caller treats
-// as cache miss (upstream refetch repopulates with new shape).
-//
-// Handles the four LubeLogger dateFormat patterns observed in the wild:
+// instance locale. Closed-set switch on the four LubeLogger dateFormat
+// patterns observed in the wild:
 //   "M/d/yyyy"   en-US   → "4/7/2024"
 //   "d/M/yyyy"   en-GB   → "7/4/2024"
 //   "yyyy-MM-dd" ISO     → "2024-04-07"   (the fast path also handles this)
 //   "d.M.yyyy"   de-DE   → "7.4.2024"
+// Unknown format → null. Caller treats as cache miss; upstream refetch
+// repopulates with the new typed-ISO shape.
 function parseLegacyDate(
   raw: string,
   dateFormat: string
 ): { iso: string; ts: number } | null {
   const fmt = dateFormat.toLowerCase();
-  const sep = fmt.includes('/') ? '/' : fmt.includes('.') ? '.' : '-';
+  let sep: string;
+  let yIdx: number, mIdx: number, dIdx: number;
+  switch (fmt) {
+    case 'm/d/yyyy':   sep = '/'; mIdx = 0; dIdx = 1; yIdx = 2; break;
+    case 'd/m/yyyy':   sep = '/'; dIdx = 0; mIdx = 1; yIdx = 2; break;
+    case 'yyyy-mm-dd': sep = '-'; yIdx = 0; mIdx = 1; dIdx = 2; break;
+    case 'd.m.yyyy':   sep = '.'; dIdx = 0; mIdx = 1; yIdx = 2; break;
+    default: return null;
+  }
   const parts = raw.split(sep).map((p) => Number(p));
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
-
-  const tokens = fmt.split(sep);
-  const yIdx = tokens.findIndex((t) => t.startsWith('y'));
-  const mIdx = tokens.findIndex((t) => t.startsWith('m'));
-  const dIdx = tokens.findIndex((t) => t.startsWith('d'));
-  if (yIdx < 0 || mIdx < 0 || dIdx < 0) return null;
-
   const y = parts[yIdx], m = parts[mIdx], d = parts[dIdx];
   const dt = new Date(y, m - 1, d);
   if (Number.isNaN(dt.getTime())) return null;

@@ -31,9 +31,18 @@ export const load: PageLoad = async ({ fetch, url }) => {
       lastFuelupSource = 'upstream';
       if (browser) {
         try {
+          // Cache only the fields the resolver reads (last-fillup.ts).
+          // The full GasRecord includes extraFields / files which can be
+          // arbitrarily large; localStorage quota would silently truncate.
           localStorage.setItem(
             lastFuelupCacheKey(targetVehicle.id),
-            JSON.stringify(upstream)
+            JSON.stringify({
+              date: upstream.date,
+              odometer: upstream.odometer,
+              fuelConsumed: upstream.fuelConsumed,
+              cost: upstream.cost,
+              notes: upstream.notes
+            })
           );
         } catch {
           // quota / disabled — cache silently degrades; live data still works

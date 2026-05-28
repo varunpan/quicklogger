@@ -26,6 +26,14 @@ interface LastFillupRecord {
 }
 ```
 
+## Writer
+
+`+page.ts` writes ONLY the fields the resolver reads (`date`, `odometer`,
+`fuelConsumed`, `cost`, `notes`) to keep localStorage quota usage minimal.
+The full upstream `GasRecord` includes `extraFields`, `files`, `tags`, etc.
+which can be arbitrarily large; persisting them verbatim would risk silent
+quota truncation.
+
 ## Tolerant-read migration
 
 Cache entries are written verbatim from the wire. Post-this-branch the wire
@@ -34,8 +42,9 @@ instance-locale date string (e.g. `4/7/2024` for en-US). The resolver
 migrates these in place using cached `/api/info` `dateFormat`:
 
 - Fast path: `^\d{4}-\d{2}-\d{2}$` → parse directly.
-- Slow path: `cachedDateFormat` (from `loadServerInfo()?.dateFormat`) maps
-  the raw string. Handles `M/d/yyyy`, `d/M/yyyy`, `yyyy-MM-dd`, `d.M.yyyy`.
+- Slow path: `cachedDateFormat` (from `loadServerInfo()?.dateFormat`) selects
+  one of four closed-set parsers: `M/d/yyyy`, `d/M/yyyy`, `yyyy-MM-dd`,
+  `d.M.yyyy`. Any format string outside this set returns null.
 - Unknown pattern or empty server-info cache → returns null → caller treats
   as cache miss → next upstream fetch repopulates with the new shape.
 
