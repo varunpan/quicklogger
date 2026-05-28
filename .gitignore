@@ -26,6 +26,7 @@ vite.config.ts.timestamp-*
 coverage/
 playwright-report/
 test-results/
+.playwright-mcp/
 
 # data
 data/
