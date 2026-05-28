@@ -217,6 +217,7 @@
         >
       </div>
       {#if serverInfo.appReleaseUrl}
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
         <a
           href={serverInfo.appReleaseUrl}
           target="_blank"
