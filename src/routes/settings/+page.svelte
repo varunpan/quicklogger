@@ -218,13 +218,7 @@
       </div>
       {#if serverInfo.appReleaseUrl}
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a
-          href={serverInfo.appReleaseUrl}
-          target="_blank"
-          rel="noopener"
-          class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 self-start"
-          data-testid="app-release-notes"
-        >
+        <a href={serverInfo.appReleaseUrl} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 self-start" data-testid="app-release-notes">
           Release notes
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M7 17L17 7" /><path d="M8 7h9v9" />
