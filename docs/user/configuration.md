@@ -20,7 +20,7 @@ All env vars in one table, ordered by area. Photo OCR is feature-gated
 | `LUBELOGGER_URL` | URL | **yes** | — | Base URL of your LubeLogger instance (no trailing slash). All upstream API calls are made against this host. |
 | `LUBELOGGER_API_KEY` | string | **yes** | — | API key used for the `x-api-key` header on every LubeLogger request. |
 | `LUBELOGGER_VOLUME_UNIT` | string | no | `gallons_us` | The volume unit LubeLogger expects on inserts. quicklogger converts every submission to this unit before posting. |
-| `LUBELOGGER_CURRENCY` | ISO 4217 code | no | `USD` | The currency LubeLogger expects for cost. quicklogger converts every submission to this currency at submit time via the FX chain. |
+| `LUBELOGGER_CURRENCY` | ISO 4217 code | no | `USD` | The currency LubeLogger expects for cost. quicklogger converts every submission to this currency at submit time via the FX chain, AND renders upstream-cached fillups in this currency (via `Intl.NumberFormat`). |
 | `FX_PROVIDERS` | comma-separated list | no | `frankfurter,erapi,fawazahmed` | Ordered list of FX providers tried in sequence when the cache is cold or stale. First success wins. |
 | `FX_CACHE_PATH` | filesystem path | no | `/data/fx-cache.json` | On-disk path the server reads/writes for the persistent FX cache. The directory is created if it doesn't exist. |
 | `PORT` | int | no | `3000` | HTTP listen port for the Node server. |
@@ -99,6 +99,12 @@ before insert. Example:
 
 A submission entered as `42.18 USD` will be FX-converted to CAD before
 landing in LubeLogger.
+
+**Affects client-side rendering** (v0.2.3+): the home strip and history
+list render upstream-cached fillups in this currency. Per-entry queue
+rows render in the currency entered at log time (independent of this var).
+The active locale (from LubeLogger's `/api/info`) determines symbol
+placement, decimal separator, and grouping.
 
 ### FX conversion
 
