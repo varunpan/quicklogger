@@ -11,9 +11,11 @@ Backed by `GET /api/server-info`, a **health probe** that merges LubeLogger's
 inventory: [`docs/technical/idb-and-api.md`](./idb-and-api.md).
 
 This is **branch 1 of a two-branch effort**. The `locale` / `currencySymbol` /
-`decimalSeparator` / `dateFormat` fields are fetched and cached now but
-**unused this branch** — the follow-up branch consumes them for locale-driven
-display formatting (see § *Deferred to the follow-up*).
+`decimalSeparator` / `dateFormat` fields are fetched and cached for branch 2
+(this branch), which consumes them for locale-driven display formatting. The
+`lubeloggerCurrency` field (added in branch 2) carries the server-side
+`LUBELOGGER_CURRENCY` env value through the same cache so client-side cost
+rendering knows the instance currency without re-reading env on every paint.
 
 ## Files touched
 
@@ -45,10 +47,11 @@ interface ServerInfo {
   currentVersion: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;
-  locale: string | null;              // cached, unused this branch
-  currencySymbol: string | null;      // cached, unused this branch
-  decimalSeparator: string | null;    // cached, unused this branch
-  dateFormat: string | null;          // cached, unused this branch
+  locale: string | null;              // cached from /api/info
+  currencySymbol: string | null;      // cached from /api/info
+  decimalSeparator: string | null;    // cached from /api/info
+  dateFormat: string | null;          // cached from /api/info
+  lubeloggerCurrency: string | null;  // LubeLogger instance currency (ISO); sourced from env.lubeloggerCurrency
 }
 ```
 
@@ -61,8 +64,8 @@ GET /api/version → {"currentVersion":"1.6.5","latestVersion":"1.6.5"}
 ```
 
 Stored client-side under localStorage key `quicklogger-server-info` — the **full**
-payload, including the cached-but-unused locale fields, so the follow-up branch
-just reads the cache.
+payload, including the locale fields and the env-sourced `lubeloggerCurrency`,
+so consumers can paint locale-driven displays from the cache without re-fetching.
 
 ## Lifecycle / control flow
 
@@ -86,6 +89,10 @@ Merge rules (`_buildServerInfo`):
 - `currentVersion` prefers `/api/version`, falls back to `/api/info`;
   `latestVersion` only comes from `/api/version`.
 - `updateAvailable` = `_isUpdateAvailable(currentVersion, latestVersion)`.
+- `lubeloggerCurrency` is **not** sourced from either upstream call — it's the
+  server-side `env.lubeloggerCurrency` (`LUBELOGGER_CURRENCY`, default `'USD'`)
+  passed into `_buildServerInfo` and surfaced verbatim. The `UNREACHABLE` path
+  (outer `catch` around `loadEnv()`) emits `null` because env isn't available.
 
 ## Edge cases & invariants
 
@@ -120,10 +127,11 @@ Merge rules (`_buildServerInfo`):
 - **No new env var.** Same `LubeLoggerClient` from the existing
   `LUBELOGGER_URL` + `LUBELOGGER_API_KEY` as every other upstream route.
 
-## Deferred to the follow-up
+## Follow-up consumption (branch 2)
 
 The cached `locale` / `currencySymbol` / `decimalSeparator` / `dateFormat` fields
-exist for branch 2: adopting the `culture-invariant` header on read/write,
-refactoring `GasRecord` / `Reminder` parsing to the invariant shape, locale-driven
-`Intl` display formatting, and moving the `/api/server-info` fetch to a
-root-layout boot refresh.
+and the new env-sourced `lubeloggerCurrency` are consumed by branch 2: adopting
+the `culture-invariant` header on read/write, refactoring `GasRecord` /
+`Reminder` parsing to the invariant shape, locale-driven `Intl` display
+formatting (numbers, dates, currency for upstream-cached entries), and moving
+the `/api/server-info` fetch to a root-layout boot refresh.

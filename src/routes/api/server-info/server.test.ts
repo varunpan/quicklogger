@@ -57,18 +57,20 @@ describe('_buildServerInfo', () => {
 	it('both fulfilled → reachable, ok, merged fields', () => {
 		const out = _buildServerInfo(
 			{ status: 'fulfilled', value: INFO as LubeLoggerInfo },
-			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.7.0' } as LubeLoggerVersion }
+			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.7.0' } as LubeLoggerVersion },
+			'USD'
 		);
 		expect(out).toEqual({
 			reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.7.0',
 			updateAvailable: true, locale: 'en-US', currencySymbol: '$',
-			decimalSeparator: '.', dateFormat: 'M/d/yyyy'
+			decimalSeparator: '.', dateFormat: 'M/d/yyyy', lubeloggerCurrency: 'USD'
 		});
 	});
 	it('info fulfilled, version rejected → reachable, ok, latestVersion null', () => {
 		const out = _buildServerInfo(
 			{ status: 'fulfilled', value: INFO as LubeLoggerInfo },
-			{ status: 'rejected', reason: new LubeLoggerError(404, '') }
+			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
+			'USD'
 		);
 		expect(out.reachable).toBe(true);
 		expect(out.status).toBe('ok');
@@ -80,7 +82,8 @@ describe('_buildServerInfo', () => {
 	it('version fulfilled, info rejected → reachable, ok, locale null', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
-			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion }
+			{ status: 'fulfilled', value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion },
+			'USD'
 		);
 		expect(out.reachable).toBe(true);
 		expect(out.currentVersion).toBe('1.6.5');
@@ -90,7 +93,8 @@ describe('_buildServerInfo', () => {
 	it('both 401 → unreachable=false, unauthorized, null data', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(401, '') },
-			{ status: 'rejected', reason: new LubeLoggerError(401, '') }
+			{ status: 'rejected', reason: new LubeLoggerError(401, '') },
+			'USD'
 		);
 		expect(out.reachable).toBe(false);
 		expect(out.status).toBe('unauthorized');
@@ -101,7 +105,8 @@ describe('_buildServerInfo', () => {
 	it('both 404 → unreachable', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
-			{ status: 'rejected', reason: new LubeLoggerError(404, '') }
+			{ status: 'rejected', reason: new LubeLoggerError(404, '') },
+			'USD'
 		);
 		expect(out.reachable).toBe(false);
 		expect(out.status).toBe('unreachable');
@@ -109,7 +114,8 @@ describe('_buildServerInfo', () => {
 	it('mixed 401 + non-LubeLoggerError → unreachable (not all 401)', () => {
 		const out = _buildServerInfo(
 			{ status: 'rejected', reason: new LubeLoggerError(401, '') },
-			{ status: 'rejected', reason: new TypeError('ECONNREFUSED') }
+			{ status: 'rejected', reason: new TypeError('ECONNREFUSED') },
+			'USD'
 		);
 		expect(out.status).toBe('unreachable');
 	});
@@ -160,5 +166,21 @@ describe('GET /api/server-info', () => {
 		expect(res.status).toBe(200);
 		const body = await res.json();
 		expect(body.status).toBe('unreachable');
+	});
+
+	it('surfaces env.lubeloggerCurrency in the response', async () => {
+		process.env.LUBELOGGER_CURRENCY = 'CAD';
+		upstream.use(
+			http.get('http://lubelog:8080/api/info', () => HttpResponse.json(INFO)),
+			http.get('http://lubelog:8080/api/version', () =>
+				HttpResponse.json({ currentVersion: '1.6.5', latestVersion: '1.6.5' }))
+		);
+		try {
+			const res = await GET(event());
+			const body = await res.json();
+			expect(body.lubeloggerCurrency).toBe('CAD');
+		} finally {
+			delete process.env.LUBELOGGER_CURRENCY;
+		}
 	});
 });

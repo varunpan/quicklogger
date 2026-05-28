@@ -5,7 +5,7 @@ import type { ServerInfo } from '$lib/shared/types';
 const SAMPLE: ServerInfo = {
   reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.7.0',
   updateAvailable: true, locale: 'en-US', currencySymbol: '$',
-  decimalSeparator: '.', dateFormat: 'M/d/yyyy'
+  decimalSeparator: '.', dateFormat: 'M/d/yyyy', lubeloggerCurrency: 'USD'
 };
 
 beforeEach(() => localStorage.clear());
@@ -30,5 +30,18 @@ describe('server-info cache', () => {
   it('saveServerInfo is a no-op when localStorage is undefined (SSR)', () => {
     vi.stubGlobal('localStorage', undefined);
     expect(() => saveServerInfo(SAMPLE)).not.toThrow();
+  });
+  it('tolerates absence of lubeloggerCurrency (older cache shape)', () => {
+    const legacy = {
+      reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.6.5',
+      updateAvailable: false, locale: 'en-US', currencySymbol: '$',
+      decimalSeparator: '.', dateFormat: 'M/d/yyyy'
+      // no lubeloggerCurrency
+    };
+    localStorage.setItem('quicklogger-server-info', JSON.stringify(legacy));
+    const got = loadServerInfo();
+    expect(got).not.toBeNull();
+    expect(got!.locale).toBe('en-US');
+    expect((got as Partial<ServerInfo>).lubeloggerCurrency).toBeUndefined();
   });
 });

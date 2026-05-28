@@ -345,10 +345,11 @@ interface ServerInfo {
   currentVersion: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;                        // guarded numeric semver compare
-  locale: string | null;                           // cached, unused this branch
-  currencySymbol: string | null;
-  decimalSeparator: string | null;
-  dateFormat: string | null;
+  locale: string | null;                           // cached from /api/info
+  currencySymbol: string | null;                   // cached from /api/info
+  decimalSeparator: string | null;                 // cached from /api/info
+  dateFormat: string | null;                       // cached from /api/info
+  lubeloggerCurrency: string | null;               // LubeLogger instance currency (ISO 4217); from server env LUBELOGGER_CURRENCY (default 'USD'), null on UNREACHABLE
 }
 ```
 

@@ -30,6 +30,10 @@ All notable changes to this project are documented here. Format roughly follows 
   `GET /api/server-info` health probe, which merges LubeLogger's `/api/info`
   and `/api/version` and always returns 200. Cached per-device under
   `quicklogger-server-info` for instant paint.
+- **`ServerInfo.lubeloggerCurrency`** — the LubeLogger instance currency
+  (ISO 4217) is now part of the `/api/server-info` response, sourced from
+  `LUBELOGGER_CURRENCY` (default `USD`). Cached client-side and consumed
+  by client-side currency rendering for upstream-cached entries.
 
 ### Changed
 

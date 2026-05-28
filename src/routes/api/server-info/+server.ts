@@ -18,7 +18,8 @@ const UNREACHABLE: ServerInfo = {
   locale: null,
   currencySymbol: null,
   decimalSeparator: null,
-  dateFormat: null
+  dateFormat: null,
+  lubeloggerCurrency: null
 };
 
 /** Guarded numeric semver compare. Returns false on missing versions, any
@@ -42,7 +43,8 @@ export function _isUpdateAvailable(current: string | null, latest: string | null
 /** Merge the two settled upstream results into the public ServerInfo. */
 export function _buildServerInfo(
   infoR: PromiseSettledResult<LubeLoggerInfo>,
-  versionR: PromiseSettledResult<LubeLoggerVersion>
+  versionR: PromiseSettledResult<LubeLoggerVersion>,
+  lubeloggerCurrency: string
 ): ServerInfo {
   const info = infoR.status === 'fulfilled' ? infoR.value : null;
   const version = versionR.status === 'fulfilled' ? versionR.value : null;
@@ -73,7 +75,8 @@ export function _buildServerInfo(
     locale: info?.locale ?? null,
     currencySymbol: info?.currencySymbol ?? null,
     decimalSeparator: info?.decimalSeparator ?? null,
-    dateFormat: info?.dateFormat ?? null
+    dateFormat: info?.dateFormat ?? null,
+    lubeloggerCurrency
   };
 }
 
@@ -89,7 +92,7 @@ export const GET: RequestHandler = async ({ locals }) => {
       logger: locals.logger
     });
     const [infoR, versionR] = await Promise.allSettled([client.getInfo(), client.getVersion()]);
-    return json(_buildServerInfo(infoR, versionR));
+    return json(_buildServerInfo(infoR, versionR, env.lubeloggerCurrency));
   } catch (err) {
     // loadEnv() misconfiguration or any unexpected throw — report unreachable
     // rather than 500, to keep the Settings block's contract (always parseable).

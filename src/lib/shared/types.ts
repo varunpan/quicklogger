@@ -65,9 +65,14 @@ export interface ServerInfo {
   currentVersion: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;
-  // Cached from /api/info; unused this branch (consumed by the follow-up).
+  // Cached from /api/info.
   locale: string | null;
   currencySymbol: string | null;
   decimalSeparator: string | null;
   dateFormat: string | null;
+  // LubeLogger instance currency (ISO code) — sourced from server env
+  // (LUBELOGGER_CURRENCY, default 'USD'). Independent of LubeLogger's
+  // /api/info: it's the value the server uses when converting submissions,
+  // so it's authoritative for rendering upstream-cached entries.
+  lubeloggerCurrency: string | null;
 }
