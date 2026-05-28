@@ -13,6 +13,7 @@
     OcrMode
   } from '$lib/shared/types';
   import { formatOdometer, formatLastFillupDate, formatCost } from '$lib/client/format';
+  import { loadServerInfo } from '$lib/client/server-info';
   import {
     evaluateSmartChecks,
     ODOMETER_MAX_DELTA_MI,
@@ -321,7 +322,9 @@
     odoWarning = null;
   }
 
-  const TARGET_CURRENCY = 'USD'; // server enforces; this is just for the UI hint
+  // Mirror server-side FX target — server converts submission to env.lubeloggerCurrency.
+  // Cached from /api/server-info; fallback to USD when cache is empty (first boot).
+  const TARGET_CURRENCY = loadServerInfo()?.lubeloggerCurrency ?? 'USD';
 
   // live FX rate for inline preview
   let fxRate: number | null = $state(null);
@@ -462,7 +465,7 @@
       const result = await submitFuelup(input);
       toast = {
         kind: 'success',
-        text: `Logged: ${result.submitted.gallons.toFixed(2)} Gal · $${result.submitted.cost.toFixed(2)}`
+        text: `Logged: ${result.submitted.gallons.toFixed(2)} Gal · ${formatCost(result.submitted.cost, null)}`
       };
       savePrefs({ lastVehicleId: vehicle.id });
       try {
@@ -613,8 +616,8 @@
           </svg>
           <div class="text-xs text-blue-200 flex-1 leading-relaxed">
             <span class="text-blue-300/70">Detected:</span>
-            <span class="font-semibold">{pumpSuggestion.volume} {pumpSuggestion.volumeUnit} · ${pumpSuggestion.cost}</span>
-            <span class="text-blue-300/70"> · ${pumpSuggestion.pricePerUnit}/{pumpSuggestion.volumeUnit}</span>
+            <span class="font-semibold">{pumpSuggestion.volume} {pumpSuggestion.volumeUnit} · {formatCost(pumpSuggestion.cost, null)}</span>
+            <span class="text-blue-300/70"> · {formatCost(pumpSuggestion.pricePerUnit, null)}/{pumpSuggestion.volumeUnit}</span>
           </div>
         </div>
         <div class="flex gap-2 mt-2 ml-6">
@@ -792,8 +795,9 @@
   </label>
 
   {#if previewUsd !== null && previewGallons !== null}
+    <!-- `previewUsd` is a legacy name — value is in env.lubeloggerCurrency, not always USD. -->
     <div class="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300 mb-3">
-      Will log: {previewGallons.toFixed(2)} Gal · ${previewUsd.toFixed(2)} USD
+      Will log: {previewGallons.toFixed(2)} Gal · {formatCost(previewUsd, TARGET_CURRENCY)}
       {#if mpgPreview !== null}
         &nbsp;·&nbsp; {mpgPreview.toFixed(1)} MPG since last fill
       {/if}

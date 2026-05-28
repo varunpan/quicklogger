@@ -51,8 +51,8 @@ export interface Reminder {
 
 /** Shape returned by GET /api/info. Flat, all-string (verified against
  *  LubeLogger v1.6.5 during design). `currentVersion` is repeated here and
- *  on /api/version; the locale/currency/format fields are cached but unused
- *  this branch (the follow-up branch consumes them for display formatting). */
+ *  on /api/version. The locale/currency/format fields are consumed by
+ *  format.ts for client-side rendering (locale, currencySymbol, dateFormat). */
 export interface LubeLoggerInfo {
 	currentVersion: string;
 	locale: string;

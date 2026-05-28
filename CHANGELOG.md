@@ -105,6 +105,12 @@ All notable changes to this project are documented here. Format roughly follows 
   and edge handles now clamp inside the image instead of spilling
   into the modal padding where the host's `overflow-hidden` made
   them unreachable.
+- **Submit-success toast, "Will log" preview banner, and OCR pump-suggestion
+  preview no longer hardcode `$`/`USD`** — they now render via `formatCost`
+  so they match the LubeLogger instance currency. en-US/USD output stays
+  `$42.18` but loses the redundant trailing ` USD` label on the preview
+  banner. The "Will log" FX target also tracks
+  `serverInfo.lubeloggerCurrency` instead of a constant `'USD'`.
 
 ### Tests
 
