@@ -14,6 +14,7 @@
   } from '$lib/shared/types';
   import { formatOdometer, formatLastFillupDate, formatCost } from '$lib/client/format';
   import { loadServerInfo } from '$lib/client/server-info';
+  import { loadDismissedUpdateVersion, saveDismissedUpdateVersion } from '$lib/client/dismissed-update';
   import {
     evaluateSmartChecks,
     ODOMETER_MAX_DELTA_MI,
@@ -27,6 +28,23 @@
 
   let { data } = $props();
   const prefs = loadPrefs();
+
+  // --- self-update banner (v0.2.3+) — reader-only off the cached ServerInfo,
+  // mirroring the Settings block. Boot-refresh in +layout.svelte keeps the
+  // cache fresh; this paints whatever the cache holds at load.
+  const _appInfo = loadServerInfo();
+  const appLatestVersion = _appInfo?.appLatestVersion ?? null;
+  const appReleaseUrl = _appInfo?.appReleaseUrl ?? null;
+  const appUpdateAvailable = _appInfo?.appUpdateAvailable ?? false;
+  let dismissedUpdateVersion = $state(loadDismissedUpdateVersion());
+  const showUpdateBanner = $derived(
+    appUpdateAvailable && appLatestVersion !== null && appLatestVersion !== dismissedUpdateVersion
+  );
+  function dismissUpdateBanner() {
+    if (!appLatestVersion) return;
+    saveDismissedUpdateVersion(appLatestVersion);
+    dismissedUpdateVersion = appLatestVersion;
+  }
 
   // form state — Svelte 5 runes
   let vehicle: Vehicle | null = $state(data.initialVehicle);
@@ -505,6 +523,27 @@
     void submit(true);
   }
 </script>
+
+{#if showUpdateBanner}
+  <div class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-center gap-3" data-testid="update-banner">
+    <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+      <span class="text-sm font-medium text-amber-200">quicklogger v{appLatestVersion} available</span>
+      {#if appReleaseUrl}
+        <a href={appReleaseUrl} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300" data-testid="banner-release-notes">
+          Release notes
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M7 17L17 7" /><path d="M8 7h9v9" />
+          </svg>
+        </a>
+      {/if}
+    </div>
+    <button type="button" class="p-1 -mr-1 text-amber-300/70 active:text-amber-200 shrink-0" aria-label="Dismiss" onclick={dismissUpdateBanner} data-testid="banner-dismiss">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="6" y1="6" x2="18" y2="18" /><line x1="6" y1="18" x2="18" y2="6" />
+      </svg>
+    </button>
+  </div>
+{/if}
 
 {#if !vehicle}
   <div class="rounded-xl bg-zinc-900 p-4 text-center text-zinc-400">

@@ -151,6 +151,11 @@ up -d`). The hint appears in three places.
   **Release notes** link to the GitHub release, and a reminder to
   `docker compose pull && up -d` when you're ready.
 
+**Home banner.** When an update is available, a dismissible amber banner at the
+top of the Log Fuel page reads `quicklogger v0.2.4 available` with a **Release
+notes** link. Dismissing it (×) hides it for that version; a newer release
+brings the banner back. Dismissal is per-device.
+
 ## Maintenance (`/maintenance`)
 
 A read-only list of upcoming maintenance reminders pulled from
