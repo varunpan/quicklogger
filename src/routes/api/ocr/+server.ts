@@ -92,8 +92,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
   } catch (err) {
     // Log the real reason — `request.formData()` swallowing its cause is what
     // sent v0.2.3/v0.2.4 chasing client-side theories. The actual cause was a
-    // transport body cap truncating the stream; with BODY_SIZE_LIMIT=0 that is
-    // gone, but any future genuine parse failure now records why.
+    // transport body cap truncating the stream; with BODY_SIZE_LIMIT=Infinity that
+    // is gone, but any future genuine parse failure now records why.
     locals.logger.warn('ocr multipart parse failed', {
       err: err instanceof Error ? err.message : String(err),
       contentType: request.headers.get('content-type'),

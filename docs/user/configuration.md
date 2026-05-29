@@ -293,12 +293,13 @@ to a 1024 px long edge before upload, so a normal pump photo is well under
 1 MiB; the default `5` is generous headroom. This is the **only** size gate —
 an oversized image returns a clean `413`, never a truncated request.
 
-> **Self-hosters:** the Docker image runs adapter-node with `BODY_SIZE_LIMIT=0`
+> **Self-hosters:** the Docker image runs adapter-node with `BODY_SIZE_LIMIT=Infinity`
 > (no transport-layer body cap) on purpose, so `OCR_MAX_IMAGE_MB` is the single
-> source of truth. If you set `BODY_SIZE_LIMIT` yourself, keep it **at or above**
-> this value — a tighter cap truncates resized photos mid-stream and they fail
-> as `400 multipart parse failed` (the v0.2.5 regression). When in doubt, leave
-> `BODY_SIZE_LIMIT` at `0`.
+> source of truth. If you set `BODY_SIZE_LIMIT` yourself, use `Infinity` or keep it
+> **at or above** `OCR_MAX_IMAGE_MB` — a tighter cap truncates resized photos
+> mid-stream and they fail as `400 multipart parse failed` (the v0.2.5 regression).
+> Do **not** use `0`: in adapter-node `0` is a literal 0-byte limit that rejects every
+> upload, not "unlimited". When in doubt, leave `BODY_SIZE_LIMIT` at `Infinity`.
 
 #### `OLLAMA_CLOUD_API_KEY`
 

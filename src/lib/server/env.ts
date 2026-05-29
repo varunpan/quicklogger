@@ -14,7 +14,8 @@ const KNOWN_OCR_SLOTS: ReadonlySet<OcrSlotName> = new Set([
 
 // Default OCR image-size policy, in MiB. This is the single source of truth
 // for "how big an image will we accept". It is the ONLY gate on upload size:
-// the container runs adapter-node with BODY_SIZE_LIMIT=0 (no transport cap),
+// the container runs adapter-node with BODY_SIZE_LIMIT=Infinity (no transport cap;
+// `0` would be a 0-byte reject-all, not unlimited — see Dockerfile),
 // so this app-level limit is what produces the clean 413 — never a truncated
 // stream / `multipart parse failed`. See docs/technical/photo-ocr.md.
 export const DEFAULT_OCR_MAX_IMAGE_MB = 5;

@@ -10,7 +10,17 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Docker image default `BODY_SIZE_LIMIT` corrected from `0` to `Infinity`.**
+  v0.2.5 set `BODY_SIZE_LIMIT=0` to disable the transport body cap, but
+  @sveltejs/adapter-node treats `0` as a literal 0-byte limit — it rejects *every*
+  request with a body. `Infinity` is the value that actually disables the cap.
+  Deployments overriding `BODY_SIZE_LIMIT=Infinity` at runtime were unaffected; this
+  makes the image correct out of the box so the override is no longer needed.
+
 ### Tests
+
+- **Dockerfile invariant guard** rewritten to accept `Infinity` (the real disable
+  value) and explicitly reject `0` as reject-all, so the v0.2.5 mistake can't return.
 
 ## [0.2.5] — 2026-05-29
 
