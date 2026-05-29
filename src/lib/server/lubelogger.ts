@@ -1,8 +1,3 @@
-// Use Node.js's native File (from node:buffer) so that FormData multipart
-// bodies are parseable by undici even when the global `File` has been
-// replaced by jsdom in the vitest test environment.
-import { File as NodeFile } from 'node:buffer';
-
 export interface Vehicle {
 	id: number;
 	year?: number;
@@ -216,15 +211,12 @@ export class LubeLoggerClient {
 	 *  live API; the docs don't cover it). Returns the first element of the
 	 *  response array. Throws `LubeLoggerError` if the array is empty. */
 	async uploadDocument(bytes: Blob | Uint8Array, filename: string): Promise<UploadedFile> {
-		// NodeFile (from node:buffer) is always the native Node.js File class,
-		// unaffected by jsdom's override of globalThis.File in the test env.
-		const file = new NodeFile(
-			[bytes instanceof Uint8Array ? bytes : new Uint8Array(await (bytes as Blob).arrayBuffer())],
-			filename,
-			{ type: 'image/jpeg' }
-		);
+		// Copy into a fresh ArrayBuffer-backed view so the BlobPart type is
+		// concrete (Uint8Array<ArrayBuffer>), then let the global Blob/FormData
+		// (native under adapter-node and the node test env) build the part.
+		const blob = bytes instanceof Blob ? bytes : new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' });
 		const fd = new FormData();
-		fd.set('documents', file);
+		fd.set('documents', blob, filename);
 		const res = await this.request('/api/documents/upload', { method: 'POST', body: fd });
 		const arr = (await res.json()) as UploadedFile[];
 		if (!Array.isArray(arr) || arr.length === 0) {
