@@ -10,7 +10,20 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Pump-photo OCR `400 multipart parse failed` in Safari (real fix).** Pump
+  submissions failed on iOS *and* desktop Safari because EXIF date-prefill and
+  the OCR encode read the same in-memory `File`; in WebKit that left the
+  resized image Blob streaming short on the wire, so the server's multipart
+  parser rejected the body. EXIF prefill now runs on a fully independent copy
+  of the photo bytes — the isolation v0.2.3 documented but didn't implement.
+  (v0.2.3's earlier attempt hardened a zero-byte-blob path that the evidence
+  shows was never the cause.)
+
 ### Tests
+
+- **`bufferPickedPhoto` coverage** — asserts the OCR and EXIF Files are
+  distinct, independently readable copies with preserved name/type, and that a
+  zero-byte pick returns null.
 
 ## [0.2.3] — 2026-05-28
 

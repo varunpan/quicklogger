@@ -4,6 +4,7 @@
   import { Queue } from '$lib/client/idb';
   import { submitFuelup, getFx, postOcr } from '$lib/client/api';
   import { resizeForOcr } from '$lib/client/image';
+  import { bufferPickedPhoto, type BufferedPhoto } from '$lib/client/photo-buffer';
   import type { Vehicle } from '$lib/server/lubelogger';
   import type {
     VolumeUnit,
@@ -159,31 +160,28 @@
     const picked = input.files?.[0];
     input.value = '';
     if (!picked) return;
-    const file = await bufferPickedPhoto(picked);
-    if (!file) return;
-    pendingCapture = { file, mode: 'pump' };
-    void prefillDateFromPhoto(file);
+    const buf = await bufferPickedPhotoOrToast(picked);
+    if (!buf) return;
+    pendingCapture = { file: buf.ocrFile, mode: 'pump' };
+    // EXIF prefill runs on an INDEPENDENT copy (`exifFile`) so reading it for
+    // the date never touches the OCR File's backing store. Sharing one File
+    // between the two paths is what produced the "multipart parse failed" 400
+    // in Safari — see src/lib/client/photo-buffer.ts.
+    void prefillDateFromPhoto(buf.exifFile);
   }
 
-  // Read the picked File fully into memory and return a fresh in-memory File.
-  // On iOS Safari, photos picked from the Photo Library are PHAsset-backed
-  // (HEIC, decoded lazily); concurrent reads of the same File (EXIF prefill
-  // racing the OCR pipeline's createImageBitmap) intermittently leave one of
-  // them with empty bytes, producing a zero-byte multipart image part and a
-  // "multipart parse failed" 400. Buffering eagerly forces a single decode
-  // and gives every downstream consumer an independent in-memory copy.
-  async function bufferPickedPhoto(picked: File): Promise<File | null> {
+  // Thin wrapper around bufferPickedPhoto that surfaces the "couldn't read"
+  // toast on a degenerate pick (null) or an arrayBuffer rejection (throw),
+  // keeping the toast (component state) out of the pure helper module.
+  async function bufferPickedPhotoOrToast(picked: File): Promise<BufferedPhoto | null> {
+    let buf: BufferedPhoto | null;
     try {
-      const bytes = await picked.arrayBuffer();
-      if (bytes.byteLength === 0) {
-        toast = { kind: 'error', text: "Couldn't read photo — try again" };
-        return null;
-      }
-      return new File([bytes], picked.name || 'capture.jpg', { type: picked.type || 'image/jpeg' });
+      buf = await bufferPickedPhoto(picked);
     } catch {
-      toast = { kind: 'error', text: "Couldn't read photo — try again" };
-      return null;
+      buf = null;
     }
+    if (!buf) toast = { kind: 'error', text: "Couldn't read photo — try again" };
+    return buf;
   }
 
   // EXIF read + state-machine apply. Errors (parser throws, file deleted
@@ -209,9 +207,9 @@
     const picked = input.files?.[0];
     input.value = '';
     if (!picked) return;
-    const file = await bufferPickedPhoto(picked);
-    if (!file) return;
-    pendingCapture = { file, mode: 'odometer' };
+    const buf = await bufferPickedPhotoOrToast(picked);
+    if (!buf) return;
+    pendingCapture = { file: buf.ocrFile, mode: 'odometer' };
   }
 
   function checkOdometerRelative(
