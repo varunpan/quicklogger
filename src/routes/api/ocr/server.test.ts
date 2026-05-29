@@ -3,13 +3,13 @@
 // (via SvelteKit's RequestEvent). jsdom installs its own File/FormData that
 // undici's `request.formData()` refuses (USVString/File assertion). Opt out
 // of jsdom for this file so the FormData round-trip uses undici end-to-end.
-import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GET, POST, _resetForTests } from './+server';
+import { GET, POST, _contentLengthExceeds, _resetForTests } from './+server';
 import { _resetChainMemoForTests } from '$lib/server/ocr';
 
 const ollamaServer = setupServer();
@@ -196,6 +196,42 @@ describe('POST /api/ocr', () => {
     fd.set('mode', 'pump');
     const res = await POST(makeRequest(fd));
     expect(res.status).toBe(413);
+  });
+
+  it('413 honours a lowered OCR_MAX_IMAGE_MB (env is the sole size gate)', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434', OCR_MAX_IMAGE_MB: '1' });
+    const big = Buffer.alloc(1 * 1024 * 1024 + 10, 0); // just over the 1 MiB limit
+    big[0] = 0xff; big[1] = 0xd8; big[2] = 0xff; big[3] = 0xe0;
+    const fd = new FormData();
+    fd.set('image', new File([big], 'big.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(413);
+  });
+
+  it('logs the real cause and returns 400 when multipart parsing fails', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    const warn = vi.fn();
+    const spyLogger = {
+      debug: () => {}, info: () => {}, warn, error: () => {},
+      child() { return this; }
+    } as unknown as import('$lib/server/logger').Logger;
+    const event = {
+      request: new Request('http://localhost/api/ocr', {
+        method: 'POST',
+        headers: { 'content-type': 'multipart/form-data; boundary=----nope' },
+        body: 'this is not a valid multipart body'
+      }),
+      getClientAddress: () => '127.0.0.1',
+      locals: { logger: spyLogger, requestId: 't' }
+    } as unknown as Parameters<typeof POST>[0];
+    const res = await POST(event);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'multipart parse failed' });
+    expect(warn).toHaveBeenCalledWith(
+      'ocr multipart parse failed',
+      expect.objectContaining({ contentType: expect.stringContaining('multipart/form-data') })
+    );
   });
 
   it('pump happy path returns discriminated result', async () => {
@@ -460,5 +496,30 @@ describe('POST /api/ocr', () => {
     const r2 = await POST(makeRequest(fd2));
     expect(r2.status).toBe(429);
     expect(r2.headers.get('retry-after')).toMatch(/^\d+$/);
+  });
+});
+
+describe('contentLengthExceeds (early body-size guard)', () => {
+  const MAX = 5 * 1024 * 1024;          // 5 MiB image policy
+  const OVERHEAD = 64 * 1024;           // matches MULTIPART_OVERHEAD_BYTES
+
+  it('returns false for a missing header (fall through to post-parse check)', () => {
+    expect(_contentLengthExceeds(null, MAX)).toBe(false);
+  });
+
+  it('returns false for non-numeric / non-positive headers', () => {
+    expect(_contentLengthExceeds('abc', MAX)).toBe(false);
+    expect(_contentLengthExceeds('0', MAX)).toBe(false);
+    expect(_contentLengthExceeds('-1', MAX)).toBe(false);
+  });
+
+  it('allows a body within image policy + envelope overhead', () => {
+    expect(_contentLengthExceeds(String(MAX), MAX)).toBe(false);
+    expect(_contentLengthExceeds(String(MAX + OVERHEAD), MAX)).toBe(false);
+  });
+
+  it('rejects a body beyond image policy + envelope overhead', () => {
+    expect(_contentLengthExceeds(String(MAX + OVERHEAD + 1), MAX)).toBe(true);
+    expect(_contentLengthExceeds(String(50 * 1024 * 1024), MAX)).toBe(true);
   });
 });

@@ -281,7 +281,7 @@ camera affordances.
 
 **Request:** `multipart/form-data`
 
-- `image` — image file (JPEG / PNG / WebP / HEIC), ≤ 5 MiB post-multipart.
+- `image` — image file (JPEG / PNG / WebP / HEIC), ≤ `OCR_MAX_IMAGE_MB` (default 5 MiB).
 - `mode` — `'pump'` | `'odometer'`.
 
 **200 response (discriminated by `mode`):**
@@ -300,7 +300,7 @@ or
 |---|---|---|
 | 400 | mode missing, unknown mode, multipart parse failure, missing image | — |
 | 402 | daily $ budget exhausted | — |
-| 413 | image > 5 MiB | — |
+| 413 | image > `OCR_MAX_IMAGE_MB` (default 5 MiB) | — |
 | 415 | magic-byte sniff failed (not JPEG/PNG/WebP/HEIC) | — |
 | 422 | per-mode range failure OR cross-field drift > 5% (pump) | — |
 | 429 | per-IP rate limit | `Retry-After: <sec>` |

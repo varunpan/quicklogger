@@ -287,4 +287,4 @@ disappears the moment you change the value.
 | *OCR took too long — please type values* | 90 s client timeout | Type values; ollama may be loading the model — first call after a cold start is slow |
 | *OCR rate limit reached, try again in Ns* | 429 — > 20 calls in the last hour | Wait `N` seconds; if hitting this routinely, raise `OCR_RATE_LIMIT_PER_HOUR` |
 | *OCR budget for today reached* | 402 — daily $ cap exhausted | Wait until UTC rollover (00:00 UTC) or raise `OCR_DAILY_BUDGET_USD` |
-| *Photo too large — try again* | 413 — file > 5 MiB after multipart parse | Should be rare; the in-browser resize keeps photos well under this. Re-take and try again |
+| *Photo too large — try again* | 413 — file exceeds `OCR_MAX_IMAGE_MB` (default 5 MiB) | Should be rare; the in-browser resize keeps photos well under this. Re-take and try again |

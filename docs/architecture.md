@@ -60,7 +60,8 @@ Single source of truth for env-var access — other server modules call `loadEnv
 (`/data/ocr-audit.jsonl`), `OCR_AUDIT_KEY_PATH`
 (`/data/ocr-audit-key.txt`), `OCR_AUDIT_HMAC_KEY`,
 `OCR_PUMP_VOLUME_MAX` (`200`), `OCR_PUMP_COST_MAX` (`500`),
-`OCR_PUMP_PRICE_PER_UNIT_MAX` (`20`), `OCR_ODOMETER_MAX_MI` (`1000000`).
+`OCR_PUMP_PRICE_PER_UNIT_MAX` (`20`), `OCR_ODOMETER_MAX_MI` (`1000000`),
+`OCR_MAX_IMAGE_MB` (`5`).
 
 The feature is enabled iff at least one of `OLLAMA_VISION_URL`,
 `OPENROUTER_API_KEY`, `OLLAMA_CLOUD_API_KEY`, or

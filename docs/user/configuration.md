@@ -42,6 +42,7 @@ All env vars in one table, ordered by area. Photo OCR is feature-gated
 | `OCR_PUMP_COST_MAX` | number | no | `500` | Range bound on detected pump cost (raw pump-display number). |
 | `OCR_PUMP_PRICE_PER_UNIT_MAX` | number | no | `20` | Range bound on detected price per unit. |
 | `OCR_ODOMETER_MAX_MI` | int | no | `1000000` | Absolute upper bound on odometer reading, miles. |
+| `OCR_MAX_IMAGE_MB` | int (1–50) | no | `5` | Max accepted upload size, MiB. Sole size gate — oversized images get a clean 413. See note below. |
 | `OLLAMA_CLOUD_API_KEY` | string | no | — | If set, enables the `ollama-cloud` provider slot (Ollama Cloud free-tier). Activates Photo OCR. |
 | `OLLAMA_CLOUD_URL` | URL | no | `https://ollama.com` | Base URL of the Ollama Cloud API (override only for compatible proxies). |
 | `OLLAMA_CLOUD_MODEL` | string | no | `gemma4:31b` | Cloud model tag. See [`photo-ocr.md`](photo-ocr.md#ollama-cloud-model-selection) for tested alternatives. |
@@ -283,6 +284,21 @@ Absolute upper bound on a detected odometer reading, in miles.
 Server-side hard reject (separate from the client-side advisory range
 check against the last fillup). Default `1000000` is a safety stop,
 not a typical-usage check.
+
+#### `OCR_MAX_IMAGE_MB`
+
+Maximum accepted image upload size, in MiB (clamped to 1–50; out-of-range
+or non-numeric values fall back to `5`). The app resizes photos client-side
+to a 1024 px long edge before upload, so a normal pump photo is well under
+1 MiB; the default `5` is generous headroom. This is the **only** size gate —
+an oversized image returns a clean `413`, never a truncated request.
+
+> **Self-hosters:** the Docker image runs adapter-node with `BODY_SIZE_LIMIT=0`
+> (no transport-layer body cap) on purpose, so `OCR_MAX_IMAGE_MB` is the single
+> source of truth. If you set `BODY_SIZE_LIMIT` yourself, keep it **at or above**
+> this value — a tighter cap truncates resized photos mid-stream and they fail
+> as `400 multipart parse failed` (the v0.2.5 regression). When in doubt, leave
+> `BODY_SIZE_LIMIT` at `0`.
 
 #### `OLLAMA_CLOUD_API_KEY`
 

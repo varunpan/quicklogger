@@ -92,6 +92,7 @@ describe('loadEnv — OCR fields', () => {
     expect(env.ocrPumpCostMax).toBe(500);
     expect(env.ocrPumpPricePerUnitMax).toBe(20);
     expect(env.ocrOdometerMaxMi).toBe(1_000_000);
+    expect(env.ocrMaxImageBytes).toBe(5 * 1024 * 1024);
   });
 
   it('reads OLLAMA_*, OPENROUTER_*, and OCR_* when set', () => {
@@ -112,6 +113,7 @@ describe('loadEnv — OCR fields', () => {
     process.env.OCR_PUMP_COST_MAX = '750';
     process.env.OCR_PUMP_PRICE_PER_UNIT_MAX = '25';
     process.env.OCR_ODOMETER_MAX_MI = '2000000';
+    process.env.OCR_MAX_IMAGE_MB = '8';
     const env = loadEnv();
     expect(env.ollamaVisionUrl).toBe('http://ollama:11434');
     expect(env.ollamaVisionModel).toBe('qwen2.5vl:7b');
@@ -130,6 +132,16 @@ describe('loadEnv — OCR fields', () => {
     expect(env.ocrPumpCostMax).toBe(750);
     expect(env.ocrPumpPricePerUnitMax).toBe(25);
     expect(env.ocrOdometerMaxMi).toBe(2_000_000);
+    expect(env.ocrMaxImageBytes).toBe(8 * 1024 * 1024);
+  });
+
+  it('OCR_MAX_IMAGE_MB out of bounds / non-numeric falls back to the 5 MiB default', () => {
+    process.env.OCR_MAX_IMAGE_MB = '999';   // above the 50 MB ceiling
+    expect(loadEnv().ocrMaxImageBytes).toBe(5 * 1024 * 1024);
+    process.env.OCR_MAX_IMAGE_MB = 'abc';
+    expect(loadEnv().ocrMaxImageBytes).toBe(5 * 1024 * 1024);
+    process.env.OCR_MAX_IMAGE_MB = '0';     // below the 1 MB floor
+    expect(loadEnv().ocrMaxImageBytes).toBe(5 * 1024 * 1024);
   });
 
   it('empty-string numeric env vars fall back to defaults', () => {

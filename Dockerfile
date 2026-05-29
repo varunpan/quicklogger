@@ -15,7 +15,13 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV BODY_SIZE_LIMIT=131072
+# No transport-layer body cap. 0 = unlimited in @sveltejs/adapter-node. The
+# OCR upload is the only route that buffers a large body, and it enforces its
+# own app-level limit (OCR_MAX_IMAGE_MB, default 5 MiB) that returns a clean
+# 413. A tight cap here previously (131072 = 128 KiB) sat *below* that policy,
+# so resized pump photos were truncated mid-stream and surfaced as a bogus
+# `400 multipart parse failed` in production only. See docs/technical/photo-ocr.md.
+ENV BODY_SIZE_LIMIT=0
 ENV ORIGIN=""
 COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules

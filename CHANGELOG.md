@@ -6,11 +6,37 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **`OCR_MAX_IMAGE_MB`** — configurable maximum OCR upload size (MiB, 1–50,
+  default 5). It is now the single source of truth for upload-size policy and
+  returns a clean `413` when exceeded.
+
 ### Changed
+
+- **Docker image runs adapter-node with `BODY_SIZE_LIMIT=0`** (no transport
+  body cap). The app-level `OCR_MAX_IMAGE_MB` is the only size gate. Self-host
+  note: if you set `BODY_SIZE_LIMIT` yourself, keep it ≥ `OCR_MAX_IMAGE_MB`.
 
 ### Fixed
 
+- **Pump-photo OCR `400 multipart parse failed` (the real, production-only
+  fix).** The container's `BODY_SIZE_LIMIT` was pinned to 128 KiB — *below* the
+  size of a resized pump photo (~150–400 KB) — so the server truncated the
+  upload mid-stream and `request.formData()` threw. The failure was invisible
+  in dev (no body cap) and UAT (512 KiB default), which is why the v0.2.3 and
+  v0.2.4 client-side fixes appeared to work but never resolved it. Dropping the
+  transport cap and making the app's image limit the sole gate fixes it.
+- **Opaque parse-failure logging** — the OCR endpoint now logs the real cause
+  (exception, content-type, content-length) instead of silently returning a
+  generic 400, so any future parse failure is diagnosable from logs.
+
 ### Tests
+
+- `OCR_MAX_IMAGE_MB` parsing (default, override, out-of-bounds fallback).
+- 413 honours a lowered `OCR_MAX_IMAGE_MB`; malformed multipart returns 400 and
+  logs the cause; `contentLengthExceeds` early-guard unit coverage.
+- **Dockerfile invariant guard** (`tests/integration/body-size-limit.test.ts`) —
+  asserts `BODY_SIZE_LIMIT` is `0` or ≥ the image policy, so a tight transport
+  cap can never silently regress into production again.
 
 ## [0.2.4] — 2026-05-28
 

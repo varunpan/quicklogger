@@ -12,6 +12,13 @@ const KNOWN_OCR_SLOTS: ReadonlySet<OcrSlotName> = new Set([
   'ollama-local', 'ollama-cloud', 'openrouter', 'openai-compatible'
 ]);
 
+// Default OCR image-size policy, in MiB. This is the single source of truth
+// for "how big an image will we accept". It is the ONLY gate on upload size:
+// the container runs adapter-node with BODY_SIZE_LIMIT=0 (no transport cap),
+// so this app-level limit is what produces the clean 413 — never a truncated
+// stream / `multipart parse failed`. See docs/technical/photo-ocr.md.
+export const DEFAULT_OCR_MAX_IMAGE_MB = 5;
+
 export interface Env {
   lubeloggerUrl: string;
   lubeloggerApiKey: string;
@@ -56,6 +63,9 @@ export interface Env {
   ocrPumpCostMax: number;
   ocrPumpPricePerUnitMax: number;
   ocrOdometerMaxMi: number;
+
+  /** Max accepted image size in bytes (OCR_MAX_IMAGE_MB × 1 MiB). Sole upload gate. */
+  ocrMaxImageBytes: number;
 
   // --- Logging (v0.2.3+) ---
   logLevel: 'debug' | 'info' | 'warn' | 'error';
@@ -196,6 +206,11 @@ export function loadEnv(): Env {
     ocrPumpCostMax: numberOr('OCR_PUMP_COST_MAX', 500),
     ocrPumpPricePerUnitMax: numberOr('OCR_PUMP_PRICE_PER_UNIT_MAX', 20),
     ocrOdometerMaxMi: numberOr('OCR_ODOMETER_MAX_MI', 1_000_000),
+
+    ocrMaxImageBytes:
+      parseBoundedInt('OCR_MAX_IMAGE_MB', DEFAULT_OCR_MAX_IMAGE_MB, 1, 50, envWarnings) *
+      1024 *
+      1024,
 
     logLevel,
     logPretty,

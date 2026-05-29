@@ -8,8 +8,12 @@ import { OcrBudget, JsonFileBudgetStore } from '$lib/server/ocrBudget';
 import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey } from '$lib/server/ocrAudit';
 import type { OcrMode, OcrStatus } from '$lib/shared/types';
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;        // 5 MiB post-multipart
 const AUDIT_MAX_BYTES = 10 * 1024 * 1024;       // 10 MiB JSONL rotation
+
+// Multipart envelope overhead (boundaries + part headers + the handful of
+// small text fields). A generous fixed allowance so an honest-sized image is
+// never rejected by the early Content-Length guard below.
+const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
 let rateLimiter: OcrRateLimiter | null = null;
 let budget: OcrBudget | null = null;
@@ -74,10 +78,27 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
     return json({ error: 'daily OCR budget exceeded' }, { status: 402 });
   }
 
+  // Early, best-effort size guard: reject obviously-too-large uploads from the
+  // Content-Length header before `formData()` buffers the whole body into
+  // memory. The authoritative gate is the post-parse `file.size` check below;
+  // clients that omit or lie about Content-Length simply fall through to it.
+  if (_contentLengthExceeds(request.headers.get('content-length'), env.ocrMaxImageBytes)) {
+    return json({ error: `image must be <= ${env.ocrMaxImageBytes} bytes` }, { status: 413 });
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
-  } catch {
+  } catch (err) {
+    // Log the real reason — `request.formData()` swallowing its cause is what
+    // sent v0.2.3/v0.2.4 chasing client-side theories. The actual cause was a
+    // transport body cap truncating the stream; with BODY_SIZE_LIMIT=0 that is
+    // gone, but any future genuine parse failure now records why.
+    locals.logger.warn('ocr multipart parse failed', {
+      err: err instanceof Error ? err.message : String(err),
+      contentType: request.headers.get('content-type'),
+      contentLength: request.headers.get('content-length')
+    });
     return json({ error: 'multipart parse failed' }, { status: 400 });
   }
 
@@ -123,8 +144,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
   const file = form.get('image');
   if (!(file instanceof File)) return json({ error: 'image required' }, { status: 400 });
   if (file.size === 0) return json({ error: 'empty image' }, { status: 400 });
-  if (file.size > MAX_IMAGE_BYTES) {
-    return json({ error: `image must be <= ${MAX_IMAGE_BYTES} bytes` }, { status: 413 });
+  if (file.size > env.ocrMaxImageBytes) {
+    return json({ error: `image must be <= ${env.ocrMaxImageBytes} bytes` }, { status: 413 });
   }
 
   const arr = new Uint8Array(await file.arrayBuffer());
@@ -181,6 +202,19 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
   });
   return json({ error: outcome.error }, { status: outcome.statusCode });
 };
+
+// Best-effort early rejection from the advertised Content-Length. Returns true
+// only when the header is present, numeric, positive, and exceeds the image
+// policy plus a generous envelope allowance. A missing / non-numeric / lying
+// header returns false so the request falls through to the authoritative
+// post-parse `file.size` check. Underscore-prefixed so SvelteKit's endpoint
+// export validation permits it (test-only export, same as `_resetForTests`).
+export function _contentLengthExceeds(header: string | null, maxImageBytes: number): boolean {
+  if (header === null) return false;
+  const n = Number(header);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  return n > maxImageBytes + MULTIPART_OVERHEAD_BYTES;
+}
 
 function parseCropFields(form: FormData): { x: number; y: number; w: number; h: number } | null {
   const x = form.get('cropX');
