@@ -12,6 +12,10 @@ let cur: CurrencyService | null = null;
 const idempotencyMap = new Map<string, { ts: number; result: Response }>();
 const IDEMPOTENCY_WINDOW_MS = 60_000;
 
+// Server-side diagnostic string for a photo that didn't attach. Not
+// user-facing — the client maps any truthy `photoWarning` to one fixed toast.
+const PHOTO_WARNING = 'one or more photos could not be attached';
+
 function currency(logger?: import('$lib/server/logger').Logger) {
   if (cur) return cur;
   const env = loadEnv();
@@ -199,20 +203,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     dedupeFilenames(toUpload);
     for (const u of toUpload) {
       const bytes = new Uint8Array(await u.file.arrayBuffer());
-      if (bytes.byteLength > env.ocrMaxImageBytes || sniffImageType(bytes) === null) {
+      const sniffed = sniffImageType(bytes);
+      if (bytes.byteLength > env.ocrMaxImageBytes || sniffed === null) {
         locals.logger.warn('fuelup photo skipped (failed part gate)', {
           name: u.name,
           bytes: bytes.byteLength,
-          sniffed: sniffImageType(bytes)
+          sniffed
         });
-        photoWarning = 'one or more photos could not be attached';
+        photoWarning = PHOTO_WARNING;
         continue;
       }
       try {
         files.push(await client.uploadDocument(bytes, u.name));
       } catch (err) {
         locals.logger.warn('fuelup photo upload failed', { name: u.name, err });
-        photoWarning = 'one or more photos could not be attached';
+        photoWarning = PHOTO_WARNING;
       }
     }
 
