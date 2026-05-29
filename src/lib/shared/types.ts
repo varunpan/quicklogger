@@ -25,6 +25,9 @@ export interface FuelSubmissionResult {
     fxSource: string;
     fxStale?: boolean;
   };
+  /** Present iff the submit requested photo attachment but ≥1 image did not
+   *  attach. The record was still created (record-first policy). */
+  photoWarning?: string;
 }
 
 // --- Photo OCR (v0.2.0+) ---
