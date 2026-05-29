@@ -222,6 +222,17 @@ flow.
 
 Source: `src/routes/api/fuelup/+server.ts`. The single submit endpoint.
 
+The endpoint accepts `application/json` (the default path), `application/x-www-form-urlencoded`,
+and `multipart/form-data`. The multipart variant additionally accepts two optional file parts —
+`pumpImage` and `odometerImage` — carrying the resized OCR JPEG bytes (the *exact* bytes the
+client sent to `/api/ocr` this session). When ≥1 image part is present, the server uploads each
+to `POST /api/documents/upload`, then creates the record via the **JSON variant** of
+`gasrecords/add` with the nested `files` array. **Record-first:** a per-image upload failure or a
+failed size/magic-byte gate skips that file and sets `photoWarning` in the success body — it never
+fails the fuelup. When no image parts are present (JSON submit, or multipart with no images), the
+server takes the unchanged flat-multipart `addGasRecord` path. Image bytes are never written to
+IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-ocr-photo.md`).
+
 | Field | Value |
 |---|---|
 | Request body | `application/json` or `application/x-www-form-urlencoded` or `multipart/form-data`. |
@@ -243,6 +254,9 @@ Source: `src/routes/api/fuelup/+server.ts`. The single submit endpoint.
   }
 }
 ```
+
+`photoWarning?: string` — present iff attach was requested but ≥1 image did not attach (the record
+was still created).
 
 #### Error responses
 
@@ -398,7 +412,8 @@ handler) exposes three methods mapped to LubeLogger's REST API:
 | `listVehicles()` | `GET /api/vehicles` | `Vehicle[]` |
 | `listGasRecords(vehicleId)` | `GET /api/vehicle/gasrecords?vehicleId=N` | `GasRecord[]` |
 | `listReminders(vehicleId)` | `GET /api/vehicle/reminders?vehicleId=N` | `Reminder[]` |
-| `addGasRecord(vehicleId, payload)` | `POST /api/vehicle/gasrecords/add?vehicleId=N` | `void` (body discarded) |
+| `uploadDocument(bytes, filename)` | `POST /api/documents/upload` | `UploadedFile` (`{ name, location, isPending }`) |
+| `addGasRecord(vehicleId, payload, files?)` | `POST .../gasrecords/add` — JSON variant when `files` non-empty, else flat multipart | `void` |
 | `fetchImage(path)` | `GET <path>` (expects `/images/<uuid>.<ext>`) | raw `Response` — caller streams the body, copies `content-type` |
 | `getInfo()` | `GET /api/info` | `LubeLoggerInfo` (version + locale/format fields) |
 | `getVersion()` | `GET /api/version` | `LubeLoggerVersion` (`currentVersion` + `latestVersion`) |

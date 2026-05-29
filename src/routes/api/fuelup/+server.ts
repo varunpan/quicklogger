@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadEnv } from '$lib/server/env';
 import { LubeLoggerClient, LubeLoggerError } from '$lib/server/lubelogger';
+import type { UploadedFile } from '$lib/server/lubelogger';
+import { sniffImageType } from '$lib/server/ocr';
 import { CurrencyService, JsonFileStore, realFetcher } from '$lib/server/currency';
 import { convertSubmission } from '$lib/server/convert';
 import type { FuelSubmissionInput } from '$lib/shared/types';
@@ -27,19 +29,33 @@ export function _resetForTests() {
   idempotencyMap.clear();
 }
 
-async function parseBody(req: Request): Promise<Partial<FuelSubmissionInput>> {
+interface ParsedBody {
+  input: Partial<FuelSubmissionInput>;
+  images: { pump: File | null; odometer: File | null };
+}
+
+async function parseBody(req: Request): Promise<ParsedBody> {
   const ct = req.headers.get('content-type') ?? '';
+  const noImages = { pump: null, odometer: null };
   if (ct.includes('application/json')) {
-    return (await req.json()) as Partial<FuelSubmissionInput>;
+    return { input: (await req.json()) as Partial<FuelSubmissionInput>, images: noImages };
   }
   if (ct.includes('application/x-www-form-urlencoded')) {
     const text = await req.text();
     const usp = new URLSearchParams(text);
-    return coerceParams(usp);
+    return { input: coerceParams(usp), images: noImages };
   }
   if (ct.includes('multipart/form-data')) {
     const fd = await req.formData();
-    return coerceParams(fd);
+    const pump = fd.get('pumpImage');
+    const odometer = fd.get('odometerImage');
+    return {
+      input: coerceParams(fd),
+      images: {
+        pump: pump instanceof File && pump.size > 0 ? pump : null,
+        odometer: odometer instanceof File && odometer.size > 0 ? odometer : null
+      }
+    };
   }
   throw new Error(`unsupported content-type: ${ct}`);
 }
@@ -95,10 +111,30 @@ async function cloneJsonResponse(res: Response): Promise<Response> {
   });
 }
 
+/** Belt-and-suspenders: ensure unique upload filenames. The `pump-` / `odometer-`
+ *  prefixes already differ, so this never triggers in practice — included as an
+ *  invariant guard only. Mutates each item's `name` in place. */
+function dedupeFilenames(items: Array<{ name: string }>): void {
+  const seen = new Set<string>();
+  for (const it of items) {
+    if (!seen.has(it.name)) { seen.add(it.name); continue; }
+    const dot = it.name.lastIndexOf('.');
+    const base = dot === -1 ? it.name : it.name.slice(0, dot);
+    const ext = dot === -1 ? '' : it.name.slice(dot);
+    let n = 2;
+    while (seen.has(`${base}-${n}${ext}`)) n++;
+    it.name = `${base}-${n}${ext}`;
+    seen.add(it.name);
+  }
+}
+
 export const POST: RequestHandler = async ({ request, locals }) => {
   let parsed: Partial<FuelSubmissionInput>;
+  let images: { pump: File | null; odometer: File | null };
   try {
-    parsed = await parseBody(request);
+    const body = await parseBody(request);
+    parsed = body.input;
+    images = body.images;
   } catch (err) {
     return json({ error: (err as Error).message }, { status: 400 });
   }
@@ -139,7 +175,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       apiKey: env.lubeloggerApiKey,
       logger: locals.logger
     });
-    await client.addGasRecord(input.vehicleId, {
+    const payload = {
       date: input.date,                          // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant
       odometer: String(input.odometer),
       fuelconsumed: conv.gallons.toFixed(3),
@@ -148,7 +184,39 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       cost: conv.cost.toFixed(2),
       notes: input.notes,
       tags: input.tags
-    });
+    };
+
+    // Upload step (record-first). Only images that pass the part-level gates
+    // are uploaded; a gate failure or an upload error skips that file and
+    // sets photoWarning — it never fails the fuelup. These are OCR-resized
+    // ~200 KB JPEGs, so the size/sniff gate won't trigger in practice, but we
+    // guard rather than push garbage upstream.
+    const files: UploadedFile[] = [];
+    let photoWarning: string | undefined;
+    const toUpload: Array<{ file: File; name: string }> = [];
+    if (images.pump) toUpload.push({ file: images.pump, name: `pump-${input.odometer}mi.jpg` });
+    if (images.odometer) toUpload.push({ file: images.odometer, name: `odometer-${input.odometer}mi.jpg` });
+    dedupeFilenames(toUpload);
+    for (const u of toUpload) {
+      const bytes = new Uint8Array(await u.file.arrayBuffer());
+      if (bytes.byteLength > env.ocrMaxImageBytes || sniffImageType(bytes) === null) {
+        locals.logger.warn('fuelup photo skipped (failed part gate)', {
+          name: u.name,
+          bytes: bytes.byteLength,
+          sniffed: sniffImageType(bytes)
+        });
+        photoWarning = 'one or more photos could not be attached';
+        continue;
+      }
+      try {
+        files.push(await client.uploadDocument(bytes, u.name));
+      } catch (err) {
+        locals.logger.warn('fuelup photo upload failed', { name: u.name, err });
+        photoWarning = 'one or more photos could not be attached';
+      }
+    }
+
+    await client.addGasRecord(input.vehicleId, payload, files);
 
     const success = json({
       ok: true,
@@ -158,7 +226,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         fxRate: conv.fxRate,
         fxSource: conv.fxSource,
         fxStale: conv.fxStale
-      }
+      },
+      ...(photoWarning ? { photoWarning } : {})
     });
     idempotencyMap.set(input.clientSubmissionId, { ts: Date.now(), result: success });
     return success.clone();
