@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
   import { Queue } from '$lib/client/idb';
-  import { submitFuelup, getFx, postOcr } from '$lib/client/api';
+  import { submitFuelup, submitFuelupWithPhotos, getFx, postOcr } from '$lib/client/api';
   import { resizeForOcr } from '$lib/client/image';
   import { bufferPickedPhoto, type BufferedPhoto } from '$lib/client/photo-buffer';
   import type { Vehicle } from '$lib/server/lubelogger';
@@ -74,7 +74,7 @@
   let manualFxRate: string = $state('');
   let needsManualFx: boolean = $state(false);
   let submitting: boolean = $state(false);
-  let toast: { kind: 'success' | 'queued' | 'error'; text: string } | null = $state(null);
+  let toast: { kind: 'success' | 'queued' | 'error' | 'warning'; text: string } | null = $state(null);
 
   // --- Photo OCR state (v0.2.0+) ---
 
@@ -97,6 +97,26 @@
   // cleared when they Cancel, Retake (after the input re-fires), or Send.
   type PendingCapture = { file: File; mode: OcrMode };
   let pendingCapture: PendingCapture | null = $state(null);
+
+  // --- Attach OCR photo to the record (v0.2.6) ---
+  // Exact bytes sent to /api/ocr this session, retained in client memory only
+  // (never persisted — attach is online-only). Latest send of each mode wins.
+  let attachPumpBlob: Blob | null = $state(null);
+  let attachOdometerBlob: Blob | null = $state(null);
+  let attachPhotos: boolean = $state(true);
+
+  const attachLabel = $derived(
+    attachPumpBlob && attachOdometerBlob
+      ? 'Attach photos to this record'
+      : 'Attach photo to this record'
+  );
+  const attachSubLabel = $derived(
+    attachPumpBlob && attachOdometerBlob
+      ? 'Pump & odometer photos from this session'
+      : attachPumpBlob
+        ? 'Pump display photo from this session'
+        : 'Odometer photo from this session'
+  );
 
   // --- Smart checks state (v0.2.0) ---
   let smartCheckIssues: SmartCheckIssue[] = $state([]);
@@ -128,11 +148,13 @@
 
   function openPumpCamera() {
     pumpSuggestion = null;
+    attachPumpBlob = null;   // a fresh capture/retake supersedes retained pump bytes
     pumpCameraInput?.click();
   }
   function openOdoCamera() {
     odoSuggestion = null;
     odoWarning = null;
+    attachOdometerBlob = null;
     odoCameraInput?.click();
   }
 
@@ -232,6 +254,11 @@
     toast = null;
     try {
       const blob = await resizeForOcr(file, { rotation, crop });
+      // Retain the EXACT bytes sent to OCR so submit can attach them. Set on
+      // send (not on success) — a misread photo is still worth attaching.
+      // Latest send of each mode replaces the slot.
+      if (mode === 'pump') attachPumpBlob = blob;
+      else attachOdometerBlob = blob;
       // Per-mode soft sanity-check hints baked into the prompt. Each
       // mode reads only its own field — pump ignores lastOdoHint,
       // odometer ignores lastPriceHint. Both are best-effort: we send
@@ -474,15 +501,24 @@
       }
     }
 
+    // Attach is requested only when the checkbox is on AND we actually have
+    // bytes to send. Computed once: drives both the submit branch and the
+    // offline toast copy.
+    const wantsAttach = attachPhotos && (attachPumpBlob !== null || attachOdometerBlob !== null);
+
     submitting = true;
     toast = null;
 
     try {
-      const result = await submitFuelup(input);
-      toast = {
-        kind: 'success',
-        text: `Logged: ${result.submitted.gallons.toFixed(2)} Gal · ${formatCost(result.submitted.cost, null)}`
-      };
+      const result = wantsAttach
+        ? await submitFuelupWithPhotos(input, { pump: attachPumpBlob, odometer: attachOdometerBlob })
+        : await submitFuelup(input);
+      toast = result.photoWarning
+        ? { kind: 'warning', text: "Logged — but the photo couldn't be attached." }
+        : {
+            kind: 'success',
+            text: `Logged: ${result.submitted.gallons.toFixed(2)} Gal · ${formatCost(result.submitted.cost, null)}`
+          };
       savePrefs({ lastVehicleId: vehicle.id });
       try {
         const q = await Queue.open();
@@ -502,14 +538,20 @@
       odoSuggestion = null;
       odoWarning = null;
       smartCheckIssues = [];
+      attachPumpBlob = null;
+      attachOdometerBlob = null;
+      attachPhotos = true;   // default-on again; checkbox stays hidden until the next OCR send (blobs cleared)
     } catch (err) {
       const status = (err as Error & { status?: number }).status;
       if (status && status >= 400 && status < 500) {
         toast = { kind: 'error', text: `Submission rejected: ${(err as Error).message}` };
       } else {
         const q = await Queue.open();
-        await q.enqueue(input);
-        toast = { kind: 'queued', text: 'Saved locally — will sync when online' };
+        await q.enqueue(input);   // text-only — no image bytes ever enter IDB (online-only attach)
+        toast = {
+          kind: 'queued',
+          text: wantsAttach ? 'Saved locally — photo not attached.' : 'Saved locally — will sync when online'
+        };
       }
     } finally {
       submitting = false;
@@ -864,6 +906,25 @@
     </div>
   {/if}
 
+  {#if attachPumpBlob || attachOdometerBlob}
+    <button type="button"
+            aria-pressed={attachPhotos}
+            class="flex items-center gap-3 w-full rounded-xl px-3 py-3 mb-3 bg-zinc-800/60 border border-zinc-700/60 text-left"
+            onclick={() => (attachPhotos = !attachPhotos)}>
+      {#if attachPhotos}
+        <span class="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shrink-0" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+      {:else}
+        <span class="w-5 h-5 rounded-md border-2 border-zinc-600 bg-transparent shrink-0" aria-hidden="true"></span>
+      {/if}
+      <span class="flex-1 min-w-0">
+        <span class="block text-sm font-semibold" class:text-zinc-100={attachPhotos} class:text-zinc-300={!attachPhotos}>{attachLabel}</span>
+        <span class="block text-xs text-zinc-500 mt-0.5">{attachSubLabel}</span>
+      </span>
+    </button>
+  {/if}
+
   <button type="button"
           disabled={!canSubmit || smartCheckIssues.length > 0}
           class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
@@ -884,7 +945,7 @@
   {#if toast}
     <div class="mt-4 rounded-xl px-4 py-3 text-sm"
          class:bg-emerald-600={toast.kind === 'success'}
-         class:bg-amber-600={toast.kind === 'queued'}
+         class:bg-amber-600={toast.kind === 'queued' || toast.kind === 'warning'}
          class:bg-rose-600={toast.kind === 'error'}>
       {toast.text}
     </div>

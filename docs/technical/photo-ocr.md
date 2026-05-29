@@ -536,6 +536,13 @@ queueing is unaffected — image POSTs go straight to the network with no
 SW involvement (POST is already excluded by the SW's `req.method !==
 'GET'` guard).
 
+**Retained OCR blobs for record attachment (v0.2.6).** The exact resized `Blob` sent to `/api/ocr`
+is retained in client memory (`attachPumpBlob` / `attachOdometerBlob` in `+page.svelte`) so the
+fuelup submit can attach it to the LubeLogger record by default. This is an adjacent feature riding
+the same capture trigger — it does **not** change the online-only / no-image-bytes-in-IDB rule above:
+the blobs live in memory only and are dropped on submit/reset; an offline submit queues text-only and
+tells the user. See `docs/technical/attach-ocr-photo.md`.
+
 **Crop rect persists in un-rotated source coordinates, not display
 coordinates.** Storing in display-space makes the audit row ambiguous:
 `cropRect: {x:0.1, y:0.2, w:0.6, h:0.4}` means something different if

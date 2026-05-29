@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Attach the OCR photo to the LubeLogger record.** When you send a pump and/or odometer photo for
+  OCR, quicklogger now attaches those exact (resized) bytes to the gas record by default, with a
+  one-tap per-submit opt-out. The checkbox appears only after a photo has been sent this session.
+  Record-first: a photo that can't be attached never fails the fillup — the record is still created
+  and you're told. Online-only: an offline submit queues the fillup text-only and drops the photo.
+
 ### Changed
 
 ### Fixed

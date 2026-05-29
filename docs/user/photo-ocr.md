@@ -223,6 +223,23 @@ context. But a 2-second crop on a difficult photo turns 422
 - **Daily $ tally** at `/data/ocr-budget.json` — used by the runaway
   cap. UTC rollover.
 
+## Attach the photo to your record (v0.2.6+)
+
+When you've sent a pump or odometer photo for OCR, quicklogger offers to **attach that exact photo to
+the LubeLogger record** it creates. A checkbox appears above **Log fillup** once you've sent at least
+one photo this session — it's **on by default**, so your fillup gets its pump and/or odometer photo
+attached automatically. Untick it to log without the photo. The label tells you which photos will be
+attached (pump, odometer, or both).
+
+A few things to know:
+
+- It attaches the **resized photo that was read by OCR**, not the original full-size capture.
+- **Online only.** If you're offline when you log, the fillup is saved locally to sync later but the
+  photo is dropped — you'll see "Saved locally — photo not attached."
+- **Your fillup always logs first.** If a photo can't be attached for any reason, the record is still
+  created and you'll see "Logged — but the photo couldn't be attached." rather than losing the entry.
+- The checkbox disappears after you log (and on a fresh page) until you send another photo for OCR.
+
 ## Date prefill from photo (v0.2.0+)
 
 When you pick an older pump photo from your library (the "I forgot to log
