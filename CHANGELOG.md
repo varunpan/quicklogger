@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.2.6] — Unreleased
+## [0.2.6] — 2026-05-29
 
 ### Added
 
@@ -11,8 +11,6 @@ All notable changes to this project are documented here. Format roughly follows 
   one-tap per-submit opt-out. The checkbox appears only after a photo has been sent this session.
   Record-first: a photo that can't be attached never fails the fillup — the record is still created
   and you're told. Online-only: an offline submit queues the fillup text-only and drops the photo.
-
-### Changed
 
 ### Fixed
 
