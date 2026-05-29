@@ -1,3 +1,8 @@
+// Use Node.js's native File (from node:buffer) so that FormData multipart
+// bodies are parseable by undici even when the global `File` has been
+// replaced by jsdom in the vitest test environment.
+import { File as NodeFile } from 'node:buffer';
+
 export interface Vehicle {
 	id: number;
 	year?: number;
@@ -81,6 +86,16 @@ export interface AddGasRecordPayload {
 	cost?: string;
 	notes?: string;
 	tags?: string;
+}
+
+/** One uploaded document as returned by `POST /api/documents/upload` and
+ *  accepted nested under the JSON add-gas-record body's `files` array.
+ *  `location` is the server-assigned GUID path; `name` is a display label
+ *  only — LubeLogger stores by `location`, so duplicate names never collide. */
+export interface UploadedFile {
+	name: string;
+	location: string;
+	isPending: boolean;
 }
 
 export class LubeLoggerError extends Error {
@@ -196,7 +211,57 @@ export class LubeLoggerClient {
 		return res.json() as Promise<LubeLoggerVersion>;
 	}
 
-	async addGasRecord(vehicleId: number, payload: AddGasRecordPayload): Promise<void> {
+	/** Upload a single document (the resized OCR JPEG) to LubeLogger.
+	 *  The multipart field name is `documents` (plural — verified against the
+	 *  live API; the docs don't cover it). Returns the first element of the
+	 *  response array. Throws `LubeLoggerError` if the array is empty. */
+	async uploadDocument(bytes: Blob | Uint8Array, filename: string): Promise<UploadedFile> {
+		// NodeFile (from node:buffer) is always the native Node.js File class,
+		// unaffected by jsdom's override of globalThis.File in the test env.
+		const file = new NodeFile(
+			[bytes instanceof Uint8Array ? bytes : new Uint8Array(await (bytes as Blob).arrayBuffer())],
+			filename,
+			{ type: 'image/jpeg' }
+		);
+		const fd = new FormData();
+		fd.set('documents', file);
+		const res = await this.request('/api/documents/upload', { method: 'POST', body: fd });
+		const arr = (await res.json()) as UploadedFile[];
+		if (!Array.isArray(arr) || arr.length === 0) {
+			throw new LubeLoggerError(502, 'documents/upload returned no entries');
+		}
+		return arr[0];
+	}
+
+	async addGasRecord(
+		vehicleId: number,
+		payload: AddGasRecordPayload,
+		files?: UploadedFile[]
+	): Promise<void> {
+		// With files present, use the JSON variant of the add endpoint — it
+		// binds the nested `files` array natively. Keys are camelCase, scalars
+		// are strings (the binder is case-insensitive but we send the verified
+		// shape). The flat-multipart path below is unchanged for the no-files
+		// case (the proven v0.2.x behaviour).
+		if (files && files.length > 0) {
+			const body = {
+				date: payload.date,
+				odometer: payload.odometer,
+				fuelConsumed: payload.fuelconsumed,
+				cost: payload.cost ?? '',
+				isFillToFull: payload.isfilltofull,
+				missedFuelUp: payload.missedfuelup,
+				notes: payload.notes ?? '',
+				tags: payload.tags ?? '',
+				files
+			};
+			await this.request(`/api/vehicle/gasrecords/add?vehicleId=${vehicleId}`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			return;
+		}
 		const fd = new FormData();
 		for (const [k, v] of Object.entries(payload)) {
 			if (v !== undefined) fd.set(k, v);

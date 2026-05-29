@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
@@ -261,6 +262,92 @@ describe('LubeLoggerClient', () => {
 			http.get(`${BASE}/api/version`, () => new HttpResponse('', { status: 404 }))
 		);
 		await expect(client().getVersion()).rejects.toMatchObject({ name: 'LubeLoggerError', status: 404 });
+	});
+
+	it('uploadDocument posts multipart `documents` field and returns the first entry', async () => {
+		let observedField: FormDataEntryValue | null = null;
+		let observedFilename = '';
+		let observedKey = '';
+		server.use(
+			http.post(`${BASE}/api/documents/upload`, async ({ request }) => {
+				observedKey = request.headers.get('x-api-key') ?? '';
+				const fd = await request.formData();
+				observedField = fd.get('documents');
+				if (observedField instanceof File) observedFilename = observedField.name;
+				return HttpResponse.json([
+					{ name: 'pump-87432mi.jpg', location: '/documents/abc.jpg', isPending: false }
+				]);
+			})
+		);
+		const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+		const out = await client().uploadDocument(bytes, 'pump-87432mi.jpg');
+		expect(observedKey).toBe(KEY);
+		expect(observedField).toBeInstanceOf(File);
+		expect(observedFilename).toBe('pump-87432mi.jpg');
+		expect(out).toEqual({ name: 'pump-87432mi.jpg', location: '/documents/abc.jpg', isPending: false });
+	});
+
+	it('uploadDocument throws when upstream returns an empty array', async () => {
+		server.use(http.post(`${BASE}/api/documents/upload`, () => HttpResponse.json([])));
+		await expect(client().uploadDocument(new Uint8Array([0xff, 0xd8, 0xff]), 'x.jpg')).rejects.toThrow();
+	});
+
+	it('addGasRecord with files sends the JSON variant (camelCase, nested files)', async () => {
+		let observedCt = '';
+		let observedBody: Record<string, unknown> = {};
+		server.use(
+			http.post(`${BASE}/api/vehicle/gasrecords/add`, async ({ request }) => {
+				observedCt = request.headers.get('content-type') ?? '';
+				observedBody = (await request.json()) as Record<string, unknown>;
+				return HttpResponse.json({ success: true, message: 'Gas Record Added' });
+			})
+		);
+		await client().addGasRecord(
+			1,
+			{
+				date: '2026-05-29',
+				odometer: '87432',
+				fuelconsumed: '11.200',
+				isfilltofull: 'true',
+				missedfuelup: 'false',
+				cost: '42.18',
+				notes: 'n',
+				tags: ''
+			},
+			[{ name: 'pump-87432mi.jpg', location: '/documents/abc.jpg', isPending: false }]
+		);
+		expect(observedCt).toContain('application/json');
+		expect(observedBody).toMatchObject({
+			date: '2026-05-29',
+			odometer: '87432',
+			fuelConsumed: '11.200',
+			cost: '42.18',
+			isFillToFull: 'true',
+			missedFuelUp: 'false',
+			notes: 'n',
+			tags: '',
+			files: [{ name: 'pump-87432mi.jpg', location: '/documents/abc.jpg', isPending: false }]
+		});
+	});
+
+	it('addGasRecord without files keeps the flat multipart path', async () => {
+		let observedCt = '';
+		server.use(
+			http.post(`${BASE}/api/vehicle/gasrecords/add`, async ({ request }) => {
+				observedCt = request.headers.get('content-type') ?? '';
+				await request.formData();
+				return HttpResponse.text('OK');
+			})
+		);
+		await client().addGasRecord(1, {
+			date: '2026-05-29',
+			odometer: '87432',
+			fuelconsumed: '11.200',
+			isfilltofull: 'true',
+			missedfuelup: 'false',
+			cost: '42.18'
+		});
+		expect(observedCt).toContain('multipart/form-data');
 	});
 });
 
