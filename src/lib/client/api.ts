@@ -50,6 +50,42 @@ export async function submitFuelup(input: FuelSubmissionInput, fetchImpl = fetch
   return res.json();
 }
 
+/** Multipart submit that attaches the retained OCR image bytes. Scalars are
+ *  serialized to match `coerceParams` in `/api/fuelup` (booleans → 'true'/'false';
+ *  undefined optionals omitted). Image parts are included only when present.
+ *  Used by the page only when attach is on AND ≥1 blob exists. */
+export async function submitFuelupWithPhotos(
+  input: FuelSubmissionInput,
+  photos: { pump: Blob | null; odometer: Blob | null },
+  fetchImpl = fetch
+): Promise<FuelSubmissionResult> {
+  const fd = new FormData();
+  fd.set('vehicleId', String(input.vehicleId));
+  fd.set('date', input.date);
+  fd.set('odometer', String(input.odometer));
+  fd.set('volume', String(input.volume));
+  fd.set('volumeUnit', input.volumeUnit);
+  fd.set('cost', String(input.cost));
+  fd.set('currency', input.currency);
+  fd.set('isFillToFull', input.isFillToFull ? 'true' : 'false');
+  fd.set('missedFuelup', input.missedFuelup ? 'true' : 'false');
+  if (input.notes !== undefined) fd.set('notes', input.notes);
+  if (input.tags !== undefined) fd.set('tags', input.tags);
+  if (input.manualFxRate !== undefined) fd.set('manualFxRate', String(input.manualFxRate));
+  fd.set('clientSubmissionId', input.clientSubmissionId);
+  if (photos.pump) fd.set('pumpImage', photos.pump, 'pump.jpg');
+  if (photos.odometer) fd.set('odometerImage', photos.odometer, 'odometer.jpg');
+
+  const res = await fetchImpl('/api/fuelup', { method: 'POST', body: fd });
+  if (!res.ok) {
+    const text = await res.text();
+    const err = new Error(`fuelup ${res.status}: ${text}`);
+    (err as Error & { status?: number }).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
 export async function listReminders(vehicleId: number, fetchImpl = fetch): Promise<Reminder[]> {
   const res = await fetchImpl(`/api/vehicle/reminders?vehicleId=${vehicleId}`);
   if (!res.ok) {
