@@ -129,8 +129,11 @@ Run on a vehicle that has at least one previous fillup in LubeLogger.
 
 ### Real-phone (LAN preview)
 
-- [ ] `npm run build && npm run preview:lan`
-- [ ] Open `http://<LAN-IP>:4173` on iPhone Safari.
+- [ ] `npm run uat` — production-mirror server (`node --env-file=.env build`); it
+      rebuilds until the precompressed `.gz`/`.br` companions are complete (works
+      around a flaky precompress step), then smoke-tests before printing the URL.
+- [ ] Open `http://<LAN-IP>:5173` on iPhone Safari (port matches `ORIGIN` in `.env`,
+      so submit isn't blocked by CSRF).
 - [ ] Walk through Strip / Prefill / Chip / Settings card sections above on
       the phone.
 - [ ] Tap-target sizes feel comfortable for one-handed use at the pump.
