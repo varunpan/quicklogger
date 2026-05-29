@@ -289,7 +289,7 @@ describe('LubeLoggerClient', () => {
 
 	it('uploadDocument throws when upstream returns an empty array', async () => {
 		server.use(http.post(`${BASE}/api/documents/upload`, () => HttpResponse.json([])));
-		await expect(client().uploadDocument(new Uint8Array([0xff, 0xd8, 0xff]), 'x.jpg')).rejects.toThrow();
+		await expect(client().uploadDocument(new Uint8Array([0xff, 0xd8, 0xff]), 'x.jpg')).rejects.toMatchObject({ name: 'LubeLoggerError' });
 	});
 
 	it('addGasRecord with files sends the JSON variant (camelCase, nested files)', async () => {
