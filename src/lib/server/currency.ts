@@ -137,25 +137,15 @@ export class JsonFileStore implements FxStore {
 
 const TIMEOUT_MS = 3_000;
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await p;
-  } finally {
-    clearTimeout(t);
-  }
-}
-
 export const realFetcher: FxFetcher = async (provider, from, to) => {
   switch (provider) {
     case 'frankfurter': {
       const url = `https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${to}`;
-      const res = await withTimeout(fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) }), TIMEOUT_MS);
+      const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (!res.ok) throw new Error(`frankfurter ${res.status}`);
       const json = (await res.json()) as { rates: Record<string, number> };
       const rate = json.rates?.[to];
-      if (typeof rate !== 'number') throw new Error('frankfurter no rate');
+      if (!Number.isFinite(rate) || rate <= 0) throw new Error('frankfurter no rate');
       return { rate };
     }
     case 'erapi': {
@@ -164,7 +154,7 @@ export const realFetcher: FxFetcher = async (provider, from, to) => {
       if (!res.ok) throw new Error(`erapi ${res.status}`);
       const json = (await res.json()) as { rates: Record<string, number> };
       const rate = json.rates?.[to];
-      if (typeof rate !== 'number') throw new Error('erapi no rate');
+      if (!Number.isFinite(rate) || rate <= 0) throw new Error('erapi no rate');
       return { rate };
     }
     case 'fawazahmed': {
@@ -174,7 +164,7 @@ export const realFetcher: FxFetcher = async (provider, from, to) => {
       if (!res.ok) throw new Error(`fawazahmed ${res.status}`);
       const json = (await res.json()) as Record<string, Record<string, number>>;
       const rate = json[lo]?.[to.toLowerCase()];
-      if (typeof rate !== 'number') throw new Error('fawazahmed no rate');
+      if (!Number.isFinite(rate) || rate <= 0) throw new Error('fawazahmed no rate');
       return { rate };
     }
     default:

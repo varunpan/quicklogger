@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { CurrencyService, type FxFetcher, type FxStore, type FxCacheEntry } from './currency';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { CurrencyService, realFetcher, type FxFetcher, type FxStore, type FxCacheEntry } from './currency';
 import type { Logger } from './logger';
 
 type LogCall = { level: string; msg: string; ctx: Record<string, unknown> };
@@ -155,5 +155,30 @@ describe('CurrencyService', () => {
     expect(
       calls.some((c) => c.level === 'warn' && c.msg === 'fx cache write failed')
     ).toBe(true);
+  });
+});
+
+describe('realFetcher — rate validation', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  function stubFetchJson(payload: unknown) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } })
+      )
+    );
+  }
+
+  it('rejects NaN / 0 / negative provider rates as "no rate"', async () => {
+    for (const bad of [Number.NaN, 0, -1]) {
+      stubFetchJson({ rates: { CAD: bad } });
+      await expect(realFetcher('frankfurter', 'USD', 'CAD')).rejects.toThrow('frankfurter no rate');
+    }
+  });
+
+  it('accepts a finite, positive provider rate', async () => {
+    stubFetchJson({ rates: { CAD: 1.36 } });
+    await expect(realFetcher('frankfurter', 'USD', 'CAD')).resolves.toEqual({ rate: 1.36 });
   });
 });

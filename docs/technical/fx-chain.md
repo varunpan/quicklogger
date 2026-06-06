@@ -131,9 +131,9 @@ trusts whatever the caller passed). One entry per direction.
 ### Timeouts
 
 All three providers wrap the fetch in `AbortSignal.timeout(TIMEOUT_MS)`
-where `TIMEOUT_MS = 3_000`. `frankfurter` is double-wrapped in an
-additional `withTimeout(p, ms)` helper, which is harmless (whichever
-timeout fires first aborts the fetch).
+where `TIMEOUT_MS = 3_000` — a 3-second per-request budget. On timeout the
+abort rejects into the chain walk, which logs a warning and moves to the
+next provider.
 
 ### Failure logging
 
@@ -154,7 +154,9 @@ failed AND no usable cache" branch throws `FxUnavailableError`.
 - `fawazahmed` returns `{ [from-lowercased]: { [code-lowercased]: number } }`.
   We pick `json[from.toLowerCase()][to.toLowerCase()]`.
 
-If the expected field is missing or not a number, the provider throws
+If the expected field is missing, not a number, or not a finite value
+greater than zero (`NaN`, `0`, or negative — which would otherwise be
+cached and zero out or corrupt the converted cost), the provider throws
 its own error message (`"<name> no rate"`) and the chain moves on.
 
 ## Operational notes

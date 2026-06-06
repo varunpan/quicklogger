@@ -13,10 +13,15 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Reject an invalid manual FX rate.** A zero, negative, or non-numeric
   `manualFxRate` is now rejected with a 400 instead of writing a `NaN`,
   `0`, or negative cost to the fuel record.
+- **Ignore a bad FX provider rate.** A provider response with a missing,
+  `NaN`, zero, or negative rate is now treated as a provider failure (the
+  chain falls through to the next provider or the cache) instead of being
+  cached and zeroing out or corrupting a converted cost.
 
 ### Tests
 
 - `manualFxRate` rejection (400) on the fuelup endpoint.
+- `realFetcher` rejects non-finite / non-positive provider rates.
 
 ## [0.2.6] — 2026-05-29
 
