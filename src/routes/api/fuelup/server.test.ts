@@ -157,3 +157,24 @@ describe('POST /api/fuelup — culture-invariant write', () => {
     expect(uploadCalled).toBe(false);
   });
 });
+
+describe('POST /api/fuelup — manualFxRate validation', () => {
+  it('rejects a non-positive manualFxRate with 400 (no upstream write)', async () => {
+    const res = await POST(event({
+      vehicleId: 1, date: '2026-05-28', odometer: 87500, volume: 11.2,
+      volumeUnit: 'gal', cost: 42.18, currency: 'CAD',
+      isFillToFull: false, missedFuelup: false, manualFxRate: -1,
+      clientSubmissionId: 'fx-neg'
+    }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('manualFxRate');
+  });
+
+  it('rejects a non-finite manualFxRate (NaN from form coercion) with 400', async () => {
+    const res = await POST(multipartEvent(
+      { ...baseFields, currency: 'CAD', manualFxRate: 'abc', clientSubmissionId: 'fx-nan' }
+    ));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('manualFxRate');
+  });
+});

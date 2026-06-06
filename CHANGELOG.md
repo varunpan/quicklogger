@@ -10,7 +10,13 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Reject an invalid manual FX rate.** A zero, negative, or non-numeric
+  `manualFxRate` is now rejected with a 400 instead of writing a `NaN`,
+  `0`, or negative cost to the fuel record.
+
 ### Tests
+
+- `manualFxRate` rejection (400) on the fuelup endpoint.
 
 ## [0.2.6] — 2026-05-29
 

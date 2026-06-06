@@ -69,7 +69,7 @@ Source: `src/lib/shared/types.ts`.
 | `missedFuelup` | `boolean` | |
 | `notes` | `string` | Optional. |
 | `tags` | `string` | Optional, comma-separated on the LubeLogger side. |
-| `manualFxRate` | `number` | Optional; bypasses the FX chain when set. |
+| `manualFxRate` | `number` | Optional; bypasses the FX chain when set. Must be a finite number `> 0` — a zero, negative, or non-numeric value is rejected with a 400 (`invalid fields … manualFxRate`) before any upstream write. |
 | `clientSubmissionId` | `string` | UUID for the server's idempotency cache (60 s window). |
 
 ### Public surface

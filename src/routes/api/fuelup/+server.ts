@@ -104,6 +104,13 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
     if (!Number.isFinite(n) || n <= 0) invalid.push(k);
   }
   if (typeof b.date !== 'string' || b.date.trim() === '') invalid.push('date');
+  // manualFxRate is optional, but when present it must be a positive finite
+  // number — otherwise `cost = cost * fxRate` (convert.ts) writes NaN/0/negative
+  // straight to the LubeLogger record. This is the only gate: the form's
+  // canSubmit doesn't check it, and API/Shortcuts consumers bypass the form.
+  if (b.manualFxRate !== undefined && (!Number.isFinite(b.manualFxRate) || b.manualFxRate <= 0)) {
+    invalid.push('manualFxRate');
+  }
   if (invalid.length) throw new Error(`invalid fields (must be > 0 / non-empty): ${invalid.join(', ')}`);
 }
 
