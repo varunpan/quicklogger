@@ -203,9 +203,13 @@ self.addEventListener('message', (event) => {
 });
 ```
 
-`syncQueue()` opens the IndexedDB queue, walks every `'queued'` row,
-and POSTs each one to `/api/fuelup` until the per-entry attempt cap
-(`5`) is hit.
+`syncQueue()` lives in `src/lib/client/sync-queue.ts` (extracted from the
+worker so it's unit-testable); the worker just imports and invokes it. It
+opens the IndexedDB queue, walks every `'queued'` row, and POSTs each one to
+`/api/fuelup` until the per-entry attempt cap (`5`) is hit. A module-level
+in-flight guard makes a second concurrent call a no-op, so the back-to-back
+`focus` + `visibilitychange` triggers below can't drain the queue twice at
+once.
 
 The trigger lives in `src/routes/+layout.svelte`'s `onMount`:
 

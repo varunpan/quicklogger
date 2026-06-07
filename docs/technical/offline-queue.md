@@ -86,7 +86,10 @@ do the same.
 
 ## Replay path
 
-The replay loop lives in `syncQueue()` inside `src/service-worker.ts`.
+The replay loop lives in `syncQueue()` in `src/lib/client/sync-queue.ts` —
+extracted from the service worker so it's unit-testable (it depends only on
+`Queue` + `fetch`). `src/service-worker.ts` imports it and invokes it from the
+`message` handler.
 
 ### Trigger
 
@@ -95,17 +98,34 @@ no `sync` event listener and no `sync.register()` call anywhere in the
 codebase (verified in `src/service-worker.ts`). Instead:
 
 - `src/routes/+layout.svelte` registers the service worker `onMount` and
-  posts a `{ type: 'sync-queue' }` message in two situations:
+  posts a `{ type: 'sync-queue' }` message in three situations:
   1. Immediately, on mount (every page load / PWA cold start).
   2. On every `window` `focus` event.
+  3. On `document` `visibilitychange` when the page becomes visible —
+     belt-and-suspenders for desktop/Android multi-window where a tab can
+     become visible without firing `focus`.
 
 The SW's `message` handler matches `data.type === 'sync-queue'` and
 calls `event.waitUntil(syncQueue())`.
 
-There is no `visibilitychange` listener; the trigger is `focus` and
-initial-load only. This is intentional — iOS doesn't fire Background
-Sync events reliably, so the focus-event pattern is the primary
-trigger. Users have to reopen the app for queued submissions to flush.
+There is no Background Sync (`sync`) listener — iOS doesn't fire those
+events reliably, so the focus/visibility pattern is the primary trigger.
+Users generally have to reopen or refocus the app for queued submissions
+to flush. Because `focus` and `visibilitychange` can fire back-to-back on
+the same resume, `syncQueue()` carries an in-flight guard (below) so the
+double-trigger can't drain the queue twice at once.
+
+### In-flight guard
+
+`syncQueue()` holds a module-level `syncing` flag: if a drain is already
+running, a second concurrent call returns immediately. There's exactly one
+service-worker instance, so this single flag is a sufficient lock. It's what
+stops the `focus` + `visibilitychange` double-trigger from launching two
+overlapping drains that each read the same `'queued'` row (neither has marked
+it synced yet) and POST it twice. The server-side `clientSubmissionId`
+idempotency window is the backstop for any duplicate that still slips through
+(e.g. a queue replay racing a foreground submit) — see
+[`docs/architecture.md`](../architecture.md#data-flow).
 
 ### Per-entry loop
 

@@ -4,8 +4,7 @@
 /// <reference lib="webworker" />
 
 import { build, files, version } from '$service-worker';
-import { Queue } from '$lib/client/idb';
-import type { FuelSubmissionInput } from '$lib/shared/types';
+import { syncQueue } from '$lib/client/sync-queue';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -117,29 +116,4 @@ async function sendSwLog(level: 'error' | 'warn' | 'info', msg: string, ctx: Rec
       })
     });
   } catch { /* swallow — we can't log a log failure */ }
-}
-
-async function syncQueue() {
-  const q = await Queue.open();
-  const all = await q.list();
-  for (const entry of all) {
-    if (entry.status !== 'queued') continue;
-    if (entry.attempts >= 5) continue;
-    await q.incrementAttempts(entry.id);
-    try {
-      const res = await fetch('/api/fuelup', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(entry.input satisfies FuelSubmissionInput)
-      });
-      if (res.ok) {
-        await q.markSynced(entry.id);
-      } else if (res.status >= 400 && res.status < 500) {
-        await q.markFailed(entry.id, `${res.status}`);
-      }
-      // else: leave queued for next sync
-    } catch (_err) {
-      // network still down, leave queued
-    }
-  }
 }

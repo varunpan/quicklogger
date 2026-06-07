@@ -23,6 +23,9 @@ All notable changes to this project are documented here. Format roughly follows 
   single upstream write instead of each creating its own record. The
   idempotency check previously only caught a resubmit *after* the first had
   finished.
+- **Guard the offline-queue replay against itself.** Back-to-back `focus`
+  and `visibilitychange` triggers (which fire together on iOS resume) can no
+  longer run the queue flush twice at once and double-post a queued fillup.
 
 ### Tests
 
@@ -30,6 +33,8 @@ All notable changes to this project are documented here. Format roughly follows 
 - `realFetcher` rejects non-finite / non-positive provider rates.
 - Two concurrent fuelup submits with the same `clientSubmissionId` hit
   LubeLogger exactly once.
+- `syncQueue` (now extracted and unit-tested): concurrent runs replay an
+  entry once; 2xx → synced, 4xx → failed, 5xx → left queued.
 
 ## [0.2.6] — 2026-05-29
 
