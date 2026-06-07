@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
   import { Queue } from '$lib/client/idb';
@@ -29,6 +31,21 @@
 
   let { data } = $props();
   const prefs = loadPrefs();
+
+  // Live connectivity for the offline banner + submit-button label. Initialized
+  // from navigator.onLine so an offline cold-start paints the banner with no
+  // flash; updated live on the window online/offline events. Home route only.
+  let online = $state(browser ? navigator.onLine : true);
+  onMount(() => {
+    const goOnline = () => (online = true);
+    const goOffline = () => (online = false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  });
 
   // --- self-update banner (v0.2.3+) — reader-only off the cached ServerInfo,
   // mirroring the Settings block. Boot-refresh in +layout.svelte keeps the
@@ -564,6 +581,15 @@
   }
 </script>
 
+{#if !online}
+  <div role="status" data-testid="offline-banner" class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-start gap-2">
+    <svg class="text-amber-300 mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+    </svg>
+    <span class="text-sm text-amber-200 leading-relaxed">You're offline — this fill-up will be saved and synced when you reconnect.</span>
+  </div>
+{/if}
+
 {#if showUpdateBanner}
   <div class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-center gap-3" data-testid="update-banner">
     <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
@@ -929,7 +955,7 @@
           disabled={!canSubmit || smartCheckIssues.length > 0}
           class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
           onclick={() => submit()}>
-    {submitting ? 'Logging…' : 'Log fillup'}
+    {submitting ? 'Logging…' : online ? 'Log fillup' : 'Save offline'}
   </button>
 
   {#if pendingCapture}
