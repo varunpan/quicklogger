@@ -35,6 +35,9 @@ All notable changes to this project are documented here. Format roughly follows 
   LubeLogger exactly once.
 - `syncQueue` (now extracted and unit-tested): concurrent runs replay an
   entry once; 2xx → synced, 4xx → failed, 5xx → left queued.
+- `sw-cache` (extracted, unit-tested): navigation fallback — online passthrough,
+  offline `/offline`-shell fallback, cold-cache 504; `/api/vehicles` network-first
+  — refresh on 2xx, no-cache on non-2xx, cached serve offline, cold-cache 504.
 
 ## [0.2.6] — 2026-05-29
 
