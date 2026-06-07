@@ -1,4 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
+import { building } from '$app/environment';
 import { loadEnv } from '$lib/server/env';
 import { bootLogger, getLogger } from '$lib/server/logger';
 import { selectProvider } from '$lib/server/ocr';
@@ -63,6 +64,11 @@ function levelFromStatus(status: number): 'info' | 'warn' | 'error' {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+  // During the build-time prerender pass (`/offline`) there is no runtime env;
+  // ensureBoot → loadEnv() would throw `LUBELOGGER_URL not set` and fail the
+  // Docker/CI build. `/offline` is ssr=false with no server load, so resolve()
+  // only emits the static shell and never touches locals/env.
+  if (building) return resolve(event);
   ensureBoot();
   const requestId = _newRequestId();
   event.locals.requestId = requestId;

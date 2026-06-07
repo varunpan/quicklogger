@@ -9,7 +9,11 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		adapter: adapter({ out: 'build' })
+		adapter: adapter({ out: 'build' }),
+		// Absolute /_app/… asset URLs. The SW serves the same /offline shell for
+		// every offline navigation, so a future nested route must not resolve
+		// relative asset links against its own depth. Root-served app — safe globally.
+		paths: { relative: false }
 	}
 };
 

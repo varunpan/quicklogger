@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Work offline from a cold start.** Launching the installed app (or a hard
+  refresh) with no connection now renders the log-fuel form instead of a blank
+  "offline" error — pick a vehicle, log the fill-up, and it queues and syncs when
+  you're back. The form shows an offline banner and a "Save offline" button while
+  disconnected.
+
 ### Changed
 
 ### Fixed

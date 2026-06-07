@@ -115,7 +115,7 @@ Source: `src/routes/api/vehicles/+server.ts`.
 | Field | Value |
 |---|---|
 | Request | No params. |
-| Cache | In-memory `TtlCache` keyed on `'vehicles'`, 5-minute TTL. |
+| Cache | Server: in-memory `TtlCache` keyed on `'vehicles'`, 5-minute TTL. Client: the service worker caches the last good 2xx response in `quicklogger-api-cache-v1` (network-first, survives deploys) so the offline cold-start form has a vehicle list — see [`service-worker.md`](./service-worker.md#vehicle-list-api-cache). |
 | Response 200 | `Vehicle[]` from LubeLogger's `/api/vehicles`. |
 | Response 502 | `{ error: string }` — LubeLogger returned an error (`LubeLoggerError`). |
 | Response 500 | `{ error: string }` — anything else (env missing, network failure, etc.). |

@@ -4,8 +4,9 @@
 
 The service worker (`src/service-worker.ts`) has three responsibilities:
 
-1. Precache the app shell so the PWA launches instantly and continues
-   to render when offline.
+1. Precache the app shell — including the prerendered `/offline` SPA shell — so
+   the PWA launches instantly and an offline cold-start renders the real app
+   (see [`offline-app-shell.md`](./offline-app-shell.md)).
 2. Route runtime requests with a network-first policy for `/api/*` and
    a cache-first policy for everything else.
 3. Replay the offline submission queue on demand, triggered by a
@@ -32,10 +33,11 @@ where `version` comes from the `$service-worker` virtual module (Vite
 plugin: SvelteKit). A new build cuts a new version, which is how the
 activate handler knows what to prune.
 
-On install, every entry in `[...build, ...files]` is added to the cache:
+On install, every entry in `[...build, ...files, ...prerendered]` is added to the cache:
 
 - `build` — emitted JavaScript and CSS bundles for the app.
 - `files` — anything in `static/` (manifest, icons, etc.).
+- `prerendered` — the `/offline` SPA shell HTML (the navigation fallback target).
 
 The cache is opaque to the rest of the app — it's only consumed by the
 fetch handler below.
@@ -53,6 +55,24 @@ const IMG_CACHE = 'quicklogger-vehicle-images-v1';
 - No size budget enforcement in this version — observed bytes are ~40 KB per vehicle and the fleet size is tiny. A future eviction policy is out of scope.
 
 The cache name version suffix (`-v1`) is the rollback escape hatch: if the storage shape ever needs to change in a way that breaks consumers, bumping the suffix forces a clean rebuild on the next activation.
+
+## Vehicle-list API cache
+
+Separate from the shell cache, fixed name:
+
+```ts
+const API_CACHE = 'quicklogger-api-cache-v1';
+```
+
+- Written exclusively by the `/api/vehicles` fetch branch (`vehiclesNetworkFirst`
+  in `src/lib/client/sw-cache.ts`), and only on a `res.ok` response.
+- Survives deploys: the `activate` handler whitelists `API_CACHE` alongside the
+  current shell `CACHE` and `IMG_CACHE`. Unlike the per-version shell cache, the
+  vehicle list must outlive a deploy so an offline cold-start right after an
+  update still has a vehicle to log against.
+- Network-first: a fresh online load always refreshes it; the cached copy is
+  served only when the network is unreachable. A cold cache offline returns 504,
+  which the loader treats as "no vehicles".
 
 ## Install / activate lifecycle
 
@@ -77,7 +97,9 @@ self.addEventListener('activate', (event) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(
-        keys.filter((k) => k !== CACHE && k !== IMG_CACHE).map((k) => caches.delete(k))
+        keys
+          .filter((k) => k !== CACHE && k !== IMG_CACHE && k !== API_CACHE)
+          .map((k) => caches.delete(k))
       );
       await self.clients.claim();
     })()
@@ -85,10 +107,10 @@ self.addEventListener('activate', (event) => {
 });
 ```
 
-- Lists every cache key, deletes any that isn't either the current
-  `quicklogger-shell-${version}` or the fixed `quicklogger-vehicle-images-v1`.
-  That's the pruning step — old shell caches don't accumulate across
-  releases, and the vehicle-image cache survives the upgrade.
+- Lists every cache key, deletes any that isn't the current
+  `quicklogger-shell-${version}`, the fixed `quicklogger-vehicle-images-v1`, or
+  the fixed `quicklogger-api-cache-v1`. Old shell caches don't accumulate; the
+  image and vehicle-list caches survive the upgrade.
 - `clients.claim()` lets the new worker control already-open pages
   without a reload (paired with `skipWaiting`).
 
@@ -148,6 +170,26 @@ async function staleWhileRevalidate(req: Request): Promise<Response> {
 
 This branch is inserted *before* the generic `/api/` branch so the image path doesn't fall through to network-first. The `cache-control: no-store` header on the server response is what keeps the browser's HTTP cache out of the picture — `IMG_CACHE` is the only persistence layer for these bytes.
 
+### `/api/vehicles` — network-first with a survives-deploys cache
+
+```ts
+if (url.pathname === '/api/vehicles') {
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(API_CACHE);
+      return vehiclesNetworkFirst(req, (r) => fetch(r), cache);
+    })()
+  );
+  return;
+}
+```
+
+Placed before the generic `/api/` branch. `vehiclesNetworkFirst`
+(`src/lib/client/sw-cache.ts`) returns the live response and refreshes
+`API_CACHE` on every 2xx; on a network failure it serves the cached copy, or a
+bare 504 if the cache is cold. This is the one data dependency the offline
+cold-start form needs.
+
 ### `/api/*` — network-first
 
 ```ts
@@ -161,6 +203,25 @@ API calls are never served from cache (data freshness wins). On a
 network error, the SW returns an empty `504` so the page can decide
 how to fall back (the loader for the form page treats this as
 "upstream unavailable" and consults the offline-prefill resolver).
+
+### Navigations — network-first with the `/offline` shell fallback
+
+```ts
+if (req.mode === 'navigate') {
+  event.respondWith(
+    navigationFallback(req, (r) => fetch(r), (k) => caches.match(k))
+  );
+  return;
+}
+```
+
+Top-level navigations (`req.mode === 'navigate'`) are network-first so an online
+cold-start gets the live SSR'd page. When the network is down, `navigationFallback`
+(`src/lib/client/sw-cache.ts`) serves the precached `/offline` shell, which boots
+the client router at the requested URL. This branch sits after the `/api/`
+branches (a navigation pathname is never `/api/…`) and before the generic
+cache-first branch (assets must keep being served from the shell cache). See
+[`offline-app-shell.md`](./offline-app-shell.md).
 
 ### Everything else — cache-first
 

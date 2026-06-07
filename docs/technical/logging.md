@@ -81,6 +81,7 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 | Scenario | Behaviour | Why |
 |---|---|---|
 | 404 on a missing static asset | Access-log fires at `info`, not `warn` | Carved out in `levelFromStatus` — 404s on `/foo.png` aren't actionable |
+| `building === true` (prerender pass of `/offline` during `vite build`) | `handle` returns `resolve(event)` immediately — no `ensureBoot`, no access-log line | Prerendering has no runtime env; `loadEnv()` would throw `LUBELOGGER_URL not set` and fail the Docker/CI build. `/offline` is `ssr=false` with no server load, so `resolve()` only emits the static shell |
 | Module imported before `bootLogger` runs (tests, top-level imports) | `getLogger()` returns a no-op-style stdout fallback (`level: info`, `pretty: false`) | Keeps tests that import server modules in arbitrary order working without enforcing boot order |
 | Deeply-nested `ctx` payload | Redactor stops at depth 5 and emits `'[truncated]'` | Bounds work per record so a pathological prefs blob can't stall a request |
 | `rotating-file-stream` not installed in some bundle path | `defaultOpenFileSink` lazy-requires via `createRequire` — only crashes when `LOG_FILE_PATH` is set | Bare ESM `import` would pull the dep into the client bundle |

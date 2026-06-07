@@ -6,6 +6,24 @@ LubeLogger automatically the next time the app can reach the network.
 You will encounter the queue most often at the pump (no service, parking
 garage) or when your LubeLogger host is briefly unreachable.
 
+## Opening the app with no signal
+
+quicklogger is installable, and it now starts even when you open it with no
+connection at all. Launch the installed app (or hard-refresh the page) while
+offline and you still get the real Log Fuel form — pick your vehicle, enter the
+fill-up, and save it. An amber banner reminds you that you're offline:
+
+> You're offline — this fill-up will be saved and synced when you reconnect.
+
+…and the submit button reads **Save offline** instead of **Log fillup**. The
+fill-up goes into the same on-device queue described below and posts to
+LubeLogger automatically the next time the app reaches the network.
+
+One caveat: the vehicle list is remembered from the last time you opened the app
+online. If you install the app and then go offline **before ever opening it with
+a connection**, there's no remembered vehicle yet, so the form comes up empty —
+open it once on a network and you're set.
+
 ## Submitting offline — what you see on the form
 
 After you tap **Log fillup**, one of three toasts appears at the bottom of

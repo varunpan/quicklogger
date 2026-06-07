@@ -3,14 +3,16 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-import { build, files, version } from '$service-worker';
+import { build, files, version, prerendered } from '$service-worker';
 import { syncQueue } from '$lib/client/sync-queue';
+import { navigationFallback, vehiclesNetworkFirst } from '$lib/client/sw-cache';
 
 declare const self: ServiceWorkerGlobalScope;
 
 const CACHE = `quicklogger-shell-${version}`;
 const IMG_CACHE = 'quicklogger-vehicle-images-v1';
-const SHELL = [...build, ...files];
+const API_CACHE = 'quicklogger-api-cache-v1'; // fixed name → survives deploys
+const SHELL = [...build, ...files, ...prerendered]; // precache the /offline shell
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -27,7 +29,9 @@ self.addEventListener('activate', (event) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(
-        keys.filter((k) => k !== CACHE && k !== IMG_CACHE).map((k) => caches.delete(k))
+        keys
+          .filter((k) => k !== CACHE && k !== IMG_CACHE && k !== API_CACHE)
+          .map((k) => caches.delete(k))
       );
       await self.clients.claim();
     })()
@@ -46,11 +50,40 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Vehicle list — network-first, but cache the last good response so the
+  // offline cold-start form has a vehicle to log against. Before the generic
+  // /api/ branch so it doesn't fall through to the uncached network-first path.
+  if (url.pathname === '/api/vehicles') {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(API_CACHE);
+        return vehiclesNetworkFirst(req, (r) => fetch(r), cache);
+      })()
+    );
+    return;
+  }
+
   // network-first for API; cache-first for shell
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(req).catch(() => new Response(null, { status: 504 })));
     return;
   }
+
+  // Navigations — network-first so online cold-starts get the live SSR'd page,
+  // falling back to the precached /offline SPA shell when the network is down.
+  // After the /api/ branches (a navigation pathname is never /api/…); before the
+  // generic cache-first branch (assets stay cache-first from the shell).
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      navigationFallback(
+        req,
+        (r) => fetch(r),
+        (k) => caches.match(k)
+      )
+    );
+    return;
+  }
+
   event.respondWith(
     (async () => {
       const cached = await caches.match(req);
