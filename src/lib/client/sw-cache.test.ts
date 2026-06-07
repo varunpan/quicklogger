@@ -58,7 +58,7 @@ describe('vehiclesNetworkFirst', () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
     const net = new Response(JSON.stringify([{ id: 1 }]), { status: 200 });
-    const res = await vehiclesNetworkFirst(req, cache, async () => net);
+    const res = await vehiclesNetworkFirst(req, async () => net, cache);
     expect(res.status).toBe(200);
     expect(await cache.match(req)).toBeDefined();
   });
@@ -68,8 +68,8 @@ describe('vehiclesNetworkFirst', () => {
     const req = new Request('http://x/api/vehicles');
     const res = await vehiclesNetworkFirst(
       req,
-      cache,
-      async () => new Response('err', { status: 500 })
+      async () => new Response('err', { status: 500 }),
+      cache
     );
     expect(res.status).toBe(500);
     expect(await cache.match(req)).toBeUndefined();
@@ -79,9 +79,9 @@ describe('vehiclesNetworkFirst', () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
     await cache.put(req, new Response(JSON.stringify([{ id: 7 }]), { status: 200 }));
-    const res = await vehiclesNetworkFirst(req, cache, async () => {
+    const res = await vehiclesNetworkFirst(req, async () => {
       throw new Error('offline');
-    });
+    }, cache);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([{ id: 7 }]);
   });
@@ -89,9 +89,9 @@ describe('vehiclesNetworkFirst', () => {
   it('returns 504 when offline with a cold cache', async () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
-    const res = await vehiclesNetworkFirst(req, cache, async () => {
+    const res = await vehiclesNetworkFirst(req, async () => {
       throw new Error('offline');
-    });
+    }, cache);
     expect(res.status).toBe(504);
   });
 });

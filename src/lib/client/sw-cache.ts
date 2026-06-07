@@ -19,6 +19,8 @@ export async function navigationFallback(
   try {
     return await fetcher(req);
   } catch {
+    // Body is the literal string 'offline' (not null) to preserve the pre-existing
+    // 504 'offline' contract the generic fetch handler also returns.
     return (await matchCache('/offline')) ?? new Response('offline', { status: 504 });
   }
 }
@@ -27,15 +29,17 @@ export async function navigationFallback(
  * Vehicle-list policy: network-first, refreshing `cache` on every successful
  * (`res.ok`) response and serving the cached copy when the network fails. A
  * cold cache offline yields a bare 504, which the home loader treats as "no
- * vehicles" (same as a live upstream failure).
+ * vehicles" (same as a live upstream failure). `fetcher` is the second arg to
+ * match `navigationFallback` — the shared dependency sits in the same slot.
  */
 export async function vehiclesNetworkFirst(
   req: Request,
-  cache: Cache,
-  fetcher: (req: Request) => Promise<Response>
+  fetcher: (req: Request) => Promise<Response>,
+  cache: Cache
 ): Promise<Response> {
   try {
     const res = await fetcher(req);
+    // Fire-and-forget background write — must not delay returning the response.
     if (res.ok) void cache.put(req, res.clone());
     return res;
   } catch {
