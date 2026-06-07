@@ -7,7 +7,7 @@ import path from 'node:path';
 // Live-SW test (see the file header in the plan). Runs its own adapter-node
 // server + LubeLogger upstream stub on private ports, independent of the global
 // vite-preview webServer the rest of the suite uses.
-const APP_PORT = 4393;
+const APP_PORT = 4393; // distinct from the global webServer's 4173 (playwright.config.ts)
 const UP_PORT = 4394;
 const APP = `http://127.0.0.1:${APP_PORT}`;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -30,32 +30,44 @@ test.beforeAll(async () => {
       res.end('[]'); // gasrecords (no prior fuelup), info, version, etc.
     }
   });
-  await new Promise<void>((r) => upstream.listen(UP_PORT, r));
+  // Tear both servers down if anything below throws. Playwright skips afterAll on
+  // a beforeAll failure, which would otherwise leak the :4394 socket and the
+  // :4393 server and make CI's retries cascade into EADDRINUSE.
+  try {
+    await new Promise<void>((resolve, reject) => {
+      upstream.on('error', reject);
+      upstream.listen(UP_PORT, resolve);
+    });
 
-  // `build/` already exists — the global webServer ran `npm run build` first.
-  app = spawn('node', ['build'], {
-    cwd: ROOT,
-    env: {
-      ...process.env,
-      PORT: String(APP_PORT),
-      ORIGIN: APP,
-      LUBELOGGER_URL: `http://127.0.0.1:${UP_PORT}`,
-      LUBELOGGER_API_KEY: 'e2e',
-      NODE_ENV: 'production'
-    },
-    stdio: 'ignore'
-  });
+    // `build/` already exists — the global webServer ran `npm run build` first.
+    app = spawn('node', ['build'], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        PORT: String(APP_PORT),
+        ORIGIN: APP,
+        LUBELOGGER_URL: `http://127.0.0.1:${UP_PORT}`,
+        LUBELOGGER_API_KEY: 'e2e',
+        NODE_ENV: 'production'
+      },
+      stdio: 'ignore'
+    });
 
-  const deadline = Date.now() + 30_000;
-  for (;;) {
-    try {
-      const r = await fetch(APP + '/healthz');
-      if (r.status === 200 || r.status === 503) break; // listening (503 = upstream probe semantics)
-    } catch {
-      /* not up yet */
+    const deadline = Date.now() + 30_000;
+    for (;;) {
+      try {
+        const r = await fetch(APP + '/healthz');
+        if (r.status === 200 || r.status === 503) break; // listening (503 = upstream probe semantics)
+      } catch {
+        /* not up yet */
+      }
+      if (Date.now() > deadline) throw new Error('node build server did not start');
+      await new Promise((r) => setTimeout(r, 300));
     }
-    if (Date.now() > deadline) throw new Error('node build server did not start');
-    await new Promise((r) => setTimeout(r, 300));
+  } catch (err) {
+    app?.kill('SIGKILL');
+    upstream.close();
+    throw err;
   }
 });
 
@@ -104,6 +116,7 @@ test('offline cold-start renders the populated form and queues a submit', async 
   await expect(cold.getByText(/Saved locally/)).toBeVisible();
 
   // 5. The submission is in the IndexedDB queue.
+  // DB name 'quicklogger' / store 'pendingSubmissions' / version 1 mirror src/lib/client/idb.ts.
   const queued = await cold.evaluate(async () => {
     const db: IDBDatabase = await new Promise((res, rej) => {
       const open = indexedDB.open('quicklogger', 1);
