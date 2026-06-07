@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 import { POST, _resetForTests } from './+server';
 
 const upstream = setupServer();
@@ -155,6 +155,33 @@ describe('POST /api/fuelup — culture-invariant write', () => {
     const res = await POST(multipartEvent({ ...baseFields, clientSubmissionId: 'm4' }));
     expect(res.status).toBe(200);
     expect(uploadCalled).toBe(false);
+  });
+});
+
+describe('POST /api/fuelup — idempotency under concurrency', () => {
+  it('two concurrent submits with the same clientSubmissionId hit upstream once', async () => {
+    let addCount = 0;
+    upstream.use(
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', async () => {
+        addCount++;
+        // Hold the first request in-flight long enough that a concurrent
+        // duplicate would reach upstream too, if the dedup didn't guard it.
+        await delay(20);
+        return HttpResponse.json({ success: true });
+      })
+    );
+    const body = {
+      vehicleId: 1, date: '2026-05-28', odometer: 87500, volume: 11.2,
+      volumeUnit: 'gal', cost: 42.18, currency: 'USD',
+      isFillToFull: false, missedFuelup: false,
+      clientSubmissionId: 'concurrent-1'
+    };
+    const [r1, r2] = await Promise.all([POST(event(body)), POST(event(body))]);
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+    expect((await r1.json()).ok).toBe(true);
+    expect((await r2.json()).ok).toBe(true);
+    expect(addCount).toBe(1);
   });
 });
 

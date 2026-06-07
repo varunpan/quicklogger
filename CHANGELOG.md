@@ -17,11 +17,19 @@ All notable changes to this project are documented here. Format roughly follows 
   `NaN`, zero, or negative rate is now treated as a provider failure (the
   chain falls through to the next provider or the cache) instead of being
   cached and zeroing out or corrupting a converted cost.
+- **Prevent duplicate fuel records from concurrent submits.** Two
+  near-simultaneous identical submissions — a double-tap, or the offline
+  queue replaying while a foreground submit is still in flight — now share a
+  single upstream write instead of each creating its own record. The
+  idempotency check previously only caught a resubmit *after* the first had
+  finished.
 
 ### Tests
 
 - `manualFxRate` rejection (400) on the fuelup endpoint.
 - `realFetcher` rejects non-finite / non-positive provider rates.
+- Two concurrent fuelup submits with the same `clientSubmissionId` hit
+  LubeLogger exactly once.
 
 ## [0.2.6] — 2026-05-29
 

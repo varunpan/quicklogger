@@ -9,7 +9,13 @@ import { convertSubmission } from '$lib/server/convert';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 let cur: CurrencyService | null = null;
-const idempotencyMap = new Map<string, { ts: number; result: Response }>();
+
+// A submission's serialized outcome, shared among concurrent duplicate submits
+// via the idempotency map. We store the serialized form (not a `Response`)
+// because a `Response` body is single-use — concurrent waiters each need to
+// build their own fresh `Response` from the same bytes.
+type SubmitResult = { status: number; body: string };
+const idempotencyMap = new Map<string, { ts: number; promise: Promise<SubmitResult> }>();
 const IDEMPOTENCY_WINDOW_MS = 60_000;
 
 // Server-side diagnostic string for a photo that didn't attach. Not
@@ -114,10 +120,9 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
   if (invalid.length) throw new Error(`invalid fields (must be > 0 / non-empty): ${invalid.join(', ')}`);
 }
 
-async function cloneJsonResponse(res: Response): Promise<Response> {
-  const body = await res.clone().text();
-  return new Response(body, {
-    status: res.status,
+function jsonResponse(r: SubmitResult): Response {
+  return new Response(r.body, {
+    status: r.status,
     headers: { 'content-type': 'application/json' }
   });
 }
@@ -139,31 +144,17 @@ function dedupeFilenames(items: Array<{ name: string }>): void {
   }
 }
 
-export const POST: RequestHandler = async ({ request, locals }) => {
-  let parsed: Partial<FuelSubmissionInput>;
-  let images: { pump: File | null; odometer: File | null };
-  try {
-    const body = await parseBody(request);
-    parsed = body.input;
-    images = body.images;
-  } catch (err) {
-    return json({ error: (err as Error).message }, { status: 400 });
-  }
-
-  try {
-    validate(parsed);
-  } catch (err) {
-    return json({ error: (err as Error).message }, { status: 400 });
-  }
-  const input = parsed as FuelSubmissionInput;
-
-  const now = Date.now();
-  for (const [k, v] of idempotencyMap) {
-    if (now - v.ts > IDEMPOTENCY_WINDOW_MS) idempotencyMap.delete(k);
-  }
-  const cached = idempotencyMap.get(input.clientSubmissionId);
-  if (cached) return cloneJsonResponse(cached.result);
-
+/** The actual upstream work for one submission: FX/units conversion, optional
+ *  photo uploads, and the gas-record write. **Never throws** — upstream and
+ *  unexpected errors are converted to the same JSON error payloads the endpoint
+ *  has always returned. Returning a serializable result (not a `Response`) is
+ *  what lets the idempotency map share one outcome across concurrent duplicate
+ *  submits without a single-use body getting in the way. */
+async function submitToLubeLogger(
+  input: FuelSubmissionInput,
+  images: { pump: File | null; odometer: File | null },
+  logger: import('$lib/server/logger').Logger
+): Promise<SubmitResult> {
   try {
     const env = loadEnv();
     const conv = await convertSubmission(
@@ -177,14 +168,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       {
         targetVolumeUnit: env.lubeloggerVolumeUnit,
         targetCurrency: env.lubeloggerCurrency,
-        currencyService: currency(locals.logger)
+        currencyService: currency(logger)
       }
     );
 
     const client = new LubeLoggerClient({
       baseUrl: env.lubeloggerUrl,
       apiKey: env.lubeloggerApiKey,
-      logger: locals.logger
+      logger
     });
     const payload = {
       date: input.date,                          // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant
@@ -212,7 +203,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       const bytes = new Uint8Array(await u.file.arrayBuffer());
       const sniffed = sniffImageType(bytes);
       if (bytes.byteLength > env.ocrMaxImageBytes || sniffed === null) {
-        locals.logger.warn('fuelup photo skipped (failed part gate)', {
+        logger.warn('fuelup photo skipped (failed part gate)', {
           name: u.name,
           bytes: bytes.byteLength,
           sniffed
@@ -223,38 +214,87 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       try {
         files.push(await client.uploadDocument(bytes, u.name));
       } catch (err) {
-        locals.logger.warn('fuelup photo upload failed', { name: u.name, err });
+        logger.warn('fuelup photo upload failed', { name: u.name, err });
         photoWarning = PHOTO_WARNING;
       }
     }
 
     await client.addGasRecord(input.vehicleId, payload, files);
 
-    const success = json({
-      ok: true,
-      submitted: {
-        gallons: conv.gallons,
-        cost: conv.cost,
-        fxRate: conv.fxRate,
-        fxSource: conv.fxSource,
-        fxStale: conv.fxStale
-      },
-      ...(photoWarning ? { photoWarning } : {})
-    });
-    idempotencyMap.set(input.clientSubmissionId, { ts: Date.now(), result: success });
-    return success.clone();
+    return {
+      status: 200,
+      body: JSON.stringify({
+        ok: true,
+        submitted: {
+          gallons: conv.gallons,
+          cost: conv.cost,
+          fxRate: conv.fxRate,
+          fxSource: conv.fxSource,
+          fxStale: conv.fxStale
+        },
+        ...(photoWarning ? { photoWarning } : {})
+      })
+    };
   } catch (err) {
     if (err instanceof LubeLoggerError) {
-      return json(
-        {
+      return {
+        status: err.status >= 500 ? 502 : err.status,
+        body: JSON.stringify({
           error: 'Could not submit fillup to LubeLogger',
           upstream: 'POST /api/vehicle/gasrecords/add',
           upstream_status: err.status,
           upstream_body_preview: err.body.slice(0, 200)
-        },
-        { status: err.status >= 500 ? 502 : err.status }
-      );
+        })
+      };
     }
-    return json({ error: (err as Error).message }, { status: 500 });
+    return { status: 500, body: JSON.stringify({ error: (err as Error).message }) };
   }
+}
+
+export const POST: RequestHandler = async ({ request, locals }) => {
+  let parsed: Partial<FuelSubmissionInput>;
+  let images: { pump: File | null; odometer: File | null };
+  try {
+    const body = await parseBody(request);
+    parsed = body.input;
+    images = body.images;
+  } catch (err) {
+    return json({ error: (err as Error).message }, { status: 400 });
+  }
+
+  try {
+    validate(parsed);
+  } catch (err) {
+    return json({ error: (err as Error).message }, { status: 400 });
+  }
+  const input = parsed as FuelSubmissionInput;
+
+  const now = Date.now();
+  for (const [k, v] of idempotencyMap) {
+    if (now - v.ts > IDEMPOTENCY_WINDOW_MS) idempotencyMap.delete(k);
+  }
+
+  // Dedup a duplicate submit (same clientSubmissionId) against either an
+  // in-flight request or one completed within the window. Registering the
+  // pending promise BEFORE awaiting upstream — the synchronous `set` below,
+  // ahead of any `await` — is what closes the concurrent-double-submit race
+  // (a double-tap, or the SW queue replay racing the foreground submit). Two
+  // near-simultaneous duplicates now await and share one upstream write
+  // instead of both POSTing and creating two records.
+  const existing = idempotencyMap.get(input.clientSubmissionId);
+  if (existing) return jsonResponse(await existing.promise);
+
+  const promise = submitToLubeLogger(input, images, locals.logger);
+  idempotencyMap.set(input.clientSubmissionId, { ts: now, promise });
+
+  const result = await promise;
+  // Keep a success cached for the rest of the window so a later resubmit is a
+  // no-op; drop a failure (no record was created) so a genuine retry can reach
+  // upstream.
+  if (result.status >= 200 && result.status < 300) {
+    idempotencyMap.set(input.clientSubmissionId, { ts: Date.now(), promise });
+  } else {
+    idempotencyMap.delete(input.clientSubmissionId);
+  }
+  return jsonResponse(result);
 };
