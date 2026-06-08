@@ -6,7 +6,8 @@ Submissions that can't reach LubeLogger live in an IndexedDB-backed queue.
 The queue is also the local-history substrate that powers offline odometer
 prefill (synced rows are kept as a permanent trail). The service worker
 replays queued entries on demand, triggered by a message from the layout
-when the window regains focus or first mounts.
+on resume (focus / visibility), on reconnect (the `online` event), and once
+the service worker is ready.
 
 User-facing view: [`docs/user/offline-queue.md`](../user/offline-queue.md).
 Synced-row semantics (v0.1.3 addition):
@@ -97,23 +98,32 @@ The replay is **message-driven**, not Background-Sync-driven. There is
 no `sync` event listener and no `sync.register()` call anywhere in the
 codebase (verified in `src/service-worker.ts`). Instead:
 
-- `src/routes/+layout.svelte` registers the service worker `onMount` and
-  posts a `{ type: 'sync-queue' }` message in three situations:
-  1. Immediately, on mount (every page load / PWA cold start).
+- `src/routes/+layout.svelte` registers the service worker `onMount`, then
+  hands the flush-trigger wiring to `registerSyncTriggers()`
+  (`src/lib/client/sync-trigger.ts`, extracted from the layout so the wiring is
+  unit-testable). It posts a `{ type: 'sync-queue' }` message in four situations:
+  1. Once `navigator.serviceWorker.ready` resolves — the initial drain on every
+     page load / PWA cold start, gated on `ready` so it isn't a no-op against a
+     still-`null` controller.
   2. On every `window` `focus` event.
-  3. On `document` `visibilitychange` when the page becomes visible —
+  3. On every `window` `online` event — connectivity returning while the tab
+     stays foregrounded (Wi-Fi reassociates, cellular comes back) with no
+     focus/visibility transition. Without it the queue would sit unsent until
+     the next focus.
+  4. On `document` `visibilitychange` when the page becomes visible —
      belt-and-suspenders for desktop/Android multi-window where a tab can
      become visible without firing `focus`.
 
 The SW's `message` handler matches `data.type === 'sync-queue'` and
 calls `event.waitUntil(syncQueue())`.
 
-There is no Background Sync (`sync`) listener — iOS doesn't fire those
-events reliably, so the focus/visibility pattern is the primary trigger.
-Users generally have to reopen or refocus the app for queued submissions
-to flush. Because `focus` and `visibilitychange` can fire back-to-back on
-the same resume, `syncQueue()` carries an in-flight guard (below) so the
-double-trigger can't drain the queue twice at once.
+There is no Background Sync (`sync`) listener — iOS doesn't fire those events
+reliably, so these resume/reconnect triggers are the drain path. A reconnect
+now flushes the queue on its own via the `online` event; otherwise the user
+brings the app back to the foreground and `focus`/`visibilitychange` flush it.
+Because `focus` and `visibilitychange` can fire back-to-back on the same
+resume, `syncQueue()` carries an in-flight guard (below) so the double-trigger
+can't drain the queue twice at once.
 
 ### In-flight guard
 

@@ -272,16 +272,21 @@ in-flight guard makes a second concurrent call a no-op, so the back-to-back
 `focus` + `visibilitychange` triggers below can't drain the queue twice at
 once.
 
-The trigger lives in `src/routes/+layout.svelte`'s `onMount`:
+The trigger wiring lives in `registerSyncTriggers()`
+(`src/lib/client/sync-trigger.ts`), called from `src/routes/+layout.svelte`'s
+`onMount` (extracted from the layout so the wiring is unit-testable):
 
 - A `trigger` function calls
   `navigator.serviceWorker.controller?.postMessage({ type: 'sync-queue' })`.
-- It runs once on mount.
+- It runs once after `navigator.serviceWorker.ready` resolves — gated on
+  `ready` so the initial drain isn't a no-op against a still-`null` controller.
 - It re-runs on every `window` `focus` event.
+- It re-runs on every `window` `online` event — connectivity returning while
+  the tab stays foregrounded, with no focus/visibility transition to ride on.
 - It also re-runs on `document` `visibilitychange` when the page
   becomes visible — belt-and-suspenders for desktop / Android
   multi-window where a tab can become visible without firing focus.
-- The cleanup function removes both listeners on unmount.
+- The returned cleanup function removes every listener on unmount.
 
 For the full per-entry state machine, response-code branching, and
 attempt-cap semantics, see
@@ -294,13 +299,14 @@ The service worker does **not** register for the BackgroundSync API:
 
 - No `self.addEventListener('sync', ...)` listener.
 - No `registration.sync.register('...')` call anywhere in the codebase
-  (verified in `src/service-worker.ts` and `src/routes/+layout.svelte`).
+  (verified in `src/service-worker.ts`, `src/routes/+layout.svelte`, and
+  `src/lib/client/sync-trigger.ts`).
 
 Why: iOS doesn't fire BackgroundSync events reliably. The
-focus-event + on-mount pattern is the primary trigger and the only
-trigger today. The user has to reopen the app (or focus the
-already-open tab) for queued submissions to flush. That's the
-realistic UX on iOS Safari.
+focus / visibility / online + `ready` trigger set is the drain path. A
+reconnect flushes the queue on its own via the `online` event; otherwise the
+user brings the app back to the foreground and `focus` / `visibilitychange`
+flush it. That's the realistic UX on iOS Safari.
 
 Implication: a queued entry will not sync in the background while the
 tab is hidden. It syncs when the user comes back.

@@ -32,6 +32,10 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Guard the offline-queue replay against itself.** Back-to-back `focus`
   and `visibilitychange` triggers (which fire together on iOS resume) can no
   longer run the queue flush twice at once and double-post a queued fillup.
+- **Flush the offline queue the moment you're back online.** Queued fuel-ups
+  now sync as soon as connectivity returns, even if the app stays open and
+  focused the whole time — previously they waited until you next switched away
+  from the tab and back.
 
 ### Tests
 
@@ -44,6 +48,10 @@ All notable changes to this project are documented here. Format roughly follows 
 - `sw-cache` (extracted, unit-tested): navigation fallback — online passthrough,
   offline `/offline`-shell fallback, cold-cache 504; `/api/vehicles` network-first
   — refresh on 2xx, no-cache on non-2xx, cached serve offline, cold-cache 504.
+- `registerSyncTriggers` (extracted, unit-tested): flushes the queue on
+  `online` / `focus` / `visibilitychange`-visible, gates the initial drain on
+  `serviceWorker.ready`, ignores a `hidden` visibilitychange, and removes every
+  listener on cleanup.
 
 ## [0.2.6] — 2026-05-29
 

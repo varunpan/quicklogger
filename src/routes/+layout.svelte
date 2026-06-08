@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { installClientLogger } from '$lib/client/logger';
   import { loadServerInfo, saveServerInfo } from '$lib/client/server-info';
+  import { registerSyncTriggers } from '$lib/client/sync-trigger';
 
   let { children } = $props();
 
@@ -51,19 +52,13 @@
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/service-worker.js', { type: 'module' });
 
-    const trigger = () => {
-      navigator.serviceWorker.controller?.postMessage({ type: 'sync-queue' });
-    };
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') trigger();
-    };
-    window.addEventListener('focus', trigger);
-    document.addEventListener('visibilitychange', onVisible);
-    trigger();
-    return () => {
-      window.removeEventListener('focus', trigger);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+    // Drain the offline submission queue on resume (focus / visibility) and on
+    // reconnect (online), plus once the SW is ready. See sync-trigger.ts.
+    return registerSyncTriggers({
+      serviceWorker: navigator.serviceWorker,
+      window,
+      document
+    });
   });
 </script>
 
