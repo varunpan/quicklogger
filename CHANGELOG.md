@@ -44,10 +44,6 @@ All notable changes to this project are documented here. Format roughly follows 
 - `sw-cache` (extracted, unit-tested): navigation fallback — online passthrough,
   offline `/offline`-shell fallback, cold-cache 504; `/api/vehicles` network-first
   — refresh on 2xx, no-cache on non-2xx, cached serve offline, cold-cache 504.
-- Offline cold-start e2e (live service worker, `node build` + upstream stub): a
-  fresh page loaded offline renders the populated log-fuel form from the cached
-  vehicle list, shows the offline banner and a `Save offline` button, and queues
-  the submit into IndexedDB.
 
 ## [0.2.6] — 2026-05-29
 

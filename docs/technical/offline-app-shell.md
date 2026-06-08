@@ -98,6 +98,23 @@ resolves and the SSR'd page is returned unchanged.
   The pre-existing stale-chunk-across-deploy risk (whole-app review #7) is
   neither improved nor worsened here and is a separate fix.
 
+## Testing
+
+- **Unit** — the two cache policies are pure and fully unit-tested in
+  `src/lib/client/sw-cache.test.ts`: navigation fallback (online passthrough,
+  offline `/offline`-shell fallback, cold-cache 504) and `/api/vehicles`
+  network-first (refresh on 2xx, no-cache on non-2xx, cached serve offline,
+  cold-cache 504).
+- **No Playwright e2e.** The offline cold-start can't be exercised through the
+  project's only e2e browser (WebKit / `mobile-safari`): `context.setOffline(true)`
+  makes WebKit fail every navigation with an internal error before the SW can
+  serve, and a SW `cache.put` that clones a response the loader is concurrently
+  consuming doesn't persist in Playwright's WebKit (synthetic puts and the
+  install-time shell precache do persist). Both are Playwright-WebKit automation
+  artifacts — real iOS Safari runs this standard PWA pattern fine. The end-to-end
+  offline path (boot from shell → cached vehicle list → queued submit) is
+  validated by manual UAT on a device instead.
+
 ## Cross-references
 
 - [`service-worker.md`](./service-worker.md) — full fetch-handler decision tree.
