@@ -181,8 +181,8 @@ audit log persists the same shape under `parsed`, plus a top-level
 
 | File | Shape | Notes |
 |---|---|---|
-| `ocr-budget.json` | `{ date: 'YYYY-MM-DD', calls, costCents }` | UTC date; replaced (not appended) on each `add()`. |
-| `ocr-audit.jsonl` | one JSON object per line (incl. `rotationApplied: number` since v0.2.0+) | Append-only. Truncated to 0 bytes when next append would cross 10 MiB. Old entries discarded, not archived. |
+| `ocr-budget.json` | `{ date: 'YYYY-MM-DD', calls, costCents }` | UTC date; replaced (not appended) on each `add()`. The read-modify-write runs under a per-path lock and the file is written atomically (temp + `rename`) via [`atomicFile.ts`](../../src/lib/server/atomicFile.ts), so concurrent OCR calls can't under-count the day's spend (the cap stays accurate) and a crash mid-write can't corrupt the tally. |
+| `ocr-audit.jsonl` | one JSON object per line (incl. `rotationApplied: number` since v0.2.0+) | Append-only. The stat → truncate → append rotation runs under the same per-path lock, so concurrent appends re-check the size and can't overshoot the 10 MiB cap or drop a line another append just wrote. Old entries discarded, not archived. |
 | `ocr-audit-key.txt` | 32 random bytes, 0600 | Auto-generated if `OCR_AUDIT_HMAC_KEY` is unset and the file is absent. Persists across container restarts. |
 
 ### Date prefill (v0.2.0+)

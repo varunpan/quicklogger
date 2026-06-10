@@ -1,5 +1,5 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { atomicWriteFile, withPathLock } from './atomicFile';
 import type { FxProviderName } from './env';
 import type { Logger } from './logger';
 
@@ -19,7 +19,14 @@ export interface FxCacheEntry {
 
 export interface FxStore {
   load(): Promise<Record<string, FxCacheEntry>>;
-  save(data: Record<string, FxCacheEntry>): Promise<void>;
+  /**
+   * Atomically read-modify-write the cache. `mutator` receives the freshly
+   * loaded map (re-read inside a per-path lock) and returns the map to persist,
+   * so a concurrent write for a *different* pair can't clobber this one.
+   */
+  update(
+    mutator: (cur: Record<string, FxCacheEntry>) => Record<string, FxCacheEntry>
+  ): Promise<void>;
 }
 
 export type FxFetcher = (
@@ -88,9 +95,13 @@ export class CurrencyService {
       try {
         const { rate } = await this.opts.fetcher(p, from, to);
         const entry: FxCacheEntry = { rate, fetchedAt: Date.now(), source: p };
-        cache[key(from, to)] = entry;
         try {
-          await this.opts.store.save(cache);
+          // Merge into the freshly-loaded cache inside the store's lock — a
+          // concurrent fetch for another pair won't be clobbered.
+          await this.opts.store.update((fresh) => {
+            fresh[key(from, to)] = entry;
+            return fresh;
+          });
         } catch (err) {
           this.log.warn('fx cache write failed', { provider: p, err });
         }
@@ -129,9 +140,20 @@ export class JsonFileStore implements FxStore {
       throw err;
     }
   }
-  async save(data: Record<string, FxCacheEntry>) {
-    await mkdir(dirname(this.path), { recursive: true });
-    await writeFile(this.path, JSON.stringify(data, null, 2), 'utf-8');
+  async update(
+    mutator: (cur: Record<string, FxCacheEntry>) => Record<string, FxCacheEntry>
+  ) {
+    await withPathLock(this.path, async () => {
+      let cur: Record<string, FxCacheEntry>;
+      try {
+        cur = await this.load();
+      } catch {
+        // A corrupt/unparseable cache self-heals by being rebuilt from the
+        // fresh fetch the caller is about to merge in.
+        cur = {};
+      }
+      await atomicWriteFile(this.path, JSON.stringify(mutator(cur), null, 2));
+    });
   }
 }
 

@@ -103,6 +103,10 @@ over at `00:00 UTC`. `check()` returns `{ ok: false }` once
 ollama records 0 (local inference), OpenRouter records the per-call
 estimate (~0.006 cents for Gemini Flash Lite). At the $1/day default,
 that's ~16,000 OpenRouter calls/day before the budget closes.
+`add()` runs as a per-file-locked, atomic read-modify-write (see
+[`technical/photo-ocr.md`](./technical/photo-ocr.md#persistence-under-data)),
+so concurrent calls can't under-count the tally and a crash mid-write can't
+corrupt it.
 
 ### OCR audit log (`src/lib/server/ocrAudit.ts`)
 

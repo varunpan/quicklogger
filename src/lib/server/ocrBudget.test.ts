@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { BudgetStore, BudgetEntry } from './ocrBudget';
-import { OcrBudget } from './ocrBudget';
+import { OcrBudget, JsonFileBudgetStore } from './ocrBudget';
 import type { Logger } from './logger';
 
 type LogCall = { level: string; msg: string; ctx: Record<string, unknown> };
@@ -23,7 +26,7 @@ function inMemoryStore(initial?: BudgetEntry | null): BudgetStore {
   let data = initial ?? null;
   return {
     async load() { return data; },
-    async save(d) { data = { ...d }; }
+    async update(mutator) { data = mutator(data); }
   };
 }
 
@@ -76,7 +79,7 @@ describe('OcrBudget', () => {
     const { logger, calls } = captureLogger();
     const store: BudgetStore = {
       async load() { throw new Error('disk gone'); },
-      async save() {}
+      async update() {}
     };
     const b = new OcrBudget({ dailyUsd: 1.0, store, logger });
     await expect(b.check()).resolves.toEqual({ ok: true });
@@ -89,12 +92,36 @@ describe('OcrBudget', () => {
     const { logger, calls } = captureLogger();
     const store: BudgetStore = {
       async load() { return null; },
-      async save() { throw new Error('disk full'); }
+      async update() { throw new Error('disk full'); }
     };
     const b = new OcrBudget({ dailyUsd: 1.0, store, logger });
     await expect(b.add(0.6)).resolves.toBeUndefined();
     expect(
       calls.some((c) => c.level === 'error' && c.msg === 'ocr budget write failed')
     ).toBe(true);
+  });
+});
+
+describe('OcrBudget — concurrency (real file store)', () => {
+  let dir: string;
+  let path: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'ocr-budget-'));
+    path = join(dir, 'ocr-budget.json');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('does not under-count when many add() land at once', async () => {
+    // The bug: load → mutate → save with no lock. Concurrent adds all read the
+    // same snapshot, so the cap can be overshot. The locked read-modify-write
+    // must count every call exactly.
+    const store = new JsonFileBudgetStore(path);
+    const b = new OcrBudget({ dailyUsd: 1000, store });
+    const N = 25;
+    await Promise.all(Array.from({ length: N }, () => b.add(1)));
+    const loaded = await store.load();
+    expect(loaded?.calls).toBe(N);
+    expect(loaded?.costCents).toBeCloseTo(N, 5);
   });
 });

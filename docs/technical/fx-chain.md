@@ -99,11 +99,25 @@ Stored as a single JSON file. Default path: `/data/fx-cache.json`
 in `currency.ts`:
 
 - `load()` — `readFile(path, 'utf-8')` → `JSON.parse`. On `ENOENT`
-  returns `{}` (cold start); any other error propagates.
-- `save(data)` — `mkdir(dirname, { recursive: true })` then
-  `writeFile(path, JSON.stringify(data, null, 2), 'utf-8')`. No
-  atomic-rename; concurrent writers could race, but the route
-  handlers serialize via the module-level singleton.
+  returns `{}` (cold start); any other error propagates (the freshness
+  check in `getRate` catches it and falls back to a cold cache).
+- `update(mutator)` — the only write path. Under a per-path async lock
+  (`withPathLock` in
+  [`atomicFile.ts`](../../src/lib/server/atomicFile.ts)) it re-reads the
+  cache fresh, applies `mutator` (which merges the one new pair), and
+  writes via temp file + `rename` (`atomicWriteFile`). The lock spans the
+  whole read-modify-write, so a concurrent lookup for a *different* pair
+  can't clobber this write, and the atomic rename means a crash mid-write
+  can't leave a torn `fx-cache.json`. A corrupt/unparseable file
+  self-heals — the locked read falls back to `{}` and the fresh fetch
+  rebuilds it.
+
+  Scope: an **in-process** lock. The FX service is a module-level singleton
+  and the app runs single-replica, so one lock per process covers every
+  writer. (The previous "serialize via the module-level singleton" claim was
+  wrong — the singleton is the *service object*, not a lock, and `await
+  load()` yields the event loop.) A multi-replica deployment sharing `/data`
+  would need an OS-level file lock.
 
 On-disk shape:
 

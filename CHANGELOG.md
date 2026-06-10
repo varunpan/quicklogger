@@ -36,6 +36,12 @@ All notable changes to this project are documented here. Format roughly follows 
   now sync as soon as connectivity returns, even if the app stays open and
   focused the whole time — previously they waited until you next switched away
   from the tab and back.
+- **Keep the OCR daily-cost cap accurate under concurrent use.** Two OCR
+  requests landing at once could each save a stale budget snapshot,
+  under-counting the day's spend so the cap could be overshot. The on-disk
+  caches (OCR budget, OCR audit log, FX rate cache) are now written
+  one-at-a-time per file and atomically, so the count stays correct and a
+  crash mid-write can't corrupt the file.
 
 ### Tests
 
@@ -52,6 +58,12 @@ All notable changes to this project are documented here. Format roughly follows 
   `online` / `focus` / `visibilitychange`-visible, gates the initial drain on
   `serviceWorker.ready`, ignores a `hidden` visibilitychange, and removes every
   listener on cleanup.
+- `atomicFile` (new): `withPathLock` serializes overlapping same-path sections
+  and survives a rejecting section; `atomicWriteFile` writes via temp + rename.
+- On-disk store concurrency (real-file): many `OcrBudget.add()` at once count
+  exactly (no under-count); two `CurrencyService.getRate` for different pairs
+  both persist; concurrent `OcrAudit.append()` stay within the rotation cap with
+  every line intact.
 
 ## [0.2.6] — 2026-05-29
 

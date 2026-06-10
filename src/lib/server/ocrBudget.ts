@@ -1,5 +1,5 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { atomicWriteFile, withPathLock } from './atomicFile';
 import type { Logger } from './logger';
 
 const NOOP_LOGGER: Logger = {
@@ -18,7 +18,12 @@ export interface BudgetEntry {
 
 export interface BudgetStore {
   load(): Promise<BudgetEntry | null>;
-  save(entry: BudgetEntry): Promise<void>;
+  /**
+   * Atomically read-modify-write the entry. `mutator` receives the freshly
+   * loaded state (re-read inside a per-path lock), so concurrent callers can't
+   * each save a stale snapshot and under-count the day's spend.
+   */
+  update(mutator: (cur: BudgetEntry | null) => BudgetEntry): Promise<void>;
 }
 
 interface Options {
@@ -53,19 +58,15 @@ export class OcrBudget {
 
   async add(costCents: number): Promise<void> {
     const today = utcDateStamp();
-    let cur: BudgetEntry | null;
     try {
-      cur = await this.opts.store.load();
-    } catch (err) {
-      this.log.warn('ocr budget read failed', { err });
-      cur = null;
-    }
-    const next: BudgetEntry =
-      !cur || cur.date !== today
-        ? { date: today, calls: 1, costCents }
-        : { date: today, calls: cur.calls + 1, costCents: cur.costCents + costCents };
-    try {
-      await this.opts.store.save(next);
+      // The load happens inside `update`'s per-path lock, so the increment is
+      // computed against the freshest on-disk tally — concurrent adds queue
+      // instead of clobbering each other.
+      await this.opts.store.update((cur) =>
+        !cur || cur.date !== today
+          ? { date: today, calls: 1, costCents }
+          : { date: today, calls: cur.calls + 1, costCents: cur.costCents + costCents }
+      );
     } catch (err) {
       this.log.error('ocr budget write failed', { err });
     }
@@ -83,8 +84,17 @@ export class JsonFileBudgetStore implements BudgetStore {
       throw err;
     }
   }
-  async save(entry: BudgetEntry): Promise<void> {
-    await mkdir(dirname(this.path), { recursive: true });
-    await writeFile(this.path, JSON.stringify(entry), 'utf-8');
+  async update(mutator: (cur: BudgetEntry | null) => BudgetEntry): Promise<void> {
+    await withPathLock(this.path, async () => {
+      let cur: BudgetEntry | null;
+      try {
+        cur = await this.load();
+      } catch {
+        // A corrupt/unparseable file self-heals by being overwritten with a
+        // fresh entry — same recovery the FX cache gets from CurrencyService.
+        cur = null;
+      }
+      await atomicWriteFile(this.path, JSON.stringify(mutator(cur)));
+    });
   }
 }

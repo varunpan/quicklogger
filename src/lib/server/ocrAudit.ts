@@ -2,6 +2,7 @@ import { appendFile, stat, truncate, mkdir } from 'node:fs/promises';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { withPathLock } from './atomicFile';
 import type { OcrMode, OcrResult } from '$lib/shared/types';
 import type { OcrSlotName } from './env';
 import type { Logger } from './logger';
@@ -59,16 +60,21 @@ export class OcrAudit {
   async append(rec: AuditRecord): Promise<void> {
     const line = JSON.stringify({ ts: new Date().toISOString(), ...rec }) + '\n';
     try {
-      await mkdir(dirname(this.opts.path), { recursive: true });
-      try {
-        const st = await stat(this.opts.path);
-        if (st.size + line.length > this.opts.maxBytes) {
-          await truncate(this.opts.path, 0);
+      // Serialize the rotate-then-append per file. Without the lock, concurrent
+      // appends all stat the same size, all skip the truncate, and overshoot
+      // maxBytes — or a truncate drops a line another append just wrote.
+      await withPathLock(this.opts.path, async () => {
+        await mkdir(dirname(this.opts.path), { recursive: true });
+        try {
+          const st = await stat(this.opts.path);
+          if (st.size + line.length > this.opts.maxBytes) {
+            await truncate(this.opts.path, 0);
+          }
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
         }
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      }
-      await appendFile(this.opts.path, line, 'utf-8');
+        await appendFile(this.opts.path, line, 'utf-8');
+      });
     } catch (err) {
       this.log.error('ocr audit append failed', { err, path: this.opts.path });
       // Swallow — audit failures must not crash a successful OCR response.

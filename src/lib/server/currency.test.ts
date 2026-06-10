@@ -1,5 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { CurrencyService, realFetcher, type FxFetcher, type FxStore, type FxCacheEntry } from './currency';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  CurrencyService,
+  JsonFileStore,
+  realFetcher,
+  type FxFetcher,
+  type FxStore,
+  type FxCacheEntry
+} from './currency';
 import type { Logger } from './logger';
 
 type LogCall = { level: string; msg: string; ctx: Record<string, unknown> };
@@ -22,7 +32,7 @@ function inMemoryStore(initial?: Record<string, FxCacheEntry>): FxStore {
   let data: Record<string, FxCacheEntry> = { ...(initial ?? {}) };
   return {
     async load() { return data; },
-    async save(d) { data = { ...d }; }
+    async update(mutator) { data = mutator({ ...data }); }
   };
 }
 
@@ -131,7 +141,7 @@ describe('CurrencyService', () => {
     const { logger, calls } = captureLogger();
     const store: FxStore = {
       async load() { throw new Error('disk gone'); },
-      async save() {}
+      async update() {}
     };
     const fetcher: FxFetcher = vi.fn(async () => ({ rate: 1.42 }));
     const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store, logger });
@@ -146,7 +156,7 @@ describe('CurrencyService', () => {
     const { logger, calls } = captureLogger();
     const store: FxStore = {
       async load() { return {}; },
-      async save() { throw new Error('disk full'); }
+      async update() { throw new Error('disk full'); }
     };
     const fetcher: FxFetcher = vi.fn(async () => ({ rate: 1.42 }));
     const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store, logger });
@@ -155,6 +165,29 @@ describe('CurrencyService', () => {
     expect(
       calls.some((c) => c.level === 'warn' && c.msg === 'fx cache write failed')
     ).toBe(true);
+  });
+});
+
+describe('CurrencyService — concurrency (real file store)', () => {
+  let dir: string;
+  let path: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'fx-cache-'));
+    path = join(dir, 'fx-cache.json');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('does not lose a concurrently-written entry for a different pair', async () => {
+    // The bug: getRate loads the whole cache, adds one key, saves the whole
+    // map. Two concurrent lookups for different pairs each save a single-key
+    // map and the second clobbers the first. The locked merge must keep both.
+    const store = new JsonFileStore(path);
+    const fetcher: FxFetcher = async (_p, _from, to) => ({ rate: to === 'CAD' ? 1.36 : 1.09 });
+    const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store });
+    await Promise.all([svc.getRate('USD', 'CAD'), svc.getRate('USD', 'EUR')]);
+    const persisted = await store.load();
+    expect(Object.keys(persisted).sort()).toEqual(['USD:CAD', 'USD:EUR']);
   });
 });
 

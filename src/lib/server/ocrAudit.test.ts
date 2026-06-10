@@ -130,6 +130,36 @@ describe('OcrAudit', () => {
   });
 });
 
+describe('OcrAudit — concurrency (real file store)', () => {
+  let dir: string;
+  let path: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'ocr-audit-conc-'));
+    path = join(dir, 'ocr-audit.jsonl');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('keeps the file bounded and every line intact under concurrent appends', async () => {
+    // The bug: stat → maybe truncate → appendFile with no lock. Concurrent
+    // appends all stat the same small file, all skip the rotation, then all
+    // append — blowing past maxBytes. The lock must re-check size per append.
+    const probe = new OcrAudit({ path, maxBytes: 10_000_000 });
+    await probe.append(pumpRecord());
+    const oneLine = statSync(path).size;
+    rmSync(path);
+
+    const maxBytes = oneLine * 3;
+    const audit = new OcrAudit({ path, maxBytes });
+    await Promise.all(Array.from({ length: 30 }, () => audit.append(pumpRecord())));
+
+    expect(statSync(path).size).toBeLessThanOrEqual(maxBytes + oneLine);
+    for (const line of readFileSync(path, 'utf-8').trim().split('\n')) {
+      expect(() => JSON.parse(line)).not.toThrow();
+    }
+  });
+});
+
 describe('hashIp / hashImage', () => {
   it('hashIp is stable for the same (ip, key) pair', () => {
     const a = hashIp('1.2.3.4', TEST_KEY);
