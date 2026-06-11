@@ -43,6 +43,14 @@ describe('GET /api/fx', () => {
     expect(body.source).toBe('identity');
   });
 
+  it('rejects malformed currency codes with 400 (no provider call)', async () => {
+    for (const [from, to] of [['EUR/../../pkg', 'USD'], ['US', 'CAD'], ['USD', 'USDX'], ['U:D', 'CAD']]) {
+      const res = await GET(eventFor(from, to));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/3-letter/);
+    }
+  });
+
   it('walks chain — provider 1 fails, provider 2 succeeds', async () => {
     upstream.use(
       http.get('https://api.frankfurter.dev/v1/latest', () => new HttpResponse(null, { status: 503 })),

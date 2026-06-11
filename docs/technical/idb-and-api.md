@@ -213,10 +213,10 @@ flow.
 
 | Field | Value |
 |---|---|
-| Request | Query: `from`, `to`. Both uppercased server-side. |
+| Request | Query: `from`, `to`. Both uppercased server-side, then validated as 3-letter ISO-4217 codes (`/^[A-Z]{3}$/`). |
 | Cache | Persistent on-disk JSON at `FX_CACHE_PATH` (default `/data/fx-cache.json`). |
 | Response 200 | `{ rate: number, source: string, fetchedAt: number, stale: boolean, ageHours: number }` |
-| Response 400 | `{ error: 'from and to required' }` if either param is empty. |
+| Response 400 | `{ error: 'from and to required' }` if either param is empty; `{ error: 'from and to must be 3-letter currency codes' }` if either fails the ISO-4217 shape. |
 | Response 503 | `{ available: false }` — `FxUnavailableError` (no provider succeeded and no usable cache). The page interprets this as "show the manual-FX field". |
 | Response 500 | `{ error: string }` — any other error. |
 
@@ -239,7 +239,7 @@ IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-
 |---|---|
 | Request body | `application/json` or `application/x-www-form-urlencoded` or `multipart/form-data`. |
 | Required fields | `vehicleId`, `date`, `odometer`, `volume`, `volumeUnit`, `cost`, `currency`, `clientSubmissionId`. |
-| Numeric guard | `vehicleId` must coerce to a positive integer (coerced onto the body before use — the JSON path would otherwise pass a raw string into the authenticated upstream URL). `odometer`, `volume`, `cost` must be finite and `> 0`, and are coerced onto the body (JSON numeric strings are accepted). `volumeUnit` must be exactly `'gal'` or `'L'`. `date` must be a non-empty string. |
+| Numeric guard | `vehicleId` must coerce to a positive integer (coerced onto the body before use — the JSON path would otherwise pass a raw string into the authenticated upstream URL). `odometer`, `volume`, `cost` must be finite and `> 0`, and are coerced onto the body (JSON numeric strings are accepted). `volumeUnit` must be exactly `'gal'` or `'L'`. `currency` must be a 3-letter ISO-4217 code (normalized to uppercase). `date` must be a non-empty string. |
 | Idempotency | 60-second in-memory window keyed on `clientSubmissionId`. Repeat POSTs in the window return the original cached response. |
 
 #### Success response (200)

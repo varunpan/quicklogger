@@ -109,6 +109,26 @@ describe('CurrencyService', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('caps the persisted cache, evicting oldest entries first', async () => {
+    const initial: Record<string, FxCacheEntry> = {};
+    for (let i = 0; i < 50; i++) {
+      initial[`C${String(i).padStart(2, '0')}:USD`] = {
+        rate: 1,
+        fetchedAt: now - (50 - i) * HOUR,
+        source: 'frankfurter'
+      };
+    }
+    const store = inMemoryStore(initial);
+    const fetcher: FxFetcher = vi.fn(async () => ({ rate: 2 }));
+    const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store });
+    await svc.getRate('EUR', 'USD');
+    const persisted = await store.load();
+    expect(Object.keys(persisted)).toHaveLength(50);
+    expect(persisted['EUR:USD']).toMatchObject({ rate: 2 });
+    expect(persisted['C00:USD']).toBeUndefined(); // oldest evicted
+    expect(persisted['C01:USD']).toBeDefined();
+  });
+
   it('persists fresh fetch to store on success', async () => {
     const store = inMemoryStore();
     const fetcher: FxFetcher = vi.fn(async () => ({ rate: 1.36 }));
@@ -213,5 +233,23 @@ describe('realFetcher — rate validation', () => {
   it('accepts a finite, positive provider rate', async () => {
     stubFetchJson({ rates: { CAD: 1.36 } });
     await expect(realFetcher('frankfurter', 'USD', 'CAD')).resolves.toEqual({ rate: 1.36 });
+  });
+
+  it('URL-encodes from/to when building provider URLs', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        urls.push(String(url));
+        return new Response('{}', { headers: { 'content-type': 'application/json' } });
+      })
+    );
+    await realFetcher('frankfurter', 'A/B', 'C&D').catch(() => {});
+    expect(urls[0]).toContain('base=A%2FB');
+    expect(urls[0]).toContain('symbols=C%26D');
+    await realFetcher('erapi', 'A/B', 'USD').catch(() => {});
+    expect(urls[1]).toContain('/v6/latest/A%2FB');
+    await realFetcher('fawazahmed', 'A/B', 'USD').catch(() => {});
+    expect(urls[2]).toContain('/currencies/a%2Fb.json');
   });
 });

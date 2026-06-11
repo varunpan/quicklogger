@@ -113,6 +113,14 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
   // through to toGallons() and surface as a 500 — a 400-class input error.
   if (b.volumeUnit !== 'gal' && b.volumeUnit !== 'L') invalid.push('volumeUnit');
 
+  // currency must be a 3-letter ISO-4217 code, normalized to uppercase. Raw
+  // values flow into FX provider URLs and become persistent fx-cache keys,
+  // so this is the only gate against URL injection and unbounded cache keys
+  // (':' inside a code would also collide the `from:to` key format).
+  const cur = String(b.currency ?? '').toUpperCase();
+  if (!/^[A-Z]{3}$/.test(cur)) invalid.push('currency');
+  else b.currency = cur;
+
   // Numeric fields must be finite and strictly positive — a zero odometer,
   // zero volume, or zero cost is never a real fuelup. Apple Shortcuts and
   // direct API consumers bypass the form's own gate, so this is the only

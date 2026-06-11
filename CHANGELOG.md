@@ -10,6 +10,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Currency codes are now checked at the door.** Both the FX-rate lookup and
+  the fillup submit reject anything that isn't a 3-letter currency code
+  (lowercase is accepted and normalized), so malformed values can no longer be
+  passed into the exchange-rate provider URLs or grow the on-disk rate cache —
+  which is now also capped at 50 currency pairs, dropping the oldest first.
 - **Bad volume units and number-like text now get a clear rejection, not a
   server error.** Submitting `volumeUnit: "liters"` (or any value other than
   `gal`/`L`) returns a 400 naming the field instead of a 500; numeric fields

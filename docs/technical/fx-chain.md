@@ -137,8 +137,16 @@ On-disk shape:
 ```
 
 Keys are `${from}:${to}` (case-sensitive — both sides are uppercased
-at the route boundary in `/api/fx/+server.ts`, but the cache file
-trusts whatever the caller passed). One entry per direction.
+and validated as `/^[A-Z]{3}$/` at both route boundaries: `/api/fx`
+and the fuelup `validate()` gate, so a `:` or path characters can't
+reach the key format or the provider URLs). One entry per direction.
+
+The cache is **capped at 50 entries** (`MAX_CACHE_ENTRIES` in
+`currency.ts`): the merge mutator evicts oldest-by-`fetchedAt` past the
+cap. Route validation is the first gate against client-influenced key
+growth; the cap is the backstop. Provider URLs are additionally built
+with `URLSearchParams`/`encodeURIComponent` (defense in depth — the
+fetcher never trusts its inputs even though both callers validate).
 
 ## Per-provider quirks
 

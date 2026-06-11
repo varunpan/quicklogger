@@ -64,6 +64,20 @@ function key(from: string, to: string): string {
   return `${from}:${to}`;
 }
 
+// Bound the on-disk cache. Every distinct from:to pair persists an entry and
+// the input space is client-influenced (route validation is the first gate;
+// this is the backstop), so growth must be capped. Oldest-by-fetchedAt are
+// evicted; 50 pairs is far above any realistic single-user working set.
+const MAX_CACHE_ENTRIES = 50;
+
+function capEntries(cache: Record<string, FxCacheEntry>): Record<string, FxCacheEntry> {
+  const keys = Object.keys(cache);
+  if (keys.length <= MAX_CACHE_ENTRIES) return cache;
+  keys.sort((a, b) => cache[b].fetchedAt - cache[a].fetchedAt);
+  for (const k of keys.slice(MAX_CACHE_ENTRIES)) delete cache[k];
+  return cache;
+}
+
 function ageMs(fetchedAt: number): number {
   return Date.now() - fetchedAt;
 }
@@ -100,7 +114,7 @@ export class CurrencyService {
           // concurrent fetch for another pair won't be clobbered.
           await this.opts.store.update((fresh) => {
             fresh[key(from, to)] = entry;
-            return fresh;
+            return capEntries(fresh);
           });
         } catch (err) {
           this.log.warn('fx cache write failed', { provider: p, err });
@@ -162,7 +176,7 @@ const TIMEOUT_MS = 3_000;
 export const realFetcher: FxFetcher = async (provider, from, to) => {
   switch (provider) {
     case 'frankfurter': {
-      const url = `https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${to}`;
+      const url = `https://api.frankfurter.dev/v1/latest?${new URLSearchParams({ base: from, symbols: to })}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (!res.ok) throw new Error(`frankfurter ${res.status}`);
       const json = (await res.json()) as { rates: Record<string, number> };
@@ -171,7 +185,7 @@ export const realFetcher: FxFetcher = async (provider, from, to) => {
       return { rate };
     }
     case 'erapi': {
-      const url = `https://open.er-api.com/v6/latest/${from}`;
+      const url = `https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (!res.ok) throw new Error(`erapi ${res.status}`);
       const json = (await res.json()) as { rates: Record<string, number> };
@@ -181,7 +195,7 @@ export const realFetcher: FxFetcher = async (provider, from, to) => {
     }
     case 'fawazahmed': {
       const lo = from.toLowerCase();
-      const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${lo}.json`;
+      const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${encodeURIComponent(lo)}.json`;
       const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (!res.ok) throw new Error(`fawazahmed ${res.status}`);
       const json = (await res.json()) as Record<string, Record<string, number>>;

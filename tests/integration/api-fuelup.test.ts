@@ -225,6 +225,28 @@ describe('POST /api/fuelup', () => {
     expect(observedForm?.get('cost')).toBe('42.18');
   });
 
+  it('rejects a malformed currency code with 400 (no provider call)', async () => {
+    for (const bad of ['CA$', 'CAD/../x', 'CADX', 'C']) {
+      const res = await POST(eventFor({ ...baseInput, currency: bad }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/currency/);
+    }
+  });
+
+  it('accepts a lowercase currency code, normalized to uppercase for the FX chain', async () => {
+    let observedBase = '';
+    upstream.use(
+      http.get('https://api.frankfurter.dev/v1/latest', ({ request }) => {
+        observedBase = new URL(request.url).searchParams.get('base') ?? '';
+        return HttpResponse.json({ rates: { USD: 0.73 } });
+      }),
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
+    );
+    const res = await POST(eventFor({ ...baseInput, currency: 'cad', clientSubmissionId: 'cur-lc-1' }));
+    expect(res.status).toBe(200);
+    expect(observedBase).toBe('CAD');
+  });
+
   it('uses manualFxRate when provided (no chain call)', async () => {
     upstream.use(
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
