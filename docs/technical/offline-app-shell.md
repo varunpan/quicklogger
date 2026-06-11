@@ -104,10 +104,13 @@ resolves and the SSR'd page is returned unchanged.
 - **SW-cache over localStorage** for the vehicle list keeps all offline logic in
   the worker and leaves `+page.ts` / `listVehicles()` untouched — the SW
   intercepts the existing fetch transparently.
-- **No `controllerchange` reload handshake.** The shell + chunks are precached
-  atomically per version, so a fresh offline cold-start is internally consistent.
-  The pre-existing stale-chunk-across-deploy risk (whole-app review #7) is
-  neither improved nor worsened here and is a separate fix.
+- **`controllerchange` reload handshake** (added by whole-app review #7's fix):
+  the shell + chunks are precached atomically per version, so a fresh offline
+  cold-start is internally consistent — but a tab already open across a deploy
+  keeps running the old build's JS while the new SW claims it and prunes the
+  old shell cache. `registerControllerReload` (`src/lib/client/sw-update.ts`)
+  reloads the page when a controlled page's controller changes, guarded so the
+  first-ever claim doesn't reload.
 
 ## Testing
 

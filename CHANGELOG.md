@@ -16,6 +16,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **No more broken navigation in tabs left open across an app update.** When
+  a new version deploys, an already-open tab now reloads once the update
+  takes control — previously it kept running the old version's code whose
+  lazy-loaded pages could no longer be fetched (white screen / failed
+  navigation until a manual refresh).
 - **Actually save the vehicle list for offline use on normal app launches.**
   The offline vehicle cache was only filled by in-app navigation back to the
   log form — plain "launch, log, quit" sessions never populated it, so the

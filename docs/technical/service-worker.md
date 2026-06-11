@@ -133,6 +133,14 @@ self.addEventListener('activate', (event) => {
   image and vehicle-list caches survive the upgrade.
 - `clients.claim()` lets the new worker control already-open pages
   without a reload (paired with `skipWaiting`).
+- **Pages reload when claimed by an update.** Because activate also prunes
+  the previous versioned cache, a page still running the old build's JS
+  would 404 on its next lazy-loaded old-hash chunk (504 offline). The
+  layout registers `registerControllerReload` (`src/lib/client/sw-update.ts`):
+  on `controllerchange` with a pre-existing controller it calls
+  `location.reload()`, so the running JS always matches the active worker's
+  shell. The first-ever claim (controller `null` → worker) deliberately
+  does **not** reload — the page and worker came from the same deploy.
 
 ## Fetch handler decision tree
 

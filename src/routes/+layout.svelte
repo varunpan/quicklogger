@@ -6,6 +6,7 @@
   import { loadServerInfo, saveServerInfo } from '$lib/client/server-info';
   import { registerSyncTriggers } from '$lib/client/sync-trigger';
   import { warmVehiclesCache } from '$lib/client/cache-warm';
+  import { registerControllerReload } from '$lib/client/sw-update';
 
   let { children } = $props();
 
@@ -58,13 +59,24 @@
     // would stay cold. One real fetch per page load keeps it warm. See cache-warm.ts.
     void warmVehiclesCache(navigator.serviceWorker, fetch);
 
+    // The SW skipWaiting()s + claim()s and prunes the old shell cache, so a tab
+    // open across a deploy must reload or its next lazy chunk load 404s. See sw-update.ts.
+    const cleanupReload = registerControllerReload(navigator.serviceWorker, () =>
+      location.reload()
+    );
+
     // Drain the offline submission queue on resume (focus / visibility) and on
     // reconnect (online), plus once the SW is ready. See sync-trigger.ts.
-    return registerSyncTriggers({
+    const cleanupTriggers = registerSyncTriggers({
       serviceWorker: navigator.serviceWorker,
       window,
       document
     });
+
+    return () => {
+      cleanupReload();
+      cleanupTriggers();
+    };
   });
 </script>
 
