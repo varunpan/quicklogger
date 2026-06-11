@@ -133,8 +133,11 @@ Two changes:
 2. **Submit success path** — after `submitFuelup` returns 200 and prefs are
    saved, the input is appended to the queue with `status: 'synced'`. This
    is fire-and-forget; IDB failures are swallowed and don't affect the
-   submit toast. On the next page navigation / PWA relaunch, the resolver
-   has this row available as a fallback when upstream is unreachable.
+   submit toast. The form is reset *before* the navigation to the vehicle's
+   maintenance view (so the writes land on the still-mounted component), and
+   the success toast set above stays visible through the maintenance load.
+   On the next page navigation / PWA relaunch, the resolver has this row
+   available as a fallback when upstream is unreachable.
 
 ## Service worker (`src/service-worker.ts`)
 

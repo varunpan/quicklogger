@@ -563,8 +563,13 @@
       } catch {
         // IDB unavailable (private mode, quota); ignore.
       }
-      // eslint-disable-next-line svelte/no-navigation-without-resolve
-      goto(`/maintenance?vehicleId=${vehicle.id}`);
+      // Reset the form, THEN navigate. Previously these ~12 writes ran *after*
+      // a fire-and-forget goto, landing on a component already navigating away
+      // (and leaving the goto rejection unhandled). Running them first keeps
+      // them on the live component; the toast set above stays visible through
+      // the maintenance load (SvelteKit keeps this page mounted until that
+      // load resolves). The .catch() drops the unhandled-rejection risk
+      // without routing a navigation failure into the offline-enqueue branch.
       odometer = initialOdometer();
       odometerEdited = false;
       volume = '';
@@ -578,6 +583,8 @@
       attachPumpBlob = null;
       attachOdometerBlob = null;
       attachPhotos = true;   // default-on again; checkbox stays hidden until the next OCR send (blobs cleared)
+      // eslint-disable-next-line svelte/no-navigation-without-resolve
+      void goto(`/maintenance?vehicleId=${vehicle.id}`).catch(() => {});
     } catch (err) {
       const status = (err as Error & { status?: number }).status;
       if (status && status >= 400 && status < 500) {
