@@ -19,11 +19,32 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Run E2E tests if any exist
         run: |
           if ls tests/e2e/*.spec.ts 2>/dev/null; then
-            npx playwright install --with-deps webkit
+            if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+              npx playwright install-deps webkit
+            else
+              npx playwright install --with-deps webkit
+            fi
             npm run test:e2e
           else
             echo "No E2E tests yet — skipping"
           fi
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
