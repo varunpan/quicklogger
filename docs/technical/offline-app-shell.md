@@ -24,6 +24,7 @@ network fails.
 | `svelte.config.js` | `paths.relative = false` — absolute `/_app/…` asset URLs. |
 | `src/service-worker.ts` | Precaches `...prerendered`; navigation + `/api/vehicles` branches; `API_CACHE` whitelist. |
 | `src/lib/client/sw-cache.ts` | Pure, unit-tested `navigationFallback` + `vehiclesNetworkFirst`. |
+| `src/lib/client/cache-warm.ts` | Post-`ready` one-shot `GET /api/vehicles` so SSR'd page loads still warm `API_CACHE`. |
 | `src/routes/+page.svelte` | Reactive `online` flag → offline banner + `Save offline` button label. |
 
 ## Data model
@@ -69,7 +70,14 @@ resolves and the SSR'd page is returned unchanged.
 
 - **Cold cache offline** (installed but never opened online): `API_CACHE` empty →
   `vehiclesNetworkFirst` returns 504 → `listVehicles().catch(() => [])` → empty
-  form (same as today). First online open fills the cache.
+  form (same as today). The first online open fills the cache — via the
+  layout's warming fetch (`cache-warm.ts`), **not** the page loader: SSR
+  serializes the vehicle list into the HTML, so a full navigation never issues
+  a browser `GET /api/vehicles` the SW could see. Without the warming fetch, a
+  user whose every session is "launch → log → quit" (full navigations only)
+  would keep a cold cache indefinitely (whole-app review #24). Residual: on
+  the very first install the warming fetch can bypass the still-uncontrolled
+  page; the next launch covers it.
 - **Build with no env:** `handle` returns early on `building`, so prerendering
   `/offline` never calls `loadEnv()`. Mandatory — Docker/CI build has no runtime env.
 - **Branch ordering invariant:** `/api/vehicles` is matched before the generic

@@ -5,6 +5,7 @@
   import { installClientLogger } from '$lib/client/logger';
   import { loadServerInfo, saveServerInfo } from '$lib/client/server-info';
   import { registerSyncTriggers } from '$lib/client/sync-trigger';
+  import { warmVehiclesCache } from '$lib/client/cache-warm';
 
   let { children } = $props();
 
@@ -51,6 +52,11 @@
 
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/service-worker.js', { type: 'module' });
+
+    // SSR serializes the vehicle list into the page HTML, so the browser never
+    // requests /api/vehicles on a full navigation and the SW's offline cache
+    // would stay cold. One real fetch per page load keeps it warm. See cache-warm.ts.
+    void warmVehiclesCache(navigator.serviceWorker, fetch);
 
     // Drain the offline submission queue on resume (focus / visibility) and on
     // reconnect (online), plus once the SW is ready. See sync-trigger.ts.

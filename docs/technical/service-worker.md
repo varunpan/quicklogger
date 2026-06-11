@@ -66,6 +66,11 @@ const API_CACHE = 'quicklogger-api-cache-v1';
 
 - Written exclusively by the `/api/vehicles` fetch branch (`vehiclesNetworkFirst`
   in `src/lib/client/sw-cache.ts`), and only on a `res.ok` response.
+- Fed by the layout's one-shot warming fetch (`src/lib/client/cache-warm.ts`,
+  fired post-`serviceWorker.ready`): SSR'd full navigations serialize the
+  vehicle list into the HTML and never issue a browser `GET /api/vehicles`,
+  so without the warming request the SW would only see one on client-side
+  re-navigation and the cache could stay cold indefinitely.
 - Survives deploys: the `activate` handler whitelists `API_CACHE` alongside the
   current shell `CACHE` and `IMG_CACHE`. Unlike the per-version shell cache, the
   vehicle list must outlive a deploy so an offline cold-start right after an

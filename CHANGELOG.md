@@ -16,6 +16,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Actually save the vehicle list for offline use on normal app launches.**
+  The offline vehicle cache was only filled by in-app navigation back to the
+  log form — plain "launch, log, quit" sessions never populated it, so the
+  first offline cold-start could find no vehicles even after weeks of use.
+  Every page load now warms the cache.
 - **Keep the vehicle picker working while LubeLogger is down.** A server
   error on the vehicle-list fetch now falls back to the last good cached
   list instead of showing "No vehicles found" — the same fallback that
