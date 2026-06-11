@@ -20,7 +20,6 @@
   import { loadDismissedUpdateVersion, saveDismissedUpdateVersion } from '$lib/client/dismissed-update';
   import {
     evaluateSmartChecks,
-    ODOMETER_MAX_DELTA_MI,
     type SmartCheckIssue,
     type LastFuelupForCheck
   } from '$lib/client/smart-checks';
@@ -95,7 +94,11 @@
 
   // --- Photo OCR state (v0.2.0+) ---
 
-  type OdoWarn = { detected: number; reason: 'lower' | 'too-high' };
+  // Only a backwards reading (detected < last) warns at OCR-confirm time — it's
+  // almost always a misread (e.g. a dropped leading digit). The "> 2000 mi
+  // above last" case is caught once, at submit, by smart-check E; warning for
+  // it here too was a redundant double-warning (#20b).
+  type OdoWarn = { detected: number; reason: 'lower' };
 
   let pumpOcrPending: boolean = $state(false);
   let pumpSuggestion: OcrPumpResult | null = $state(null);
@@ -258,7 +261,6 @@
     const last = Number(data.lastFuelup.odometer);
     if (!Number.isFinite(last) || last <= 0) return { ok: true };
     if (detected < last) return { detected, reason: 'lower' };
-    if (detected - last > ODOMETER_MAX_DELTA_MI) return { detected, reason: 'too-high' };
     return { ok: true };
   }
 
@@ -787,11 +789,7 @@
           </svg>
           <div class="text-xs text-amber-300 flex-1 leading-relaxed">
             <span class="font-semibold">Detected: {formatOdometer(String(odoWarning.detected))} mi</span> —
-            {#if odoWarning.reason === 'lower'}
-              lower than last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
-            {:else}
-              &gt; {formatOdometer(String(ODOMETER_MAX_DELTA_MI))} mi above last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
-            {/if}
+            lower than last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
           </div>
         </div>
         <div class="flex gap-2 mt-2 ml-6">

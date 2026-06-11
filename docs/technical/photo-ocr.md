@@ -240,9 +240,12 @@ bind to the existing `isoDate: string` state.
 7. Client: chip renders in the OCR feedback zone immediately under the
    capture row (full form width, not next to the field). Pump goes
    straight to the blue confirm chip. Odometer runs
-   `checkOdometerRelative` against `data.lastFuelup` first; ok → blue
-   confirm chip, warning → amber chip with `[Use anyway]` + `[Dismiss]`
-   (warnings are advisory in v0.2.0+ — see Edge cases below).
+   `checkOdometerRelative` against `data.lastFuelup` first; a reading
+   *below* last fillup → amber chip with `[Use anyway]` + `[Dismiss]`
+   (a backwards reading is almost always a misread), anything else → blue
+   confirm chip. A `> 2000 mi` jump is no longer warned here — it's caught
+   once, at submit, by smart-check E (#20b). Warnings are advisory in
+   v0.2.0+ — see Edge cases below.
 8. User taps `[Use]` → form fields populate; chip dismisses.
 
 ### Provider selection (per-request)
@@ -356,7 +359,7 @@ old-era rows over time; no backfill.
 | Old audit log row read after v0.2.2 deploy (has `fellbackTo`, lacks `fellbackFrom`) | `jq '.fellbackFrom // .fellbackTo // null'` covers both eras | Forward-additive — old lines stay valid JSON, queries handle both. |
 | Pump cross-field drift > 5% | 422 + range-style toast; chip never shown | Adversarial-image / OCR-confusion guard |
 | Odometer detected < last fillup | Amber advisory chip, `[Use anyway]` writes field | Odometers don't run backwards, but legitimate cases exist (replaced cluster, odometer rollover at high mileage); user owns the call |
-| Odometer jumped > 2000 mi | Amber advisory chip, `[Use anyway]` writes field | Hardcoded `ODOMETER_MAX_DELTA_MI`; long road trips are real; user owns the call. Promotable to Settings if real travel routinely hits this |
+| Odometer jumped > 2000 mi | No OCR-confirm chip — value flows to the blue suggestion; the `> 2000` jump is caught once, at submit, by smart-check E (`[Submit anyway]`) | Was a redundant double-warning (#20b): the OCR-confirm chip and smart-check E both flagged the same `ODOMETER_MAX_DELTA_MI`. E covers manual entry too, so it's the single gate. Hardcoded; promotable to Settings |
 | First fillup for vehicle (no `data.lastFuelup`) | Relative check skipped — value flows to confirm chip | Nothing to compare against |
 | Network drops mid-OCR | After 90 s client timeout: "OCR took too long" toast | `AbortSignal.timeout` fires; no IDB queue (intentional — see SW doc) |
 | Cold page load while offline | Loader probe fails → `enabled: false` → chips hidden | Loader catches all GET errors; failure-as-disabled is intentional |
@@ -463,8 +466,10 @@ legitimate cases (replaced odometer cluster, odometer rollover, a
 sudden gas-price spike, a freshly-onboarded vehicle with a delivery
 odometer in `lastFuelup`) flow through unchanged. For odometer, the
 client-side relative-range check (`checkOdometerRelative`) on the OCR
-result is the only guard, and it's advisory with a `[Use anyway]`
-override. For pump, the existing `cost ≈ volume × pricePerUnit`
+result flags only a *backwards* reading (below last fillup) — advisory,
+with a `[Use anyway]` override; the `> 2000 mi` jump is left to the
+submit-time smart-check E so the user isn't warned twice (#20b). For pump,
+the existing `cost ≈ volume × pricePerUnit`
 within-5% cross-field check is the only guard, and it's enforced at
 the server boundary (422).
 
@@ -492,7 +497,10 @@ genuine OCR confusion (e.g., `volume=11.2`, `pricePerUnit=3.78`,
 
 **Odometer *relative* range lives client-side; *absolute* range lives
 server-side.** The server has no access to per-vehicle fillup history.
-Relative-range hits are **advisory** (amber chip with `[Use anyway]`):
+At OCR-confirm time `checkOdometerRelative` flags only a *backwards*
+reading (below last fillup) as an advisory amber chip with `[Use anyway]`;
+the `> 2000 mi` jump is caught once, at submit, by smart-check E — warning
+at both points was a redundant double-warning (#20b). Both are advisory:
 the user owns the override gesture, since legitimate cases exist
 (replaced cluster, long road trip, odometer rollover). The absolute
 bound (`OCR_ODOMETER_MAX_MI=1,000,000`) catches adversarial-image /

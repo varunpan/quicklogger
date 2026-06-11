@@ -13,7 +13,7 @@ the bigger picture: see the `/` main-form section of
 
 - [`src/lib/client/smart-checks.ts`](../../src/lib/client/smart-checks.ts) —
   the pure module: `evaluateSmartChecks`, six per-check sub-functions, the
-  shared `ODOMETER_MAX_DELTA_MI` constant, and the formatting helpers
+  `ODOMETER_MAX_DELTA_MI` constant (consumed by check E), and the formatting helpers
   (`formatOdo`, `formatShortDate`, `getToday`). Unit-tested in
   `smart-checks.test.ts`.
 - [`src/lib/client/prefs.ts`](../../src/lib/client/prefs.ts) — adds
@@ -23,9 +23,11 @@ the bigger picture: see the `/` main-form section of
 - [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — submit-handler
   gate, consolidated amber chip rendering, Submit-disabled-while-chip-shown
   logic, clear-on-edit handlers on odometer/date/volume, and the
-  `submitAnyway()` bypass. Also: replaces the previous local
-  `const ODOMETER_MAX_DELTA_MI = 2000` with an import from the module so
-  the OCR-side relative-range check and the smart-check share one constant.
+  `submitAnyway()` bypass. Also: the OCR-side `checkOdometerRelative`
+  backwards-reading guard. (The OCR-side `> 2000` check that used to import
+  and share `ODOMETER_MAX_DELTA_MI` was removed in #20b — that jump is now
+  caught once, by smart-check E — so `+page.svelte` no longer imports the
+  constant.)
 - [`src/routes/settings/+page.svelte`](../../src/routes/settings/+page.svelte)
   — new "Smart checks" toggle card.
 
@@ -130,13 +132,13 @@ module's surface. If a second caller needs the same conversion later,
 promote it to `format.ts` then.
 
 **Smart-checks owns `ODOMETER_MAX_DELTA_MI`, not `format.ts` or a new
-constants module.** The constant is meaningful only to the smart-check
-evaluator and the OCR-side relative-range warning that fires on the same
-threshold. Both are pre-submit advisory checks; putting the value next to
-the evaluator that uses it keeps the relationship visible. The OCR call
-site imports from `smart-checks` because that's where the canonical
-definition now lives — the import isn't accidental coupling, it's the
-explicit shared-threshold contract.
+constants module.** The constant is now meaningful only to smart-check E
+(the `Δ > 2000` gate); keeping it next to its one consumer is the natural
+home. Until #20b it was also imported by the OCR-confirm relative-range
+check, which warned on the same threshold — a redundant double-warning.
+That OCR-side too-high check was removed (the OCR-confirm step now only
+flags a *backwards* reading), so the constant has a single consumer and
+`+page.svelte` no longer imports it.
 
 **Server side is intentionally untouched.** `/api/fuelup` continues to
 enforce only the four required-and-positive invariants. Apple Shortcuts
@@ -168,8 +170,3 @@ constructor like `tests/e2e/fixtures.ts#pinClock` does for e2e.
   and a quieter visual treatment.
 - **Per-vehicle thresholds.** Single global setting for v0.2.0; a
   long-trip commuter vs daily-commuter knob is a separate feature.
-- **OCR rendering of the chip's `Δ` value.** The OCR-side warning chip
-  uses `formatOdometer(String(ODOMETER_MAX_DELTA_MI))` to render the
-  threshold. Could centralize on the smart-check's `formatOdo` helper,
-  but the two render slightly different things (delta vs threshold) so
-  keeping them separate avoids cross-coupling.

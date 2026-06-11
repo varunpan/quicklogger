@@ -48,6 +48,11 @@ All notable changes to this project are documented here. Format roughly follows 
   to the form hidden behind it) and focuses its first control when it opens;
   the slide-out menu is now fully hidden from keyboard and assistive tech when
   closed, and pressing Escape closes it.
+- **No more double warning for a big odometer jump.** Confirming an OCR-read
+  odometer that's more than 2,000 miles above your last fill-up used to warn
+  you at the photo step *and* again at submit; the over-2,000 check now fires
+  once, at submit. (A reading that's *lower* than the last fill-up is still
+  flagged at the photo step — that's almost always a misread.)
 
 ### Tests
 
