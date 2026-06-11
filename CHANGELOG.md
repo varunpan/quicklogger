@@ -10,6 +10,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Bad volume units and number-like text now get a clear rejection, not a
+  server error.** Submitting `volumeUnit: "liters"` (or any value other than
+  `gal`/`L`) returns a 400 naming the field instead of a 500; numeric fields
+  sent as JSON strings (`"volume": "12.3"`) are now accepted and converted
+  correctly instead of failing mid-pipeline.
 - **Reject malformed vehicle IDs with a clear error.** An API submission whose
   `vehicleId` isn't a positive whole number is now rejected up front (400)
   instead of doing a full conversion run and failing confusingly at LubeLogger —

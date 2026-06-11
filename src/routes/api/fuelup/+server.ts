@@ -109,14 +109,21 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
   if (!Number.isInteger(vid) || vid <= 0) invalid.push('vehicleId');
   else b.vehicleId = vid;
 
+  // volumeUnit is a closed enum. Anything else (e.g. 'liters') used to sail
+  // through to toGallons() and surface as a 500 — a 400-class input error.
+  if (b.volumeUnit !== 'gal' && b.volumeUnit !== 'L') invalid.push('volumeUnit');
+
   // Numeric fields must be finite and strictly positive — a zero odometer,
   // zero volume, or zero cost is never a real fuelup. Apple Shortcuts and
   // direct API consumers bypass the form's own gate, so this is the only
-  // line of defense for them.
+  // line of defense for them. Valid values are coerced onto the body: the
+  // JSON path can deliver numeric *strings*, and downstream `.toFixed()`
+  // calls must always see numbers.
   const positives = ['odometer', 'volume', 'cost'] as const;
   for (const k of positives) {
     const n = Number(b[k]);
     if (!Number.isFinite(n) || n <= 0) invalid.push(k);
+    else b[k] = n;
   }
   if (typeof b.date !== 'string' || b.date.trim() === '') invalid.push('date');
   // manualFxRate is optional, but when present it must be a positive finite

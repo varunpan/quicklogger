@@ -239,7 +239,7 @@ IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-
 |---|---|
 | Request body | `application/json` or `application/x-www-form-urlencoded` or `multipart/form-data`. |
 | Required fields | `vehicleId`, `date`, `odometer`, `volume`, `volumeUnit`, `cost`, `currency`, `clientSubmissionId`. |
-| Numeric guard | `vehicleId` must coerce to a positive integer (coerced onto the body before use — the JSON path would otherwise pass a raw string into the authenticated upstream URL). `odometer`, `volume`, `cost` must be finite and `> 0`. `date` must be a non-empty string. |
+| Numeric guard | `vehicleId` must coerce to a positive integer (coerced onto the body before use — the JSON path would otherwise pass a raw string into the authenticated upstream URL). `odometer`, `volume`, `cost` must be finite and `> 0`, and are coerced onto the body (JSON numeric strings are accepted). `volumeUnit` must be exactly `'gal'` or `'L'`. `date` must be a non-empty string. |
 | Idempotency | 60-second in-memory window keyed on `clientSubmissionId`. Repeat POSTs in the window return the original cached response. |
 
 #### Success response (200)
@@ -266,7 +266,7 @@ was still created).
 |---|---|---|
 | 400 | `{ error: 'unsupported content-type: ...' }` | Body parse failed. |
 | 400 | `{ error: 'missing fields: ...' }` | Required field missing or null. |
-| 400 | `{ error: 'invalid fields (must be > 0 / non-empty): ...' }` | Zero/negative/NaN on a numeric field or empty `date`. |
+| 400 | `{ error: 'invalid fields (must be > 0 / non-empty): ...' }` | Zero/negative/NaN on a numeric field, non-integer `vehicleId`, unknown `volumeUnit`, or empty `date`. |
 | 4xx | `{ error: string, status: number, body: string }` | `LubeLoggerError` with upstream 4xx — re-emitted with same status. |
 | 502 | `{ error: string, status: number, body: string }` | `LubeLoggerError` with upstream 5xx — re-emitted as 502. |
 | 500 | `{ error: string }` | FX unavailable (no manual rate set), env missing, or any other thrown error. |

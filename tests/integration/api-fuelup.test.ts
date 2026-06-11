@@ -195,6 +195,36 @@ describe('POST /api/fuelup', () => {
     expect(observedUrl).toContain('vehicleId=2');
   });
 
+  it('rejects an unknown volumeUnit with 400, not 500', async () => {
+    const res = await POST(eventFor({ ...baseInput, volumeUnit: 'liters' }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/volumeUnit/);
+  });
+
+  it('accepts JSON numeric strings and converts correctly (coerced before use)', async () => {
+    let observedForm: FormData | undefined;
+    upstream.use(
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', async ({ request }) => {
+        observedForm = await request.formData();
+        return HttpResponse.json({ success: true });
+      })
+    );
+    const res = await POST(eventFor({
+      ...baseInput,
+      currency: 'USD',
+      volumeUnit: 'gal',
+      volume: '12.3',
+      cost: '42.18',
+      odometer: '87432',
+      clientSubmissionId: 'numstr-1'
+    }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.submitted.gallons).toBeCloseTo(12.3, 3);
+    expect(observedForm?.get('fuelconsumed')).toBe('12.300');
+    expect(observedForm?.get('cost')).toBe('42.18');
+  });
+
   it('uses manualFxRate when provided (no chain call)', async () => {
     upstream.use(
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
