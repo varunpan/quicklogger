@@ -51,15 +51,18 @@ Each card shows the volume, currency, cost, and two status fields:
 
 - **`status`** — one of:
   - `queued` — waiting for the next sync run.
-  - `failed` — the server rejected it permanently (HTTP 4xx). It will
-    not retry. To clear it, open the row in your browser's devtools →
-    IndexedDB store and delete it, or accept that the entry won't reach
-    LubeLogger.
-  - `synced` — already posted successfully. These are kept as local history
-    so the offline odometer prefill has something to fall back on (see
-    [`odometer-prefill.md`](odometer-prefill.md)).
-- **`attempts`** — how many times the service worker has tried to POST it.
-  Caps at 5 (see "What happens on failure" below).
+  - `failed` — won't retry. Two ways an entry gets here: the server
+    rejected it permanently (HTTP 4xx), or it used up all 5 delivery
+    attempts (shown as `error: max attempts`). To clear it, open the row
+    in your browser's devtools → IndexedDB store and delete it, or accept
+    that the entry won't reach LubeLogger.
+  - `synced` — already posted successfully. The newest few (5 per vehicle)
+    are kept as local history so the offline odometer prefill has something
+    to fall back on (see [`odometer-prefill.md`](odometer-prefill.md));
+    older ones are cleaned up automatically.
+- **`attempts`** — how many times a POST actually reached your server.
+  Tries that fail because you're offline don't count. Caps at 5 (see
+  "What happens on failure" below).
 
 If the last attempt errored, an `error: ...` line is also shown.
 
@@ -70,10 +73,12 @@ that a previous submission really did land upstream.
 ## When does sync run?
 
 The app tries to drain the queue every time you **open** or **refocus**
-it. That's it — there is no background sync, and nothing happens while
-the tab is closed. If you close the tab/PWA, sync resumes the next time
-you open it. For most use cases this is fine — you'll re-open the app
-within minutes.
+it, and the moment connectivity **returns** while the app is open (the
+browser's `online` event — Wi-Fi reassociating, cellular coming back).
+There is no background sync, and nothing happens while the tab is
+closed. If you close the tab/PWA, sync resumes the next time you open
+it. For most use cases this is fine — you'll re-open the app within
+minutes.
 
 Internals: see [`../technical/offline-queue.md`](../technical/offline-queue.md).
 
@@ -81,20 +86,25 @@ Internals: see [`../technical/offline-queue.md`](../technical/offline-queue.md).
 
 For each queued entry, the service worker:
 
-1. Increments `attempts`.
-2. POSTs `/api/fuelup` with the saved JSON body.
-3. On HTTP 2xx, marks the entry `synced`.
-4. On HTTP 4xx, marks the entry `failed`. It will not be retried.
-5. On HTTP 5xx, network error, or DNS failure, leaves the entry `queued`
-   and moves to the next one. It will be retried on the next sync trigger.
+1. POSTs `/api/fuelup` with the saved JSON body.
+2. On HTTP 2xx, marks the entry `synced`.
+3. On HTTP 4xx, marks the entry `failed`. It will not be retried.
+4. On HTTP 5xx, leaves the entry `queued` and moves to the next one. It
+   will be retried on the next sync trigger. This **does** consume one of
+   the 5 attempts — the server was reached and answered.
+5. On a network error or DNS failure (the request never reached a
+   server), leaves the entry `queued` **without** consuming an attempt.
+   Being offline never costs delivery attempts — only real server
+   responses do, so resuming the app any number of times during one
+   offline stretch can't wear an entry out.
 
-Once `attempts` reaches **5**, the entry is skipped on subsequent syncs
-even if its status is still `queued`. This protects against an entry that
-keeps failing in a way the 4xx path doesn't catch (e.g. CORS bug,
-intermittent network).
+Once `attempts` reaches **5**, the entry is marked `failed` with
+`error: max attempts` on the next sync, so it's visible on the History
+page instead of sitting in the queue forever. This protects against an
+entry the server keeps answering with errors the 4xx path doesn't catch.
 
-If a row gets stuck at `attempts: 5 · status: queued`, the simplest
-recovery is:
+If you find a row at `status: failed · error: max attempts`, the
+simplest recovery is:
 
 - Open the form on a working network.
 - Look at the row's volume/cost values.
