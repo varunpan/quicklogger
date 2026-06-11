@@ -163,22 +163,30 @@ Vehicle images are fetched once per vehicle per device and then near-immutable i
 Implementation:
 
 ```ts
-async function staleWhileRevalidate(req: Request): Promise<Response> {
+async function staleWhileRevalidate(event: FetchEvent): Promise<Response> {
+  const req = event.request;
   const cache = await caches.open(IMG_CACHE);
   const cached = await cache.match(req);
   const networkFetch = fetch(req)
-    .then((res) => {
-      if (res.ok) void cache.put(req, res.clone());
+    .then(async (res) => {
+      if (res.ok) await cache.put(req, res.clone());
       return res;
     })
     .catch(() => undefined);
   if (cached) {
-    void networkFetch;  // fire-and-forget refresh
+    event.waitUntil(networkFetch);  // background refresh; SW kept alive until the write lands
     return cached;
   }
   return (await networkFetch) ?? new Response(null, { status: 504 });
 }
 ```
+
+The background refresh is handed to `event.waitUntil` rather than left
+fire-and-forget: once `respondWith`'s promise settles, the browser may
+terminate the worker (iOS does so aggressively), killing a detached fetch
+or an un-awaited `cache.put` mid-write (whole-app review #23). `waitUntil`
+extends the worker's lifetime until the refreshed bytes have actually
+landed in the cache. The same applies to the `/api/vehicles` write below.
 
 This branch is inserted *before* the generic `/api/` branch so the image path doesn't fall through to network-first. The `cache-control: no-store` header on the server response is what keeps the browser's HTTP cache out of the picture — `IMG_CACHE` is the only persistence layer for these bytes.
 
@@ -189,7 +197,7 @@ if (url.pathname === '/api/vehicles') {
   event.respondWith(
     (async () => {
       const cache = await caches.open(API_CACHE);
-      return vehiclesNetworkFirst(req, (r) => fetch(r), cache);
+      return vehiclesNetworkFirst(req, (r) => fetch(r), cache, (p) => event.waitUntil(p));
     })()
   );
   return;
@@ -200,7 +208,9 @@ Placed before the generic `/api/` branch. `vehiclesNetworkFirst`
 (`src/lib/client/sw-cache.ts`) returns the live response and refreshes
 `API_CACHE` on every 2xx; on a network failure it serves the cached copy, or a
 bare 504 if the cache is cold. This is the one data dependency the offline
-cold-start form needs.
+cold-start form needs. The cache write goes through `event.waitUntil` (the
+fourth argument) so the worker isn't terminated before the "last good
+response" actually persists — see the SWR note above.
 
 ### `/api/*` — network-first
 

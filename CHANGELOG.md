@@ -16,6 +16,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Reliably persist the offline vehicle list and vehicle images.** The
+  browser may terminate the service worker as soon as a response is
+  delivered — especially on iOS — which could kill the background cache
+  writes for the vehicle list and vehicle images mid-write, leaving an
+  offline cold-start with no vehicle to log against. The worker now stays
+  alive until those writes complete.
 - **Don't lose the offline shell when an app update downloads on a flaky
   connection.** If precaching a new version's app shell failed mid-install,
   the update previously activated anyway and deleted the old version's

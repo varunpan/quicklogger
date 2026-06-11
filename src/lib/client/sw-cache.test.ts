@@ -81,24 +81,54 @@ describe('navigationFallback', () => {
 });
 
 describe('vehiclesNetworkFirst', () => {
-  it('caches and returns a successful response', async () => {
+  // Collects promises the policy hands to event.waitUntil so tests can
+  // settle the background cache write before asserting on the cache.
+  function fakeWaitUntil() {
+    const pending: Promise<unknown>[] = [];
+    return { waitUntil: (p: Promise<unknown>) => void pending.push(p), pending };
+  }
+
+  it('caches and returns a successful response (body readable from both)', async () => {
     const cache = fakeCache();
+    const { waitUntil, pending } = fakeWaitUntil();
     const req = new Request('http://x/api/vehicles');
     const net = new Response(JSON.stringify([{ id: 1 }]), { status: 200 });
-    const res = await vehiclesNetworkFirst(req, async () => net, cache);
+    const res = await vehiclesNetworkFirst(req, async () => net, cache, waitUntil);
     expect(res.status).toBe(200);
-    expect(await cache.match(req)).toBeDefined();
+    await Promise.all(pending);
+    const cached = await cache.match(req);
+    expect(cached).toBeDefined();
+    // Read BOTH bodies: a dropped res.clone() would pass an existence-only
+    // assertion and explode at runtime with "body already used".
+    expect(await res.json()).toEqual([{ id: 1 }]);
+    expect(await cached!.json()).toEqual([{ id: 1 }]);
   });
 
-  it('does not cache a non-ok response', async () => {
+  it('hands the cache write to waitUntil (SW must outlive respondWith)', async () => {
     const cache = fakeCache();
+    const { waitUntil, pending } = fakeWaitUntil();
+    const req = new Request('http://x/api/vehicles');
+    await vehiclesNetworkFirst(
+      req,
+      async () => new Response('[]', { status: 200 }),
+      cache,
+      waitUntil
+    );
+    expect(pending).toHaveLength(1);
+  });
+
+  it('does not cache a non-ok response when the cache is cold', async () => {
+    const cache = fakeCache();
+    const { waitUntil, pending } = fakeWaitUntil();
     const req = new Request('http://x/api/vehicles');
     const res = await vehiclesNetworkFirst(
       req,
       async () => new Response('err', { status: 500 }),
-      cache
+      cache,
+      waitUntil
     );
     expect(res.status).toBe(500);
+    await Promise.all(pending);
     expect(await cache.match(req)).toBeUndefined();
   });
 
@@ -108,7 +138,7 @@ describe('vehiclesNetworkFirst', () => {
     await cache.put(req, new Response(JSON.stringify([{ id: 7 }]), { status: 200 }));
     const res = await vehiclesNetworkFirst(req, async () => {
       throw new Error('offline');
-    }, cache);
+    }, cache, fakeWaitUntil().waitUntil);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([{ id: 7 }]);
   });
@@ -118,7 +148,7 @@ describe('vehiclesNetworkFirst', () => {
     const req = new Request('http://x/api/vehicles');
     const res = await vehiclesNetworkFirst(req, async () => {
       throw new Error('offline');
-    }, cache);
+    }, cache, fakeWaitUntil().waitUntil);
     expect(res.status).toBe(504);
   });
 });

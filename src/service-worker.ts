@@ -51,7 +51,7 @@ self.addEventListener('fetch', (event) => {
 
   // SWR for vehicle images — separate cache, intercept before the /api/ branch.
   if (url.pathname === '/api/vehicle/image') {
-    event.respondWith(staleWhileRevalidate(req));
+    event.respondWith(staleWhileRevalidate(event));
     return;
   }
 
@@ -62,7 +62,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(API_CACHE);
-        return vehiclesNetworkFirst(req, (r) => fetch(r), cache);
+        return vehiclesNetworkFirst(req, (r) => fetch(r), cache, (p) => event.waitUntil(p));
       })()
     );
     return;
@@ -111,18 +111,21 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
   if (data?.type === 'sync-queue') event.waitUntil(syncQueue());
 });
 
-async function staleWhileRevalidate(req: Request): Promise<Response> {
+async function staleWhileRevalidate(event: FetchEvent): Promise<Response> {
+  const req = event.request;
   const cache = await caches.open(IMG_CACHE);
   const cached = await cache.match(req);
   const networkFetch = fetch(req)
-    .then((res) => {
-      if (res.ok) void cache.put(req, res.clone());
+    .then(async (res) => {
+      if (res.ok) await cache.put(req, res.clone());
       return res;
     })
     .catch(() => undefined);
   if (cached) {
-    // fire-and-forget refresh; return cached immediately
-    void networkFetch;
+    // Background refresh; return cached immediately. waitUntil keeps the
+    // worker alive until the refreshed bytes land — once respondWith
+    // settles, the browser may otherwise kill the worker mid-write.
+    event.waitUntil(networkFetch);
     return cached;
   }
   return (await networkFetch) ?? new Response(null, { status: 504 });

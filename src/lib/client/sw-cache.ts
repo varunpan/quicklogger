@@ -56,12 +56,16 @@ export async function navigationFallback(
 export async function vehiclesNetworkFirst(
   req: Request,
   fetcher: (req: Request) => Promise<Response>,
-  cache: Cache
+  cache: Cache,
+  waitUntil: (p: Promise<unknown>) => void
 ): Promise<Response> {
   try {
     const res = await fetcher(req);
-    // Fire-and-forget background write — must not delay returning the response.
-    if (res.ok) void cache.put(req, res.clone());
+    // Background write — must not delay returning the response, but once
+    // respondWith settles the browser may terminate the worker (iOS does so
+    // aggressively), killing an un-awaited put mid-write. Handing the put to
+    // event.waitUntil keeps the worker alive until the write lands.
+    if (res.ok) waitUntil(cache.put(req, res.clone()));
     return res;
   } catch {
     return (await cache.match(req)) ?? new Response(null, { status: 504 });
