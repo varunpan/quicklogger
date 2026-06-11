@@ -33,7 +33,7 @@ the form:
 | --- | --- | --- |
 | Green | `Logged: {N.NN} Gal · $X.XX` | Posted to LubeLogger successfully. The numbers are the converted, server-side values (so you can sanity-check FX). |
 | Amber | `Saved locally — will sync when online` | The network call failed (offline, server down, DNS not resolving). Your submission is in the device queue and will replay automatically. |
-| Red | `Submission rejected: {message}` | LubeLogger answered with a 4xx — typically validation (missing field, bad value). The submission is **not** queued; fix it and resubmit. |
+| Red | `Submission rejected: {message}` | The submission got a 4xx — either quicklogger's own validation (missing field, bad value, unknown currency/unit) or LubeLogger rejecting it. The submission is **not** queued; fix it and resubmit. |
 
 The form does not need to know in advance whether you are offline. It
 always tries the POST first and falls back to the queue on network or 5xx
