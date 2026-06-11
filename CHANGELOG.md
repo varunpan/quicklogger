@@ -10,6 +10,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Reject malformed vehicle IDs with a clear error.** An API submission whose
+  `vehicleId` isn't a positive whole number is now rejected up front (400)
+  instead of doing a full conversion run and failing confusingly at LubeLogger —
+  and a crafted string can no longer be passed through into the upstream
+  request URL.
+
 ### Tests
 
 ## [0.2.7] — 2026-06-11

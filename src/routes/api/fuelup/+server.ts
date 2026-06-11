@@ -99,12 +99,21 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
   }
   if (missing.length) throw new Error(`missing fields: ${missing.join(', ')}`);
 
+  const invalid: string[] = [];
+  // vehicleId must be a positive integer, coerced before use. The form path
+  // already coerces with Number(), but the JSON path delivers whatever the
+  // client sent — a string would otherwise be interpolated raw into the
+  // authenticated upstream URL (query injection) or reach LubeLogger as NaN
+  // after a full FX+upload run.
+  const vid = Number(b.vehicleId);
+  if (!Number.isInteger(vid) || vid <= 0) invalid.push('vehicleId');
+  else b.vehicleId = vid;
+
   // Numeric fields must be finite and strictly positive — a zero odometer,
   // zero volume, or zero cost is never a real fuelup. Apple Shortcuts and
   // direct API consumers bypass the form's own gate, so this is the only
   // line of defense for them.
   const positives = ['odometer', 'volume', 'cost'] as const;
-  const invalid: string[] = [];
   for (const k of positives) {
     const n = Number(b[k]);
     if (!Number.isFinite(n) || n <= 0) invalid.push(k);

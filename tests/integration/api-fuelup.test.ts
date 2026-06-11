@@ -160,6 +160,41 @@ describe('POST /api/fuelup', () => {
     expect(body.error).toMatch(/date/);
   });
 
+  it('rejects a query-injection vehicleId string with 400 (no upstream call)', async () => {
+    const res = await POST(eventFor({ ...baseInput, vehicleId: '1&someParam=x' }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/vehicleId/);
+  });
+
+  it('rejects a non-numeric form vehicleId with 400', async () => {
+    const usp = new URLSearchParams();
+    const fields = { ...baseInput, currency: 'USD', volumeUnit: 'gal', vehicleId: 'abc' };
+    for (const [k, v] of Object.entries(fields)) usp.set(k, String(v));
+    const res = await POST(eventFor(usp.toString(), 'application/x-www-form-urlencoded'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/vehicleId/);
+  });
+
+  it('rejects a non-integer vehicleId with 400', async () => {
+    const res = await POST(eventFor({ ...baseInput, vehicleId: 1.5 }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/vehicleId/);
+  });
+
+  it('accepts a numeric-string vehicleId and coerces it for the upstream URL', async () => {
+    let observedUrl = '';
+    upstream.use(
+      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', ({ request }) => {
+        observedUrl = request.url;
+        return HttpResponse.json({ success: true });
+      })
+    );
+    const res = await POST(eventFor({ ...baseInput, vehicleId: '2', clientSubmissionId: 'vid-str-1' }));
+    expect(res.status).toBe(200);
+    expect(observedUrl).toContain('vehicleId=2');
+  });
+
   it('uses manualFxRate when provided (no chain call)', async () => {
     upstream.use(
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
