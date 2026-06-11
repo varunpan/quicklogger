@@ -106,18 +106,14 @@ describe('GET /api/vehicle/image', () => {
 		expect(res.status).toBe(502);
 	});
 
-	it('returns structured upstream-error body on LubeLogger non-OK', async () => {
+	it('returns a generic error body on LubeLogger non-OK — no upstream details leak', async () => {
 		upstream.use(
 			http.get('http://lubelog:8080/api/vehicles', () => new HttpResponse('boom', { status: 503 }))
 		);
 		const res = await GET(eventFor('1'));
 		expect(res.status).toBe(502);
-		const body = await res.json();
-		expect(body).toMatchObject({
-			error: 'Could not fetch vehicle image from LubeLogger',
-			upstream: 'GET /api/vehicles or /images/*',
-			upstream_status: 503
-		});
+		// Upstream topology/status stays in server logs ('lubelogger non-ok').
+		expect(await res.json()).toEqual({ error: 'Could not fetch vehicle image from LubeLogger' });
 	});
 
 	it('caches the vehicles list — second call within window does not re-hit /api/vehicles', async () => {

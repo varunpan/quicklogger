@@ -71,10 +71,11 @@ upstream provider supports, but the UI doesn't expose them.
    warning in this case.
 5. **All-fail.** If no fresh provider succeeded and no cache entry
    is within 7 days, throw `FxUnavailableError`. The `/api/fuelup`
-   handler surfaces this as a 500 (the catch-all branch in `+server.ts`);
-   the `/api/fx` handler maps it specifically to a 503 with
-   `{ available: false }` so the form knows to show the manual-FX
-   override field.
+   handler maps this to a **503** with a "retry later or enter a manual
+   rate" message (5xx — not 4xx — so a queued offline replay stays
+   `'queued'` and retries on a later sync); the `/api/fx` handler maps
+   it to a 503 with `{ available: false }` so the form knows to show
+   the manual-FX override field.
 
 ### Result shape
 

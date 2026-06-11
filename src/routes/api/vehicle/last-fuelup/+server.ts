@@ -29,15 +29,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     return json(latest);
   } catch (err) {
     if (err instanceof LubeLoggerError) {
-      return json(
-        {
-          error: 'Could not fetch last fuelup from LubeLogger',
-          upstream: 'GET /api/vehicle/gasrecords',
-          upstream_status: err.status
-        },
-        { status: 502 }
-      );
+      // Detail is logged at the throw site ('lubelogger non-ok').
+      return json({ error: 'Could not fetch last fuelup from LubeLogger' }, { status: 502 });
     }
-    return json({ error: (err as Error).message }, { status: 500 });
+    locals.logger.error('last-fuelup lookup failed', { err });
+    return json({ error: 'unexpected server error' }, { status: 500 });
   }
 };

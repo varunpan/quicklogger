@@ -159,7 +159,7 @@ Source: `src/routes/api/vehicle/last-fuelup/+server.ts`.
 | Response 200 | `GasRecord` (the latest by `parseDate(record.date)`) or `null` (if no records). |
 | Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
 | Response 502 | `{ error: string }` — `LubeLoggerError` from upstream. |
-| Response 500 | `{ error: string }` — any other error. |
+| Response 500 | `{ error: 'unexpected server error' }` — any other error; detail logged server-side, never echoed. |
 
 `GasRecord` shape (typed under `culture-invariant: true`): primitives are
 JSON-typed (`odometer: 87432`, `cost: 42.18`, `isFillToFull: true`); dates are
@@ -218,7 +218,7 @@ flow.
 | Response 200 | `{ rate: number, source: string, fetchedAt: number, stale: boolean, ageHours: number }` |
 | Response 400 | `{ error: 'from and to required' }` if either param is empty; `{ error: 'from and to must be 3-letter currency codes' }` if either fails the ISO-4217 shape. |
 | Response 503 | `{ available: false }` — `FxUnavailableError` (no provider succeeded and no usable cache). The page interprets this as "show the manual-FX field". |
-| Response 500 | `{ error: string }` — any other error. |
+| Response 500 | `{ error: 'unexpected server error' }` — any other error; detail logged server-side, never echoed. |
 
 ### `POST /api/fuelup`
 
@@ -267,9 +267,10 @@ was still created).
 | 400 | `{ error: 'unsupported content-type: ...' }` | Body parse failed. |
 | 400 | `{ error: 'missing fields: ...' }` | Required field missing or null. |
 | 400 | `{ error: 'invalid fields (must be > 0 / non-empty): ...' }` | Zero/negative/NaN on a numeric field, non-integer `vehicleId`, unknown `volumeUnit`, or empty `date`. |
-| 4xx | `{ error: string, status: number, body: string }` | `LubeLoggerError` with upstream 4xx — re-emitted with same status. |
-| 502 | `{ error: string, status: number, body: string }` | `LubeLoggerError` with upstream 5xx — re-emitted as 502. |
-| 500 | `{ error: string }` | FX unavailable (no manual rate set), env missing, or any other thrown error. |
+| 4xx | `{ error: string }` | `LubeLoggerError` with upstream 4xx — re-emitted with same status. Upstream status/body stay in server logs (`lubelogger non-ok`). |
+| 502 | `{ error: string }` | `LubeLoggerError` with upstream 5xx — re-emitted as 502. Generic message only. |
+| 503 | `{ error: 'exchange rate unavailable — retry later or enter a manual rate' }` | `FxUnavailableError` (chain dry, no manual rate). 5xx so a queued replay stays `'queued'`. |
+| 500 | `{ error: 'unexpected server error' }` | Any other thrown error. The exception detail is logged server-side (`fuelup submit failed`), never echoed to the client. |
 
 The 4xx-passthrough is what the SW replay loop relies on: it marks the
 queue entry `'failed'` exactly when the response is `>= 400 && < 500`.

@@ -44,15 +44,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     });
   } catch (err) {
     if (err instanceof LubeLoggerError) {
-      return json(
-        {
-          error: 'Could not fetch vehicle image from LubeLogger',
-          upstream: 'GET /api/vehicles or /images/*',
-          upstream_status: err.status
-        },
-        { status: 502 }
-      );
+      // Detail is logged at the throw site ('lubelogger non-ok').
+      return json({ error: 'Could not fetch vehicle image from LubeLogger' }, { status: 502 });
     }
-    return json({ error: (err as Error).message }, { status: 500 });
+    locals.logger.error('vehicle image fetch failed', { err });
+    return json({ error: 'unexpected server error' }, { status: 500 });
   }
 };

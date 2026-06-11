@@ -10,6 +10,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Error responses no longer echo internal details.** Upstream LubeLogger
+  status codes and error-body excerpts, and raw exception text, are no longer
+  included in API error responses — clients get a clear generic message and
+  the full detail goes to the server log. A fillup submitted while no
+  exchange rate is obtainable now returns a proper "enter a manual rate"
+  503 instead of a raw 500.
 - **Currency codes are now checked at the door.** Both the FX-rate lookup and
   the fillup submit reject anything that isn't a 3-letter currency code
   (lowercase is accepted and normalized), so malformed values can no longer be

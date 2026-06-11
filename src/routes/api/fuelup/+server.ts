@@ -4,7 +4,7 @@ import { loadEnv } from '$lib/server/env';
 import { LubeLoggerClient, LubeLoggerError } from '$lib/server/lubelogger';
 import type { UploadedFile } from '$lib/server/lubelogger';
 import { sniffImageType } from '$lib/server/ocr';
-import { CurrencyService, JsonFileStore, realFetcher } from '$lib/server/currency';
+import { CurrencyService, JsonFileStore, realFetcher, FxUnavailableError } from '$lib/server/currency';
 import { convertSubmission } from '$lib/server/convert';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
@@ -261,17 +261,26 @@ async function submitToLubeLogger(
     };
   } catch (err) {
     if (err instanceof LubeLoggerError) {
+      // Upstream status + body preview are already logged at the throw site
+      // ('lubelogger non-ok'); the client gets a generic message — upstream
+      // topology and raw error bodies stay out of responses. The status
+      // mapping (4xx passthrough, 5xx → 502) is what the SW replay loop
+      // keys its 'failed' vs 'queued' decision on.
       return {
         status: err.status >= 500 ? 502 : err.status,
-        body: JSON.stringify({
-          error: 'Could not submit fillup to LubeLogger',
-          upstream: 'POST /api/vehicle/gasrecords/add',
-          upstream_status: err.status,
-          upstream_body_preview: err.body.slice(0, 200)
-        })
+        body: JSON.stringify({ error: 'Could not submit fillup to LubeLogger' })
       };
     }
-    return { status: 500, body: JSON.stringify({ error: (err as Error).message }) };
+    if (err instanceof FxUnavailableError) {
+      // Transient by nature (providers down, cache dry). 5xx — not 4xx — so
+      // a queued offline replay stays 'queued' and retries on a later sync.
+      return {
+        status: 503,
+        body: JSON.stringify({ error: 'exchange rate unavailable — retry later or enter a manual rate' })
+      };
+    }
+    logger.error('fuelup submit failed', { err });
+    return { status: 500, body: JSON.stringify({ error: 'unexpected server error' }) };
   }
 }
 

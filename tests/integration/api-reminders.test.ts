@@ -83,12 +83,8 @@ describe('GET /api/vehicle/reminders', () => {
     );
     const res = await GET(eventFor('1'));
     expect(res.status).toBe(502);
-    const body = await res.json();
-    expect(body).toMatchObject({
-      error: 'Could not fetch reminders from LubeLogger',
-      upstream: 'GET /api/vehicle/reminders',
-      upstream_status: 401
-    });
+    // Generic message only — upstream topology/status stays in server logs.
+    expect(await res.json()).toEqual({ error: 'Could not fetch reminders from LubeLogger' });
   });
 
   it('returns 502 when upstream is 5xx', async () => {

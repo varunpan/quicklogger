@@ -41,6 +41,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     if (err instanceof FxUnavailableError) {
       return json({ available: false }, { status: 503 });
     }
-    return json({ error: (err as Error).message }, { status: 500 });
+    locals.logger.error('fx lookup failed', { err });
+    return json({ error: 'unexpected server error' }, { status: 500 });
   }
 };

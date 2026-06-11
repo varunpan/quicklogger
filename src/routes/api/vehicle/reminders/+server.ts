@@ -20,15 +20,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     return json(reminders);
   } catch (err) {
     if (err instanceof LubeLoggerError) {
-      return json(
-        {
-          error: 'Could not fetch reminders from LubeLogger',
-          upstream: 'GET /api/vehicle/reminders',
-          upstream_status: err.status
-        },
-        { status: 502 }
-      );
+      // Detail is logged at the throw site ('lubelogger non-ok').
+      return json({ error: 'Could not fetch reminders from LubeLogger' }, { status: 502 });
     }
-    return json({ error: (err as Error).message }, { status: 500 });
+    locals.logger.error('reminders lookup failed', { err });
+    return json({ error: 'unexpected server error' }, { status: 500 });
   }
 };

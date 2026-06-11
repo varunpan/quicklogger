@@ -24,15 +24,10 @@ export const GET: RequestHandler = async ({ locals }) => {
     return json(vehicles);
   } catch (err) {
     if (err instanceof LubeLoggerError) {
-      return json(
-        {
-          error: 'Could not fetch vehicles from LubeLogger',
-          upstream: 'GET /api/vehicles',
-          upstream_status: err.status
-        },
-        { status: 502 }
-      );
+      // Detail is logged at the throw site ('lubelogger non-ok').
+      return json({ error: 'Could not fetch vehicles from LubeLogger' }, { status: 502 });
     }
-    return json({ error: (err as Error).message }, { status: 500 });
+    locals.logger.error('vehicles lookup failed', { err });
+    return json({ error: 'unexpected server error' }, { status: 500 });
   }
 };

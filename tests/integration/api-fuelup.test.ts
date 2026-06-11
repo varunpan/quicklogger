@@ -247,6 +247,45 @@ describe('POST /api/fuelup', () => {
     expect(observedBase).toBe('CAD');
   });
 
+  it('502 arm returns a generic message — no upstream details leak', async () => {
+    upstream.use(
+      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () =>
+        new HttpResponse('secret internal detail', { status: 503 })
+      )
+    );
+    const res = await POST(eventFor(baseInput));
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toMatch(/LubeLogger/);
+    expect(body.upstream).toBeUndefined();
+    expect(body.upstream_status).toBeUndefined();
+    expect(body.upstream_body_preview).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('secret internal detail');
+  });
+
+  it('returns 503 with a manual-rate hint when the FX chain is dry', async () => {
+    upstream.use(
+      http.get('https://api.frankfurter.dev/v1/latest', () => new HttpResponse(null, { status: 503 }))
+    );
+    const res = await POST(eventFor({ ...baseInput, clientSubmissionId: 'fx-dry-1' }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/manual rate/);
+  });
+
+  it('unexpected server errors return a generic message, not the exception text', async () => {
+    process.env.LUBELOGGER_VOLUME_UNIT = 'liters'; // convertSubmission throws on non-gallons_us targets
+    try {
+      const res = await POST(eventFor({ ...baseInput, clientSubmissionId: 'gen-500-1' }));
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('unexpected server error');
+      expect(JSON.stringify(body)).not.toContain('gallons_us');
+    } finally {
+      delete process.env.LUBELOGGER_VOLUME_UNIT;
+    }
+  });
+
   it('uses manualFxRate when provided (no chain call)', async () => {
     upstream.use(
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
