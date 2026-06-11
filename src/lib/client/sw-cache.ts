@@ -7,6 +7,27 @@
  */
 
 /**
+ * Install-time shell precache. Failure must propagate: `install`'s contract
+ * is that a rejected `waitUntil` aborts the new worker, so the previous one
+ * (with its intact versioned cache) keeps serving. Swallowing the error would
+ * activate a worker with a partial or empty shell — and the activate handler
+ * would then delete the previous version's complete cache, downgrading the
+ * device from "fully precached offline shell" to "nothing cached".
+ */
+export async function precacheShell(
+  cache: Cache,
+  shell: string[],
+  logError: (err: Error) => Promise<unknown>
+): Promise<void> {
+  try {
+    await cache.addAll(shell);
+  } catch (err) {
+    await logError(err as Error);
+    throw err;
+  }
+}
+
+/**
  * Navigation fallback: network-first, falling back to the precached `/offline`
  * shell when the network is unreachable, and finally to a bare 504 if the shell
  * was never cached (shouldn't happen — it is precached on install).

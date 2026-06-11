@@ -5,7 +5,7 @@
 
 import { build, files, version, prerendered } from '$service-worker';
 import { syncQueue } from '$lib/client/sync-queue';
-import { navigationFallback, vehiclesNetworkFirst } from '$lib/client/sw-cache';
+import { navigationFallback, precacheShell, vehiclesNetworkFirst } from '$lib/client/sw-cache';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -15,11 +15,16 @@ const API_CACHE = 'quicklogger-api-cache-v1'; // fixed name → survives deploys
 const SHELL = [...build, ...files, ...prerendered]; // precache the /offline shell
 
 self.addEventListener('install', (event) => {
+  // precacheShell logs then RETHROWS on failure — a failed precache must
+  // abort the install so the previous worker keeps serving its intact cache.
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((c) => c.addAll(SHELL))
-      .catch((err) => sendSwLog('error', 'sw install failed', { message: (err as Error).message }))
+      .then((c) =>
+        precacheShell(c, SHELL, (err) =>
+          sendSwLog('error', 'sw install failed', { message: err.message })
+        )
+      )
   );
   void self.skipWaiting();
 });

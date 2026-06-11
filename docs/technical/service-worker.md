@@ -80,12 +80,24 @@ const API_CACHE = 'quicklogger-api-cache-v1';
 
 ```ts
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+  event.waitUntil(
+    caches.open(CACHE).then((c) =>
+      precacheShell(c, SHELL, (err) => sendSwLog('error', 'sw install failed', { message: err.message }))
+    )
+  );
   void self.skipWaiting();
 });
 ```
 
-- Opens the new versioned cache and adds every shell URL.
+- Opens the new versioned cache and adds every shell URL via
+  `precacheShell` (`src/lib/client/sw-cache.ts`).
+- **Precache failure aborts the install.** `precacheShell` logs the error
+  to `/api/log` and then rethrows, so the `waitUntil` promise rejects and
+  the new worker never activates — the previous worker (with its intact
+  versioned cache) keeps serving. Swallowing the error here would let a
+  flaky mid-install network produce a worker with a partial/empty shell,
+  and the activate handler would then delete the previous version's
+  complete cache (whole-app review #22).
 - Calls `skipWaiting()` so the new worker activates immediately
   instead of waiting for all clients to close.
 

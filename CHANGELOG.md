@@ -16,6 +16,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Don't lose the offline shell when an app update downloads on a flaky
+  connection.** If precaching a new version's app shell failed mid-install,
+  the update previously activated anyway and deleted the old version's
+  complete cache — leaving the device with no offline shell at all. A failed
+  precache now aborts the update; the previous version keeps serving until
+  the next successful install.
 - **Stop the offline queue from silently stranding a fill-up.** Replay
   attempts are now only consumed when the server actually responds —
   previously every app resume while offline burned one of the 5 attempts, so

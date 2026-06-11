@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { navigationFallback, vehiclesNetworkFirst } from './sw-cache';
+import { navigationFallback, precacheShell, vehiclesNetworkFirst } from './sw-cache';
 
 // Minimal Cache double: a Map keyed on the request URL (or a raw string key).
 function fakeCache() {
@@ -12,9 +12,36 @@ function fakeCache() {
     async match(r: Request | string) {
       return store.get(key(r));
     },
+    async addAll(keys: string[]) {
+      for (const k of keys) store.set(k, new Response('precached'));
+    },
     _store: store
   } as unknown as Cache & { _store: Map<string, Response> };
 }
+
+describe('precacheShell', () => {
+  it('adds every shell URL to the cache', async () => {
+    const cache = fakeCache();
+    const logError = vi.fn(async () => undefined);
+    await precacheShell(cache, ['/offline', '/_app/x.js'], logError);
+    expect(await cache.match('/offline')).toBeDefined();
+    expect(await cache.match('/_app/x.js')).toBeDefined();
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  it('logs then rethrows when the precache fails (install must abort)', async () => {
+    const cache = {
+      async addAll() {
+        throw new Error('network flake mid-install');
+      }
+    } as unknown as Cache;
+    const logError = vi.fn(async () => undefined);
+    await expect(precacheShell(cache, ['/offline'], logError)).rejects.toThrow(
+      'network flake mid-install'
+    );
+    expect(logError).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('navigationFallback', () => {
   it('passes the network response through when online', async () => {
