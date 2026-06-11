@@ -397,7 +397,15 @@
       needsManualFx = false;
       return;
     }
+    // Sequence concurrent lookups. A rapid currency switch (USD→CAD→EUR) fires
+    // one effect run each and the responses can resolve out of order; without a
+    // guard, CAD's late response would overwrite the rate/flags while the select
+    // already shows EUR. The cleanup flag marks a superseded run stale so only
+    // the currently-selected currency's response can apply. Mirrors the
+    // photoDatePickSeq guard in prefillDateFromPhoto.
+    let stale = false;
     getFx(currency, TARGET_CURRENCY).then((r) => {
+      if (stale) return;
       if ('available' in r) {
         fxRate = null;
         fxStale = false;
@@ -409,8 +417,20 @@
         manualFxRate = '';
       }
     }).catch(() => {
+      if (stale) return;
+      // The rate source is unreachable: offline (getFx sees the SW's synthetic
+      // 504 and throws) or a transient error that isn't the deliberate 503.
+      // Offer the manual-rate field — the same affordance as the 503/
+      // {available:false} branch — so an offline foreign-currency fillup can
+      // still pin a rate. Matches the field's own "rate sources are
+      // unreachable" label.
       fxRate = null;
+      fxStale = false;
+      needsManualFx = true;
     });
+    return () => {
+      stale = true;
+    };
   });
 
   // derived previews

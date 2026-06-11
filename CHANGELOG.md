@@ -35,6 +35,14 @@ All notable changes to this project are documented here. Format roughly follows 
   instead of doing a full conversion run and failing confusingly at LubeLogger —
   and a crafted string can no longer be passed through into the upstream
   request URL.
+- **Exchange-rate preview shows the right currency after a quick switch.**
+  Changing the currency selector rapidly could leave the "Will log" preview
+  showing an earlier currency's rate (a slower response landing last); the
+  preview now always reflects the currency currently selected.
+- **Foreign-currency fillups offer a manual rate when offline.** Logging in a
+  non-home currency while offline now shows the manual exchange-rate field —
+  previously it showed neither a preview nor a way to enter a rate, so the
+  fillup couldn't capture its cost correctly until back online.
 
 ### Tests
 

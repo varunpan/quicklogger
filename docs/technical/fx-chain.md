@@ -93,6 +93,25 @@ upstream provider supports, but the UI doesn't expose them.
 when `manualFxRate` is set on the input — the currency service is not
 consulted in that case.
 
+## Client-side preview (page)
+
+`src/routes/+page.svelte` shows a live "Will log" preview by calling
+`GET /api/fx` from a reactive `$effect` whenever the selected currency
+changes. Two behaviours matter:
+
+- **Request sequencing.** A rapid currency switch (USD→CAD→EUR) fires one
+  lookup per change, and responses can resolve out of order. The effect tags
+  each run with a cleanup-scoped `stale` flag, so only the response for the
+  currently-selected currency applies — a late CAD response can't overwrite
+  EUR's rate (or clear a freshly-typed manual rate). Same last-write-wins
+  guard as the photo-date prefill (`photoDatePickSeq`).
+- **Manual-rate trigger.** The manual-FX override field appears whenever the
+  rate source can't be reached, in two cases: the deliberate **503**
+  `{ available: false }` (chain all-fail, above), *and* when the `GET /api/fx`
+  call throws — most importantly **offline**, where the service worker returns
+  a synthetic 504. Both leave the preview rate empty and surface the manual
+  field so a foreign-currency fillup can still be pinned and queued offline.
+
 ## Cache shape
 
 Stored as a single JSON file. Default path: `/data/fx-cache.json`
