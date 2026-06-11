@@ -21,7 +21,9 @@ Where it sits in the bigger picture: see the `/` page section in
 
 - `'queued'` — submit failed offline; pending replay (today's semantics).
 - `'failed'` — replay attempted, got a 4xx (today's semantics).
-- `'synced'` — submission succeeded; kept as permanent local history. **New.**
+- `'synced'` — submission succeeded; kept as local history, pruned to the
+  newest 5 per vehicle on each queue drain (the resolver only reads the
+  newest row). **New.**
 
 Schema is unchanged — `status` is a plain string field, IndexedDB doesn't
 validate union values, no DB version bump. Existing `'queued'`/`'failed'`

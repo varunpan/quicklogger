@@ -81,10 +81,12 @@ Source: `src/lib/shared/types.ts`.
 | `Queue.open(name?)` | Open / create the DB. Default name `quicklogger`. |
 | `enqueue(input, status?)` | Insert a row. Default status `'queued'`. |
 | `list()` | Return every row in the store. |
-| `remove(id)` | Delete a row. Not currently called by app code (the v0.1.3 replay path uses `markSynced` to keep a permanent local trail of submissions). Still covered by `idb.test.ts` for the surface. |
+| `remove(id)` | Delete a row. Called by `pruneSynced`; also covered directly by `idb.test.ts`. |
 | `markFailed(id, error)` | Set status `'failed'` and `lastError = error`. No-op if id missing. |
 | `markSynced(id)` | Set status `'synced'`. No-op if id missing. |
 | `incrementAttempts(id)` | `attempts += 1`. No-op if id missing. |
+| `decrementAttempts(id)` | `attempts -= 1` (floored at 0). Reverts the pre-fetch bump after a network error. No-op if id missing. |
+| `pruneSynced(keepPerVehicle)` | Delete all but the newest N `'synced'` rows per vehicle (newest by `enqueuedAt`, ties by `id`). Run at the end of every `syncQueue` drain. |
 
 ## HTTP API
 

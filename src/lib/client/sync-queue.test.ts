@@ -127,4 +127,25 @@ describe('syncQueue', () => {
     const entries = await q.list();
     expect(entries.map((e) => e.status)).toEqual(['failed', 'synced']);
   });
+
+  it('prunes synced rows to the newest 5 per vehicle, leaving other statuses alone', async () => {
+    const q = await Queue.open(dbName);
+    for (let i = 0; i < 7; i++) await q.enqueue(baseInput, 'synced'); // vehicle 1
+    await q.enqueue({ ...baseInput, vehicleId: 2 }, 'synced');
+    const failedId = await q.enqueue(baseInput);
+    await q.markFailed(failedId, '422');
+    globalThis.fetch = vi.fn(
+      async () => new Response(null, { status: 200 })
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const entries = await q.list();
+    const v1Synced = entries.filter((e) => e.status === 'synced' && e.input.vehicleId === 1);
+    expect(v1Synced).toHaveLength(5);
+    // Newest survive: ids auto-increment, so the first two enqueued are gone.
+    expect(Math.min(...v1Synced.map((e) => e.id))).toBe(3);
+    expect(entries.filter((e) => e.input.vehicleId === 2)).toHaveLength(1);
+    expect(entries.filter((e) => e.status === 'failed')).toHaveLength(1);
+  });
 });

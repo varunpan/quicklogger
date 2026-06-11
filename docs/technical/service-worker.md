@@ -280,13 +280,10 @@ event.respondWith(
 - `caches.match(req)` against any cache (the shell cache covers
   precached entries).
 - Network fetch on miss.
-- On network failure, return a `504` with body `'offline'`. The
-  `cached ?? new Response(...)` fallback in the catch branch is dead —
-  by the time control reaches that catch, `cached` was always
-  `undefined` (we'd have returned earlier on a cache hit). The `??` is
-  defensive only; the synthesized `Response` body `'offline'` with
-  status 504 is what the user actually gets when both cache and
-  network fail.
+- On network failure, return a `504` with body `'offline'` — control only
+  reaches the catch when `cached` was `undefined` (a cache hit returned
+  earlier), so the 504 is what the user gets when both cache and network
+  fail.
 
 There is no runtime caching of fetched-but-not-precached assets —
 the cache is fixed by what install put in it.

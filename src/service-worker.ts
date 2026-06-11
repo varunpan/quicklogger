@@ -96,7 +96,8 @@ self.addEventListener('fetch', (event) => {
       try {
         return await fetch(req);
       } catch {
-        return cached ?? new Response('offline', { status: 504 });
+        // `cached` is provably undefined here (a hit returned above).
+        return new Response('offline', { status: 504 });
       }
     })()
   );

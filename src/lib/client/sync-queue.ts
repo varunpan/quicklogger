@@ -60,6 +60,11 @@ export async function syncQueue(dbName?: string): Promise<void> {
         await q.decrementAttempts(entry.id);
       }
     }
+    // Bound the synced-history trail. The form's success path appends a
+    // 'synced' row per submit, so without pruning every fillup ever made is
+    // re-iterated on every drain. The prefill resolver only reads the newest
+    // row per vehicle; 5 leaves slack for debugging.
+    await q.pruneSynced(5);
   } finally {
     syncing = false;
   }

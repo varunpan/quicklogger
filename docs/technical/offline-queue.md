@@ -80,8 +80,9 @@ Transitions, with code refs:
   surfaces failed entries for visibility, but there is no built-in
   retry button — the user has to act manually (or wait for the next
   release that adds one).
-- `'synced'` is terminal. Synced rows accumulate as permanent local
-  history; pruning is out of scope for v0.1.3 (see "Edge cases" below).
+- `'synced'` is terminal. Synced rows are kept as local history for the
+  offline-prefill resolver and pruned to the newest 5 per vehicle at the
+  end of every drain (see "Pruning" below).
 
 5xx responses leave the entry in `'queued'` for the next sync — no
 transition, but the attempt is consumed (the server was reached). Network
@@ -212,9 +213,14 @@ supported use mode for the PWA.
 
 ### Pruning
 
-There is no built-in pruning. Synced rows accumulate at ~200 bytes per
-fillup; at 50 fillups/year that's ~10 KB/year. Pruning is parked for a
-future release.
+`syncQueue()` ends every drain with `Queue.pruneSynced(5)`: all but the
+newest five `'synced'` rows per vehicle are deleted (newest by
+`enqueuedAt`, ties broken by `id`, which auto-increments in insertion
+order). Rationale: the form's success path appends a `'synced'` row per
+submit, so without pruning every fillup ever made is re-iterated on every
+drain; the offline-prefill resolver only ever consumes the newest synced
+row per vehicle, so five leaves slack for debugging. `'queued'` and
+`'failed'` rows are never pruned.
 
 ## Cross-references
 
