@@ -71,8 +71,11 @@ const API_CACHE = 'quicklogger-api-cache-v1';
   vehicle list must outlive a deploy so an offline cold-start right after an
   update still has a vehicle to log against.
 - Network-first: a fresh online load always refreshes it; the cached copy is
-  served only when the network is unreachable. A cold cache offline returns 504,
-  which the loader treats as "no vehicles".
+  served when the network is unreachable **or** the server answers non-ok (a
+  502 because LubeLogger is down is strictly worse than the last good list).
+  With a cold cache, a non-ok response passes through unchanged and an
+  offline fetch returns 504 — both of which the loader treats as "no
+  vehicles".
 
 ## Install / activate lifecycle
 

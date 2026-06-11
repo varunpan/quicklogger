@@ -48,10 +48,11 @@ export async function navigationFallback(
 
 /**
  * Vehicle-list policy: network-first, refreshing `cache` on every successful
- * (`res.ok`) response and serving the cached copy when the network fails. A
- * cold cache offline yields a bare 504, which the home loader treats as "no
- * vehicles" (same as a live upstream failure). `fetcher` is the second arg to
- * match `navigationFallback` — the shared dependency sits in the same slot.
+ * (`res.ok`) response and serving the cached copy when the network fails or
+ * the server answers non-ok. A cold cache offline yields a bare 504, which
+ * the home loader treats as "no vehicles" (same as a live upstream failure).
+ * `fetcher` is the second arg to match `navigationFallback` — the shared
+ * dependency sits in the same slot.
  */
 export async function vehiclesNetworkFirst(
   req: Request,
@@ -61,12 +62,18 @@ export async function vehiclesNetworkFirst(
 ): Promise<Response> {
   try {
     const res = await fetcher(req);
-    // Background write — must not delay returning the response, but once
-    // respondWith settles the browser may terminate the worker (iOS does so
-    // aggressively), killing an un-awaited put mid-write. Handing the put to
-    // event.waitUntil keeps the worker alive until the write lands.
-    if (res.ok) waitUntil(cache.put(req, res.clone()));
-    return res;
+    if (res.ok) {
+      // Background write — must not delay returning the response, but once
+      // respondWith settles the browser may terminate the worker (iOS does so
+      // aggressively), killing an un-awaited put mid-write. Handing the put to
+      // event.waitUntil keeps the worker alive until the write lands.
+      waitUntil(cache.put(req, res.clone()));
+      return res;
+    }
+    // Non-ok (e.g. a 502 because LubeLogger is down) is strictly worse than
+    // the last good list — serve the cached copy when one exists; otherwise
+    // pass the error through so the loader sees the real status.
+    return (await cache.match(req)) ?? res;
   } catch {
     return (await cache.match(req)) ?? new Response(null, { status: 504 });
   }

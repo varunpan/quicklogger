@@ -16,6 +16,10 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Keep the vehicle picker working while LubeLogger is down.** A server
+  error on the vehicle-list fetch now falls back to the last good cached
+  list instead of showing "No vehicles found" — the same fallback that
+  already covered being fully offline.
 - **Reliably persist the offline vehicle list and vehicle images.** The
   browser may terminate the service worker as soon as a response is
   delivered — especially on iOS — which could kill the background cache

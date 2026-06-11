@@ -77,7 +77,10 @@ resolves and the SSR'd page is returned unchanged.
   pathname is never `/api/…`) and before the generic cache-first branch (so
   precached assets keep being served cache-first).
 - **Non-ok responses are not cached:** `vehiclesNetworkFirst` only `cache.put`s
-  on `res.ok`, so a 500/502 from upstream never poisons `API_CACHE`.
+  on `res.ok`, so a 500/502 from upstream never poisons `API_CACHE`. The
+  reverse also holds: with a warm cache, a non-ok response is *masked* by the
+  cached last-good list (the form stays usable while LubeLogger is down); the
+  error only reaches the loader when the cache is cold.
 - **Banner is connectivity-driven:** `online` tracks the live `online`/`offline`
   events, so a warm tab that drops its connection also shows the banner — not
   just cold starts. Only the home route renders it.

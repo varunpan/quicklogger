@@ -143,6 +143,20 @@ describe('vehiclesNetworkFirst', () => {
     expect(await res.json()).toEqual([{ id: 7 }]);
   });
 
+  it('serves the cached copy when the server errors with a warm cache', async () => {
+    const cache = fakeCache();
+    const req = new Request('http://x/api/vehicles');
+    await cache.put(req, new Response(JSON.stringify([{ id: 7 }]), { status: 200 }));
+    const res = await vehiclesNetworkFirst(
+      req,
+      async () => new Response('upstream down', { status: 502 }),
+      cache,
+      fakeWaitUntil().waitUntil
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([{ id: 7 }]);
+  });
+
   it('returns 504 when offline with a cold cache', async () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
