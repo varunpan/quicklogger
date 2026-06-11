@@ -16,6 +16,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Stop the offline queue from silently stranding a fill-up.** Replay
+  attempts are now only consumed when the server actually responds —
+  previously every app resume while offline burned one of the 5 attempts, so
+  a few lock/unlock cycles during one offline stretch could permanently
+  strand a queued fill-up with no error shown. Entries that do exhaust their
+  attempts now appear as failed in History instead of being skipped forever.
 - **Reject an invalid manual FX rate.** A zero, negative, or non-numeric
   `manualFxRate` is now rejected with a 400 instead of writing a `NaN`,
   `0`, or negative cost to the fuel record.

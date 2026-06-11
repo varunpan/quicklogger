@@ -33,7 +33,7 @@ Source: `src/lib/client/idb.ts`.
 | `id` | `number` | Auto-assigned by IndexedDB on insert. |
 | `input` | `FuelSubmissionInput` | The unmodified user payload (see `src/lib/shared/types.ts`). |
 | `status` | `'queued' \| 'failed' \| 'synced'` | See state machine below. |
-| `attempts` | `number` | Incremented per replay attempt. Hard cap of `5`. |
+| `attempts` | `number` | Counts replay attempts that reached a server. Bumped before each fetch, reverted on a network error. Hard cap of `5`. |
 | `enqueuedAt` | `number` (ms epoch) | Set by `enqueue()` via `Date.now()`. |
 | `lastError` | `string` (optional) | Populated by `markFailed` with the response status. |
 
@@ -57,7 +57,7 @@ string. This matters for upgrades: see [Schema versioning](#schema-versioning).
         │ 'queued' │ ──────────────────────────►   │'synced' │  (terminal)
         └──────────┘                               └─────────┘
               │
-              │  SW replay 4xx
+              │  SW replay 4xx · or attempts cap reached
               ▼
         ┌──────────┐
         │ 'failed' │  (terminal; no auto-retry)
@@ -67,10 +67,12 @@ string. This matters for upgrades: see [Schema versioning](#schema-versioning).
 Transitions, with code refs:
 
 - `'queued'` → `'synced'` via `Queue.markSynced(id)` after a successful
-  POST in `syncQueue()` (`src/service-worker.ts`).
+  POST in `syncQueue()` (`src/lib/client/sync-queue.ts`).
 - `'queued'` → `'failed'` via `Queue.markFailed(id, error)` when the SW
-  replay sees a 4xx (`res.status >= 400 && res.status < 500` in
-  `src/service-worker.ts`).
+  replay sees a 4xx (`res.status >= 400 && res.status < 500`), **or** when
+  the replay loop encounters an entry already at the 5-attempt cap — it's
+  dead-lettered with `lastError: 'max attempts'` so it surfaces in History
+  instead of silently reading `'queued'` forever while never replaying.
 - `'synced'` rows are also written directly by the form's success path —
   `+page.svelte`'s `submit()` calls `q.enqueue(input, 'synced')` after a
   200 response from `/api/fuelup`. Those rows never pass through `'queued'`.
@@ -82,8 +84,10 @@ Transitions, with code refs:
   history; pruning is out of scope for v0.1.3 (see "Edge cases" below).
 
 5xx responses leave the entry in `'queued'` for the next sync — no
-transition. Network errors during replay (the `catch` in `syncQueue`)
-do the same.
+transition, but the attempt is consumed (the server was reached). Network
+errors during replay (the `catch` in `syncQueue`) also leave the entry
+`'queued'`, and additionally **revert the attempt bump** — see the
+per-entry loop below.
 
 ## Replay path
 
@@ -143,20 +147,26 @@ For every entry returned by `Queue.list()`:
 
 1. **Skip** if `entry.status !== 'queued'`. (Synced and failed rows are
    ignored.)
-2. **Skip** if `entry.attempts >= 5`. The attempt cap is a hard 5 and
-   isn't user-configurable.
-3. `Queue.incrementAttempts(id)` is called **before** the fetch — the
-   attempt counter advances even if the fetch throws, so a permanently
-   stuck entry eventually trips the `>= 5` guard.
+2. **Dead-letter** if `entry.attempts >= 5`: `Queue.markFailed(id, 'max attempts')`,
+   no fetch. The attempt cap is a hard 5 and isn't user-configurable.
+3. `Queue.incrementAttempts(id)` is called **before** the fetch — if the
+   POST itself crashes the SW mid-flight, the persisted bump still
+   advances the counter (crash-loop protection).
 4. `POST /api/fuelup` with `application/json` body = the stored
    `FuelSubmissionInput`.
 5. Branching on the response:
    - `res.ok` (2xx) → `Queue.markSynced(entry.id)`.
    - `res.status >= 400 && res.status < 500` → `Queue.markFailed(entry.id, ${res.status})`.
    - Anything else (5xx) → no transition; entry stays `'queued'` for
-     the next trigger.
-6. A thrown error from `fetch` (offline, DNS fail, abort) is caught
-   silently — entry stays `'queued'`.
+     the next trigger. The attempt is consumed — the server was reached
+     and answered.
+6. A thrown error from `fetch` (offline, DNS fail, abort) is caught and
+   `Queue.decrementAttempts(id)` **reverts the bump** — the request never
+   reached a server, so it must not consume replay budget. Without the
+   revert, the resume triggers (`focus` + `visibilitychange` fire together
+   on every iOS unlock) would burn all 5 attempts during a single offline
+   stretch and permanently strand the entry. Only definitive server
+   responses count against the cap.
 
 There is no exponential backoff between retries. Each `sync-queue`
 message walks the whole queue once.

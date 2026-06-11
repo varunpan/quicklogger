@@ -80,4 +80,51 @@ describe('syncQueue', () => {
     expect(entry.status).toBe('queued');
     expect(entry.attempts).toBe(1);
   });
+
+  it('does not consume an attempt on a network error (entry stays queued)', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    globalThis.fetch = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+    await syncQueue(dbName); // a second offline resume must not advance the counter either
+
+    const [entry] = await q.list();
+    expect(entry.status).toBe('queued');
+    expect(entry.attempts).toBe(0);
+  });
+
+  it('transitions a capped entry to failed instead of silently skipping it', async () => {
+    const q = await Queue.open(dbName);
+    const id = await q.enqueue(baseInput);
+    for (let i = 0; i < 5; i++) await q.incrementAttempts(id);
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const [entry] = await q.list();
+    expect(entry.status).toBe('failed');
+    expect(entry.lastError).toBe('max attempts');
+  });
+
+  it('continues to the next entry after a 4xx on the first', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    await q.enqueue({ ...baseInput, clientSubmissionId: '00000000-0000-0000-0000-000000000002' });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('bad', { status: 422 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const entries = await q.list();
+    expect(entries.map((e) => e.status)).toEqual(['failed', 'synced']);
+  });
 });

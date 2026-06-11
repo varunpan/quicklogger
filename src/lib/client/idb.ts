@@ -73,4 +73,11 @@ export class Queue {
     entry.attempts += 1;
     await this.db.put(STORE, entry);
   }
+
+  async decrementAttempts(id: number): Promise<void> {
+    const entry = await this.db.get(STORE, id) as QueueEntry | undefined;
+    if (!entry) return;
+    entry.attempts = Math.max(0, entry.attempts - 1);
+    await this.db.put(STORE, entry);
+  }
 }
