@@ -15,7 +15,14 @@ let cur: CurrencyService | null = null;
 // because a `Response` body is single-use — concurrent waiters each need to
 // build their own fresh `Response` from the same bytes.
 type SubmitResult = { status: number; body: string };
-const idempotencyMap = new Map<string, { ts: number; promise: Promise<SubmitResult> }>();
+// `settled` gates the sweep: `ts` is stamped at registration, so a submission
+// in flight for longer than the window would age out while unresolved — and
+// evicting it would let a late duplicate re-submit concurrently, the exact
+// double-write this map prevents. Only settled entries are ever swept.
+const idempotencyMap = new Map<
+  string,
+  { ts: number; settled: boolean; promise: Promise<SubmitResult> }
+>();
 const IDEMPOTENCY_WINDOW_MS = 60_000;
 
 // Server-side diagnostic string for a photo that didn't attach. Not
@@ -304,7 +311,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   const now = Date.now();
   for (const [k, v] of idempotencyMap) {
-    if (now - v.ts > IDEMPOTENCY_WINDOW_MS) idempotencyMap.delete(k);
+    if (v.settled && now - v.ts > IDEMPOTENCY_WINDOW_MS) idempotencyMap.delete(k);
   }
 
   // Dedup a duplicate submit (same clientSubmissionId) against either an
@@ -318,14 +325,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   if (existing) return jsonResponse(await existing.promise);
 
   const promise = submitToLubeLogger(input, images, locals.logger);
-  idempotencyMap.set(input.clientSubmissionId, { ts: now, promise });
+  const entry = { ts: now, settled: false, promise };
+  idempotencyMap.set(input.clientSubmissionId, entry);
 
   const result = await promise;
   // Keep a success cached for the rest of the window so a later resubmit is a
   // no-op; drop a failure (no record was created) so a genuine retry can reach
-  // upstream.
+  // upstream. Marking settled (and refreshing ts from completion time) is what
+  // re-arms the sweep for this entry.
+  entry.settled = true;
   if (result.status >= 200 && result.status < 300) {
-    idempotencyMap.set(input.clientSubmissionId, { ts: Date.now(), promise });
+    entry.ts = Date.now();
   } else {
     idempotencyMap.delete(input.clientSubmissionId);
   }

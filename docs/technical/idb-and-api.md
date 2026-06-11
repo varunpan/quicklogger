@@ -240,7 +240,7 @@ IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-
 | Request body | `application/json` or `application/x-www-form-urlencoded` or `multipart/form-data`. |
 | Required fields | `vehicleId`, `date`, `odometer`, `volume`, `volumeUnit`, `cost`, `currency`, `clientSubmissionId`. |
 | Numeric guard | `vehicleId` must coerce to a positive integer (coerced onto the body before use — the JSON path would otherwise pass a raw string into the authenticated upstream URL). `odometer`, `volume`, `cost` must be finite and `> 0`, and are coerced onto the body (JSON numeric strings are accepted). `volumeUnit` must be exactly `'gal'` or `'L'`. `currency` must be a 3-letter ISO-4217 code (normalized to uppercase). `date` must be a non-empty string. |
-| Idempotency | 60-second in-memory window keyed on `clientSubmissionId`. Repeat POSTs in the window return the original cached response. **Only successes are cached** — a failed submit evicts its marker on completion so a genuine retry reaches upstream (the offline-queue replay depends on this after a 502). Entries past the window are swept on the next POST. |
+| Idempotency | 60-second in-memory window keyed on `clientSubmissionId`. Repeat POSTs in the window return the original cached response. **Only successes are cached** — a failed submit evicts its marker on completion so a genuine retry reaches upstream (the offline-queue replay depends on this after a 502). Entries past the window are swept on the next POST — but only **settled** entries: an entry whose submission is still in flight is never evicted however old, so a late duplicate dedups against it instead of re-submitting concurrently. |
 
 #### Success response (200)
 

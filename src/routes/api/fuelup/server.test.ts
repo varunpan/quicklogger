@@ -234,6 +234,38 @@ describe('POST /api/fuelup — idempotency failure paths', () => {
     expect(addCount).toBe(2);
   });
 
+  it('the sweep never evicts a still-pending entry — a late duplicate dedups against it', async () => {
+    // Invariant pinned: ts is stamped at registration, so a submission
+    // in flight for >60s would age past the window while unresolved. If
+    // the sweep evicted it, a late duplicate would re-submit concurrently
+    // — the exact double-write the map exists to prevent.
+    vi.useFakeTimers({ toFake: ['Date'] }); // Date only — real timers for polling
+    try {
+      let addCount = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((r) => { release = r; });
+      upstream.use(
+        http.post('http://lubelog:8080/api/vehicle/gasrecords/add', async () => {
+          addCount++;
+          await gate; // hold the first submission in flight
+          return HttpResponse.json({ success: true });
+        })
+      );
+      const body = { ...baseJson, clientSubmissionId: 'pending-1' };
+      const p1 = POST(event(body));
+      while (addCount === 0) await new Promise((r) => setTimeout(r, 1));
+      vi.setSystemTime(Date.now() + 61_000); // age the pending entry past the window
+      const p2 = POST(event(body));
+      release();
+      const [r1, r2] = await Promise.all([p1, p2]);
+      expect(r1.status).toBe(200);
+      expect(r2.status).toBe(200);
+      expect(addCount).toBe(1); // shared one upstream write
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('a success older than the 60s window is swept; the same id resubmits', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); // Date only — msw delay needs real timers
     try {

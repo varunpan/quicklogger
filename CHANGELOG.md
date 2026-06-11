@@ -10,6 +10,10 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Closed a theoretical double-submit window.** A duplicate submission
+  arriving while the original was still in flight for over a minute could
+  have created a second fuel record (not reachable with today's timeouts —
+  pinned shut before it could become reachable).
 - **Error responses no longer echo internal details.** Upstream LubeLogger
   status codes and error-body excerpts, and raw exception text, are no longer
   included in API error responses — clients get a clear generic message and
