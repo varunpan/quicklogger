@@ -32,6 +32,10 @@
     drawerOpen = false;
   }
 
+  function handleKeydown(ev: KeyboardEvent) {
+    if (ev.key === 'Escape' && drawerOpen) close();
+  }
+
   onMount(() => {
     installClientLogger();
 
@@ -79,6 +83,8 @@
     };
   });
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <svelte:head>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -128,7 +134,7 @@
   class="fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-zinc-800 px-5 py-6 flex flex-col transition-transform duration-200 ease-out"
   class:-translate-x-full={!drawerOpen}
   class:translate-x-0={drawerOpen}
-  aria-hidden={!drawerOpen}
+  inert={!drawerOpen}
 >
   <div class="flex items-center justify-between mb-6">
     <span class="text-lg font-bold flex items-center gap-1.5">

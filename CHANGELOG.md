@@ -43,6 +43,11 @@ All notable changes to this project are documented here. Format roughly follows 
   non-home currency while offline now shows the manual exchange-rate field —
   previously it showed neither a preview nor a way to enter a rate, so the
   fillup couldn't capture its cost correctly until back online.
+- **Keyboard and screen-reader fixes for the photo preview and menu.** The
+  photo-preview dialog now keeps keyboard focus inside it (Tab no longer jumps
+  to the form hidden behind it) and focuses its first control when it opens;
+  the slide-out menu is now fully hidden from keyboard and assistive tech when
+  closed, and pressing Escape closes it.
 
 ### Tests
 

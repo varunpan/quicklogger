@@ -131,6 +131,11 @@ upload and never blocks or affects it. User guide:
   Cumulative rotation + (sanitized) crop are handed to
   `resizeForOcr({ rotation, crop })` on `[Send for OCR]`. Object URL
   revoked on unmount; the cached `ImageBitmap` closed on unmount.
+  **Focus management (a11y):** the modal is `role="dialog"
+  aria-modal="true"`; on mount focus moves to the first control (Cancel),
+  and a Tab/Shift+Tab trap wraps focus at the ends so it stays inside the
+  dialog rather than reaching the form behind the opaque overlay. Escape
+  exits crop sub-mode if active, otherwise closes the modal (`oncancel`).
 - [`src/routes/+page.ts`](../../src/routes/+page.ts) — probes
   `GET /api/ocr` and surfaces `ocrEnabled` + `ocrModes` to the page.
   Failure to probe = `enabled: false`; page load never blocks on OCR.

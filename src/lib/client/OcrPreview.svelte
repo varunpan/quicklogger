@@ -22,6 +22,12 @@
   type PreviewMode = 'preview' | 'crop';
   let previewMode: PreviewMode = $state('preview');
 
+  // Focusable controls inside the dialog, in DOM order — used to move focus in
+  // on mount and to wrap Tab at the ends (focus trap, see handleKeyDown).
+  const FOCUSABLE =
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  let dialogEl: HTMLElement | undefined = $state();
+
   // Bound to the on-screen <img> so we can measure its rendered rect for
   // CropOverlay. Updated reactively as the image loads / window resizes.
   let imgEl: HTMLImageElement | undefined = $state();
@@ -77,6 +83,10 @@
 
   onMount(() => {
     objectUrl = URL.createObjectURL(file);
+    // Move focus into the dialog so keyboard users land inside the modal and
+    // the Tab trap has an anchor. role="dialog"/aria-modal announce it; this
+    // plus the trap keep focus from escaping to the form behind the overlay.
+    dialogEl?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
     const onResize = () => measureImg();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -174,6 +184,27 @@
     if (ev.key === 'Escape') {
       if (previewMode === 'crop') cancelCrop();
       else oncancel();
+      return;
+    }
+    if (ev.key === 'Tab') trapTab(ev);
+  }
+
+  // Focus trap. The dialog is an opaque full-screen overlay, but Tab would
+  // otherwise move focus into the form behind it. Wrap focus at the ends so it
+  // stays within the dialog's focusable controls.
+  function trapTab(ev: KeyboardEvent) {
+    if (!dialogEl) return;
+    const focusables = Array.from(dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE));
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (ev.shiftKey && (active === first || !dialogEl.contains(active))) {
+      ev.preventDefault();
+      last.focus();
+    } else if (!ev.shiftKey && (active === last || !dialogEl.contains(active))) {
+      ev.preventDefault();
+      first.focus();
     }
   }
 
@@ -258,6 +289,7 @@
 <svelte:window onkeydown={handleKeyDown} />
 
 <div
+  bind:this={dialogEl}
   class="fixed inset-0 z-50 bg-zinc-950 flex flex-col"
   role="dialog"
   aria-modal="true"

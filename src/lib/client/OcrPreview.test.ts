@@ -346,3 +346,46 @@ describe('OcrPreview — crop mode', () => {
     expect(screen.getByRole('button', { name: /Send for OCR/i })).toBeInTheDocument();
   });
 });
+
+describe('OcrPreview — focus management (a11y)', () => {
+  it('moves focus into the dialog on mount (focuses Cancel)', () => {
+    const file = makeFile();
+    render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit: vi.fn(), oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    const cancel = screen.getByRole('button', { name: /^Cancel$/i });
+    expect(document.activeElement).toBe(cancel);
+  });
+
+  it('traps Tab inside the dialog: Tab on the last control wraps to the first', async () => {
+    const file = makeFile();
+    const { container } = render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit: vi.fn(), oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    const dialog = container.querySelector('[role="dialog"]') as HTMLElement;
+    const buttons = Array.from(dialog.querySelectorAll('button'));
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    expect(first).not.toBe(last);
+
+    last.focus();
+    expect(document.activeElement).toBe(last);
+    await fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(first);
+  });
+
+  it('traps Shift+Tab: Shift+Tab on the first control wraps to the last', async () => {
+    const file = makeFile();
+    const { container } = render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit: vi.fn(), oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    const dialog = container.querySelector('[role="dialog"]') as HTMLElement;
+    const buttons = Array.from(dialog.querySelectorAll('button'));
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+
+    first.focus();
+    await fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+});
