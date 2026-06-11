@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse, delay } from 'msw';
 import { POST, _resetForTests } from './+server';
@@ -182,6 +182,76 @@ describe('POST /api/fuelup — idempotency under concurrency', () => {
     expect((await r1.json()).ok).toBe(true);
     expect((await r2.json()).ok).toBe(true);
     expect(addCount).toBe(1);
+  });
+});
+
+describe('POST /api/fuelup — idempotency failure paths', () => {
+  // USD→USD = identity FX, so no provider handler is needed.
+  const baseJson = {
+    vehicleId: 1, date: '2026-05-28', odometer: 87500, volume: 11.2,
+    volumeUnit: 'gal', cost: 42.18, currency: 'USD',
+    isFillToFull: false, missedFuelup: false
+  };
+
+  it('a failed submit evicts the marker so a genuine retry reaches upstream', async () => {
+    // The offline queue replay depends on this: a 502 must not be cached
+    // for the rest of the window, or every retry would be served the
+    // failure without ever reaching upstream.
+    let addCount = 0;
+    let fail = true;
+    upstream.use(
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => {
+        addCount++;
+        if (fail) return new HttpResponse('down', { status: 503 });
+        return HttpResponse.json({ success: true });
+      })
+    );
+    const body = { ...baseJson, clientSubmissionId: 'retry-1' };
+    expect((await POST(event(body))).status).toBe(502);
+    fail = false;
+    expect((await POST(event(body))).status).toBe(200);
+    expect(addCount).toBe(2);
+  });
+
+  it('concurrent duplicates share one failing upstream call; a later retry succeeds', async () => {
+    let addCount = 0;
+    let fail = true;
+    upstream.use(
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', async () => {
+        addCount++;
+        await delay(20);
+        if (fail) return new HttpResponse('down', { status: 503 });
+        return HttpResponse.json({ success: true });
+      })
+    );
+    const body = { ...baseJson, clientSubmissionId: 'retry-2' };
+    const [r1, r2] = await Promise.all([POST(event(body)), POST(event(body))]);
+    expect(r1.status).toBe(502);
+    expect(r2.status).toBe(502);
+    expect(addCount).toBe(1);
+    fail = false;
+    expect((await POST(event(body))).status).toBe(200);
+    expect(addCount).toBe(2);
+  });
+
+  it('a success older than the 60s window is swept; the same id resubmits', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); // Date only — msw delay needs real timers
+    try {
+      let addCount = 0;
+      upstream.use(
+        http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => {
+          addCount++;
+          return HttpResponse.json({ success: true });
+        })
+      );
+      const body = { ...baseJson, clientSubmissionId: 'expire-1' };
+      expect((await POST(event(body))).status).toBe(200);
+      vi.setSystemTime(Date.now() + 61_000);
+      expect((await POST(event(body))).status).toBe(200);
+      expect(addCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

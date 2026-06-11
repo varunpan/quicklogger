@@ -34,6 +34,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Tests
 
+- Cover the fillup idempotency failure paths: a failed submit evicts its
+  dedup marker so a real retry reaches LubeLogger (the branch the offline
+  queue's replay depends on), concurrent duplicates share one failing
+  upstream call, and entries older than the 60-second window are swept.
+
 ## [0.2.7] — 2026-06-11
 
 ### Added
