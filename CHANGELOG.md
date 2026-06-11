@@ -53,9 +53,15 @@ All notable changes to this project are documented here. Format roughly follows 
   you at the photo step *and* again at submit; the over-2,000 check now fires
   once, at submit. (A reading that's *lower* than the last fill-up is still
   flagged at the photo step — that's almost always a misread.)
+- **Cropping a photo survives a screen reflow.** Adjusting the crop box no
+  longer snaps back to the default if the screen resizes mid-drag — e.g. the
+  mobile address bar showing/hiding, or rotating the phone.
 
 ### Tests
 
+- Cover the crop overlay's reseed guard: an `initial`-prop change mid-drag
+  (a resize during crop) no longer wipes the in-progress rect, while a change
+  with no active drag (crop re-entry / Reset) still reseeds.
 - Cover the fillup idempotency failure paths: a failed submit evicts its
   dedup marker so a real retry reaches LubeLogger (the branch the offline
   queue's replay depends on), concurrent duplicates share one failing

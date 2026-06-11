@@ -96,7 +96,12 @@ upload and never blocks or affects it. User guide:
   rendering only; `liveRect` and pointer-event math are unchanged.
   Emits the chosen rect in display-space pixels on `[Done]`; emits
   nothing on `[Cancel]`. Stateless across host re-mounts — the host
-  owns `crop` state and passes the prior rect via `initial`.
+  owns `crop` state and passes the prior rect via `initial`. It re-seeds
+  `liveRect` from `initial` when the host hands it a new rect (crop
+  re-entry, Reset) but **skips the reseed while a drag is in progress**: a
+  window resize / device rotation mid-drag flows through the host's
+  `imgRendered → cropInitial → initial`, and reseeding then would wipe the
+  crop the user is actively dragging (#37b).
 - [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
   — full-screen modal mounted between capture and OCR submit. Holds
   the user's rotation choice and (optionally) a crop rect in

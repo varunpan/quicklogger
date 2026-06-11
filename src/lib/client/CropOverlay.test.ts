@@ -149,6 +149,48 @@ describe('CropOverlay', () => {
     expect(oncommit).not.toHaveBeenCalled();
   });
 
+  it('does NOT reseed liveRect when `initial` changes mid-drag (resize during crop)', async () => {
+    // Repro for #37b: a window resize mid-drag updates the host's
+    // imgRendered → cropInitial → our `initial` prop. The reseed effect must
+    // not fire while the user is actively dragging, or it wipes the
+    // in-progress crop.
+    const { container, oncommit, rerender } = mountWith({
+      initial: { x: 40, y: 30, w: 320, h: 240 }
+    });
+    const interior = container.querySelector('[data-handle="interior"]') as HTMLElement;
+    // Start dragging (pointerdown + move, NO pointerup yet) → drag active.
+    await fireEvent(interior, makePointerEvent('pointerdown', 200, 150));
+    await fireEvent(interior, makePointerEvent('pointermove', 230, 170)); // +30,+20 → (70,50,320,240)
+    // Resize lands mid-drag: host hands a brand-new initial rect.
+    await rerender({ initial: { x: 0, y: 0, w: 400, h: 300 } });
+    // Finish the drag and commit.
+    await fireEvent(interior, makePointerEvent('pointerup', 230, 170));
+    const doneBtn = container.querySelector('[data-action="done"]') as HTMLElement;
+    await fireEvent.click(doneBtn);
+    const rect = oncommit.mock.calls[0][0];
+    // The in-progress drag survived — not reseeded to the new initial.
+    expect(rect.x).toBe(70);
+    expect(rect.y).toBe(50);
+    expect(rect.w).toBe(320);
+    expect(rect.h).toBe(240);
+  });
+
+  it('DOES reseed liveRect when `initial` changes and no drag is active (crop re-entry / Reset)', async () => {
+    const { container, oncommit, rerender } = mountWith({
+      initial: { x: 40, y: 30, w: 320, h: 240 }
+    });
+    // No active drag — the host hands a new initial (re-entering crop with a
+    // prior committed rect, or after Reset). The overlay should track it.
+    await rerender({ initial: { x: 10, y: 20, w: 100, h: 80 } });
+    const doneBtn = container.querySelector('[data-action="done"]') as HTMLElement;
+    await fireEvent.click(doneBtn);
+    const rect = oncommit.mock.calls[0][0];
+    expect(rect.x).toBe(10);
+    expect(rect.y).toBe(20);
+    expect(rect.w).toBe(100);
+    expect(rect.h).toBe(80);
+  });
+
   it('keeps every handle fully inside imageDisplayRect when the rect is flush against the image bounds', () => {
     // Rect fills the entire 400×300 image — every handle would straddle a
     // boundary if positions weren't clamped, ending up outside the overlay's

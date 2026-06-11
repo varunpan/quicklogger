@@ -174,11 +174,21 @@
   }
 
   // Re-seed when the host hands us a new initial rect (entering crop mode
-  // with a prior committed crop, or after Reset). Task 4 binds `liveRect`
-  // and updates `initial` via the host's `cropInitial` $derived; this
-  // keeps the overlay in sync without remounting.
+  // with a prior committed crop, or after Reset). The host binds `liveRect`
+  // and updates `initial` via its `cropInitial` $derived; this keeps the
+  // overlay in sync without remounting.
+  //
+  // Read `initial` first so it stays a tracked dependency, THEN bail if a drag
+  // is in progress: a window resize mid-drag (mobile URL-bar show/hide,
+  // rotation) flows through the host's imgRendered → cropInitial → `initial`,
+  // which would otherwise wipe the crop the user is actively dragging (#37b).
+  // `drag` is non-reactive, so reading it adds no dependency — the effect
+  // still re-runs only when `initial` changes, and no-ops if that lands
+  // mid-drag. When the drag ends there's no reseed, so the dragged rect stands.
   $effect(() => {
-    liveRect = { ...initial };
+    const next = initial;
+    if (drag) return;
+    liveRect = { ...next };
   });
 </script>
 
