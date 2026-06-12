@@ -13,6 +13,17 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
+# Patch OS packages (notably libssl3/libcrypto3) to the latest Alpine release and
+# drop the base image's bundled npm/npx. The node:22-alpine base trails Alpine's
+# package index by a few days, so without the upgrade the image ships already-fixed
+# OpenSSL CVEs (see #31). The runtime only runs `node build` (exec-form, no shell)
+# and the healthcheck uses wget, so npm is never invoked here — removing it also
+# clears CVEs carried in npm's *bundled* deps (e.g. picomatch) and trims attack
+# surface. App dependencies live in /app/node_modules and are untouched. Runs as
+# root, before the USER switch below; rebuilding re-applies the latest patches.
+# Verified by scripts/scan.sh — see docs/deployment.md § "Vulnerability scanning".
+RUN apk upgrade --no-cache \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production
 ENV PORT=3000
 # No transport-layer body cap. In @sveltejs/adapter-node, `Infinity` disables the

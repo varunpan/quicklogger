@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   packages: write
+  security-events: write # upload Trivy SARIF to Security → Code scanning
 
 jobs:
   build-and-push:
@@ -30,7 +31,53 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=sha-,format=short
             type=raw,value=latest
-      - uses: docker/build-push-action@v7
+
+      # Build amd64 only and load it into the runner's Docker so the exact artifact
+      # can be scanned BEFORE anything is published. OS-package CVEs are
+      # arch-independent (same Alpine packages on arm64), so scanning amd64 is
+      # representative of both platforms. arm64 is built in the push step below.
+      - name: Build image for scanning
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: quicklogger:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Gate: fail the release on CRITICAL/HIGH that have a fix available. Unfixed
+      # CVEs (no upstream patch yet) are reported via SARIF below but don't block —
+      # blocking on them would wedge releases on things a rebuild can't fix.
+      - name: Trivy scan — gate on fixable CRITICAL/HIGH
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: quicklogger:scan
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+      # Always emit a SARIF report (even when the gate above passes) so every
+      # finding, including unfixed ones, shows up under Security → Code scanning.
+      - name: Trivy scan — SARIF report
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: quicklogger:scan
+          scanners: vuln
+          severity: CRITICAL,HIGH,MEDIUM
+          format: sarif
+          output: trivy-results.sarif
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      # Only reached if the gate passed: build the multi-arch image and push. amd64
+      # layers come from the gha cache populated above, so only arm64 builds fresh.
+      - name: Build and push (multi-arch)
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64

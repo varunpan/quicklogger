@@ -6,11 +6,25 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
-### Changed
+- **The release build now scans the container image for known vulnerabilities.**
+  Every image is scanned with Trivy before it's published to GHCR and the build
+  fails on critical/high CVEs that have a fix available, so a vulnerable image is
+  never pushed. Full results (including lower-severity and not-yet-fixable ones)
+  appear under the repo's Security tab. (#31)
+- **Dependencies are now kept current automatically.** Dependabot opens weekly
+  pull requests for npm packages, the Docker base image, and GitHub Actions, so
+  security fixes land promptly instead of waiting to be caught by a scan.
 
 ### Fixed
 
-### Tests
+- **The published image no longer ships outdated OpenSSL.** The Alpine base image
+  trailed a few days behind on OS packages, so releases carried already-fixed
+  `libssl3`/`libcrypto3` CVEs (2 critical, ~18 high in the v0.2.9 scan). OS
+  packages are now upgraded at build time, clearing them. (#31)
+- **The production image no longer carries npm's bundled CVEs.** The runtime
+  container runs `node build` and never invokes npm, so the base image's bundled
+  npm/npx is now removed — clearing a `picomatch` ReDoS (the last high in the scan)
+  and shrinking the image. The app's own dependencies are unaffected. (#31)
 
 ## [0.2.9] — 2026-06-12
 
