@@ -80,6 +80,10 @@ All notable changes to this project are documented here. Format roughly follows 
   dedup marker so a real retry reaches LubeLogger (the branch the offline
   queue's replay depends on), concurrent duplicates share one failing
   upstream call, and entries older than the 60-second window are swept.
+- Realign the OCR-odometer e2e spec with the single-gate warning behavior:
+  a detected reading over 2,000 mi above the last fillup now asserts a plain
+  confirm (no advisory) at OCR time and the one smart-check warning at
+  submit. The old spec asserted the removed double-warning and went stale.
 
 ## [0.2.7] — 2026-06-11
 

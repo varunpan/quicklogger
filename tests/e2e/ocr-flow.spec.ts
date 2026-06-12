@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import path from 'node:path';
-import { gotoHomeViaClientRouter } from './fixtures';
+import { gotoHomeViaClientRouter, pinClock } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
 
@@ -104,7 +104,11 @@ test('odometer: chip appears + Use populates Odometer', async ({ page }) => {
   await expect(page.locator('input#odometer')).toHaveValue('87612');
 });
 
-test('odometer: detected > last + 2000 → amber advisory, [Use anyway] populates', async ({ page }) => {
+test('odometer: detected > last + 2000 → no OCR-confirm advisory; flagged once at submit (smart-check E)', async ({ page }) => {
+  // #20b: the > 2000 mi jump no longer warns at OCR-confirm (that was a
+  // redundant double-warning) — it's caught once, at submit, by check E.
+  // Clock pinned so the seeded form date can't trip check D into the chip.
+  await pinClock(page, '2026-05-14T12:00:00');
   await commonRoutes(page, {
     date: '2026-05-08', odometer: 87432, fuelConsumed: 11.2, cost: 42.18, notes: ''
   });
@@ -118,11 +122,21 @@ test('odometer: detected > last + 2000 → amber advisory, [Use anyway] populate
   await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=1', FIXTURE);
   // Preview screen comes up between picker and OCR call. Confirm send.
   await page.getByRole('button', { name: 'Send for OCR', exact: true }).click();
-  await expect(page.getByText(/> 2,000 mi above last fillup/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Use anyway', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Dismiss', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Use anyway', exact: true }).click();
+  // Plain confirm chip — no advisory, no [Use anyway]/[Dismiss] pair.
+  await expect(page.getByText(/Detected: 92,500 mi/)).toBeVisible();
+  await expect(page.getByText(/above last fillup/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Use anyway', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Use', exact: true }).click();
   await expect(page.locator('input#odometer')).toHaveValue('92500');
+
+  // The jump surfaces exactly once: smart-check E's chip at submit time.
+  await page.getByPlaceholder('11.2').fill('11.2');
+  await page.getByPlaceholder('42.18').fill('42.50');
+  await page.getByRole('button', { name: /^Log fillup$/ }).click();
+  const chip = page.locator('[data-testid="smart-check-chip"]');
+  await expect(chip).toBeVisible();
+  await expect(chip).toContainText('1 issue found');
+  await expect(chip).toContainText(/above the last fillup — over 2,000 mi/);
 });
 
 test('odometer: detected < last → amber advisory, [Use anyway] populates', async ({ page }) => {
