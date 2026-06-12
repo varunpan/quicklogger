@@ -11,6 +11,26 @@ function isSilencedPath(pathname: string): boolean {
   return false;
 }
 
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+// Defense-in-depth CSRF (review #17). SvelteKit's built-in origin check
+// (kit.csrf.checkOrigin, default on) only fires for *form* content-types, so a
+// cross-site `application/json` POST to /api/fuelup|ocr|log slips past it. We
+// reject any mutating request whose `Origin` header is present AND does not
+// match the app's own origin — which, under adapter-node, IS the configured
+// ORIGIN env in production (and the request origin in dev), the same source
+// SvelteKit's own check trusts. A *missing* Origin is deliberately allowed: it
+// never comes from a browser (no CSRF vector — the app holds no cookie/session
+// to abuse) and is exactly what non-browser clients like Apple Shortcuts send.
+// SvelteKit's stricter form-type handling still runs inside resolve(), so this
+// only adds coverage, never removes it. Exported for tests (underscore prefix
+// keeps SvelteKit's endpoint-export validation happy).
+export function _originBlocked(method: string, origin: string | null, expected: string): boolean {
+  if (!MUTATING_METHODS.has(method)) return false;
+  if (origin === null) return false;
+  return origin !== expected;
+}
+
 export function _newRequestId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
@@ -79,11 +99,25 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   const t0 = Date.now();
   let response: Response;
-  try {
-    response = await resolve(event);
-  } catch (err) {
-    event.locals.logger.error('handler threw', { err });
-    response = new Response('Internal Error', { status: 500 });
+  const origin = event.request.headers.get('origin');
+  if (_originBlocked(event.request.method, origin, event.url.origin)) {
+    event.locals.logger.warn('csrf origin mismatch', {
+      method: event.request.method,
+      path: event.url.pathname,
+      origin,
+      expected: event.url.origin
+    });
+    response = new Response(JSON.stringify({ error: 'origin not allowed' }), {
+      status: 403,
+      headers: { 'content-type': 'application/json' }
+    });
+  } else {
+    try {
+      response = await resolve(event);
+    } catch (err) {
+      event.locals.logger.error('handler threw', { err });
+      response = new Response('Internal Error', { status: 500 });
+    }
   }
 
   if (!response.headers.get('x-request-id')) {

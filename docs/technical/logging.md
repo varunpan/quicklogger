@@ -8,7 +8,7 @@ JSON-per-line server logger with per-request `request_id`, secret redaction, opt
 
 - [`src/lib/server/logger.ts`](../../src/lib/server/logger.ts) — core logger module (`createLogger`, `bootLogger`, `getLogger`), redaction, lazy rotating-file-stream sink via `createRequire`, process crash handlers.
 - [`src/lib/server/env.ts`](../../src/lib/server/env.ts) — `LOG_*` env field validation with fall-back-on-invalid + `envWarnings` accumulator flushed at boot.
-- [`src/hooks.server.ts`](../../src/hooks.server.ts) — per-request `request_id`, `locals.logger.child`, `X-Request-ID` response header, access-log record at level computed from final status.
+- [`src/hooks.server.ts`](../../src/hooks.server.ts) — per-request `request_id`, `locals.logger.child`, `X-Request-ID` response header, access-log record at level computed from final status, plus the defense-in-depth CSRF origin guard (`_originBlocked`) that emits a `csrf origin mismatch` warn and short-circuits to 403 before `resolve()`.
 - [`src/app.d.ts`](../../src/app.d.ts) — `App.Locals` augmentation: `logger`, `requestId`.
 - [`src/lib/server/lubelogger.ts`](../../src/lib/server/lubelogger.ts) — `LubeLoggerClient` emits debug at request start, warn on non-OK, error on timeout / network-error.
 - [`src/lib/server/ocr.ts`](../../src/lib/server/ocr.ts) — `runOcrPipeline` emits records at every branch point with `ocr_raw_full` on schema / range / cross-field failures.
@@ -66,7 +66,8 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 4. `ensureBoot` then calls `selectProvider(env, getLogger())` to warm the OCR provider chain. If two or more slots survive env validation, this emits a single `ocr chain effective` line listing the effective fallback order. The same call populates the process-level chain memo so subsequent per-request `selectProvider` calls stay silent for the same composition — the chain is fixed by env at boot and never changes inside one process, so logging it per request would be constant noise.
 5. Every request gets `requestId = _newRequestId()`, `locals.requestId = requestId`, `locals.logger = getLogger().child({ request_id, route })`.
 6. Routes pull `locals.logger` and either log directly or pass it into a **per-request** consumer built fresh that request (`runOcrPipeline`, `LubeLoggerClient`, `selectProvider`) — those carry the request's `request_id`/`route`. **Process-level singletons** (`CurrencyService` behind `fuelup`/`fx`; `OcrBudget`/`OcrAudit`/`OcrRateLimiter` behind `ocr`) are instead constructed with the root `getLogger()`, so their log lines aren't misattributed to whichever request happened to construct them first (review #28).
-7. After `resolve(event)`, the hook checks the response; if it didn't already carry an `X-Request-ID`, the hook clones the response and sets one. Then one access-log record fires: `level = error` for 5xx, `warn` for 4xx (except 404 → `info`), `info` otherwise. Silenced paths (`/healthz`, `/service-worker.js`, `/favicon.ico`, `/_app/*`) skip the access-log line.
+7. Before `resolve(event)`, the CSRF origin guard runs (`_originBlocked`): a mutating request (`POST`/`PUT`/`PATCH`/`DELETE`) whose `Origin` header is present and ≠ the app origin gets one `csrf origin mismatch` warn (with `method`, `path`, `origin`, `expected`) and an immediate 403 — `resolve()` is skipped. A missing `Origin` (non-browser client) and safe methods fall through untouched.
+8. After `resolve(event)` (or the 403 above), the hook checks the response; if it didn't already carry an `X-Request-ID`, the hook clones the response and sets one. Then one access-log record fires: `level = error` for 5xx, `warn` for 4xx (except 404 → `info`), `info` otherwise. Silenced paths (`/healthz`, `/service-worker.js`, `/favicon.ico`, `/_app/*`) skip the access-log line — so a 403 from the guard still logs its own `csrf origin mismatch` line plus the access-log record.
 
 **Client:**
 
@@ -80,6 +81,7 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 
 | Scenario | Behaviour | Why |
 |---|---|---|
+| Mutating request with a present, mismatched `Origin` | `csrf origin mismatch` warn + 403 before `resolve()` | Defense-in-depth CSRF (review #17); also makes the common "phone URL ≠ `ORIGIN`" UAT 403 visible in logs, where SvelteKit's built-in check rejects it silently |
 | 404 on a missing static asset | Access-log fires at `info`, not `warn` | Carved out in `levelFromStatus` — 404s on `/foo.png` aren't actionable |
 | `building === true` (prerender pass of `/offline` during `vite build`) | `handle` returns `resolve(event)` immediately — no `ensureBoot`, no access-log line | Prerendering has no runtime env; `loadEnv()` would throw `LUBELOGGER_URL not set` and fail the Docker/CI build. `/offline` is `ssr=false` with no server load, so `resolve()` only emits the static shell |
 | Module imported before `bootLogger` runs (tests, top-level imports) | `getLogger()` returns a no-op-style stdout fallback (`level: info`, `pretty: false`) | Keeps tests that import server modules in arbitrary order working without enforcing boot order |

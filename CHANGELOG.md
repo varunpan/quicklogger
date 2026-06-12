@@ -15,6 +15,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Cross-site requests can no longer forge submissions.** Mutating API calls
+  (fillup submit, OCR, client log) are now rejected when they carry a browser
+  origin that doesn't match the configured `ORIGIN` — closing a gap where a
+  JSON request slipped past SvelteKit's form-only origin check (defense-in-depth;
+  the app already has no login and is meant to sit behind a private network or
+  forward-auth).
 - **The browser log-forwarding endpoint can no longer forge log fields.** A
   crafted `POST /api/log` payload could overwrite reserved fields (request id,
   timestamp, level, message) in the persisted server log; client-supplied

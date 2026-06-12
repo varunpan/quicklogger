@@ -132,6 +132,7 @@ For Caddy, nginx, or Cloudflare Tunnel: same idea — proxy `https://quicklog.ex
 Defaults intended to be reasonable for a single-user homelab tool. The deeper write-up lives in [`docs/deployment.md`](docs/deployment.md) § *Hardening the runtime* — short version:
 
 - **No app-side auth.** quicklogger has no login screen. Front it with HTTPS and either keep it on a private network (Tailscale, LAN, an internal-only hostname) or put it behind a forward-auth middleware (Authentik, Cloudflare Access, etc.).
+- **CSRF / origin check.** Mutating API requests (`/api/fuelup`, `/api/ocr`, `/api/log`) are rejected with a 403 if they arrive with a browser `Origin` that doesn't match your configured `ORIGIN` — defense-in-depth beyond SvelteKit's form-only default, so a cross-site `application/json` POST is covered too. Requests with no `Origin` (Apple Shortcuts, server-to-server) are unaffected.
 - **Container runs as `node` (UID 1000)**, not root.
 - **Image is multi-stage** — runtime layer has only the built `build/` output, prod-only `node_modules`, and `package.json`. No build tools, no source.
 - **Recommended compose hardening** (in both compose patterns above): `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`, plus a 16 MB tmpfs for `/tmp`. Verified per-release.
