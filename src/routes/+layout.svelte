@@ -2,7 +2,8 @@
   import '../app.css';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { installClientLogger } from '$lib/client/logger';
+  import { version } from '$app/environment';
+  import { clientLogger, installClientLogger } from '$lib/client/logger';
   import { loadServerInfo, saveServerInfo } from '$lib/client/server-info';
   import { registerSyncTriggers } from '$lib/client/sync-trigger';
   import { warmVehiclesCache } from '$lib/client/cache-warm';
@@ -64,10 +65,17 @@
     void warmVehiclesCache(navigator.serviceWorker, fetch);
 
     // The SW skipWaiting()s + claim()s and prunes the old shell cache, so a tab
-    // open across a deploy must reload or its next lazy chunk load 404s. See sw-update.ts.
-    const cleanupReload = registerControllerReload(navigator.serviceWorker, () =>
-      location.reload()
-    );
+    // open across a deploy must reload or its next lazy chunk load 404s. The
+    // reload only fires when the controlling worker's build differs from this
+    // page's, at most once per build per tab session — a bare controllerchange
+    // is NOT a reliable "new deploy" signal on WebKit (review #39). See sw-update.ts.
+    const cleanupReload = registerControllerReload({
+      serviceWorker: navigator.serviceWorker,
+      reload: () => location.reload(),
+      pageVersion: version,
+      storage: sessionStorage,
+      log: (level, msg, ctx) => clientLogger[level](msg, ctx)
+    });
 
     // Drain the offline submission queue on resume (focus / visibility) and on
     // reconnect (online), plus once the SW is ready. See sync-trigger.ts.

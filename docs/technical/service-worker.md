@@ -133,14 +133,41 @@ self.addEventListener('activate', (event) => {
   image and vehicle-list caches survive the upgrade.
 - `clients.claim()` lets the new worker control already-open pages
   without a reload (paired with `skipWaiting`).
-- **Pages reload when claimed by an update.** Because activate also prunes
-  the previous versioned cache, a page still running the old build's JS
-  would 404 on its next lazy-loaded old-hash chunk (504 offline). The
-  layout registers `registerControllerReload` (`src/lib/client/sw-update.ts`):
-  on `controllerchange` with a pre-existing controller it calls
-  `location.reload()`, so the running JS always matches the active worker's
-  shell. The first-ever claim (controller `null` → worker) deliberately
-  does **not** reload — the page and worker came from the same deploy.
+- **Pages reload when claimed by a NEW BUILD — not on every claim.** Because
+  activate also prunes the previous versioned cache, a page still running the
+  old build's JS would 404 on its next lazy-loaded old-hash chunk (504
+  offline). The layout registers `registerControllerReload`
+  (`src/lib/client/sw-update.ts`), which on `controllerchange`:
+  1. Asks the new controller for its build version over a dedicated
+     `MessageChannel` (`SW_VERSION_REQUEST` — answered by the message handler
+     below) and only proceeds when it differs from the page's own build
+     version (`version` from `$app/environment`; both sides read
+     `config.kit.version.name`). A same-version claim is ignored — the page
+     already matches the worker's shell.
+  2. Caps at **one reload per page build per tab session** via a
+     `sessionStorage` marker (`quicklogger:reloaded-for`). Unlike module
+     state, the marker survives the reload it causes, so even a timed-out or
+     misbehaving version query can cost at most one extra reload — never a
+     loop.
+  3. Logs every decision through the client logger (flushed by `sendBeacon`
+     on `beforeunload`, so the evidence survives the reload).
+
+  The first-ever claim (controller `null` → worker) deliberately does
+  **not** reload — the page and worker came from the same deploy.
+
+  **Why the version check + marker exist (whole-app review #39):** v0.2.7
+  shipped a bare `controllerchange → location.reload()` with only an
+  in-memory first-claim guard. WebKit fires `controllerchange` on a
+  controlled load even when no new worker was installed, and the in-memory
+  guard reset on each reload — the installed iPhone PWA reload-looped
+  ~1×/sec (216 cycles in prod logs, with zero `/service-worker.js`
+  fetches, proving no new worker existed). A bare `controllerchange` is
+  therefore **not** a reliable "new deploy" signal; the reload decision has
+  to be derived from the build versions and bounded by state that survives
+  the reload. Known trade-off: if a spurious claim consumes the build's
+  one-shot, a genuine deploy in the same tab session won't auto-reload —
+  accepted because navigations are network-first, so the tab self-heals on
+  its next full navigation or cold start.
 
 ## Fetch handler decision tree
 
@@ -290,12 +317,14 @@ the cache is fixed by what install put in it.
 
 ## Queue replay
 
-The replay glue is a `message` handler:
+The replay glue is a `message` handler (which also answers the
+`registerControllerReload` version query — see the activate section above):
 
 ```ts
 self.addEventListener('message', (event) => {
-  const data = event.data as SyncQueueMessage | undefined;
+  const data = event.data as { type?: string } | undefined;
   if (data?.type === 'sync-queue') event.waitUntil(syncQueue());
+  if (data?.type === SW_VERSION_REQUEST) event.ports[0]?.postMessage({ version });
 });
 ```
 

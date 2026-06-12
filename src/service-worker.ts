@@ -5,6 +5,7 @@
 
 import { build, files, version, prerendered } from '$service-worker';
 import { syncQueue } from '$lib/client/sync-queue';
+import { SW_VERSION_REQUEST } from '$lib/client/sw-update';
 import { navigationFallback, precacheShell, vehiclesNetworkFirst } from '$lib/client/sw-cache';
 
 declare const self: ServiceWorkerGlobalScope;
@@ -103,13 +104,13 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-interface SyncQueueMessage {
-  type: 'sync-queue';
-}
-
 self.addEventListener('message', (event: ExtendableMessageEvent) => {
-  const data = event.data as SyncQueueMessage | undefined;
+  const data = event.data as { type?: string } | undefined;
   if (data?.type === 'sync-queue') event.waitUntil(syncQueue());
+  // Version query from registerControllerReload: reply on the transferred
+  // port with this worker's build version so the page can decide whether a
+  // controllerchange means "new deploy → reload" or "same build → ignore".
+  if (data?.type === SW_VERSION_REQUEST) event.ports[0]?.postMessage({ version });
 });
 
 async function staleWhileRevalidate(event: FetchEvent): Promise<Response> {

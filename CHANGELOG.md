@@ -56,6 +56,14 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Cropping a photo survives a screen reflow.** Adjusting the crop box no
   longer snaps back to the default if the screen resizes mid-drag — e.g. the
   mobile address bar showing/hiding, or rotating the phone.
+- **Fixed the installed app reloading itself non-stop (v0.2.7 regression).**
+  On iPhone, the installed PWA could reload about once per second forever,
+  making it unusable: the v0.2.7 "reload when an app update takes over"
+  listener treated every service-worker takeover as an update, and Safari
+  fires that signal on ordinary launches too. The app now reloads only when
+  the controlling service worker's build actually differs from the running
+  page's — and at most once per session even then — so updates still apply
+  on their own, without the loop.
 
 ### Tests
 
