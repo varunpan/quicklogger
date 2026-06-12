@@ -10,7 +10,7 @@ one OCR provider is configured.
 | **What it reads** | Volume + Cost (+ price/unit) from the pump display | Mileage from your odometer or a phone app showing it |
 | **Where the chip lives** | Top of the form, in the capture row under the vehicle picker | Same — the capture row holds both photo pills |
 | **What `[Use]` fills** | Volume, Volume unit (Gal/L), Cost | Odometer |
-| **Safety check** | Cross-field consistency (cost ≈ volume × price/unit within 5%) | Relative-range vs your last fillup (must be ≥ last and ≤ last + 2000 mi) |
+| **Safety check** | Cross-field consistency (cost ≈ volume × price/unit within 5%) | Relative-range vs your last fillup (a reading **below** your last is flagged here; a 2,000+ mi jump is checked at submit instead) |
 
 ## Setup
 
@@ -190,11 +190,12 @@ Full env-var reference:
    right; tap **Send for OCR** when it is.
 4. A blue chip appears in the feedback zone under the capture row:
    *Detected: 87,612 mi*. Tap **Use** to populate.
-5. If the detected reading is **lower than your last fillup** or
-   **more than 2,000 mi above it**, the chip turns amber and shows
-   `[Use anyway]` and `[Dismiss]`. Both are valid: tap `Use anyway`
-   if you know the reading is right (cluster swap, long road trip,
-   rollover); tap `Dismiss` to type a corrected value yourself.
+5. If the detected reading is **lower than your last fillup**, the chip
+   turns amber and shows `[Use anyway]` and `[Dismiss]`. Both are valid:
+   tap `Use anyway` if you know the reading is right (cluster swap,
+   rollover); tap `Dismiss` to type a corrected value yourself. (A reading
+   **more than 2,000 mi above** your last fillup isn't flagged here — it's
+   checked when you submit, alongside the other smart checks.)
 
 ### Why crop?
 

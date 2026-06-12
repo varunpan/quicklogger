@@ -107,6 +107,11 @@ trusts your number and uses it verbatim for that one submission. Nothing
 is written back to the FX cache — your manual rate is for that submit
 only, the next submit re-attempts the provider chain.
 
+You'll also see this manual-rate field whenever you're **offline** and
+logging in a non-home currency: with no connection the app can't fetch a
+live rate, so you pin one and it's saved with the queued fill-up and
+applied when it syncs.
+
 This path is rare. With three independent providers in the default
 chain it would normally require a multi-day outage of all three plus a
 cold cache.
