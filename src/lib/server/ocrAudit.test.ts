@@ -109,10 +109,27 @@ describe('OcrAudit', () => {
     expect(second.cropRect).toEqual({ x: 0.1, y: 0.2, w: 0.6, h: 0.4 });
   });
 
-  it('truncates the file when the next append would exceed maxBytes', async () => {
-    const audit = new OcrAudit({ path, maxBytes: 200 });
-    for (let i = 0; i < 10; i++) await audit.append(pumpRecord());
-    expect(statSync(path).size).toBeLessThanOrEqual(400);
+  it('rotates by rename (keeping one prior generation) instead of truncating history to zero', async () => {
+    // Measure one line, then size the cap so the third append triggers rotation.
+    const probe = new OcrAudit({ path, maxBytes: 10_000_000 });
+    await probe.append(pumpRecord({ imgHash: 'sha256:line1' }));
+    const oneLine = statSync(path).size;
+    rmSync(path);
+
+    const audit = new OcrAudit({ path, maxBytes: oneLine * 2 + 1 });
+    await audit.append(pumpRecord({ imgHash: 'sha256:line1' }));
+    await audit.append(pumpRecord({ imgHash: 'sha256:line2' }));
+    await audit.append(pumpRecord({ imgHash: 'sha256:line3' })); // crosses the cap → rotate
+
+    // The prior generation is preserved at `.1`, not truncated away — the old
+    // `truncate(path, 0)` erased the entire trail in one shot (review #33).
+    expect(existsSync(`${path}.1`)).toBe(true);
+    const rotated = readFileSync(`${path}.1`, 'utf-8');
+    expect(rotated).toContain('sha256:line1');
+    expect(rotated).toContain('sha256:line2');
+    // The live file holds the post-rotation line and stays bounded.
+    expect(readFileSync(path, 'utf-8')).toContain('sha256:line3');
+    expect(statSync(path).size).toBeLessThanOrEqual(oneLine * 2);
   });
 
   it('swallows write errors and logs an error record', async () => {

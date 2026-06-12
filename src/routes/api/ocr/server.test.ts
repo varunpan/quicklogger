@@ -187,6 +187,21 @@ describe('POST /api/ocr', () => {
     expect(res.status).toBe(415);
   });
 
+  it('records imageType "unknown" (not a fabricated jpeg) on an unsupported-image 415', async () => {
+    setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
+    const fd = new FormData();
+    fd.set('image', new File([Buffer.from('plain text not an image')], 'p.txt', { type: 'text/plain' }));
+    fd.set('mode', 'pump');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(415);
+    // The failure audit row must not claim jpeg for an image the sniffer
+    // rejected — that poisoned the "do HEIC uploads fail more?" query (#33).
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.ok).toBe(false);
+    expect(row.imageType).toBe('unknown');
+  });
+
   it('413 on image > 5 MiB', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
     const big = Buffer.alloc(5 * 1024 * 1024 + 10, 0);

@@ -1,4 +1,4 @@
-import { appendFile, stat, truncate, mkdir } from 'node:fs/promises';
+import { appendFile, stat, rename, mkdir } from 'node:fs/promises';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
@@ -34,7 +34,7 @@ export interface AuditRecord {
   ipHash: string;
   imgHash: string;
   imgBytes: number;
-  imageType: 'jpeg' | 'png' | 'webp' | 'heic';
+  imageType: 'jpeg' | 'png' | 'webp' | 'heic' | 'unknown';
   provider: OcrSlotName;
   model: string;
   fellbackFrom: OcrSlotName | null;
@@ -61,14 +61,19 @@ export class OcrAudit {
     const line = JSON.stringify({ ts: new Date().toISOString(), ...rec }) + '\n';
     try {
       // Serialize the rotate-then-append per file. Without the lock, concurrent
-      // appends all stat the same size, all skip the truncate, and overshoot
-      // maxBytes — or a truncate drops a line another append just wrote.
+      // appends all stat the same size, all skip the rotation, and overshoot
+      // maxBytes — or a rotation drops a line another append just wrote.
       await withPathLock(this.opts.path, async () => {
         await mkdir(dirname(this.opts.path), { recursive: true });
         try {
           const st = await stat(this.opts.path);
           if (st.size + line.length > this.opts.maxBytes) {
-            await truncate(this.opts.path, 0);
+            // Rotate by rename, keeping one prior generation at `.1`, rather
+            // than truncating to zero — a single `truncate(path, 0)` erased the
+            // entire audit trail at the cap, so anyone who could spam OCR could
+            // wipe the forensic record (review #33). The rename overwrites any
+            // existing `.1`; the next append re-creates a fresh live file.
+            await rename(this.opts.path, `${this.opts.path}.1`);
           }
         } catch (err) {
           if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;

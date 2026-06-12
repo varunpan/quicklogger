@@ -89,7 +89,7 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 | Client buffer exceeds 20 records | Oldest record dropped on each push | `error` listeners can fire faster than the server drains; bound memory before bounding behaviour |
 | 10-record size flush | Deferred via `queueMicrotask` | Avoids a sync flush from the inside of a handler (would re-enter the wrapped `fetch`) |
 | `OcrAudit.append` write fails | Logger emits `warn`; promise no longer rejects | Append is best-effort; the audit log going stale must not fail a real OCR request |
-| `OcrAudit` rotation truncation throws | Same — `warn`, swallow | Same reasoning as the append branch |
+| `OcrAudit` rotation rename throws | Same — `warn`, swallow | Same reasoning as the append branch |
 | Cyclic / function / symbol / bigint in `ctx` | Redactor handles each: cycle → `'[cycle]'`, function / symbol → dropped, bigint → stringified | `JSON.stringify` would throw otherwise |
 | Two requests in flight on the same Node process | Each has its own `request_id`; child loggers are independent | `child({ … })` returns a fresh closure over `baseCtx`; no shared mutable state |
 | `selectProvider` called repeatedly with the same env (every page load, every OCR submit) | Emits `ocr chain effective` only once per distinct chain composition via a process-level memo. `ensureBoot` warms it at startup, so the line lands next to `server start` and per-request callers stay silent | The chain is fixed by env at boot; logging it on every request was constant noise (~one line per page navigation). Memoizing on the comma-joined provider names re-fires only if the composition would actually differ — defensive cover for a hypothetical hot-reload that doesn't exist today |

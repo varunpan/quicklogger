@@ -192,7 +192,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
     ...(lastOdometerMi !== undefined ? { lastOdometerMi } : {}),
     ...(lastPricePerUnit !== undefined ? { lastPricePerUnit } : {}),
     ipHash, imgHash, imgBytes: arr.byteLength,
-    imageType: outcome.imageType ?? 'jpeg',
+    imageType: outcome.imageType ?? 'unknown',
     provider: failSlot,
     model: modelForSlot(failSlot, env),
     fellbackFrom: null,

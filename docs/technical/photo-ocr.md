@@ -48,7 +48,8 @@ upload and never blocks or affects it. User guide:
 - [`src/lib/server/ocrBudget.ts`](../../src/lib/server/ocrBudget.ts) —
   daily $ cap, persisted at `/data/ocr-budget.json`. UTC rollover.
 - [`src/lib/server/ocrAudit.ts`](../../src/lib/server/ocrAudit.ts) —
-  append-only JSONL at `/data/ocr-audit.jsonl`, 10 MiB truncate-rotate.
+  append-only JSONL at `/data/ocr-audit.jsonl`, 10 MiB rename-rotate (one
+  prior generation kept at `.jsonl.1`).
   `resolveAuditHmacKey` resolves the HMAC key (env override →
   `/data/ocr-audit-key.txt` → auto-generate-and-persist with 0600
   perms).
@@ -195,7 +196,7 @@ audit log persists the same shape under `parsed`, plus a top-level
 | File | Shape | Notes |
 |---|---|---|
 | `ocr-budget.json` | `{ date: 'YYYY-MM-DD', calls, costCents }` | UTC date; replaced (not appended) on each `add()`. The read-modify-write runs under a per-path lock and the file is written atomically (temp + `rename`) via [`atomicFile.ts`](../../src/lib/server/atomicFile.ts), so concurrent OCR calls can't lose an increment and a crash mid-write can't corrupt the tally. The *tally* is exact; the *cap* it feeds is advisory (see "Daily budget cap is advisory" below). |
-| `ocr-audit.jsonl` | one JSON object per line (incl. `rotationApplied: number` since v0.2.0+) | Append-only. The stat → truncate → append rotation runs under the same per-path lock, so concurrent appends re-check the size and can't overshoot the 10 MiB cap or drop a line another append just wrote. Old entries discarded, not archived. |
+| `ocr-audit.jsonl` | one JSON object per line (incl. `rotationApplied: number` since v0.2.0+) | Append-only. The stat → rename → append rotation runs under the same per-path lock, so concurrent appends re-check the size and can't overshoot the 10 MiB cap or drop a line another append just wrote. At the cap the live file is renamed to `.jsonl.1` (one prior generation, overwritten on the next rotation), not truncated to zero. |
 | `ocr-audit-key.txt` | 32 random bytes, 0600 | Auto-generated if `OCR_AUDIT_HMAC_KEY` is unset and the file is absent. Persists across container restarts. |
 
 ### Date prefill (v0.2.0+)
@@ -303,7 +304,8 @@ declarative contract.
   ipHash: 'sha256:<16-hex>',                  // HMAC-SHA-256 (key, ip), 64 bits
   imgHash: 'sha256:<64-hex>',                 // SHA-256 of post-resize bytes
   imgBytes: number,                           // post-resize size
-  imageType: 'jpeg' | 'png' | 'webp' | 'heic',
+  imageType: 'jpeg' | 'png' | 'webp' | 'heic' | 'unknown',  // 'unknown' on failure rows the sniffer rejected
+
   provider: 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible',
   model: string,                              // resolved tag (modelForSlot)
   fellbackFrom: 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible' | null,
@@ -321,13 +323,14 @@ Privacy properties:
 - No raw image bytes on disk — only the SHA-256.
 - `parsed` contains only numeric fields the model was prompted to
   extract.
-- Truncation is destructive — when the next append would cross 10 MiB,
-  the file is truncated to 0 bytes. Old entries are not archived.
+- Rotation keeps one prior generation — when the next append would cross
+  10 MiB, the live file is renamed to `.jsonl.1` (overwritten on the next
+  rotation). Entries older than one generation are discarded, not archived.
 
 Rows persisted before the image-crop feature lack `cropApplied` and
 `cropRect`. `jq` queries that need to handle both eras should use
 `.cropApplied // false` for the boolean and `.cropRect // null` for
-the rect. The 10 MiB truncate-rotate behavior naturally retires
+the rect. The 10 MiB rename-rotate behavior naturally retires
 old-era rows over time; no backfill.
 
 ### Date prefill (v0.2.0+)
@@ -610,11 +613,17 @@ persists a dedicated 32-byte secret. Reason: rotating `LUBELOGGER_API_KEY`
 would silently break audit hash continuity. Dedicated key is rotated only
 when the operator explicitly removes the file.
 
-**Audit rotation is destructive, not archival.** When the next append
-would cross 10 MiB, the file is truncated to 0 bytes — old entries are
-discarded, not shipped elsewhere. Acceptable for a homelab single-user
-tool. If the volume of OCR calls ever justified retention, this is the
-extension point.
+**Audit rotation keeps one generation, by rename — not truncate-to-zero.**
+When the next append would cross 10 MiB, the live file is renamed to
+`.jsonl.1` (overwriting any existing `.1`) and a fresh file is started. The
+original v0.2.0 design did `truncate(path, 0)`, which erased the *entire*
+audit trail at the cap — an actor who could spam OCR within the rate limit
+could wipe the forensic record meant to explain spend (review #33). Keeping
+one prior generation bounds disk at ~2× the cap while preserving the most
+recent history across one rotation. Still not archival — entries older than
+one generation are discarded, not shipped elsewhere; that's acceptable for a
+homelab single-user tool, and remains the extension point if retention is
+ever justified.
 
 **No `OcrError` type in `$lib/shared/types`.** The client `postOcr` adds
 an `OcrError` interface only on the client side (it carries DOM-only

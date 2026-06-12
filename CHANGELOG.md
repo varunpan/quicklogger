@@ -15,6 +15,13 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **The OCR audit log no longer erases its whole history when it fills up.** At
+  the 10 MiB cap it now rotates by keeping the previous generation
+  (`ocr-audit.jsonl.1`) instead of truncating the file to nothing, so the
+  forensic trail survives a rotation.
+- **Unsupported image uploads are no longer logged as JPEG.** A photo the
+  format sniffer rejects is now recorded in the audit log as `unknown` rather
+  than a fabricated `jpeg`, so "which formats fail?" queries stay accurate.
 - **Cold page loads no longer double-fetch the vehicle list from LubeLogger.**
   The vehicle list and vehicle images shared no cache, so opening the app cold
   asked LubeLogger for the same list twice (and several simultaneous requests
