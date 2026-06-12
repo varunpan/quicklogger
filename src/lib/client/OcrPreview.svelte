@@ -131,18 +131,24 @@
     };
   }
 
-  // The initial rect handed to CropOverlay when entering crop mode. If a
-  // prior crop exists, convert it back to display-space; otherwise use the
-  // 80% centered default. Reads `crop` ($state) — only changes when the
-  // host writes `crop`, never mid-drag. Stable while the overlay is mounted.
-  const cropInitial = $derived.by(() => {
-    if (crop) {
-      return sourceToDisplay(crop, imgRendered, rotation);
-    }
-    return defaultDisplayRect();
-  });
+  // The initial rect handed to CropOverlay, SNAPSHOTTED at crop-mode entry (and
+  // on Reset) — not a reactive derivation. It must not stay live on imgRendered/
+  // rotation: while the overlay is open, a device rotation or viewport resize
+  // (mobile URL-bar reflow) changes imgRendered, and a reactive `initial` would
+  // flow back into the overlay and reset the crop the user is editing (#37b).
+  // Freezing it for the session is the fix; the overlay's own mid-drag guard is
+  // a secondary safeguard for standalone use.
+  let cropInitial = $state<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 0, h: 0 });
+
+  function snapshotCropInitial(): { x: number; y: number; w: number; h: number } {
+    return crop ? sourceToDisplay(crop, imgRendered, rotation) : defaultDisplayRect();
+  }
 
   function enterCropMode() {
+    // Snapshot once, from the committed crop (or the 80% default) against the
+    // CURRENT image size, then hold it stable for the whole crop session.
+    cropInitial = snapshotCropInitial();
+    cropLive = { ...cropInitial };
     previewMode = 'crop';
   }
 
@@ -170,10 +176,13 @@
   }
 
   function resetCropOverlay() {
-    // Snap the live rect back to the default 80% centered rect; the
-    // commitCrop default-detection then maps Done → crop=null.
+    // Snap back to the default 80% centered rect; the commitCrop
+    // default-detection then maps Done → crop=null. Re-snapshot `cropInitial`
+    // too so the overlay's reseed (and the next crop entry) lands on the same
+    // default.
     crop = null;
-    cropLive = defaultDisplayRect();
+    cropInitial = defaultDisplayRect();
+    cropLive = { ...cropInitial };
   }
 
   function send() {

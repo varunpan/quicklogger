@@ -332,6 +332,55 @@ describe('OcrPreview — crop mode', () => {
     expect(onsubmit2).toHaveBeenCalledWith({ rotation: 0, crop: null });
   });
 
+  it('a viewport resize after a crop drag does not reset the crop (#37b)', async () => {
+    // Root-cause repro: a device rotation / URL-bar reflow re-measures the
+    // image (imgRendered changes). Before the fix, that re-derived the host's
+    // `cropInitial` and reseeded the overlay — wiping a crop the user had
+    // already dragged (finger up). The snapshot-at-entry fix freezes `initial`
+    // for the session.
+    const onsubmit = vi.fn();
+    const file = makeFile();
+    const { container } = render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit, oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    const mk = (type: string, x: number, y: number) => {
+      const ev = new Event(type, { bubbles: true }) as Event & {
+        clientX: number; clientY: number; pointerId: number;
+      };
+      ev.clientX = x; ev.clientY = y; ev.pointerId = 1;
+      return ev;
+    };
+    const img = container.querySelector('img');
+    if (img) {
+      Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
+      img.getBoundingClientRect = () =>
+        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+      await fireEvent.load(img);
+    }
+    await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
+
+    // Drag the top-left corner, then LIFT the finger (pointerup → drag=null).
+    const tl = container.querySelector('[data-handle="corner"][data-corner="tl"]') as HTMLElement;
+    await fireEvent(tl, mk('pointerdown', 40, 30));
+    await fireEvent(tl, mk('pointermove', 80, 60));
+    await fireEvent(tl, mk('pointerup', 80, 60));
+
+    // Device rotation / resize: the image re-measures to a new size.
+    if (img) {
+      img.getBoundingClientRect = () =>
+        ({ width: 300, height: 400, x: 0, y: 0, top: 0, left: 0, right: 300, bottom: 400, toJSON: () => ({}) }) as DOMRect;
+    }
+    await fireEvent(window, new Event('resize'));
+
+    // Commit — the crop must have survived (not reset to the default → null).
+    const doneBtn = screen.getAllByRole('button', { name: /Done/i }).pop() as HTMLElement;
+    await fireEvent.click(doneBtn);
+    expect(screen.getByText(/^Cropped$/i)).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('button', { name: /Send for OCR/i }));
+    expect(onsubmit.mock.calls[0][0].crop).not.toBeNull();
+  });
+
   it('ESC inside crop mode cancels crop, not the whole modal', async () => {
     const oncancel = vi.fn();
     const file = makeFile();
