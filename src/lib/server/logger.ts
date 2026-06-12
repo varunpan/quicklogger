@@ -91,11 +91,15 @@ export function createLogger(opts: LoggerOptions): Logger {
       if (LEVEL_ORDER[level] < thresholdNum) return;
       const merged: Record<string, unknown> = { ...baseCtx, ...(ctx ?? {}) };
       const safeCtx = redact(merged, 0, new WeakSet()) as Record<string, unknown>;
+      // Spread ctx first, then set the canonical fields last, so a caller-
+      // supplied `ts`/`level`/`msg` in `ctx` can't rewrite the real ones in the
+      // persisted record (review #32). Untrusted callers (the /api/log forwarder)
+      // additionally quarantine their ctx under `client_ctx` at the boundary.
       const rec: Record<string, unknown> = {
+        ...safeCtx,
         ts: new Date().toISOString(),
         level,
-        msg,
-        ...safeCtx
+        msg
       };
       emitRecord(rec);
     }

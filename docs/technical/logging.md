@@ -74,7 +74,7 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 2. It wraps `window.fetch` — every response checks for an `X-Request-ID` header and stashes the most recent value in `lastRequestId`.
 3. `window.addEventListener('error', …)` and `window.addEventListener('unhandledrejection', …)` push records onto an in-memory buffer (cap 20; oldest dropped on overflow). Each push schedules a flush.
 4. Flush triggers: 10-record threshold (`queueMicrotask`-deferred), 10s timer (backoff doubles to 60s max on 5xx / network failure), or `beforeunload` (uses `navigator.sendBeacon` for fire-and-forget).
-5. `POST /api/log` rate-limits 60/min/IP, validates each record's level + msg, then re-emits via `locals.logger[r.level]` with `source: 'client'`, `user_agent`, `referer_route`, and the original `ts` as `client_ts`. The server log stream is now the single place to look for both phone-side and server-side trouble.
+5. `POST /api/log` rate-limits 60/min/IP, validates each record's level + msg, then re-emits via `locals.logger[r.level]` with the client's own `ctx` **nested under a single `client_ctx` key** (so it can't overwrite reserved fields — see below), plus `source: 'client'`, `user_agent`, `referer_route`, and the original `ts` as `client_ts`. The server log stream is now the single place to look for both phone-side and server-side trouble.
 
 ## Edge cases & invariants
 
@@ -99,6 +99,18 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 **Client owns the upstream log line, not the route.** When `fetch('/api/foo')` fails, the client logs `error` once via `clientLogger.error` and the server's access-log on the failed `/api/foo` request also fires. Two records for one failure is fine — they carry the same `request_id` and the symmetry helps debugging. The rejected alternative (route handlers logging the inbound client error a second time) doubled the records-per-failure count for no extra signal.
 
 **Client logger reads `X-Request-ID` via a fetch wrapper installed on `window`, not a meta tag.** The very first response from `page.goto('/')` carries the header — there's no meta-tag emission path that fires before the first SPA navigation. Wrapping `window.fetch` catches both the page-load response and every subsequent SPA fetch, with no template work.
+
+**Untrusted client ctx is quarantined; canonical fields are authoritative.**
+Two layers stop a `POST /api/log` client from forging persisted log fields
+(review #32). (1) In the logger, the canonical `ts`/`level`/`msg` are written
+*after* the spread of `ctx`, so a `ctx.ts`/`ctx.level`/`ctx.msg` can't rewrite
+them. (2) At the `/api/log` boundary the client's `ctx` is nested under one
+`client_ctx` key rather than spread flat, so a client-supplied
+`request_id`/`route`/`source` lands under `client_ctx.*` and can't collide with
+the per-request binding or the server-stamped `source: 'client'`. Secret
+redaction still recurses into `client_ctx`, so a nested `token` is `***` as
+before. Net effect: client-forwarded records carry their keys under
+`client_ctx`, not at top level.
 
 **Secret redaction operates on keys (regex), not values.** Matching on key name (`api_key`, `token`, `secret`, `password`, `authorization`) reliably catches the cases we care about. Matching on value shape (looking for `sk-…` / Bearer token patterns) creates false positives the first time a user types `sk-something` into the notes field. Keys are stable; values aren't.
 

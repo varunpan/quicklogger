@@ -83,6 +83,26 @@ describe('createLogger', () => {
     expect(rec.msg).toBe('user provided api_key in request');
   });
 
+  it('canonical ts/level/msg cannot be overridden by ctx (#32)', () => {
+    const { stream, lines } = captureStream();
+    const logger = createLogger({ level: 'info', pretty: false, stdout: stream });
+    logger.info('real message', {
+      ts: '2000-01-01T00:00:00.000Z',
+      level: 'debug',
+      msg: 'forged',
+      extra: 1
+    });
+    const rec = parse(lines[0]);
+    // The method's own values win — a caller-supplied ts/level/msg in ctx
+    // cannot rewrite them in the persisted record.
+    expect(rec.msg).toBe('real message');
+    expect(rec.level).toBe('info');
+    expect(rec.ts).not.toBe('2000-01-01T00:00:00.000Z');
+    expect(new Date(rec.ts as string).toISOString()).toBe(rec.ts);
+    // Non-reserved ctx still flows through.
+    expect(rec.extra).toBe(1);
+  });
+
   it('handles cycles without throwing', () => {
     const { stream, lines } = captureStream();
     const logger = createLogger({ level: 'info', pretty: false, stdout: stream });

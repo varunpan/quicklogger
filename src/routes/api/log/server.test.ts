@@ -5,14 +5,18 @@ const noopLogger = {
   debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child() { return this; }
 } as import('$lib/server/logger').Logger;
 
-function makeEvent(body: unknown, headers: Record<string, string> = {}): import('@sveltejs/kit').RequestEvent {
+function makeEvent(
+  body: unknown,
+  headers: Record<string, string> = {},
+  logger: import('$lib/server/logger').Logger = noopLogger
+): import('@sveltejs/kit').RequestEvent {
   return {
     request: new Request('http://localhost/api/log', {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(body)
     }),
-    locals: { logger: noopLogger, requestId: 't' },
+    locals: { logger, requestId: 't' },
     getClientAddress: () => '127.0.0.1',
     url: new URL('http://localhost/api/log'),
     route: { id: '/api/log' }
@@ -55,6 +59,49 @@ describe('POST /api/log', () => {
       records: [{ level: 'verbose', msg: 'x', ts: new Date().toISOString() }]
     }));
     expect(res.status).toBe(400);
+  });
+
+  it('quarantines untrusted client ctx so it cannot forge reserved fields (#32)', async () => {
+    const calls: Array<{ level: string; msg: string; ctx: Record<string, unknown> }> = [];
+    const mk = (level: string) => (msg: string, ctx?: Record<string, unknown>) =>
+      void calls.push({ level, msg, ctx: ctx ?? {} });
+    const capturing = {
+      debug: mk('debug'), info: mk('info'), warn: mk('warn'), error: mk('error'),
+      child() { return this; }
+    } as unknown as import('$lib/server/logger').Logger;
+
+    const res = await POST(makeEvent(
+      {
+        records: [{
+          level: 'info',
+          msg: 'real',
+          ts: '2026-01-01T00:00:00.000Z',
+          ctx: {
+            request_id: 'forged',
+            route: '/admin',
+            source: 'server',
+            component: 'OcrPreview'
+          }
+        }]
+      },
+      {},
+      capturing
+    ));
+    expect(res.status).toBe(204);
+    expect(calls).toHaveLength(1);
+    const { ctx } = calls[0];
+    // Server-owned source wins; the forged request_id/route are NOT promoted to
+    // top-level where they'd overwrite the per-request binding.
+    expect(ctx.source).toBe('client');
+    expect(ctx.request_id).toBeUndefined();
+    expect(ctx.route).toBeUndefined();
+    // The client's fields are preserved, but quarantined under client_ctx.
+    expect(ctx.client_ctx).toMatchObject({
+      request_id: 'forged',
+      route: '/admin',
+      source: 'server',
+      component: 'OcrPreview'
+    });
   });
 
   it('rate-limits at 60 req/min per IP', async () => {

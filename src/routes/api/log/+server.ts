@@ -67,7 +67,11 @@ export const POST: RequestHandler = async ({ request, locals, getClientAddress }
     if (!VALID_LEVELS.has(r.level)) return json({ error: 'invalid level' }, { status: 400 });
     if (JSON.stringify(r).length > MAX_RECORD_BYTES) continue;
     locals.logger[r.level](r.msg, {
-      ...(r.ctx ?? {}),
+      // Quarantine the client's ctx under one key so it can't collide with —
+      // and overwrite — the per-request binding (`request_id`/`route`) or the
+      // server-owned `source`/timestamp fields (review #32). Secret redaction
+      // still recurses into it, so a nested `token` is redacted as before.
+      client_ctx: r.ctx ?? {},
       source: 'client',
       user_agent: ua,
       referer_route: refererRoute,

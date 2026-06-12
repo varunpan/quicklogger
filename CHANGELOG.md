@@ -15,6 +15,10 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **The browser log-forwarding endpoint can no longer forge log fields.** A
+  crafted `POST /api/log` payload could overwrite reserved fields (request id,
+  timestamp, level, message) in the persisted server log; client-supplied
+  context is now quarantined and the core fields are authoritative.
 - **Server log lines are attributed to the right request again.** Background
   services (currency, OCR budget/audit/rate-limit) were tagging every log line
   with the *first* request's id for the life of the process; they now log
