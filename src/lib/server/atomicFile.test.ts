@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { atomicWriteFile, withPathLock } from './atomicFile';
@@ -36,6 +36,17 @@ describe('atomicWriteFile', () => {
   it('leaves no temp file behind on success', async () => {
     await atomicWriteFile(path, 'data');
     expect(readdirSync(dir)).toEqual(['store.json']);
+  });
+
+  it('cleans up the temp file when rename fails', async () => {
+    // Make the target an existing directory so the `rename(tmp, path)` step
+    // throws (EISDIR) after the temp file has already been written — the exact
+    // shape of an ENOSPC / permissions blip mid-write (review #34).
+    mkdirSync(path);
+    await expect(atomicWriteFile(path, 'data')).rejects.toThrow();
+    // The random-named temp must not survive the failure — otherwise retries
+    // accumulate distinct orphans in /data forever.
+    expect(readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([]);
   });
 });
 

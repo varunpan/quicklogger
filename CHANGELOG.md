@@ -10,6 +10,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **A failed disk write no longer leaves a stray temp file behind.** If writing
+  one of the on-disk data files (FX cache, OCR budget) failed partway — a full
+  or unwritable disk — the temporary file it used could be orphaned and pile up
+  over time; the temp file is now always cleaned up on failure.
+
 ### Tests
 
 ## [0.2.8] — 2026-06-11

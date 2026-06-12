@@ -18,7 +18,7 @@
  * app runs single-replica, so one lock map per process covers every writer.
  * A multi-replica deployment sharing `/data` would need an OS-level file lock.
  */
-import { mkdir, writeFile, rename } from 'node:fs/promises';
+import { mkdir, writeFile, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -26,12 +26,27 @@ import { randomBytes } from 'node:crypto';
  * Write `contents` to `path` atomically: temp file + `rename`. Creates the
  * parent directory if missing. Callers that read-modify-write should hold
  * {@link withPathLock} for the same `path` around the whole sequence.
+ *
+ * On a `writeFile` / `rename` failure the temp file is unlinked before the
+ * error propagates, so a failed write never leaves an orphan `.tmp` behind to
+ * accumulate in `/data`.
  */
 export async function atomicWriteFile(path: string, contents: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmp = `${path}.${randomBytes(6).toString('hex')}.tmp`;
-  await writeFile(tmp, contents, 'utf-8');
-  await rename(tmp, path);
+  try {
+    await writeFile(tmp, contents, 'utf-8');
+    await rename(tmp, path);
+  } catch (err) {
+    // A partial `writeFile`, or a `rename` that fails (ENOSPC, a permissions
+    // blip) with the temp already on disk, leaves a random-named orphan that
+    // nothing else will ever reclaim. Unlink it before rethrowing so repeated
+    // failures don't accumulate distinct `.tmp` files in /data indefinitely
+    // (review #34, residual of #4). The unlink is best-effort — if the temp
+    // never made it to disk the ENOENT is irrelevant to the original error.
+    await unlink(tmp).catch(() => {});
+    throw err;
+  }
 }
 
 // One promise chain per path. A new acquirer awaits the current tail; the tail
