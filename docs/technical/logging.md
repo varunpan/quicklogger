@@ -65,7 +65,7 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 3. The next line emits `server start` with version, host, configured OCR / FX providers, and `log_file_enabled`.
 4. `ensureBoot` then calls `selectProvider(env, getLogger())` to warm the OCR provider chain. If two or more slots survive env validation, this emits a single `ocr chain effective` line listing the effective fallback order. The same call populates the process-level chain memo so subsequent per-request `selectProvider` calls stay silent for the same composition — the chain is fixed by env at boot and never changes inside one process, so logging it per request would be constant noise.
 5. Every request gets `requestId = _newRequestId()`, `locals.requestId = requestId`, `locals.logger = getLogger().child({ request_id, route })`.
-6. Routes pull `locals.logger` and either log directly or pass it as `logger?: Logger` into the consumer module (`CurrencyService`, `OcrBudget`, `OcrAudit`, `OcrRateLimit`, `runOcrPipeline`, `LubeLoggerClient`).
+6. Routes pull `locals.logger` and either log directly or pass it into a **per-request** consumer built fresh that request (`runOcrPipeline`, `LubeLoggerClient`, `selectProvider`) — those carry the request's `request_id`/`route`. **Process-level singletons** (`CurrencyService` behind `fuelup`/`fx`; `OcrBudget`/`OcrAudit`/`OcrRateLimiter` behind `ocr`) are instead constructed with the root `getLogger()`, so their log lines aren't misattributed to whichever request happened to construct them first (review #28).
 7. After `resolve(event)`, the hook checks the response; if it didn't already carry an `X-Request-ID`, the hook clones the response and sets one. Then one access-log record fires: `level = error` for 5xx, `warn` for 4xx (except 404 → `info`), `info` otherwise. Silenced paths (`/healthz`, `/service-worker.js`, `/favicon.ico`, `/_app/*`) skip the access-log line.
 
 **Client:**
@@ -101,6 +101,18 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 **Client logger reads `X-Request-ID` via a fetch wrapper installed on `window`, not a meta tag.** The very first response from `page.goto('/')` carries the header — there's no meta-tag emission path that fires before the first SPA navigation. Wrapping `window.fetch` catches both the page-load response and every subsequent SPA fetch, with no template work.
 
 **Secret redaction operates on keys (regex), not values.** Matching on key name (`api_key`, `token`, `secret`, `password`, `authorization`) reliably catches the cases we care about. Matching on value shape (looking for `sk-…` / Bearer token patterns) creates false positives the first time a user types `sk-something` into the notes field. Keys are stable; values aren't.
+
+**Process-level singletons bind the root logger, not a request child.** The
+lazy singletons behind `/api/fuelup`, `/api/fx`, and `/api/ocr`
+(`CurrencyService`, `OcrBudget`, `OcrAudit`, `OcrRateLimiter`) live for the life
+of the process, but their factories used to capture `locals.logger` — the
+per-request child carrying the *first* request's `request_id`/`route`. Every
+later `fx provider failed` / `ocr audit append failed` line was then stamped
+with a long-dead request's id, undermining the structured-logging design. They
+now construct with `getLogger()` (the root binding, no `request_id`), which is
+honest: these are process-scoped, not request-scoped. Consumers built fresh per
+request — `LubeLoggerClient`, `runOcrPipeline`, `selectProvider` — still receive
+`locals.logger` so their lines stay correctly attributed (review #28).
 
 **`bootLogger` is lazy + cached, not module-init eager.** Calling `bootLogger` from `loadEnv()` would force every test that imports `env.ts` to either mock the logger or write to stdout. `ensureBoot()` in the hook fires once on first request — by then the test harness has had its chance to call `_resetLoggerForTests()`.
 

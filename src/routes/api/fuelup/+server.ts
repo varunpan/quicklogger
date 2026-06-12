@@ -6,6 +6,7 @@ import type { UploadedFile } from '$lib/server/lubelogger';
 import { sniffImageType } from '$lib/server/ocr';
 import { CurrencyService, JsonFileStore, realFetcher, FxUnavailableError } from '$lib/server/currency';
 import { convertSubmission } from '$lib/server/convert';
+import { getLogger } from '$lib/server/logger';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 let cur: CurrencyService | null = null;
@@ -29,14 +30,17 @@ const IDEMPOTENCY_WINDOW_MS = 60_000;
 // user-facing — the client maps any truthy `photoWarning` to one fixed toast.
 const PHOTO_WARNING = 'one or more photos could not be attached';
 
-function currency(logger?: import('$lib/server/logger').Logger) {
+// Process-level singleton, so it binds the root logger rather than a
+// per-request child — otherwise the first request's `request_id` would be
+// stamped on every later `fx provider failed` line (review #28).
+function currency() {
   if (cur) return cur;
   const env = loadEnv();
   cur = new CurrencyService({
     providers: env.fxProviders,
     fetcher: realFetcher,
     store: new JsonFileStore(env.fxCachePath),
-    logger
+    logger: getLogger()
   });
   return cur;
 }
@@ -199,7 +203,7 @@ async function submitToLubeLogger(
       {
         targetVolumeUnit: env.lubeloggerVolumeUnit,
         targetCurrency: env.lubeloggerCurrency,
-        currencyService: currency(logger)
+        currencyService: currency()
       }
     );
 

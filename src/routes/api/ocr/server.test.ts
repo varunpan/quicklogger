@@ -68,6 +68,28 @@ function makeGetEvent(): Parameters<typeof GET>[0] {
   } as unknown as Parameters<typeof GET>[0];
 }
 
+function spyLogger() {
+  const calls: Array<{ level: string; msg: string }> = [];
+  const mk = (level: string) => (msg: string) => void calls.push({ level, msg });
+  const logger = {
+    debug: mk('debug'), info: mk('info'), warn: mk('warn'), error: mk('error'),
+    child() { return this; }
+  } as unknown as import('$lib/server/logger').Logger;
+  return { logger, calls };
+}
+
+function makeRequestWithLogger(
+  form: FormData,
+  logger: import('$lib/server/logger').Logger,
+  ip = '127.0.0.1'
+): Parameters<typeof POST>[0] {
+  return {
+    request: new Request('http://localhost/api/ocr', { method: 'POST', body: form }),
+    getClientAddress: () => ip,
+    locals: { logger, requestId: 't' }
+  } as unknown as Parameters<typeof POST>[0];
+}
+
 describe('GET /api/ocr', () => {
   it('returns enabled=false (no modes) when no provider configured', async () => {
     const res = await GET(makeGetEvent());
@@ -489,6 +511,31 @@ describe('POST /api/ocr', () => {
     const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
     const row = JSON.parse(auditLine);
     expect(row.lastPricePerUnit).toBeUndefined();
+  });
+
+  it('singletons log via the root logger, not the first request\'s captured child (#28)', async () => {
+    // Unwritable audit path → every audit.append fails and logs
+    // 'ocr audit append failed' through whatever logger the singleton holds.
+    setEnv({
+      OLLAMA_VISION_URL: 'http://ollama:11434',
+      OCR_AUDIT_PATH: '/dev/null/cannot/audit.jsonl'
+    });
+    const a = spyLogger();
+    const b = spyLogger();
+    const nonImage = () => {
+      const fd = new FormData();
+      fd.set('image', new File([Buffer.from('not an image')], 'p.txt', { type: 'text/plain' }));
+      fd.set('mode', 'pump');
+      return fd;
+    };
+    // Request A constructs the singletons; request B reuses them. The bug
+    // pinned the audit logger to request A's child, so a later request's audit
+    // failure was attributed to a long-dead request. With the fix the singleton
+    // holds the root logger — neither per-request child ever sees its lines.
+    await POST(makeRequestWithLogger(nonImage(), a.logger));
+    await POST(makeRequestWithLogger(nonImage(), b.logger));
+    expect(a.calls.filter((c) => c.msg === 'ocr audit append failed')).toHaveLength(0);
+    expect(b.calls.filter((c) => c.msg === 'ocr audit append failed')).toHaveLength(0);
   });
 
   it('429 with Retry-After after rate-limit cap', async () => {

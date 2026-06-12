@@ -6,6 +6,7 @@ import { ChainOcrProvider } from '$lib/server/ocrProviders';
 import { OcrRateLimiter } from '$lib/server/ocrRateLimit';
 import { OcrBudget, JsonFileBudgetStore } from '$lib/server/ocrBudget';
 import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey } from '$lib/server/ocrAudit';
+import { getLogger } from '$lib/server/logger';
 import type { OcrMode, OcrStatus } from '$lib/shared/types';
 
 const AUDIT_MAX_BYTES = 10 * 1024 * 1024;       // 10 MiB JSONL rotation
@@ -20,8 +21,14 @@ let budget: OcrBudget | null = null;
 let audit: OcrAudit | null = null;
 let hmacKey: Buffer | null = null;
 
-function bootstrap(env: Env, logger?: import('$lib/server/logger').Logger) {
+function bootstrap(env: Env) {
   if (rateLimiter && budget && audit && hmacKey) return;
+  // These are process-level singletons, so they must NOT capture a per-request
+  // child logger — the first request's `request_id` would then be stamped on
+  // every later log line they emit (review #28). Bind the root logger; the
+  // per-request consumers (`runOcrPipeline`, `selectProvider`) still receive
+  // `locals.logger` at their own call sites below.
+  const logger = getLogger();
   rateLimiter = new OcrRateLimiter({ perHour: env.ocrRateLimitPerHour, logger });
   budget = new OcrBudget({
     dailyUsd: env.ocrDailyBudgetUsd,
@@ -54,7 +61,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 export const POST: RequestHandler = async ({ request, getClientAddress, locals }) => {
   const env = loadEnv();
-  bootstrap(env, locals.logger);
+  bootstrap(env);
   const { provider } = selectProvider(env, locals.logger);
   if (!provider) return json({ error: 'OCR not configured' }, { status: 503 });
 

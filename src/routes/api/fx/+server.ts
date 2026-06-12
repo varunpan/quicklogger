@@ -7,17 +7,21 @@ import {
   realFetcher,
   FxUnavailableError
 } from '$lib/server/currency';
+import { getLogger } from '$lib/server/logger';
 
 let svc: CurrencyService | null = null;
 
-function service(logger?: import('$lib/server/logger').Logger) {
+// Process-level singleton, so it binds the root logger rather than a
+// per-request child — otherwise the first request's `request_id` would be
+// stamped on every later `fx provider failed` line (review #28).
+function service() {
   if (svc) return svc;
   const env = loadEnv();
   svc = new CurrencyService({
     providers: env.fxProviders,
     fetcher: realFetcher,
     store: new JsonFileStore(env.fxCachePath),
-    logger
+    logger: getLogger()
   });
   return svc;
 }
@@ -35,7 +39,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   }
 
   try {
-    const rate = await service(locals.logger).getRate(from, to);
+    const rate = await service().getRate(from, to);
     return json(rate);
   } catch (err) {
     if (err instanceof FxUnavailableError) {

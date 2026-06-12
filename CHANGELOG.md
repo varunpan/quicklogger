@@ -15,6 +15,10 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Server log lines are attributed to the right request again.** Background
+  services (currency, OCR budget/audit/rate-limit) were tagging every log line
+  with the *first* request's id for the life of the process; they now log
+  without a stale request id, so the structured logs read correctly.
 - **The OCR audit log no longer erases its whole history when it fills up.** At
   the 10 MiB cap it now rotates by keeping the previous generation
   (`ocr-audit.jsonl.1`) instead of truncating the file to nothing, so the
