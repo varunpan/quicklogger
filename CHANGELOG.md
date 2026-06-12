@@ -10,6 +10,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Cold page loads no longer double-fetch the vehicle list from LubeLogger.**
+  The vehicle list and vehicle images shared no cache, so opening the app cold
+  asked LubeLogger for the same list twice (and several simultaneous requests
+  could each trigger their own fetch); they now share one cache with a single
+  in-flight fetch.
 - **A failed disk write no longer leaves a stray temp file behind.** If writing
   one of the on-disk data files (FX cache, OCR budget) failed partway — a full
   or unwritable disk — the temporary file it used could be orphaned and pile up

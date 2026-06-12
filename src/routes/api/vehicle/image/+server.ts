@@ -1,12 +1,10 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadEnv } from '$lib/server/env';
-import { LubeLoggerClient, LubeLoggerError, type Vehicle } from '$lib/server/lubelogger';
-import { TtlCache } from '$lib/server/cache';
+import { LubeLoggerClient, LubeLoggerError } from '$lib/server/lubelogger';
+import { getCachedVehicles, _resetVehicleCache } from '$lib/server/vehicleCache';
 
-const cache = new TtlCache<Vehicle[]>(5 * 60 * 1000);
-
-export function _resetCache() { cache.clear(); }
+export function _resetCache() { _resetVehicleCache(); }
 
 export const GET: RequestHandler = async ({ url, locals }) => {
   const vehicleIdRaw = url.searchParams.get('vehicleId');
@@ -21,7 +19,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       apiKey: env.lubeloggerApiKey,
       logger: locals.logger
     });
-    const vehicles = await cache.get('vehicles', () => client.listVehicles());
+    const vehicles = await getCachedVehicles(client);
     const vehicle = vehicles.find((v) => v.id === vehicleId);
     if (!vehicle) return json({ error: 'no image' }, { status: 404 });
 

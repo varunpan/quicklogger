@@ -7,7 +7,8 @@ Replaces the generic car SVG in every vehicle-row surface — the home Log Fuel 
 ## Files touched
 
 - [`src/lib/server/lubelogger.ts`](../../src/lib/server/lubelogger.ts) — adds the `fetchImage(path)` method on `LubeLoggerClient`. First client method that returns a raw `Response` instead of parsed JSON.
-- [`src/routes/api/vehicle/image/+server.ts`](../../src/routes/api/vehicle/image/+server.ts) — the new endpoint: parses `vehicleId`, looks up `imageLocation` via a per-endpoint vehicles `TtlCache`, applies a defensive `/images/` path-guard, streams the upstream body with `cache-control: no-store`. Error matrix mirrors the rest of the `/api/vehicle/*` surface.
+- [`src/routes/api/vehicle/image/+server.ts`](../../src/routes/api/vehicle/image/+server.ts) — the new endpoint: parses `vehicleId`, looks up `imageLocation` via the shared vehicles cache (`vehicleCache.ts`), applies a defensive `/images/` path-guard, streams the upstream body with `cache-control: no-store`. Error matrix mirrors the rest of the `/api/vehicle/*` surface.
+- [`src/lib/server/vehicleCache.ts`](../../src/lib/server/vehicleCache.ts) — the shared 5-minute normalized-vehicle cache. Both this endpoint and `/api/vehicles` go through `getCachedVehicles(client)`, so a cold load that fires both makes one upstream `listVehicles()` call, not two (review #36).
 - [`src/service-worker.ts`](../../src/service-worker.ts) — adds the fixed-name `IMG_CACHE` constant, a `staleWhileRevalidate` helper, a fetch-handler branch for `/api/vehicle/image` placed *before* the generic `/api/` network-first branch, and a tweak to the activate handler so `IMG_CACHE` survives shell upgrades.
 - [`src/lib/client/VehicleImage.svelte`](../../src/lib/client/VehicleImage.svelte) — shared icon-slot component. Encapsulates the `vehicleImageOk = $state(true)` flag, the `$effect` keyed on `vehicleId` that resets the flag on vehicle switch, and the `<img>` / SVG-fallback render branch. Accepts `vehicleId`, `class` (passed through to the outer wrapper so callers control sizing), and `svgSize` (defaults to 22; the picker passes 24).
 - [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — vehicle button consumes the shared `<VehicleImage>` component instead of inlining the pattern.
@@ -23,7 +24,7 @@ In-memory caches:
 
 | Layer | Cache | Key | TTL | Reset |
 |---|---|---|---|---|
-| Endpoint | `TtlCache<Vehicle[]>` in `src/routes/api/vehicle/image/+server.ts` | `'vehicles'` | 5 min | Process restart; or `_resetCache()` in tests. Separate from `/api/vehicles`'s own cache. |
+| Server | `TtlCache<Vehicle[]>` in `src/lib/server/vehicleCache.ts` (shared with `/api/vehicles`) | `'vehicles'` | 5 min | Process restart; or `_resetCache()` (delegates to `_resetVehicleCache()`) in tests. One cache for both routes. |
 | Service worker | `quicklogger-vehicle-images-v1` (`caches` API) | Full `Request` | Until evicted by quota or rollback (cache-name version bump) | `activate` handler whitelists this cache name so it survives shell upgrades. |
 
 ## Lifecycle / control flow
@@ -36,7 +37,7 @@ In-memory caches:
    - If there was a cache hit, return it immediately and let the network refresh complete in the background. If not, await the network fetch and return whatever it produces (or a `504` if the fetch threw).
 4. The server endpoint runs only when the SW lets the request through:
    - Validate `vehicleId` (`Number.isFinite`).
-   - `listVehicles()` via the endpoint's own 5-min `TtlCache`.
+   - `getCachedVehicles(client)` — the shared 5-min vehicles cache.
    - Find the vehicle. If missing → 404. Read `imageLocation`. If empty / not a string / doesn't start with `/images/` → 404.
    - `client.fetchImage(path)` returns a raw `Response`. Re-emit the body stream with the upstream `content-type` and `cache-control: no-store`.
 5. The browser receives the image bytes (200) or a 404. On 200, the `<img>` renders and `vehicleImageOk` stays `true`. On 404 (or any other non-2xx — the SW's SWR helper falls through), the `<img>` element's `onerror` fires and flips `vehicleImageOk = false`, triggering Svelte to re-render the slot with the fallback SVG.
@@ -58,7 +59,7 @@ In-memory caches:
 
 ## Non-obvious decisions
 
-**Separate `TtlCache` per endpoint, not a shared module-level one.** `/api/vehicles/+server.ts` already module-scopes its cache. The new endpoint instantiating its own `TtlCache<Vehicle[]>` is the smallest viable diff. Cost: at most one extra `listVehicles()` call per 5-minute window when both endpoints run cold. Acceptable at personal-use scale; a shared cache is a future cleanup.
+**One shared vehicles cache module, not a `TtlCache` per endpoint.** `/api/vehicles` and `/api/vehicle/image` both go through `getCachedVehicles(client)` in `vehicleCache.ts`. The original v0.2.0 design gave each endpoint its own `TtlCache<Vehicle[]>` as the smallest diff, accepting "at most one extra `listVehicles()` call per 5-minute window when both run cold." A cold page load fires both routes together, so that double-call happened on essentially every cold load — on two independent TTL clocks. The shared module collapses it to one call, and `TtlCache`'s single-flight dedup (it caches the in-flight promise, evicting on rejection) means even simultaneous cold misses share one fetch rather than racing (review #36). The cache stores the **normalized** list, so `/api/vehicles` returns it directly and the image route reads `imageLocation` off the same objects (the normalizer spreads every upstream field through).
 
 **Endpoint returns raw `Response.body` rather than buffering into a `Buffer`.** Streaming preserves the 40 KB-or-so per-vehicle payload size and keeps the endpoint's memory footprint flat. The downstream code (Node `fetch` Response on Node 22) hands a `ReadableStream` to the new `Response()` constructor; SvelteKit / `@sveltejs/adapter-node` then streams it to the client.
 
@@ -81,5 +82,4 @@ In-memory caches:
 - **Pre-warming `IMG_CACHE` during SW install.** Would require enumerating vehicle ids in install scope, which complicates the install handler for a marginal latency win on first vehicle view. Deferred.
 - **Image upload from quicklogger.** Read-only is enough for now. Upload would need a new write endpoint and a UI surface that doesn't exist.
 - **Multiple sizes / thumbnails.** Single 48×48 display, image bytes ~40 KB — no perf reason to vary. If `/history` and `/vehicles` start showing photos at different sizes a `?size=` query param could route through a server-side resize step.
-- **Shared `vehiclesCache` refactor.** Both `/api/vehicles` and `/api/vehicle/image` keep their own `TtlCache<Vehicle[]>`. A shared module-scoped cache would deduplicate the rare double-call, but isn't worth the refactor at this scale.
 - **`IMG_CACHE` size budget.** No eviction policy in v1. Fleet size and per-photo bytes keep this comfortably under quota; revisit if either grows materially.

@@ -2,12 +2,9 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadEnv } from '$lib/server/env';
 import { LubeLoggerClient, LubeLoggerError } from '$lib/server/lubelogger';
-import { TtlCache } from '$lib/server/cache';
-import { normalizeVehicleIdentifiers } from '$lib/server/vehicle-identifiers';
+import { getCachedVehicles, _resetVehicleCache } from '$lib/server/vehicleCache';
 
-const cache = new TtlCache<unknown>(5 * 60 * 1000);
-
-export function _resetCache() { cache.clear(); }
+export function _resetCache() { _resetVehicleCache(); }
 
 export const GET: RequestHandler = async ({ locals }) => {
   try {
@@ -17,10 +14,7 @@ export const GET: RequestHandler = async ({ locals }) => {
       apiKey: env.lubeloggerApiKey,
       logger: locals.logger
     });
-    const vehicles = await cache.get('vehicles', async () => {
-      const raw = await client.listVehicles();
-      return raw.map(normalizeVehicleIdentifiers);
-    });
+    const vehicles = await getCachedVehicles(client);
     return json(vehicles);
   } catch (err) {
     if (err instanceof LubeLoggerError) {

@@ -18,9 +18,12 @@ the bigger picture: see the `/maintenance` section of
   `Vehicle` interface gains optional `licensePlate?: string` and
   `vin?: string` fields. Open-ended index signature preserved.
 - [`src/routes/api/vehicles/+server.ts`](../../src/routes/api/vehicles/+server.ts) —
-  applies `normalizeVehicleIdentifiers` inside the 5-minute TtlCache
-  loader so cached payloads are shape-correct (cache hits cost zero
-  extraction work).
+  returns the normalized list from `getCachedVehicles()` (the shared
+  vehicles cache).
+- [`src/lib/server/vehicleCache.ts`](../../src/lib/server/vehicleCache.ts) —
+  the shared 5-minute cache. `normalizeVehicleIdentifiers` runs inside
+  its loader, so cached payloads are shape-correct and cache hits cost
+  zero extraction work. Shared with `/api/vehicle/image` (review #36).
 - [`src/lib/client/VehicleIdentifiersCard.svelte`](../../src/lib/client/VehicleIdentifiersCard.svelte) —
   the UI component. Two `<button>` rows, one per present field. Calls
   `writeToClipboard()`, which tries `navigator.clipboard.writeText`
@@ -71,10 +74,10 @@ interface Props {
 
 1. `/maintenance` `+page.ts` calls `listVehicles(fetch)`, which hits
    `/api/vehicles`.
-2. The server route checks the 5-minute TtlCache. On a miss it calls
-   `client.listVehicles()`, then maps each vehicle through
-   `normalizeVehicleIdentifiers`. On a hit it returns the cached
-   already-normalized array.
+2. The server route calls `getCachedVehicles(client)` (shared
+   `vehicleCache.ts`). On a miss the loader calls `client.listVehicles()`,
+   then maps each vehicle through `normalizeVehicleIdentifiers`. On a hit it
+   returns the cached already-normalized array.
 3. The resolved `data.vehicle` reaches the page component. The page
    passes `data.vehicle.licensePlate` and `data.vehicle.vin` to
    `<VehicleIdentifiersCard>` after a runtime `typeof === 'string'`
@@ -115,7 +118,7 @@ interface Props {
 | Both clipboard paths fail | No flash, no copy | Truly broken environment; iOS Safari long-press select-and-copy on the value text still works because no `user-select: none` |
 | User taps plate, then VIN within 1.5 s | Plate flash ends immediately, VIN flash starts | Single `copiedField` state + timer reset |
 | User navigates away mid-flash | No cleanup needed | Page unmount destroys the component; timer ref is GC'd |
-| Cached `/api/vehicles` payload | Already normalized | Normalizer runs inside the TtlCache loader, not after |
+| Cached `/api/vehicles` payload | Already normalized | Normalizer runs inside the shared `vehicleCache` loader, not after |
 | Vehicle has VIN but not plate (or vice versa) | Only the present row renders | Per-row `{#if plateValue}` / `{#if vinValue}` gates |
 | Very long VIN / vanity plate | Truncates with ellipsis on narrow screens | `truncate` Tailwind class; long-press still selects full text |
 
