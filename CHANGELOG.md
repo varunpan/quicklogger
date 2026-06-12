@@ -8,6 +8,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- **Documented the daily OCR budget as best-effort, not a hard cap.** The
+  `OCR_DAILY_BUDGET_USD` guard can be overshot slightly by simultaneous
+  requests and stops counting if the data directory becomes unwritable; the
+  docs now say so plainly (worst-case exposure is cents). No behaviour change.
+
 ### Fixed
 
 - **Cold page loads no longer double-fetch the vehicle list from LubeLogger.**

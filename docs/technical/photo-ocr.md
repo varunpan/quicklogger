@@ -194,7 +194,7 @@ audit log persists the same shape under `parsed`, plus a top-level
 
 | File | Shape | Notes |
 |---|---|---|
-| `ocr-budget.json` | `{ date: 'YYYY-MM-DD', calls, costCents }` | UTC date; replaced (not appended) on each `add()`. The read-modify-write runs under a per-path lock and the file is written atomically (temp + `rename`) via [`atomicFile.ts`](../../src/lib/server/atomicFile.ts), so concurrent OCR calls can't under-count the day's spend (the cap stays accurate) and a crash mid-write can't corrupt the tally. |
+| `ocr-budget.json` | `{ date: 'YYYY-MM-DD', calls, costCents }` | UTC date; replaced (not appended) on each `add()`. The read-modify-write runs under a per-path lock and the file is written atomically (temp + `rename`) via [`atomicFile.ts`](../../src/lib/server/atomicFile.ts), so concurrent OCR calls can't lose an increment and a crash mid-write can't corrupt the tally. The *tally* is exact; the *cap* it feeds is advisory (see "Daily budget cap is advisory" below). |
 | `ocr-audit.jsonl` | one JSON object per line (incl. `rotationApplied: number` since v0.2.0+) | Append-only. The stat → truncate → append rotation runs under the same per-path lock, so concurrent appends re-check the size and can't overshoot the 10 MiB cap or drop a line another append just wrote. Old entries discarded, not archived. |
 | `ocr-audit-key.txt` | 32 random bytes, 0600 | Auto-generated if `OCR_AUDIT_HMAC_KEY` is unset and the file is absent. Persists across container restarts. |
 
@@ -548,6 +548,22 @@ shouldn't have to tune the anti-runaway value, and the `MODES` map
 is the right surface if a future mode that returns more fields
 needs a different cap. Ollama path is unaffected — local inference
 is free and `format: schema` already constrains output naturally.
+
+**Daily budget cap is advisory, not hard.** `OCR_DAILY_BUDGET_USD` is a
+best-effort runaway guard, not a guarantee that spend stops at the cap. Three
+gaps (review #29): `check()` reads outside the lock and `add()` lands only
+after the multi-second provider call, so concurrent requests can all pass
+before any add (TOCTOU, overshoot by ~(N−1)×cost); the comparison is strict
+`>`, so the crossing request itself is allowed; and `add()` swallows write
+errors, so a persistently unwritable `/data` stops the tally and the cap never
+trips. Accepted deliberately: at ~0.006¢/call behind the 20/hr rate limit the
+worst-case overshoot is cents. A hard cap — atomic check-and-reserve inside one
+`update()` before the call, refund on failure, `>=`, fail-closed on write
+failure — was scoped and rejected as not worth the concurrency complexity for
+that exposure. The on-disk increment itself is race-safe (`add()` runs under
+`update()`'s per-path lock); only the cap decision is soft. The
+[`OcrBudget`](../../src/lib/server/ocrBudget.ts) class header carries the same
+note for code readers.
 
 **No image queue-for-replay in the service worker.** Images are
 ~300 KB → IDB bloats fast. By the time network returns, the user has

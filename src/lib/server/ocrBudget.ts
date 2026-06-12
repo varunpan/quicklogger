@@ -36,6 +36,29 @@ function utcDateStamp(now = Date.now()): string {
   return new Date(now).toISOString().slice(0, 10);
 }
 
+/**
+ * Daily OCR spend tracker. The cap it enforces is **advisory / best-effort, not
+ * a hard guarantee** (review #29). Three properties let real spend exceed
+ * `dailyUsd`:
+ *
+ *  1. **TOCTOU.** `check()` reads outside the per-path lock and `add()` only
+ *     lands after the multi-second provider call, so N concurrent requests can
+ *     all pass `check()` before any `add()` is written — overshoot up to
+ *     (N−1)×cost.
+ *  2. **Strict `>`.** The request that crosses the cap is itself allowed; only
+ *     the next one is refused.
+ *  3. **Fail-open on write failure.** `add()` swallows write errors, so a
+ *     persistently unwritable `/data` silently stops the tally and the cap
+ *     never trips again.
+ *
+ * This is deliberate. At ~0.006¢/call behind the 20/hr upstream rate limit,
+ * worst-case overshoot is cents. A hard cap (atomic check-and-reserve before
+ * the provider call, refund on failure, `>=`, fail-closed on write failure)
+ * was scoped and rejected as not worth the concurrency complexity for that
+ * exposure. Note the on-disk increment itself IS race-safe — `add()` runs the
+ * read-modify-write under `update()`'s per-path lock (review #4); only the cap
+ * *decision* is soft.
+ */
 export class OcrBudget {
   private readonly log: Logger;
   constructor(private readonly opts: Options) {

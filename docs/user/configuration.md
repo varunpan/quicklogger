@@ -220,10 +220,13 @@ latency.
 
 #### `OCR_DAILY_BUDGET_USD`
 
-Hard daily cap on OCR spend, in USD. Tracked per-day (UTC). Once
+Best-effort daily cap on OCR spend, in USD. Tracked per-day (UTC). Once
 exceeded, the server returns 402 on `/api/ocr` until the next UTC
-rollover. Default `1.00` is a runaway guard, not a usage budget —
-raise it if you're a heavy user, lower it if you want a tighter cap.
+rollover. It's an advisory runaway guard, not a hard guarantee —
+simultaneous requests can overshoot it slightly, and it stops counting if
+`/data` becomes unwritable. (Exposure is cents-scale: ~0.006¢/call behind
+the per-hour rate limit.) Default `1.00` — raise it if you're a heavy user,
+lower it if you want a tighter cap.
 
 #### `OCR_RATE_LIMIT_PER_HOUR`
 
