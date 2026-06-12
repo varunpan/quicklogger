@@ -20,6 +20,7 @@
   import { loadDismissedUpdateVersion, saveDismissedUpdateVersion } from '$lib/client/dismissed-update';
   import {
     evaluateSmartChecks,
+    localIsoDate,
     type SmartCheckIssue,
     type LastFuelupForCheck
   } from '$lib/client/smart-checks';
@@ -77,7 +78,11 @@
   }
   let odometer: string = $state(initialOdometer());
   let odometerEdited: boolean = $state(false);
-  let isoDate: string = $state(new Date().toISOString().slice(0, 10));
+  // Local calendar date, NOT toISOString().slice(0, 10): the UTC form is
+  // already "tomorrow" late in the evening west of UTC, and smart-check D
+  // (which compares against the LOCAL date) then flags every submission as
+  // "Date is in the future." Same basis as check D by construction.
+  let isoDate: string = $state(localIsoDate());
   let volume: string = $state(data.prefill.volume ?? '');
   let volumeUnit: VolumeUnit = $state(
     (data.prefill.volumeUnit as VolumeUnit) ?? prefs.defaultVolumeUnit

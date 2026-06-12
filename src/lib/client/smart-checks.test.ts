@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   evaluateSmartChecks,
+  localIsoDate,
   ODOMETER_MAX_DELTA_MI,
   type SubmissionForCheck,
   type LastFuelupForCheck
@@ -345,5 +346,31 @@ describe('aggregator', () => {
       FIXED_NOW
     );
     expect(r.issues.find((i) => i.code === 'A')).toBeDefined();
+  });
+});
+
+describe('localIsoDate — the form default-date seed', () => {
+  it('returns the local calendar date as YYYY-MM-DD', () => {
+    expect(localIsoDate(new Date(2026, 4, 14, 12, 0))).toBe('2026-05-14');
+  });
+
+  it('never trips check D at any hour of the day (same basis as check D today)', () => {
+    for (let h = 0; h < 24; h++) {
+      const now = new Date(2026, 5, 11, h, 30);
+      const r = evaluateSmartChecks(sub({ date: localIsoDate(now) }), null, PREFS_ON, now);
+      expect(r.issues.find((i) => i.code === 'D'), `hour ${h}`).toBeUndefined();
+    }
+  });
+
+  it('uses the local calendar date, not the UTC one, late in the evening', () => {
+    // 22:40 local on 2026-06-11. West of UTC that instant is already
+    // 2026-06-12 in UTC — the old `toISOString().slice(0, 10)` seed returned
+    // tomorrow's date and check D flagged every submission as "in the
+    // future" between (24 − offset) h and midnight.
+    const now = new Date(2026, 5, 11, 22, 40);
+    expect(localIsoDate(now)).toBe('2026-06-11');
+    if (now.getTimezoneOffset() > 0) {
+      expect(now.toISOString().slice(0, 10)).not.toBe(localIsoDate(now));
+    }
   });
 });

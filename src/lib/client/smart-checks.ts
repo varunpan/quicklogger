@@ -27,9 +27,19 @@ export interface LastFuelupForCheck {
 // `en-CA` returns YYYY-MM-DD which compares lex-correctly against the
 // submission.date string. Test override via `now` keeps check D
 // deterministic across CI time zones.
-function getToday(now?: Date): string {
+//
+// Exported as the canonical "today as the user sees it" — the fillup form
+// seeds its default date from this so the seed and check D can never
+// disagree. Seeding from `toISOString().slice(0, 10)` instead UTC-shifts
+// late-evening dates (west of UTC, ~8 PM onward is already "tomorrow" in
+// UTC) and check D then flags every submission as "in the future".
+export function localIsoDate(now?: Date): string {
   const d = now ?? new Date();
   return d.toLocaleDateString('en-CA');
+}
+
+function getToday(now?: Date): string {
+  return localIsoDate(now);
 }
 
 function formatOdo(n: number): string {

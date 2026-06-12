@@ -56,6 +56,12 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Cropping a photo survives a screen reflow.** Adjusting the crop box no
   longer snaps back to the default if the screen resizes mid-drag — e.g. the
   mobile address bar showing/hiding, or rotating the phone.
+- **The date field no longer defaults to tomorrow late in the evening.**
+  From around 8 PM onward (US time zones), the form's pre-filled date was
+  taken from the UTC clock — already the next day — so every fill-up logged
+  at night opened with a bogus "Date is in the future" warning and needed
+  an extra "Submit anyway" tap. The default date now follows your local
+  calendar day.
 - **Fixed the installed app reloading itself non-stop (v0.2.7 regression).**
   On iPhone, the installed PWA could reload about once per second forever,
   making it unusable: the v0.2.7 "reload when an app update takes over"

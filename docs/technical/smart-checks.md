@@ -155,6 +155,16 @@ unit suite injects a fixed `Date` so check-D specs are deterministic
 across CI time zones — no need to monkey-patch the global `Date`
 constructor like `tests/e2e/fixtures.ts#pinClock` does for e2e.
 
+**`localIsoDate` is exported as the canonical "today" seed.** The fillup
+form's default date (`+page.svelte`) seeds from it so the seed and check D
+share one date basis by construction. It must stay the *local* calendar
+date (`toLocaleDateString('en-CA')`): the form briefly seeded from
+`toISOString().slice(0, 10)`, whose UTC basis is already "tomorrow" from
+~8 PM onward west of UTC — so every late-evening submission opened with a
+spurious check-D "Date is in the future" warning. (Same trap documented in
+`exif.ts` for photo dates.) UTC-zoned CI runners can't catch a regression
+here; the unit suite pins the invariant across all 24 hours instead.
+
 ## Future considerations
 
 - **Check F (cost / volume ratio).** Deferred from v0.2.0 because it
