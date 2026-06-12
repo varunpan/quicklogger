@@ -2,7 +2,7 @@
 
 Mobile-first PWA for logging fuel fill-ups to a self-hosted [LubeLogger](https://lubelogger.com) instance.
 
-> **Status:** v0.2.8 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
+> **Status:** v0.2.9 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
 
 ## Built with Claude Code
 

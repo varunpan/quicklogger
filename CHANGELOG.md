@@ -2,9 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.2.9] — Unreleased
-
-### Added
+## [0.2.9] — 2026-06-12
 
 ### Changed
 
@@ -45,8 +43,6 @@ All notable changes to this project are documented here. Format roughly follows 
   one of the on-disk data files (FX cache, OCR budget) failed partway — a full
   or unwritable disk — the temporary file it used could be orphaned and pile up
   over time; the temp file is now always cleaned up on failure.
-
-### Tests
 
 ## [0.2.8] — 2026-06-11
 
