@@ -1,20 +1,20 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build && npm prune --omit=dev
 
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 WORKDIR /app
 # Patch OS packages (notably libssl3/libcrypto3) to the latest Alpine release and
-# drop the base image's bundled npm/npx. The node:22-alpine base trails Alpine's
+# drop the base image's bundled npm/npx. The node:24-alpine base trails Alpine's
 # package index by a few days, so without the upgrade the image ships already-fixed
 # OpenSSL CVEs (see #31). The runtime only runs `node build` (exec-form, no shell)
 # and the healthcheck uses wget, so npm is never invoked here — removing it also

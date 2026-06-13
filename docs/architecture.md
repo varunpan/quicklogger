@@ -7,7 +7,7 @@ quicklogger is a mobile-first PWA that submits fillups to a self-hosted LubeLogg
 The system has three surfaces:
 
 - **Browser / installed PWA** on the user's phone — Safari or any modern Chromium. The service worker precaches the app shell, so the form opens instantly even on a flaky connection. A per-vehicle `localStorage` snapshot plus an IndexedDB queue keep the form (including the last-fillup prefill) usable while LubeLogger is unreachable.
-- **SvelteKit server** running in a Node 22 container. Stateless except for an on-disk FX cache (`/data/fx-cache.json`) and an in-process 60s idempotency map. All upstream calls go through `src/lib/server/lubelogger.ts`.
+- **SvelteKit server** running in a Node 24 container. Stateless except for an on-disk FX cache (`/data/fx-cache.json`) and an in-process 60s idempotency map. All upstream calls go through `src/lib/server/lubelogger.ts`.
 - **LubeLogger container** on the operator's network. quicklogger never talks to LubeLogger from the browser — the SvelteKit server is the only client.
 
 **Deployment topology note.** When quicklogger and LubeLogger run in the same Docker compose stack, the SvelteKit server reaches LubeLogger via container DNS (e.g. `http://lubelogger:8080`) — traffic stays on the internal Docker network and LubeLogger never needs to be exposed to the public internet just for the backend's API calls. `LUBELOGGER_URL` is the only switch; point it at an internal hostname for the co-located case, or at a public URL for split deployments. Either way, the browser only ever talks to the SvelteKit origin.

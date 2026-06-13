@@ -18,7 +18,7 @@ updates:
           - minor
           - patch
 
-  # The Docker base image (node:22-alpine) — where the OpenSSL CVEs in #31 came
+  # The Docker base image (node:24-alpine) — where the OpenSSL CVEs in #31 came
   # from. Opens a PR when a newer base is available.
   - package-ecosystem: docker
     directory: '/'

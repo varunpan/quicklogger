@@ -162,7 +162,7 @@ Structured JSON to stdout by default. Set `LOG_FILE_PATH` to also write a rotati
 
 ### Dev prerequisites
 
-- Node 22 (pin via [`nvm`](https://github.com/nvm-sh/nvm) or [`asdf`](https://asdf-vm.com/))
+- Node 24 (pin via [`nvm`](https://github.com/nvm-sh/nvm) or [`asdf`](https://asdf-vm.com/))
 - npm 10+
 - A reachable LubeLogger for integration testing — any of:
   - The LubeLogger you already self-host
@@ -192,7 +192,7 @@ The app has zero runtime npm `dependencies` — everything is `devDependencies` 
 | | [`eslint-plugin-svelte`](https://sveltejs.github.io/eslint-plugin-svelte/) ^3.17 + [`svelte-eslint-parser`](https://github.com/sveltejs/svelte-eslint-parser) ^1.6 | Svelte ESLint integration |
 | | [`typescript-eslint`](https://typescript-eslint.io) ^8.59 | TypeScript-aware ESLint rules |
 | | [`prettier`](https://prettier.io) ^3.8 + [`prettier-plugin-svelte`](https://github.com/sveltejs/prettier-plugin-svelte) ^3.5 | Code formatter |
-| **Runtime** | `node:22-alpine` (Docker) | Runs as the unprivileged `node` user (UID 1000) |
+| **Runtime** | `node:24-alpine` (Docker) | Runs as the unprivileged `node` user (UID 1000) |
 
 ### Setup
 

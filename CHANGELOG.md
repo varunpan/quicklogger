@@ -18,6 +18,14 @@ All notable changes to this project are documented here. Format roughly follows 
   `@vitest/coverage-v8`, `msw`, `svelte-check`, `typescript-eslint`,
   `eslint-plugin-svelte`). Full lint/check/test/build/e2e gate green; no
   behaviour change. (#44)
+- **Runtime now ships on Node 24 (LTS), up from Node 22.** The Docker base image
+  moved from `node:22-alpine` to `node:24-alpine` across all three build stages,
+  and Node 24 is now required project-wide — `package.json` `engines` is `>=24`
+  (enforced by `engine-strict`), CI runs on Node 24, and the dev docs match.
+  Dependabot proposed Node 26, but that's the *Current* line (no LTS until
+  October 2026); 24 is the active LTS. The image's OS-package upgrade +
+  npm-removal hardening and the Trivy scan gate (#31) are unchanged and still
+  pass. (#39)
 - **Type-checking now fails the build on warnings, not just errors.** `npm run
   check` gained `--fail-on-warnings`, and the home page's form fields were
   cleared of 6 `state_referenced_locally` warnings (the prefill seeds are now

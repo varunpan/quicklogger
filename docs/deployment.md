@@ -3,7 +3,7 @@
 ## Image build
 
 Multi-stage `Dockerfile` produces a slim runtime image based on
-`node:22-alpine`:
+`node:24-alpine`:
 
 1. `deps` — installs production + dev deps from lockfile
 2. `build` — runs `npm run build`, then `npm prune --omit=dev`
@@ -37,7 +37,7 @@ docker run --rm -p 3000:3000 \
 4. Build (`npm run build`)
 5. E2E (`npm run test:e2e` — Playwright on mobile-Safari profile) — gated; runs only when `tests/e2e/*.spec.ts` files exist (Task 25 introduces them)
 
-Node 22 with npm cache. ~3-minute pipeline. CI must be green for the
+Node 24 with npm cache. ~3-minute pipeline. CI must be green for the
 release workflow (Task 29) to publish a multi-arch image.
 
 ## Release workflow (multi-arch GHCR)
@@ -94,7 +94,7 @@ the `aquasec/trivy` container, so no local Trivy install is needed — just
 Docker. Keep the Trivy version in `scripts/scan.sh` in lockstep with the
 `trivy-action` version in `build.yml`.
 
-**Why most findings are OS-level.** The base image (`node:22-alpine`)
+**Why most findings are OS-level.** The base image (`node:24-alpine`)
 trails Alpine's package index, so OpenSSL (`libssl3`/`libcrypto3`) and
 friends can ship with already-fixed CVEs. The runtime stage runs
 `apk upgrade --no-cache` at build time to pull these up to the latest
@@ -237,7 +237,7 @@ existing services stay untouched.
 
 ## Hardening the runtime
 
-The base image (`node:22-alpine`) already runs as the unprivileged
+The base image (`node:24-alpine`) already runs as the unprivileged
 `node` user (UID 1000). The compose-side directives below take that
 further by removing privileges the runtime never needs.
 
@@ -266,7 +266,7 @@ Expected: `ReadOnly=true`, `CapDrop=[ALL]`, `NoNewPriv=[no-new-privileges:true]`
 
 **Trade-offs:**
 
-- `docker exec quicklogger sh` still works (the `node:22-alpine` runtime ships `sh`), but anything you try to write outside `/data` or `/tmp` will fail with EROFS — that's the protection working.
+- `docker exec quicklogger sh` still works (the `node:24-alpine` runtime ships `sh`), but anything you try to write outside `/data` or `/tmp` will fail with EROFS — that's the protection working.
 - If a future feature genuinely needs to write somewhere else, add a targeted `tmpfs:` or `volumes:` entry rather than removing `read_only`.
 
 **What this does *not* protect against:**
