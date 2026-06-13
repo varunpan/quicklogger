@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vite
 import { render, cleanup } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import CropOverlay from './CropOverlay.svelte';
+import CropOverlayBindHarness from './CropOverlay.bindharness.svelte';
 
 beforeEach(() => {
   // jsdom doesn't implement setPointerCapture / releasePointerCapture by
@@ -189,6 +190,36 @@ describe('CropOverlay', () => {
     expect(rect.y).toBe(20);
     expect(rect.w).toBe(100);
     expect(rect.h).toBe(80);
+  });
+
+  // The production path: OcrPreview binds `liveRect` and commits the bound value
+  // from its own [Done]. These exercise the internal-rect → `liveRect` mirror
+  // (#37) that the standalone (unbound) tests above can't reach.
+  it('BOUND: host [Done] commits the live drag value (internal rect mirrors out to liveRect)', async () => {
+    const oncommit = vi.fn() as Mock;
+    const { container } = render(CropOverlayBindHarness, {
+      props: { initial: { x: 40, y: 30, w: 320, h: 240 }, oncommit }
+    });
+    const interior = container.querySelector('[data-handle="interior"]') as HTMLElement;
+    await fireEvent(interior, makePointerEvent('pointerdown', 200, 150));
+    await fireEvent(interior, makePointerEvent('pointermove', 230, 170)); // +30,+20
+    // Host's own Done reads the BOUND live rect — only correct if the mirror ran.
+    await fireEvent.click(container.querySelector('[data-action="host-done"]') as HTMLElement);
+    expect(oncommit.mock.calls[0][0]).toEqual({ x: 70, y: 50, w: 320, h: 240 });
+  });
+
+  it('BOUND: mid-drag `initial` change does NOT wipe the drag (resize during crop, #37b)', async () => {
+    const oncommit = vi.fn() as Mock;
+    const { container, rerender } = render(CropOverlayBindHarness, {
+      props: { initial: { x: 40, y: 30, w: 320, h: 240 }, oncommit }
+    });
+    const interior = container.querySelector('[data-handle="interior"]') as HTMLElement;
+    await fireEvent(interior, makePointerEvent('pointerdown', 200, 150));
+    await fireEvent(interior, makePointerEvent('pointermove', 230, 170)); // (70,50,320,240)
+    await rerender({ initial: { x: 0, y: 0, w: 400, h: 300 }, oncommit });
+    await fireEvent(interior, makePointerEvent('pointerup', 230, 170));
+    await fireEvent.click(container.querySelector('[data-action="host-done"]') as HTMLElement);
+    expect(oncommit.mock.calls[0][0]).toEqual({ x: 70, y: 50, w: 320, h: 240 });
   });
 
   it('keeps every handle fully inside imageDisplayRect when the rect is flush against the image bounds', () => {

@@ -175,7 +175,7 @@ The app has zero runtime npm `dependencies` — everything is `devDependencies` 
 | Layer | Package | Purpose |
 | --- | --- | --- |
 | **Framework** | [`@sveltejs/kit`](https://kit.svelte.dev) ^2.57 | Full-stack framework (file-based routing, SSR, server endpoints) |
-| | [`svelte`](https://svelte.dev) ^5.55 | UI framework (runes-mode component model) |
+| | [`svelte`](https://svelte.dev) ^5.56 | UI framework (runes-mode component model) |
 | | [`@sveltejs/adapter-node`](https://kit.svelte.dev/docs/adapter-node) ^5.5 | Production adapter — emits a `node build` entrypoint |
 | **Build** | [`vite`](https://vite.dev) ^8.0 | Dev server + production bundler |
 | | [`typescript`](https://www.typescriptlang.org) ^6.0 | Type system |

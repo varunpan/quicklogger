@@ -116,21 +116,16 @@ advisories. It deliberately does *not* use `--omit=dev` — that would
 re-open the blind spot, since those compiled-in packages are
 devDependencies. A high-severity `devalue` DoS is fixed by pinning it to
 the patched `5.8.1` via an npm `override` in `package.json` (it's a
-transitive SvelteKit dep). Some lower-severity advisories are **knowingly
-deferred** — all below the high gate, so CI stays green:
+transitive SvelteKit dep). The four moderate `svelte` SSR-XSS advisories are
+cleared by upgrading to `5.56.3` (#37); see that fix's note in the CHANGELOG for
+why the bump needed a CropOverlay rework first. Some lower-severity advisories are
+**knowingly deferred** — all below the high gate, so CI stays green:
 
-- **`svelte` (moderate)** — the patched releases (≥5.55.7) change effect-flush
-  timing and regress the CropOverlay mid-drag reseed guard (#37b), so svelte is
-  held at 5.55.5 pending a dedicated fix to that component. The app uses none of
-  the advisories' vulnerable patterns (no `<svelte:element>`, no spread-attribute
-  XSS sinks), so real exposure is low.
 - **`cookie` (low)** and **`brace-expansion` (moderate, build-only)** — npm's only
   offered "fix" for the cookie chain is a destructive downgrade of SvelteKit to a
   pre-1.0 version, so these are left until upstream ships a real fix.
 
-Dependabot will open PRs as real upstream fixes land. The svelte PR will fail CI
-(`npm test`) until the CropOverlay guard is reworked — that failure is the
-intended signal to do the dedicated fix, not noise.
+Dependabot will open PRs as real upstream fixes land.
 
 **Dependabot** (`.github/dependabot.yml`) opens weekly PRs for three
 ecosystems: `npm` (deps), `docker` (base image), and `github-actions`

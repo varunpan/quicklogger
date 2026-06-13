@@ -32,8 +32,15 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Cleared a high-severity dependency advisory.** `devalue` (used by SvelteKit to
   serialize SSR data, so it ships in the runtime bundle) is pinned to the patched
   `5.8.1` via an npm `override`, fixing a denial-of-service (HIGH) flagged by
-  `npm audit`. Remaining moderate/low advisories (Svelte, cookie) sit below the CI
-  gate and are tracked for follow-up — see `docs/deployment.md`. (#31)
+  `npm audit`. Remaining moderate/low advisories (`cookie`, `brace-expansion`) sit
+  below the CI gate and are tracked for follow-up — see `docs/deployment.md`. (#31)
+- **Cleared the moderate Svelte SSR-XSS advisories.** Svelte is upgraded to `5.56.3`
+  (from `5.55.5`), clearing four moderate advisories flagged by `npm audit` (SSR XSS
+  via promise serialization and via spread attributes, DOM clobbering of framework
+  state, and a `<svelte:element>` ReDoS). The upgrade changed how Svelte re-applies an
+  unbound component's default props, which had let the photo-crop overlay's in-progress
+  selection be wiped mid-edit; the overlay now keeps its working rectangle in internal
+  state so the crop survives a re-render. No change to crop behaviour in the app. (#37)
 
 ## [0.2.9] — 2026-06-12
 
