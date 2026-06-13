@@ -8,6 +8,13 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- **Type-checking now fails the build on warnings, not just errors.** `npm run
+  check` gained `--fail-on-warnings`, and the home page's form fields were
+  cleared of 6 `state_referenced_locally` warnings (the prefill seeds are now
+  explicit one-time reads via `untrack`). No behaviour change — the form already
+  captured those values once; this just makes the intent explicit and keeps the
+  warning class from creeping back. (#47)
+
 ### Fixed
 
 ### Tests

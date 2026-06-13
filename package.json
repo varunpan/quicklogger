@@ -13,7 +13,7 @@
 		"preview": "vite preview",
 		"preview:lan": "vite preview --host 0.0.0.0",
 		"uat": "bash scripts/uat.sh",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
 		"lint": "eslint .",
 		"format": "prettier --write .",
 		"test": "vitest run --passWithNoTests",

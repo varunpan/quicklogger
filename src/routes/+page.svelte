@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
@@ -64,8 +64,12 @@
     dismissedUpdateVersion = appLatestVersion;
   }
 
-  // form state — Svelte 5 runes
-  let vehicle: Vehicle | null = $state(data.initialVehicle);
+  // form state — Svelte 5 runes. Each field seeds ONCE from server-provided
+  // `data` (prefill / initialVehicle) and is then user-editable; `untrack` keeps
+  // the read a deliberate one-time snapshot (svelte-check would otherwise flag it
+  // state_referenced_locally, and a $derived would clobber edits when `data`
+  // changes). Same idiom as CropOverlay's rect seed.
+  let vehicle: Vehicle | null = $state(untrack(() => data.initialVehicle));
   // Initialize from last fillup when prefill is on (Decision 2 / 8). Stored
   // as raw digits because the input is type="number" and can't render
   // thousands separators — the formatted version lives in the strip only.
@@ -83,13 +87,13 @@
   // (which compares against the LOCAL date) then flags every submission as
   // "Date is in the future." Same basis as check D by construction.
   let isoDate: string = $state(localIsoDate());
-  let volume: string = $state(data.prefill.volume ?? '');
+  let volume: string = $state(untrack(() => data.prefill.volume ?? ''));
   let volumeUnit: VolumeUnit = $state(
-    (data.prefill.volumeUnit as VolumeUnit) ?? prefs.defaultVolumeUnit
+    untrack(() => (data.prefill.volumeUnit as VolumeUnit) ?? prefs.defaultVolumeUnit)
   );
-  let cost: string = $state(data.prefill.cost ?? '');
-  let currency: string = $state(data.prefill.currency ?? prefs.defaultCurrency);
-  let isFillToFull: boolean = $state(data.prefill.fillToFull !== 'false');
+  let cost: string = $state(untrack(() => data.prefill.cost ?? ''));
+  let currency: string = $state(untrack(() => data.prefill.currency ?? prefs.defaultCurrency));
+  let isFillToFull: boolean = $state(untrack(() => data.prefill.fillToFull !== 'false'));
   let missedFuelup: boolean = $state(false);
   let notes: string = $state('');
   let manualFxRate: string = $state('');
