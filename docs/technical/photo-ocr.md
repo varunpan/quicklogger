@@ -97,15 +97,25 @@ upload and never blocks or affects it. User guide:
   rendering only; `liveRect` and pointer-event math are unchanged.
   Emits the chosen rect in display-space pixels on `[Done]`; emits
   nothing on `[Cancel]`. Stateless across host re-mounts — the host
-  owns `crop` state and passes the prior rect via `initial`. It re-seeds
-  `liveRect` from `initial` when the host hands it a new rect, and skips
-  that reseed while a drag is in progress (a standalone safeguard). The
-  host (`OcrPreview`) **snapshots `initial` at crop-mode entry / Reset**
-  rather than deriving it live from `imgRendered`/`rotation`: a device
-  rotation or viewport resize (mobile URL-bar reflow) mid-session changes
+  owns `crop` state and passes the prior rect via `initial`. The overlay
+  keeps the in-progress rect in an **internal `$state` (`rect`)**, seeded
+  once from `initial` and mirrored out to the bindable `liveRect` so a
+  binding host can drive its own `[Done]` against live drag state. It
+  re-seeds `rect` from `initial` when the host hands it a new one, and
+  skips that reseed while a drag is in progress (a standalone safeguard).
+  The working rect lives in internal state, **not** in `liveRect`, on
+  purpose: Svelte re-applies an *unbound* bindable's fallback on every
+  re-render, so holding the working rect in `liveRect` directly let an
+  incidental `initial` change wipe an in-progress drag whenever `liveRect`
+  was left unbound (the standalone / test config) — the regression that
+  surfaced on the Svelte `5.55.7`+ bump (#37). The host (`OcrPreview`)
+  additionally **snapshots `initial` at crop-mode entry / Reset** rather
+  than deriving it live from `imgRendered`/`rotation`: a device rotation
+  or viewport resize (mobile URL-bar reflow) mid-session changes
   `imgRendered`, and a reactive `initial` would flow back into the overlay
   and reset the crop the user is editing — even after the finger lifts
-  (#37b).
+  (#37b). Two layers: the host freeze keeps `initial` stable in production;
+  the overlay's internal state keeps it robust unbound.
 - [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
   — full-screen modal mounted between capture and OCR submit. Holds
   the user's rotation choice and (optionally) a crop rect in

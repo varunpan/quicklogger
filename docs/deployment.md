@@ -7,9 +7,12 @@ Multi-stage `Dockerfile` produces a slim runtime image based on
 
 1. `deps` — installs production + dev deps from lockfile
 2. `build` — runs `npm run build`, then `npm prune --omit=dev`
-3. `runtime` — copies the `build/` output, prod-only `node_modules`,
-   and `package.json`. Runs as the unprivileged `node` user. Creates
-   `/data` so the FX cache volume mount has a writable target.
+3. `runtime` — runs `apk upgrade --no-cache` to patch OS packages
+   (libssl3/libcrypto3, etc.) and removes the base image's bundled
+   npm/npx (unused at runtime), then copies the `build/` output,
+   prod-only `node_modules`, and `package.json`. Runs as the
+   unprivileged `node` user. Creates `/data` so the FX cache volume
+   mount has a writable target.
 
 Size: ~150–200 MB. Healthcheck hits `/healthz` every 30 s — Docker
 marks the container `unhealthy` if LubeLogger is unreachable for two
@@ -40,14 +43,18 @@ release workflow (Task 29) to publish a multi-arch image.
 ## Release workflow (multi-arch GHCR)
 
 `.github/workflows/build.yml` runs on:
-- pushes to `main` — produces `:main` and `:latest` + `:sha-<short>`
 - semver tag pushes (`v0.1.0`) — produces `:0.1.0`, `:0.1`, `:latest`,
   `:sha-<short>`
 - manual `workflow_dispatch` trigger
 
+(Bare commits to `main` do **not** build — only a tag push does. The
+canonical path is `release-ship`'s tag push.)
+
 Builds via `docker/build-push-action` with
 `platforms: linux/amd64,linux/arm64`. QEMU handles cross-arch
-emulation. Cache uses GitHub Actions native cache (`type=gha`).
+emulation. Cache uses GitHub Actions native cache (`type=gha`). The
+image is scanned for vulnerabilities **before** the push — see
+§ *Vulnerability scanning* below.
 
 Image is pushed to `ghcr.io/varunpan/quicklogger`. The package is
 public — no auth needed to pull.
@@ -59,6 +66,72 @@ To cut a release:
    available on GHCR.
 4. On your host: `docker compose pull && docker compose up -d`
    in your stack directory.
+
+## Vulnerability scanning
+
+The published image is scanned for known CVEs (OS packages + bundled npm
+deps) with [Trivy](https://trivy.dev) before it ever reaches GHCR, and
+dependencies are kept current with Dependabot. Motivation and history:
+issue #31.
+
+**Severity policy.** The build fails only on **CRITICAL/HIGH CVEs that
+have a fix available** (`--ignore-unfixed`). Unfixed findings (no
+upstream patch yet) are reported but don't block — blocking on them
+would wedge releases on something a rebuild can't clear. Medium/low are
+reported, never gated.
+
+**Where scanning happens:**
+
+| Stage | Mechanism | Blocking? |
+|-------|-----------|-----------|
+| Release build (`build.yml`, on tag push) | `aquasecurity/trivy-action` scans the amd64 image *before* the multi-arch push; SARIF goes to **Security → Code scanning** | **Yes** — fixable CRITICAL/HIGH fail the build, so a vulnerable image is never published |
+| `release-cut` (start of a cycle) | `scripts/scan.sh ghcr.io/varunpan/quicklogger:latest` previews what the currently-deployed image carries | No — informational, so fixes can be planned for the cycle |
+| `release-ship` (final sweep) | `scripts/scan.sh` builds and scans the about-to-ship image | **Yes** — stops the ship if fixable CRITICAL/HIGH remain, before the tag triggers CI |
+| Anytime, locally | `bash scripts/scan.sh` (build + scan) or `scripts/scan.sh <image-ref>` | Exits non-zero on fixable CRITICAL/HIGH |
+
+`scripts/scan.sh` and the CI gate apply the same policy and run Trivy via
+the `aquasec/trivy` container, so no local Trivy install is needed — just
+Docker. Keep the Trivy version in `scripts/scan.sh` in lockstep with the
+`trivy-action` version in `build.yml`.
+
+**Why most findings are OS-level.** The base image (`node:22-alpine`)
+trails Alpine's package index, so OpenSSL (`libssl3`/`libcrypto3`) and
+friends can ship with already-fixed CVEs. The runtime stage runs
+`apk upgrade --no-cache` at build time to pull these up to the latest
+Alpine patch, and Dependabot's `docker` ecosystem opens a PR when a newer
+base is available. It also removes the base image's bundled **npm/npx** —
+the production container only runs `node build` and never invokes npm, so
+dropping it clears CVEs carried in npm's *own* bundled dependencies (a
+`picomatch` ReDoS surfaced this way in #31's scan) and trims attack
+surface. The app itself bundles all its npm deps into the build artifact
+and ships **zero** runtime `dependencies`, so the remaining npm attack
+surface inside the image is minimal.
+
+**Source-tree dependencies (`npm audit`).** Image scanning only sees what
+ships *in the image* — it's blind to `devDependencies` that get compiled
+into the `build/` bundle (Svelte's SSR runtime, `@sveltejs/kit`,
+`devalue`). To cover that layer, `ci.yml` runs `npm audit` over the
+**full** dependency tree on every PR and fails on **high/critical**
+advisories. It deliberately does *not* use `--omit=dev` — that would
+re-open the blind spot, since those compiled-in packages are
+devDependencies. A high-severity `devalue` DoS is fixed by pinning it to
+the patched `5.8.1` via an npm `override` in `package.json` (it's a
+transitive SvelteKit dep). The four moderate `svelte` SSR-XSS advisories are
+cleared by upgrading to `5.56.3` (#37); see that fix's note in the CHANGELOG for
+why the bump needed a CropOverlay rework first. Some lower-severity advisories are
+**knowingly deferred** — all below the high gate, so CI stays green:
+
+- **`cookie` (low)** and **`brace-expansion` (moderate, build-only)** — npm's only
+  offered "fix" for the cookie chain is a destructive downgrade of SvelteKit to a
+  pre-1.0 version, so these are left until upstream ships a real fix.
+
+Dependabot will open PRs as real upstream fixes land.
+
+**Dependabot** (`.github/dependabot.yml`) opens weekly PRs for three
+ecosystems: `npm` (deps), `docker` (base image), and `github-actions`
+(workflow action pins). GitHub's Dependabot *security* updates and secret
+scanning + push protection are enabled at the repo level (Settings → Code
+security and analysis).
 
 ## GitHub repository setup
 

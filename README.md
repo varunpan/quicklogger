@@ -2,7 +2,7 @@
 
 Mobile-first PWA for logging fuel fill-ups to a self-hosted [LubeLogger](https://lubelogger.com) instance.
 
-> **Status:** v0.2.9 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
+> **Status:** v0.2.10 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
 
 ## Built with Claude Code
 
@@ -135,6 +135,7 @@ Defaults intended to be reasonable for a single-user homelab tool. The deeper wr
 - **CSRF / origin check.** Mutating API requests (`/api/fuelup`, `/api/ocr`, `/api/log`) are rejected with a 403 if they arrive with a browser `Origin` that doesn't match your configured `ORIGIN` — defense-in-depth beyond SvelteKit's form-only default, so a cross-site `application/json` POST is covered too. Requests with no `Origin` (Apple Shortcuts, server-to-server) are unaffected.
 - **Container runs as `node` (UID 1000)**, not root.
 - **Image is multi-stage** — runtime layer has only the built `build/` output, prod-only `node_modules`, and `package.json`. No build tools, no source.
+- **Image is vulnerability-scanned** — every release build is scanned with Trivy and fails on fixable critical/high CVEs before it's published. The base image's OS packages are upgraded and its unused npm is stripped at build time. See [`docs/deployment.md`](docs/deployment.md) § *Vulnerability scanning*.
 - **Recommended compose hardening** (in both compose patterns above): `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`, plus a 16 MB tmpfs for `/tmp`. Verified per-release.
 - **Secrets surface**: `LUBELOGGER_API_KEY` (Editor-scope on your LubeLogger). Sits in `.env`, never logged. If it leaks, rotate it in LubeLogger.
 - **What's still your responsibility**: rate-limiting / WAF in front (CrowdSec, Traefik middlewares); TLS cert management; network segmentation; LubeLogger's own threat model.
@@ -174,7 +175,7 @@ The app has zero runtime npm `dependencies` — everything is `devDependencies` 
 | Layer | Package | Purpose |
 | --- | --- | --- |
 | **Framework** | [`@sveltejs/kit`](https://kit.svelte.dev) ^2.57 | Full-stack framework (file-based routing, SSR, server endpoints) |
-| | [`svelte`](https://svelte.dev) ^5.55 | UI framework (runes-mode component model) |
+| | [`svelte`](https://svelte.dev) ^5.56 | UI framework (runes-mode component model) |
 | | [`@sveltejs/adapter-node`](https://kit.svelte.dev/docs/adapter-node) ^5.5 | Production adapter — emits a `node build` entrypoint |
 | **Build** | [`vite`](https://vite.dev) ^8.0 | Dev server + production bundler |
 | | [`typescript`](https://www.typescriptlang.org) ^6.0 | Type system |

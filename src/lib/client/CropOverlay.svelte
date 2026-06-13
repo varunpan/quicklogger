@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   // Crop rectangle overlay. Renders absolutely-positioned handles, a dimmed
   // shroud, and a rule-of-thirds grid on top of the image area. Emits the
   // user's chosen rect (in display-space pixels relative to the image) when
@@ -29,8 +30,10 @@
     showOwnCancel?: boolean;
     showOwnDone?: boolean;
     showOwnReset?: boolean;
-    // Live, in-progress rect — bindable so the host can drive its own
-    // [Done] button against the latest drag state.
+    // Live, in-progress rect, mirrored out from the overlay's internal working
+    // state — bind it so the host can drive its own [Done] against the latest
+    // drag state. The overlay owns the rect, so host writes to this prop are
+    // ignored; hand a new `initial` to reseed it.
     liveRect?: PixelRect;
   }
 
@@ -44,7 +47,8 @@
     showOwnCancel = true,
     showOwnDone = true,
     showOwnReset = true,
-    liveRect = $bindable({ ...initial })
+    // eslint-disable-next-line no-useless-assignment -- $bindable() is the unbound fallback; the mirror $effect writes `rect` out through this binding, which ESLint can't see.
+    liveRect = $bindable()
   }: Props = $props();
 
   // Active drag state — null when not dragging.
@@ -54,6 +58,17 @@
     | { kind: 'interior'; startX: number; startY: number; startRect: PixelRect };
 
   let drag: DragMode | null = null;
+
+  // Internal working rect — the overlay's source of truth while mounted. Kept
+  // here, NOT in the bindable `liveRect` prop, because Svelte re-applies an
+  // *unbound* bindable's fallback on every re-render: a host that leaves
+  // `liveRect` unbound (or a standalone mount) would otherwise have an
+  // in-progress drag wiped when an incidental `initial` change re-renders the
+  // overlay (#37). `rect` survives re-renders; we mirror it out to `liveRect`
+  // below so a binding host (OcrPreview) can drive its own [Done] against live
+  // drag state. Seeded once from `initial` (untrack keeps the seed a one-time
+  // read); the reseed $effect tracks deliberate `initial` changes.
+  let rect = $state(untrack(() => ({ ...initial })));
 
   // Display-space floor — finger-sized 50×50 on a 4032×3024 capture renders
   // as 200×200 in source space, which is what we actually care about.
@@ -82,15 +97,15 @@
 
   function onPointerDownCorner(corner: 'tl' | 'tr' | 'bl' | 'br', ev: PointerEvent) {
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
-    drag = { kind: 'corner', corner, startX: ev.clientX, startY: ev.clientY, startRect: { ...liveRect } };
+    drag = { kind: 'corner', corner, startX: ev.clientX, startY: ev.clientY, startRect: { ...rect } };
   }
   function onPointerDownEdge(edge: 't' | 'b' | 'l' | 'r', ev: PointerEvent) {
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
-    drag = { kind: 'edge', edge, startX: ev.clientX, startY: ev.clientY, startRect: { ...liveRect } };
+    drag = { kind: 'edge', edge, startX: ev.clientX, startY: ev.clientY, startRect: { ...rect } };
   }
   function onPointerDownInterior(ev: PointerEvent) {
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
-    drag = { kind: 'interior', startX: ev.clientX, startY: ev.clientY, startRect: { ...liveRect } };
+    drag = { kind: 'interior', startX: ev.clientX, startY: ev.clientY, startRect: { ...rect } };
   }
 
   function onPointerMove(ev: PointerEvent) {
@@ -100,7 +115,7 @@
     const start = drag.startRect;
 
     if (drag.kind === 'interior') {
-      liveRect = clampToBounds({ x: start.x + dx, y: start.y + dy, w: start.w, h: start.h });
+      rect = clampToBounds({ x: start.x + dx, y: start.y + dy, w: start.w, h: start.h });
       return;
     }
 
@@ -127,7 +142,7 @@
           y2 = clamp(start.y + start.h + dy, y1 + floorDisplayPx, imageDisplayRect.h);
           break;
       }
-      liveRect = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+      rect = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
       return;
     }
 
@@ -150,7 +165,7 @@
           x2 = clamp(start.x + start.w + dx, x1 + floorDisplayPx, imageDisplayRect.w);
           break;
       }
-      liveRect = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+      rect = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
     }
   }
 
@@ -162,33 +177,36 @@
   }
 
   function reset() {
-    liveRect = { ...initial };
+    rect = { ...initial };
   }
 
   function done() {
-    oncommit({ ...liveRect });
+    oncommit({ ...rect });
   }
 
   function cancel() {
     oncancel();
   }
 
-  // Re-seed when the host hands us a new initial rect (entering crop mode
-  // with a prior committed crop, or after Reset). The host binds `liveRect`
-  // and updates `initial` via its `cropInitial` $derived; this keeps the
-  // overlay in sync without remounting.
-  //
-  // Read `initial` first so it stays a tracked dependency, THEN bail if a drag
-  // is in progress: a window resize mid-drag (mobile URL-bar show/hide,
-  // rotation) flows through the host's imgRendered → cropInitial → `initial`,
-  // which would otherwise wipe the crop the user is actively dragging (#37b).
-  // `drag` is non-reactive, so reading it adds no dependency — the effect
-  // still re-runs only when `initial` changes, and no-ops if that lands
-  // mid-drag. When the drag ends there's no reseed, so the dragged rect stands.
+  // Mirror the internal working rect out to the (optional) `liveRect` binding
+  // so a host can read live drag state without owning the working copy.
+  $effect(() => {
+    liveRect = rect;
+  });
+
+  // Re-seed the working rect when the host hands us a genuinely new `initial`
+  // (entering crop mode with a prior committed crop, or after Reset). Read
+  // `initial` first so it stays a tracked dependency, THEN bail if a drag is in
+  // progress: a viewport resize mid-crop (mobile URL-bar show/hide, rotation)
+  // flows through the host's imgRendered → cropInitial → `initial`, which would
+  // otherwise wipe the crop the user is actively dragging (#37b). `drag` is
+  // non-reactive, so reading it adds no dependency — the effect still re-runs
+  // only when `initial` changes, and no-ops if that lands mid-drag. When the
+  // drag ends there's no reseed, so the dragged rect stands.
   $effect(() => {
     const next = initial;
     if (drag) return;
-    liveRect = { ...next };
+    rect = { ...next };
   });
 </script>
 
@@ -204,50 +222,50 @@
   <div
     data-shroud
     class="absolute bg-black/55"
-    style="left: 0; top: 0; width: {imageDisplayRect.w}px; height: {liveRect.y}px;"
+    style="left: 0; top: 0; width: {imageDisplayRect.w}px; height: {rect.y}px;"
   ></div>
   <div
     data-shroud
     class="absolute bg-black/55"
-    style="left: 0; top: {liveRect.y + liveRect.h}px; width: {imageDisplayRect.w}px; height: {imageDisplayRect.h - liveRect.y - liveRect.h}px;"
+    style="left: 0; top: {rect.y + rect.h}px; width: {imageDisplayRect.w}px; height: {imageDisplayRect.h - rect.y - rect.h}px;"
   ></div>
   <div
     data-shroud
     class="absolute bg-black/55"
-    style="left: 0; top: {liveRect.y}px; width: {liveRect.x}px; height: {liveRect.h}px;"
+    style="left: 0; top: {rect.y}px; width: {rect.x}px; height: {rect.h}px;"
   ></div>
   <div
     data-shroud
     class="absolute bg-black/55"
-    style="left: {liveRect.x + liveRect.w}px; top: {liveRect.y}px; width: {imageDisplayRect.w - liveRect.x - liveRect.w}px; height: {liveRect.h}px;"
+    style="left: {rect.x + rect.w}px; top: {rect.y}px; width: {imageDisplayRect.w - rect.x - rect.w}px; height: {rect.h}px;"
   ></div>
 
   <!-- Rect border + grid + interior drag zone -->
   <div
     data-handle="interior"
     class="absolute border border-white/95"
-    style="left: {liveRect.x}px; top: {liveRect.y}px; width: {liveRect.w}px; height: {liveRect.h}px; box-sizing: border-box; cursor: move;"
+    style="left: {rect.x}px; top: {rect.y}px; width: {rect.w}px; height: {rect.h}px; box-sizing: border-box; cursor: move;"
     onpointerdown={onPointerDownInterior}
     role="presentation"
   >
-    <div data-grid-line class="absolute bg-white/35" style="left: 0; top: {liveRect.h / 3}px; width: {liveRect.w}px; height: 1px;"></div>
-    <div data-grid-line class="absolute bg-white/35" style="left: 0; top: {(liveRect.h * 2) / 3}px; width: {liveRect.w}px; height: 1px;"></div>
-    <div data-grid-line class="absolute bg-white/35" style="left: {liveRect.w / 3}px; top: 0; width: 1px; height: {liveRect.h}px;"></div>
-    <div data-grid-line class="absolute bg-white/35" style="left: {(liveRect.w * 2) / 3}px; top: 0; width: 1px; height: {liveRect.h}px;"></div>
+    <div data-grid-line class="absolute bg-white/35" style="left: 0; top: {rect.h / 3}px; width: {rect.w}px; height: 1px;"></div>
+    <div data-grid-line class="absolute bg-white/35" style="left: 0; top: {(rect.h * 2) / 3}px; width: {rect.w}px; height: 1px;"></div>
+    <div data-grid-line class="absolute bg-white/35" style="left: {rect.w / 3}px; top: 0; width: 1px; height: {rect.h}px;"></div>
+    <div data-grid-line class="absolute bg-white/35" style="left: {(rect.w * 2) / 3}px; top: 0; width: 1px; height: {rect.h}px;"></div>
   </div>
 
   <!-- Corner handles. Each handle's visual position is clamped to stay
        fully inside imageDisplayRect, so the rect can be pushed flush
        against any image edge without losing access to the handle on
        that side. Clamping affects rendering only; drag-state math
-       (liveRect, onPointerMove) is unchanged. -->
+       (rect, onPointerMove) is unchanged. -->
   <button
     type="button"
     data-handle="corner"
     data-corner="tl"
     aria-label="Top-left handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(liveRect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('tl', ev)}
   ></button>
   <button
@@ -256,7 +274,7 @@
     data-corner="tr"
     aria-label="Top-right handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(liveRect.x + liveRect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x + rect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('tr', ev)}
   ></button>
   <button
@@ -265,7 +283,7 @@
     data-corner="bl"
     aria-label="Bottom-left handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(liveRect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y + liveRect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y + rect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('bl', ev)}
   ></button>
   <button
@@ -274,7 +292,7 @@
     data-corner="br"
     aria-label="Bottom-right handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(liveRect.x + liveRect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y + liveRect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x + rect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y + rect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('br', ev)}
   ></button>
 
@@ -285,7 +303,7 @@
     data-edge="t"
     aria-label="Top edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(liveRect.x + liveRect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
+    style="left: {clamp(rect.x + rect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
     onpointerdown={(ev) => onPointerDownEdge('t', ev)}
   ></button>
   <button
@@ -294,7 +312,7 @@
     data-edge="b"
     aria-label="Bottom edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(liveRect.x + liveRect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(liveRect.y + liveRect.h - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
+    style="left: {clamp(rect.x + rect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y + rect.h - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
     onpointerdown={(ev) => onPointerDownEdge('b', ev)}
   ></button>
   <button
@@ -303,7 +321,7 @@
     data-edge="l"
     aria-label="Left edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(liveRect.x - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(liveRect.y + liveRect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
+    style="left: {clamp(rect.x - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(rect.y + rect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
     onpointerdown={(ev) => onPointerDownEdge('l', ev)}
   ></button>
   <button
@@ -312,7 +330,7 @@
     data-edge="r"
     aria-label="Right edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(liveRect.x + liveRect.w - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(liveRect.y + liveRect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
+    style="left: {clamp(rect.x + rect.w - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(rect.y + rect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
     onpointerdown={(ev) => onPointerDownEdge('r', ev)}
   ></button>
 </div>

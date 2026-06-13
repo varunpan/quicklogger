@@ -1,0 +1,32 @@
+# Dependabot keeps dependencies current so security fixes land on a timely basis
+# rather than only being caught by the release-time Trivy scan. See #31 and
+# docs/deployment.md § "Vulnerability scanning".
+version: 2
+updates:
+  # Application + tooling dependencies (package.json / package-lock.json).
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Batch routine dev-tooling minor/patch bumps into one PR to keep the noise
+      # down; production deps and any security update still arrive on their own.
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  # The Docker base image (node:22-alpine) — where the OpenSSL CVEs in #31 came
+  # from. Opens a PR when a newer base is available.
+  - package-ecosystem: docker
+    directory: '/'
+    schedule:
+      interval: weekly
+
+  # The GitHub Actions pinned in .github/workflows/*.yml.
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly

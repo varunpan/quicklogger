@@ -2,6 +2,46 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
+## [0.2.10] — 2026-06-13
+
+### Added
+
+- **The release build now scans the container image for known vulnerabilities.**
+  Every image is scanned with Trivy before it's published to GHCR and the build
+  fails on critical/high CVEs that have a fix available, so a vulnerable image is
+  never pushed. Full results (including lower-severity and not-yet-fixable ones)
+  appear under the repo's Security tab. (#31)
+- **Dependencies are now kept current automatically.** Dependabot opens weekly
+  pull requests for npm packages, the Docker base image, and GitHub Actions, so
+  security fixes land promptly instead of waiting to be caught by a scan.
+- **Pull requests now audit the full dependency tree.** `npm audit` runs in CI
+  and fails on high/critical advisories — covering source-tree dependencies (like
+  the Svelte/SvelteKit runtime that gets compiled into the bundle) that the image
+  scan can't see. (#31)
+
+### Fixed
+
+- **The published image no longer ships outdated OpenSSL.** The Alpine base image
+  trailed a few days behind on OS packages, so releases carried already-fixed
+  `libssl3`/`libcrypto3` CVEs (2 critical, ~18 high in the v0.2.9 scan). OS
+  packages are now upgraded at build time, clearing them. (#31)
+- **The production image no longer carries npm's bundled CVEs.** The runtime
+  container runs `node build` and never invokes npm, so the base image's bundled
+  npm/npx is now removed — clearing a `picomatch` ReDoS (the last high in the scan)
+  and shrinking the image. The app's own dependencies are unaffected. (#31)
+- **Cleared a high-severity dependency advisory.** `devalue` (used by SvelteKit to
+  serialize SSR data, so it ships in the runtime bundle) is pinned to the patched
+  `5.8.1` via an npm `override`, fixing a denial-of-service (HIGH) flagged by
+  `npm audit`. Remaining moderate/low advisories (`cookie`, `brace-expansion`) sit
+  below the CI gate and are tracked for follow-up — see `docs/deployment.md`. (#31)
+- **Cleared the moderate Svelte SSR-XSS advisories.** Svelte is upgraded to `5.56.3`
+  (from `5.55.5`), clearing four moderate advisories flagged by `npm audit` (SSR XSS
+  via promise serialization and via spread attributes, DOM clobbering of framework
+  state, and a `<svelte:element>` ReDoS). The upgrade changed how Svelte re-applies an
+  unbound component's default props, which had let the photo-crop overlay's in-progress
+  selection be wiped mid-edit; the overlay now keeps its working rectangle in internal
+  state so the crop survives a re-render. No change to crop behaviour in the app. (#37)
+
 ## [0.2.9] — 2026-06-12
 
 ### Changed
