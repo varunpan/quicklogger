@@ -1,0 +1,34 @@
+name: Dependabot auto-merge
+
+# Auto-merges Dependabot's github-actions PRs once required checks pass.
+#
+# Scope is the github_actions ecosystem ONLY — those updates never ship in the
+# runtime image, so the supply-chain blast radius is CI-only. npm and docker
+# bumps are deliberately left for manual review: npm devDependencies mix pure
+# tooling with compiled-in svelte/@sveltejs/kit/@tailwindcss that DO ship in the
+# bundle, and docker is the runtime base image. Both warrant a human + a tagged
+# release.
+#
+# This does NOT weaken any gate — auto-merge still waits for the
+# branch-protection `lint-and-test` check (which includes `npm audit`). It only
+# removes the manual click.
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+      - name: Enable auto-merge for github-actions updates
+        if: ${{ steps.meta.outputs.package-ecosystem == 'github_actions' }}
+        run: gh pr merge --auto --rebase "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

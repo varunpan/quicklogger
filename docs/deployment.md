@@ -129,7 +129,13 @@ Dependabot will open PRs as real upstream fixes land.
 
 **Dependabot** (`.github/dependabot.yml`) opens weekly PRs for three
 ecosystems: `npm` (deps), `docker` (base image), and `github-actions`
-(workflow action pins). GitHub's Dependabot *security* updates and secret
+(workflow action pins). `github-actions` PRs **auto-merge** once `lint-and-test`
+passes (`.github/workflows/dependabot-auto-merge.yml`) — those updates never
+ship in the runtime image, so they're CI-gated only and don't need a release.
+`npm` and `docker` PRs are merged **manually**: npm `devDependencies` mix pure
+tooling with compiled-in `svelte` / `@sveltejs/kit` / `@tailwindcss` that ship
+in the bundle, and `docker` is the runtime base image — both warrant a human and
+ride a tagged release. GitHub's Dependabot *security* updates and secret
 scanning + push protection are enabled at the repo level (Settings → Code
 security and analysis).
 
