@@ -8,6 +8,16 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- **Refreshed the development dependencies to their current releases.** The
+  Dependabot dev-dependencies group bump rode this tagged release instead of
+  going straight to `main` (npm bumps warrant a human + a release). Eleven
+  packages moved up, including the three that compile into the shipped bundle —
+  `@sveltejs/kit` (2.59→2.65), `@tailwindcss/vite` (4.2→4.3, which also pulled
+  `tailwindcss` itself to 4.3.1), and a `vite` patch (8.0.11→8.0.16) — alongside
+  tooling-only updates (`eslint`, `prettier`, `@playwright/test`,
+  `@vitest/coverage-v8`, `msw`, `svelte-check`, `typescript-eslint`,
+  `eslint-plugin-svelte`). Full lint/check/test/build/e2e gate green; no
+  behaviour change. (#44)
 - **Type-checking now fails the build on warnings, not just errors.** `npm run
   check` gained `--fail-on-warnings`, and the home page's form fields were
   cleared of 6 `state_referenced_locally` warnings (the prefill seeds are now
