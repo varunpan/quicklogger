@@ -14,6 +14,10 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Dependencies are now kept current automatically.** Dependabot opens weekly
   pull requests for npm packages, the Docker base image, and GitHub Actions, so
   security fixes land promptly instead of waiting to be caught by a scan.
+- **Pull requests now audit the full dependency tree.** `npm audit` runs in CI
+  and fails on high/critical advisories — covering source-tree dependencies (like
+  the Svelte/SvelteKit runtime that gets compiled into the bundle) that the image
+  scan can't see. (#31)
 
 ### Fixed
 
@@ -25,6 +29,11 @@ All notable changes to this project are documented here. Format roughly follows 
   container runs `node build` and never invokes npm, so the base image's bundled
   npm/npx is now removed — clearing a `picomatch` ReDoS (the last high in the scan)
   and shrinking the image. The app's own dependencies are unaffected. (#31)
+- **Cleared a high-severity dependency advisory.** `devalue` (used by SvelteKit to
+  serialize SSR data, so it ships in the runtime bundle) is pinned to the patched
+  `5.8.1` via an npm `override`, fixing a denial-of-service (HIGH) flagged by
+  `npm audit`. Remaining moderate/low advisories (Svelte, cookie) sit below the CI
+  gate and are tracked for follow-up — see `docs/deployment.md`. (#31)
 
 ## [0.2.9] — 2026-06-12
 

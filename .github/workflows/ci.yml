@@ -15,6 +15,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Audit the FULL dependency tree (not --omit=dev): devDependencies like
+      # svelte/@sveltejs/kit/devalue get compiled into the build/ bundle, so they
+      # ship at runtime even though Trivy's image scan can't see them. Gate on
+      # high+ to match the image gate; lower-severity advisories flow through
+      # Dependabot. See docs/deployment.md § "Vulnerability scanning".
+      - name: Audit dependencies (high+)
+        run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run check
       - run: npm test
