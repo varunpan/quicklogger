@@ -43,7 +43,23 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **First page load no longer fires spurious asset 404s.** The dev-dependency
+  refresh above pulled in SvelteKit 2.65.0, which — despite the app's deliberate
+  `paths.relative = false` setting — emitted CSS preload URLs with a doubled path
+  (`/_app/immutable/entry/_app/immutable/…`), so every fresh load fired ~14
+  harmless-but-noisy 404s plus an "Unable to preload CSS" console error. The page
+  still rendered fully styled (the real stylesheet loads from the correct path),
+  but the noise shouldn't ship. This is an upstream SvelteKit regression
+  ([kit #16039](https://github.com/sveltejs/kit/issues/16039), new in 2.65.0);
+  `@sveltejs/kit` is pinned to 2.64.0 until the upstream fix (#16026) ships in a
+  release. Caught by the new `compose.dev.yml` prod-mirror.
+
 ### Tests
+
+- **Regression guard for the CSS-preload doubling.** `tests/e2e/css-preload.spec.ts`
+  asserts a first page load fires no doubled-path asset 404s or CSS-preload
+  rejections, so a future re-bump to a still-broken `@sveltejs/kit` is caught in
+  CI before it ships.
 
 ## [0.2.10] — 2026-06-13
 

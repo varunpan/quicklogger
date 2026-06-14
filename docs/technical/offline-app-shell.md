@@ -116,6 +116,17 @@ resolves and the SSR'd page is returned unchanged.
   reloading on every one made the installed PWA reload-loop (#39, v0.2.7
   regression, fixed in v0.2.8). Full decision flow:
   [`service-worker.md`](./service-worker.md).
+- **`paths.relative = false` is load-bearing — and version-fragile.** Root-relative
+  asset URLs are what let the single `/offline` shell resolve `/_app/…` chunks at
+  any route depth; a `./`-relative URL served under e.g. `/maintenance` would
+  resolve against the wrong base. SvelteKit **2.65.0 silently regressed this**
+  ([kit #16039](https://github.com/sveltejs/kit/issues/16039) / #16013, a
+  side-effect of #15936): with `relative: false` it emitted `./`-prefixed CSS
+  preload deps resolved against the entry chunk's `import.meta.url`, yielding a
+  doubled `/_app/immutable/entry/_app/immutable/…` 404 plus an "Unable to preload
+  CSS" rejection on first load. Kit is therefore pinned to **2.64.0** (the last
+  release honoring the setting) until the upstream fix (#16026) ships in a
+  release; guarded by `tests/e2e/css-preload.spec.ts`.
 
 ## Testing
 
