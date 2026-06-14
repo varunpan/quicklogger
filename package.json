@@ -13,6 +13,7 @@
 		"preview": "vite preview",
 		"preview:lan": "vite preview --host 0.0.0.0",
 		"uat": "bash scripts/uat.sh",
+		"uat:docker": "docker compose -f compose.dev.yml up --build",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
 		"lint": "eslint .",
 		"format": "prettier --write .",

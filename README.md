@@ -167,6 +167,7 @@ Structured JSON to stdout by default. Set `LOG_FILE_PATH` to also write a rotati
 - A reachable LubeLogger for integration testing — any of:
   - The LubeLogger you already self-host
   - A throwaway one: `docker run --rm -p 8080:8080 ghcr.io/hargata/lubelogger:latest`
+- Docker + `docker compose` — only for the `compose.dev.yml` prod-mirror UAT (not needed for the npm dev loop)
 
 ### Tech stack
 
@@ -216,6 +217,7 @@ npm run dev   # http://localhost:5173
 | `npm run build` | Production build (adapter-node → `build/`) |
 | `npm run preview` | Run the production build locally |
 | `npm run preview:lan` | Same, exposed on the LAN — for testing the production bundle on a real phone |
+| `npm run uat:docker` | Build + run the real production image locally (`compose.dev.yml`) — prod-mirror UAT with the service worker live on `localhost` |
 | `npm test` | Vitest — unit + route handler tests |
 | `npm run test:watch` | Vitest watch mode |
 | `npm run test:e2e` | Playwright (mobile-Safari profile) |
@@ -251,7 +253,7 @@ Local dev server, real phone, same WiFi:
 
 **Caveats:**
 
-- This is plain HTTP. iOS won't let you "Add to Home Screen" as a real PWA, and the service worker won't activate — so offline-queue behaviour is unverifiable this way. Use it for layout, touch interactions, form flow, and live FX preview. For PWA install + service-worker testing, deploy to a real HTTPS host.
+- This is plain HTTP. iOS won't let you "Add to Home Screen" as a real PWA, and the service worker won't activate — so offline-queue behaviour is unverifiable this way. Use it for layout, touch interactions, form flow, and live FX preview. For PWA install + service-worker testing, use the prod-mirror container below — `localhost` is a secure context so the SW registers with no deploy (front it with a reverse proxy for on-device HTTPS).
 - `LUBELOGGER_URL` in `.env` must be reachable from the dev machine. If your LubeLogger is on the same network the dev machine is on, point at it directly (`https://lubelogger.example.com`). Otherwise, run a throwaway LubeLogger locally and point at `http://localhost:8080`.
 - **Don't pollute your real fuel log** — when testing against a live LubeLogger, create a dedicated `TEST – DELETE ME` vehicle and submit fillups against that. Clean it up periodically.
 

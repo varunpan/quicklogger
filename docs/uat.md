@@ -138,8 +138,9 @@ Run on a vehicle that has at least one previous fillup in LubeLogger.
       service worker registers, so PWA/offline is testable in a desktop browser;
       for phone testing over HTTPS set the `TRAEFIK_*` + `ORIGIN` vars in `.env` —
       see [`deployment.md`](deployment.md) § *Dev prod-mirror compose*.
-- [ ] Open `http://<LAN-IP>:5173` on iPhone Safari (port matches `ORIGIN` in `.env`,
-      so submit isn't blocked by CSRF).
+- [ ] Open `http://<LAN-IP>:5173` on iPhone Safari. Set `ORIGIN` in `.env` to this
+      exact URL first (or use the container path above, which sets `ORIGIN` for you) —
+      otherwise SvelteKit's CSRF guard 403s submits.
 - [ ] Walk through Strip / Prefill / Chip / Settings card sections above on
       the phone.
 - [ ] Tap-target sizes feel comfortable for one-handed use at the pump.
