@@ -6,6 +6,14 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Dev prod-mirror compose** — `compose.dev.yml` builds and runs the real
+  production image locally (`docker compose -f compose.dev.yml up --build`),
+  replacing the host `node build` preview for UAT. On `localhost` the service
+  worker registers, so PWA/offline is testable in a desktop browser. Traefik
+  labels and the proxy-network attachment are env-driven (inert by default), so
+  on-device HTTPS phone testing is opt-in via `.env` with zero reverse-proxy
+  specifics committed.
+
 ### Changed
 
 - **Refreshed the development dependencies to their current releases.** The

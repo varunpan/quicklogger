@@ -255,6 +255,21 @@ Local dev server, real phone, same WiFi:
 - `LUBELOGGER_URL` in `.env` must be reachable from the dev machine. If your LubeLogger is on the same network the dev machine is on, point at it directly (`https://lubelogger.example.com`). Otherwise, run a throwaway LubeLogger locally and point at `http://localhost:8080`.
 - **Don't pollute your real fuel log** — when testing against a live LubeLogger, create a dedicated `TEST – DELETE ME` vehicle and submit fillups against that. Clean it up periodically.
 
+### Prod-mirror via Docker (`compose.dev.yml`)
+
+To test the **real production image** locally — including the service worker and
+PWA install, which the plain-HTTP preview above can't exercise — run:
+
+```sh
+docker compose -f compose.dev.yml up --build
+```
+
+On `http://localhost:3000` the service worker registers (localhost is a secure
+context), so offline/PWA behaviour is testable in a desktop browser with no
+deploy. For on-device phone testing over HTTPS, set the `TRAEFIK_*` + `ORIGIN`
+vars in `.env` — see [`docs/deployment.md`](docs/deployment.md) § *Dev prod-mirror
+compose*.
+
 ### Architecture pointers
 
 **User guides:**

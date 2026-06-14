@@ -132,6 +132,12 @@ Run on a vehicle that has at least one previous fillup in LubeLogger.
 - [ ] `npm run uat` — production-mirror server (`node --env-file=.env build`); it
       rebuilds until the precompressed `.gz`/`.br` companions are complete (works
       around a flaky precompress step), then smoke-tests before printing the URL.
+- [ ] **(Alternative — true prod-mirror)** Instead of `npm run uat`, run the real
+      production image: `docker compose -f compose.dev.yml up --build`. This runs
+      the exact shipped artifact (not a `node build` preview). On `localhost` the
+      service worker registers, so PWA/offline is testable in a desktop browser;
+      for phone testing over HTTPS set the `TRAEFIK_*` + `ORIGIN` vars in `.env` —
+      see [`deployment.md`](deployment.md) § *Dev prod-mirror compose*.
 - [ ] Open `http://<LAN-IP>:5173` on iPhone Safari (port matches `ORIGIN` in `.env`,
       so submit isn't blocked by CSRF).
 - [ ] Walk through Strip / Prefill / Chip / Settings card sections above on

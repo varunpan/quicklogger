@@ -1,0 +1,64 @@
+# compose.dev.yml — dev prod-mirror. Builds and runs the REAL production image
+# locally so you UAT the exact artifact that ships, not a `node build` host
+# preview.
+#
+# Layer 1 (localhost, default):
+#   docker compose -f compose.dev.yml up --build
+#   → http://localhost:3000. localhost is a secure context, so the service
+#     worker registers and PWA/offline is testable in a desktop browser.
+#
+# Layer 2 (on-device phone over HTTPS): a phone on a LAN IP is NOT a secure
+#   context, so the SW needs HTTPS. Set the TRAEFIK_* + ORIGIN vars in your
+#   (gitignored) .env to attach this container to your reverse-proxy network.
+#   No homelab specifics live in this file — they come from .env, exactly like
+#   LUBELOGGER_URL. See the dev block in .env.example.
+services:
+  quicklogger:
+    build: .                       # builds the prod image from ./Dockerfile (runtime stage)
+    container_name: quickloggerdev
+    restart: "no"                  # dev: a hard crash stays down and visible (prod uses unless-stopped)
+    environment:
+      LUBELOGGER_URL: ${LUBELOGGER_URL:-http://host.docker.internal:8080}
+      LUBELOGGER_API_KEY: "${LUBELOGGER_API_KEY}"
+      LUBELOGGER_VOLUME_UNIT: ${LUBELOGGER_VOLUME_UNIT:-gallons_us}
+      LUBELOGGER_CURRENCY: ${LUBELOGGER_CURRENCY:-USD}
+      FX_PROVIDERS: ${FX_PROVIDERS:-frankfurter,erapi,fawazahmed}
+      FX_CACHE_PATH: /data/fx-cache.json
+      ORIGIN: ${ORIGIN:-http://localhost:3000}
+      PORT: 3000                   # internal port — unchanged from the image (prod-identical)
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FILE_PATH: /data/logs/quicklogger.log   # lands in bind-mounted ./data → host log-read works
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach a host-port LubeLogger on Linux
+    volumes:
+      - ./data:/data
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
+      - "traefik.http.routers.quickloggerdev.rule=Host(`${TRAEFIK_HOST:-quickloggerdev.localhost}`)"
+      - "traefik.http.routers.quickloggerdev.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.quickloggerdev.tls=true"
+      - "traefik.http.routers.quickloggerdev.tls.certresolver=${TRAEFIK_CERTRESOLVER:-}"
+      - "traefik.http.services.quickloggerdev.loadbalancer.server.port=3000"
+    networks:
+      - proxy
+    # --- Runtime hardening — mirrors compose.example.yml so dev == prod ---
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:-quicklogger_dev_net}
+    external: ${TRAEFIK_NETWORK_EXTERNAL:-false}

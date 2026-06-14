@@ -27,6 +27,82 @@ docker run --rm -p 3000:3000 \
   quicklogger:dev
 ```
 
+## Dev prod-mirror compose (`compose.dev.yml`)
+
+`compose.dev.yml` builds and runs the **real production image** locally so you
+test the exact artifact that ships — not a `node build` host preview. It differs
+from `compose.example.yml` (the self-host path) in one key way:
+
+| | `compose.example.yml` | `compose.dev.yml` |
+|---|---|---|
+| Image | `image: ghcr.io/varunpan/quicklogger:latest` (pull) | `build: .` (build from source) |
+| For | self-hosters running a release | contributors / dev UAT |
+| Traefik | none | env-driven labels + network, inert by default |
+
+### Layer 1 — localhost (default)
+
+```sh
+cp .env.example .env       # set LUBELOGGER_URL + LUBELOGGER_API_KEY
+docker compose -f compose.dev.yml up --build
+```
+
+Serves `http://localhost:3000`. Because `localhost` is a secure context, the
+service worker registers, so PWA/offline is testable in a desktop browser with
+no extra infra. The container listens on `:3000` internally (prod-identical) and
+publishes to host `${HOST_PORT:-3000}`.
+
+> **`ORIGIN` precedence.** Compose auto-merges the project `.env`, so an `ORIGIN`
+> set there (e.g. for phone testing, below) **shadows** the `http://localhost:3000`
+> default. For desktop localhost testing, leave `ORIGIN` unset in `.env` (or set
+> it to `http://localhost:3000`) — otherwise a browser hitting `localhost:3000`
+> gets a 403 on submit from the CSRF origin check.
+
+### Layer 2 — on-device phone testing over HTTPS
+
+A phone on a LAN IP is **not** a secure context, so the service worker won't
+register there without HTTPS. To test on a real phone, front the container with
+your reverse proxy. The Traefik labels and proxy-network attachment are
+parameterized by env vars (inert by default), so you opt in entirely through
+your (gitignored) `.env` — nothing reverse-proxy-specific is committed:
+
+```sh
+# in .env — use a DEV-ONLY hostname, distinct from your production deployment
+ORIGIN=https://quickloggerdev.example.com
+TRAEFIK_ENABLE=true
+TRAEFIK_HOST=quickloggerdev.example.com
+TRAEFIK_ENTRYPOINT=websecure
+TRAEFIK_CERTRESOLVER=your-resolver
+TRAEFIK_NETWORK=your-proxy-network
+TRAEFIK_NETWORK_EXTERNAL=true
+```
+
+```sh
+docker compose -f compose.dev.yml up --build
+```
+
+> **The phone must trust the cert.** If your reverse proxy serves an internal
+> hostname with a private CA, the phone won't register the service worker until
+> that CA's root cert is installed and trusted on the device. A publicly-trusted
+> cert (e.g. a real Let's Encrypt domain) needs no phone-side step.
+
+### Env knobs
+
+| Var | Default | Effect |
+|---|---|---|
+| `HOST_PORT` | `3000` | Host port published → container `:3000` |
+| `ORIGIN` | `http://localhost:3000` | CSRF origin; must match the URL the browser hits |
+| `TRAEFIK_ENABLE` | `false` | `true` to expose via Traefik (layer 2) |
+| `TRAEFIK_HOST` | `quickloggerdev.localhost` | Router host rule |
+| `TRAEFIK_ENTRYPOINT` | `websecure` | Traefik HTTPS entrypoint |
+| `TRAEFIK_CERTRESOLVER` | _(empty)_ | Traefik cert resolver name |
+| `TRAEFIK_NETWORK` | `quicklogger_dev_net` | Proxy network name |
+| `TRAEFIK_NETWORK_EXTERNAL` | `false` | `true` to join an existing external network |
+
+App env (`LUBELOGGER_URL`, `LUBELOGGER_API_KEY`, `FX_*`, `OCR_*`, `LOG_*`) reads
+from `.env` exactly like the other compose files; see `.env.example`. Logs land
+in `./data/logs/quicklogger.log` via the `./data:/data` bind mount, so the
+host-side log read works the same as the `node build` UAT path.
+
 ## CI workflow
 
 `.github/workflows/ci.yml` runs on every push and pull request:
