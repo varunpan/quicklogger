@@ -3,6 +3,8 @@ import { render, cleanup } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import CropOverlay from './CropOverlay.svelte';
 import CropOverlayBindHarness from './CropOverlay.bindharness.svelte';
+import CropOverlayZoomHarness from './CropOverlay.zoomharness.svelte';
+import { MAX_ZOOM, viewportToBase } from './cropCoords';
 
 beforeEach(() => {
   // jsdom doesn't implement setPointerCapture / releasePointerCapture by
@@ -260,5 +262,96 @@ describe('CropOverlay', () => {
       expect(left).toBeLessThanOrEqual(imgW - w);
       expect(top).toBeLessThanOrEqual(imgH - h);
     }
+  });
+});
+
+describe('CropOverlay — zoom/pan', () => {
+  function mountZoom(initial = { x: 40, y: 30, w: 320, h: 240 }) {
+    const oncommit = vi.fn() as Mock;
+    const rendered = render(CropOverlayZoomHarness, { props: { initial, oncommit } });
+    return { ...rendered, oncommit };
+  }
+  const zoomText = (c: HTMLElement) =>
+    Number((c.querySelector('[data-testid="zoom"]') as HTMLElement).textContent);
+
+  it('the + button steps zoom by 1.5 and mirrors out via liveZoom', async () => {
+    const { container } = mountZoom();
+    expect(zoomText(container)).toBeCloseTo(1, 2);
+    await fireEvent.click(container.querySelector('[data-action="zoom-in"]') as HTMLElement);
+    expect(zoomText(container)).toBeCloseTo(1.5, 2);
+  });
+
+  it('the + button caps zoom at MAX_ZOOM', async () => {
+    const { container } = mountZoom();
+    const plus = container.querySelector('[data-action="zoom-in"]') as HTMLElement;
+    for (let i = 0; i < 8; i++) await fireEvent.click(plus);
+    expect(zoomText(container)).toBeCloseTo(MAX_ZOOM, 2);
+  });
+
+  it('the − button cannot zoom out below 1', async () => {
+    const { container } = mountZoom();
+    await fireEvent.click(container.querySelector('[data-action="zoom-out"]') as HTMLElement);
+    expect(zoomText(container)).toBeCloseTo(1, 2);
+  });
+
+  it('Done commits the box inverse-transformed by the live zoom/pan', async () => {
+    const { container, oncommit } = mountZoom();
+    // One zoom-in step → zoom 1.5 about viewport centre (200,150).
+    await fireEvent.click(container.querySelector('[data-action="zoom-in"]') as HTMLElement);
+    await fireEvent.click(container.querySelector('[data-action="host-done"]') as HTMLElement);
+    // Expected: viewportToBase(default box, 1.5, pan-about-centre).
+    // pan = centre - centre·1.5 = (200,150) - (300,225) = (-100,-75).
+    const expected = viewportToBase({ x: 40, y: 30, w: 320, h: 240 }, 1.5, { x: -100, y: -75 });
+    const got = oncommit.mock.calls[0][0];
+    expect(got.x).toBeCloseTo(expected.x, 3);
+    expect(got.y).toBeCloseTo(expected.y, 3);
+    expect(got.w).toBeCloseTo(expected.w, 3);
+    expect(got.h).toBeCloseTo(expected.h, 3);
+  });
+
+  it('the source-space floor scales with zoom (min screen box = floorDisplayPx × zoom)', async () => {
+    // display 400×300, source 2000×1500 → floorDisplayPx = 200·(400/2000) = 40.
+    // Zoom in twice → 2.25×. Drag br corner past the floor; the committed BASE
+    // rect must bottom out at floorDisplayPx (40), proving the screen floor grew
+    // to 40·2.25 = 90 and inverted back to 40.
+    const { container, oncommit } = mountZoom();
+    const plus = container.querySelector('[data-action="zoom-in"]') as HTMLElement;
+    await fireEvent.click(plus);
+    await fireEvent.click(plus); // 1.5 → 2.25
+    const br = container.querySelector('[data-handle="corner"][data-corner="br"]') as HTMLElement;
+    await fireEvent(br, makePointerEvent('pointerdown', 360, 270));
+    await fireEvent(br, makePointerEvent('pointermove', 50, 40));
+    await fireEvent(br, makePointerEvent('pointerup', 50, 40));
+    await fireEvent.click(container.querySelector('[data-action="host-done"]') as HTMLElement);
+    const rect = oncommit.mock.calls[0][0];
+    expect(rect.w).toBeCloseTo(40, 1);
+    expect(rect.h).toBeCloseTo(40, 1);
+  });
+
+  it('a re-render mid-pinch does NOT reset zoom (#37 guard extends to pinch)', async () => {
+    const { container, rerender } = mountZoom();
+    const root = container.querySelector('[data-overlay-root]') as HTMLElement;
+    // Two fingers down → pinch starts. dist 100, midpoint (150,100).
+    await fireEvent(root, makePointerEvent('pointerdown', 100, 100, 1));
+    await fireEvent(root, makePointerEvent('pointerdown', 200, 100, 2));
+    // Spread to dist 200 → zoom ×2.
+    await fireEvent(root, makePointerEvent('pointermove', 100, 100, 1));
+    await fireEvent(root, makePointerEvent('pointermove', 300, 100, 2));
+    expect(zoomText(container)).toBeCloseTo(2, 1);
+    // A reflow lands mid-pinch: host hands a brand-new initial rect.
+    await rerender({ initial: { x: 0, y: 0, w: 400, h: 300 }, oncommit: vi.fn() });
+    // zoom survived (reseed bailed because pinch is active).
+    expect(zoomText(container)).toBeCloseTo(2, 1);
+    await fireEvent(root, makePointerEvent('pointerup', 300, 100, 2));
+    await fireEvent(root, makePointerEvent('pointerup', 100, 100, 1));
+  });
+
+  it('reseed with no gesture active resets zoom/pan to fit (Reset / re-entry)', async () => {
+    const { container, rerender } = mountZoom();
+    await fireEvent.click(container.querySelector('[data-action="zoom-in"]') as HTMLElement);
+    expect(zoomText(container)).toBeCloseTo(1.5, 2);
+    // No gesture in progress — host hands a new initial (Reset / re-entry).
+    await rerender({ initial: { x: 10, y: 20, w: 100, h: 80 }, oncommit: vi.fn() });
+    expect(zoomText(container)).toBeCloseTo(1, 2);
   });
 });
