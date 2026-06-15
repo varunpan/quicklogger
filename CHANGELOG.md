@@ -21,7 +21,10 @@ All notable changes to this project are documented here. Format roughly follows 
   worker registers, so PWA/offline is testable in a desktop browser. Traefik
   labels and the proxy-network attachment are env-driven (inert by default), so
   on-device HTTPS phone testing is opt-in via `.env` with zero reverse-proxy
-  specifics committed.
+  specifics committed. The OCR provider chain is forwarded from `.env` too (with
+  the Ollama URL rewritten to `host.docker.internal` so the container reaches a
+  host-run Ollama), so the photo-OCR / crop flow — which gates the camera UI on
+  `/api/ocr` — is testable in the container, not just on the host preview.
 
 ### Changed
 

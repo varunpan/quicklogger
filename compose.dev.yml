@@ -28,6 +28,25 @@ services:
       PORT: 3000                   # internal port — unchanged from the image (prod-identical)
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FILE_PATH: /data/logs/quicklogger.log   # lands in bind-mounted ./data → host log-read works
+      # --- Photo OCR — the crop / photo-attach flow gates the whole camera UI
+      #     on these (GET /api/ocr → { enabled }). Forwarded from .env like the
+      #     LubeLogger vars; defaults keep the file inert when nothing is set.
+      OCR_PROVIDER_CHAIN: ${OCR_PROVIDER_CHAIN:-}
+      # Hardcoded host.docker.internal, NOT ${OLLAMA_VISION_URL}: .env's value is
+      # `localhost` for the host `node build` path, which inside this container
+      # would resolve to the container itself. extra_hosts (below) maps
+      # host.docker.internal → the host, where Ollama listens on :11434.
+      OLLAMA_VISION_URL: http://host.docker.internal:11434
+      OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-qwen2.5vl:7b}
+      OLLAMA_VISION_TIMEOUT_MS: ${OLLAMA_VISION_TIMEOUT_MS:-60000}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      OLLAMA_CLOUD_API_KEY: "${OLLAMA_CLOUD_API_KEY:-}"
+      OLLAMA_CLOUD_URL: ${OLLAMA_CLOUD_URL:-https://ollama.com}
+      OLLAMA_CLOUD_MODEL: ${OLLAMA_CLOUD_MODEL:-gemma4:31b}
+      OLLAMA_CLOUD_TIMEOUT_MS: ${OLLAMA_CLOUD_TIMEOUT_MS:-30000}
+      OCR_BUDGET_PATH: /data/ocr-budget.json
+      OCR_AUDIT_PATH: /data/ocr-audit.jsonl
+      OCR_AUDIT_KEY_PATH: /data/ocr-audit-key.txt
     extra_hosts:
       - "host.docker.internal:host-gateway"   # lets the container reach a host-port LubeLogger on Linux
     volumes:
