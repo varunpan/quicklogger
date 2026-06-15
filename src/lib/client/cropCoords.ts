@@ -117,11 +117,12 @@ export function sourceToDisplay(
 export const MAX_ZOOM = 5;
 
 // Clamp magnification to [1, MAX_ZOOM]. Min 1 = fit (no zoom-out past the whole
-// image; no letterbox). Non-finite input collapses to 1.
-export function clampZoom(zoom: number, maxZoom: number = MAX_ZOOM): number {
-  if (!Number.isFinite(zoom)) return zoom > 0 ? maxZoom : 1;
+// image; no letterbox). Non-finite input: NaN and -Infinity collapse to 1;
+// +Infinity (runaway zoom-in) clamps to MAX_ZOOM.
+export function clampZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return zoom > 0 ? MAX_ZOOM : 1;
   if (zoom < 1) return 1;
-  if (zoom > maxZoom) return maxZoom;
+  if (zoom > MAX_ZOOM) return MAX_ZOOM;
   return zoom;
 }
 
@@ -134,8 +135,9 @@ export function clampPan(
   zoom: number,
   viewport: Size
 ): { x: number; y: number } {
-  const minX = viewport.w * (1 - zoom);
-  const minY = viewport.h * (1 - zoom);
+  const z = Math.max(1, Number.isFinite(zoom) ? zoom : 1);
+  const minX = viewport.w * (1 - z);
+  const minY = viewport.h * (1 - z);
   const px = Number.isFinite(pan.x) ? pan.x : 0;
   const py = Number.isFinite(pan.y) ? pan.y : 0;
   return {

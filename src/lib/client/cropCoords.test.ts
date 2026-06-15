@@ -145,7 +145,7 @@ describe('clampZoom', () => {
     expect(clampZoom(MAX_ZOOM + 2)).toBe(MAX_ZOOM);
   });
 
-  it('coerces non-finite to 1', () => {
+  it('coerces non-finite input (NaN→1, +Infinity→MAX_ZOOM)', () => {
     expect(clampZoom(Number.NaN)).toBe(1);
     expect(clampZoom(Number.POSITIVE_INFINITY)).toBe(MAX_ZOOM);
   });
