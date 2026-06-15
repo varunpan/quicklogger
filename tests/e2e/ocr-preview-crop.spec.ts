@@ -214,3 +214,49 @@ test('crop: Cancel crop returns to preview with prior state, Send omits crop fie
     expect(bodySaw).not.toMatch(new RegExp(`name="${name}"`));
   }
 });
+
+test('crop: zoom in via + button → Done → Send POSTs valid crop fields', async ({ page }) => {
+  await commonRoutes(page);
+  let postedBody = '';
+  await page.route('**/api/ocr', (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ json: { enabled: true, modes: ['pump', 'odometer'] } });
+    }
+    postedBody = route.request().postData() ?? '';
+    return route.fulfill({
+      json: { mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 }
+    });
+  });
+
+  await gotoHomeViaClientRouter(page);
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', FIXTURE);
+
+  const dialog = page.getByRole('dialog', { name: /Photo preview/i });
+  await dialog.getByRole('button', { name: /Crop image/i }).click();
+
+  // Zoom in once via the toolbar button → photo magnifies behind the fixed box.
+  const zoomIn = dialog.getByRole('button', { name: /Zoom in/i });
+  await expect(zoomIn).toBeEnabled();
+  await zoomIn.click();
+  // The zoom-level chip appears (1.5×).
+  await expect(dialog.getByText(/1\.5×/)).toBeVisible();
+
+  // Commit + send — zooming changed the framing, so this commits a crop.
+  await dialog.getByRole('button', { name: /^Done$/i }).click();
+  await expect(dialog.getByText(/^Cropped$/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Send for OCR', exact: true }).click();
+  await expect(page.getByText(/11\.2 gal · \$42\.18/)).toBeVisible();
+
+  for (const name of ['cropX', 'cropY', 'cropW', 'cropH']) {
+    expect(postedBody).toMatch(new RegExp(`name="${name}"`));
+    const re = new RegExp(`name="${name}"\\r?\\n\\r?\\n([\\d.eE+-]+)`);
+    const match = postedBody.match(re);
+    expect(match).not.toBeNull();
+    if (match) {
+      const v = Number(match[1]);
+      expect(Number.isFinite(v)).toBe(true);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+  }
+});
