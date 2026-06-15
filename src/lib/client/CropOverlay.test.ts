@@ -273,31 +273,37 @@ describe('CropOverlay — zoom/pan', () => {
   }
   const zoomText = (c: HTMLElement) =>
     Number((c.querySelector('[data-testid="zoom"]') as HTMLElement).textContent);
+  // Drive the slider the way a real <input type=range> emits: set value, fire input.
+  const setSlider = async (c: HTMLElement, v: number) => {
+    const slider = c.querySelector('[data-action="zoom"]') as HTMLInputElement;
+    slider.value = String(v);
+    await fireEvent.input(slider);
+  };
 
-  it('the + button steps zoom by 1.5 and mirrors out via liveZoom', async () => {
+  it('setZoom(3) sets zoom to 3 and mirrors out via liveZoom', async () => {
     const { container } = mountZoom();
     expect(zoomText(container)).toBeCloseTo(1, 2);
-    await fireEvent.click(container.querySelector('[data-action="zoom-in"]') as HTMLElement);
-    expect(zoomText(container)).toBeCloseTo(1.5, 2);
+    await setSlider(container, 3);
+    expect(zoomText(container)).toBeCloseTo(3, 2);
   });
 
-  it('the + button caps zoom at MAX_ZOOM', async () => {
+  it('setZoom clamps above MAX_ZOOM down to MAX_ZOOM', async () => {
     const { container } = mountZoom();
-    const plus = container.querySelector('[data-action="zoom-in"]') as HTMLElement;
-    for (let i = 0; i < 8; i++) await fireEvent.click(plus);
+    await setSlider(container, 10);
     expect(zoomText(container)).toBeCloseTo(MAX_ZOOM, 2);
   });
 
-  it('the − button cannot zoom out below 1', async () => {
+  it('setZoom clamps below 1 up to 1', async () => {
     const { container } = mountZoom();
-    await fireEvent.click(container.querySelector('[data-action="zoom-out"]') as HTMLElement);
+    await setSlider(container, 0.5);
     expect(zoomText(container)).toBeCloseTo(1, 2);
   });
 
   it('Done commits the box inverse-transformed by the live zoom/pan', async () => {
     const { container, oncommit } = mountZoom();
-    // One zoom-in step → zoom 1.5 about viewport centre (200,150).
-    await fireEvent.click(container.querySelector('[data-action="zoom-in"]') as HTMLElement);
+    // setZoom(1.5) → zoom 1.5 about viewport centre (200,150) — same anchor the
+    // old + button used, so the inverse-transform math is unchanged.
+    await setSlider(container, 1.5);
     await fireEvent.click(container.querySelector('[data-action="host-done"]') as HTMLElement);
     // Expected: viewportToBase(default box, 1.5, pan-about-centre).
     // pan = centre - centre·1.5 = (200,150) - (300,225) = (-100,-75).
@@ -311,13 +317,11 @@ describe('CropOverlay — zoom/pan', () => {
 
   it('the source-space floor scales with zoom (min screen box = floorDisplayPx × zoom)', async () => {
     // display 400×300, source 2000×1500 → floorDisplayPx = 200·(400/2000) = 40.
-    // Zoom in twice → 2.25×. Drag br corner past the floor; the committed BASE
-    // rect must bottom out at floorDisplayPx (40), proving the screen floor grew
-    // to 40·2.25 = 90 and inverted back to 40.
+    // setZoom(2.25). Drag br corner past the floor; the committed BASE rect must
+    // bottom out at floorDisplayPx (40), proving the screen floor grew to
+    // 40·2.25 = 90 and inverted back to 40.
     const { container, oncommit } = mountZoom();
-    const plus = container.querySelector('[data-action="zoom-in"]') as HTMLElement;
-    await fireEvent.click(plus);
-    await fireEvent.click(plus); // 1.5 → 2.25
+    await setSlider(container, 2.25);
     const br = container.querySelector('[data-handle="corner"][data-corner="br"]') as HTMLElement;
     await fireEvent(br, makePointerEvent('pointerdown', 360, 270));
     await fireEvent(br, makePointerEvent('pointermove', 50, 40));
@@ -348,7 +352,7 @@ describe('CropOverlay — zoom/pan', () => {
 
   it('reseed with no gesture active resets zoom/pan to fit (Reset / re-entry)', async () => {
     const { container, rerender } = mountZoom();
-    await fireEvent.click(container.querySelector('[data-action="zoom-in"]') as HTMLElement);
+    await setSlider(container, 1.5);
     expect(zoomText(container)).toBeCloseTo(1.5, 2);
     // No gesture in progress — host hands a new initial (Reset / re-entry).
     await rerender({ initial: { x: 10, y: 20, w: 100, h: 80 }, oncommit: vi.fn() });

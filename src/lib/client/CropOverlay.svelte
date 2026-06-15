@@ -2,7 +2,6 @@
   import { untrack } from 'svelte';
   import { clampZoom, clampPan } from './cropCoords';
 
-  const ZOOM_STEP = 1.5;
   // Crop rectangle overlay. Renders absolutely-positioned handles, a dimmed
   // shroud, and a rule-of-thirds grid on top of the image area. Emits the
   // user's chosen rect (in display-space pixels relative to the image) when
@@ -41,7 +40,7 @@
     // Live, in-progress zoom factor and pan offset (screen px), mirrored out
     // from the overlay's internal working state — bind them so the host can
     // apply the `translate(pan) scale(zoom)` transform to the photo and drive
-    // the +/- buttons' disabled state. The overlay owns these; host writes are
+    // the zoom slider's thumb position. The overlay owns these; host writes are
     // overwritten by the mirror $effect (same contract as liveRect). Hand a new
     // `initial` (Reset / re-entry) to reset them to fit.
     liveZoom?: number;
@@ -105,7 +104,7 @@
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
-  // Single funnel for every zoom source (pinch, wheel, buttons): clamp zoom,
+  // Single funnel for every zoom source (pinch, wheel, slider): clamp zoom,
   // keep `anchor` (local px) stationary, re-clamp pan. anchor is in viewport-
   // local coordinates.
   function applyZoom(nextZoom: number, anchor: { x: number; y: number }) {
@@ -119,12 +118,10 @@
     pan = clampPan(np, z, viewport);
   }
 
-  // Exposed for the host's +/- buttons. Step about the viewport centre.
-  export function zoomIn() {
-    applyZoom(zoom * ZOOM_STEP, { x: viewport.w / 2, y: viewport.h / 2 });
-  }
-  export function zoomOut() {
-    applyZoom(zoom / ZOOM_STEP, { x: viewport.w / 2, y: viewport.h / 2 });
+  // Exposed for the host's zoom slider. Absolute zoom, anchored at the viewport
+  // centre. applyZoom already clamps via clampZoom, so no extra clamping here.
+  export function setZoom(z: number) {
+    applyZoom(z, { x: viewport.w / 2, y: viewport.h / 2 });
   }
 
   // Internal working rect — the overlay's source of truth while mounted. Kept
@@ -285,14 +282,16 @@
     }
   }
 
+  // Per-notch wheel sensitivity. ~4 notches ≈ a 1.5× change in zoom, a gentle
+  // step that feels right for mouse scroll / trackpad pinch on desktop.
+  const WHEEL_ZOOM_STEP = 1.5;
   function onWheel(ev: WheelEvent) {
     ev.preventDefault();
     const anchor = toLocal(ev.clientX, ev.clientY);
     // Every wheel event (mouse scroll or trackpad pinch) zooms about the cursor:
     // the overlay owns the whole touch-action:none surface, so there's nothing
     // else for a wheel to do here.
-    // A quarter of a button step per wheel notch (~4 notches ≈ one +/- press).
-    const factor = ev.deltaY < 0 ? ZOOM_STEP ** 0.25 : 1 / ZOOM_STEP ** 0.25;
+    const factor = ev.deltaY < 0 ? WHEEL_ZOOM_STEP ** 0.25 : 1 / WHEEL_ZOOM_STEP ** 0.25;
     applyZoom(zoom * factor, anchor);
   }
 

@@ -381,6 +381,41 @@ describe('OcrPreview — crop mode', () => {
     expect(onsubmit.mock.calls[0][0].crop).not.toBeNull();
   });
 
+  it('crop toolbar renders a zoom slider (not Zoom in/out buttons), and it drives the zoom', async () => {
+    const file = makeFile();
+    const { container } = render(OcrPreview, {
+      props: { file, mode: 'pump', onsubmit: vi.fn(), oncancel: vi.fn(), onretake: vi.fn() }
+    });
+    // Make the overlay mountable with a non-zero size.
+    const img = container.querySelector('img');
+    if (img) {
+      Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
+      img.getBoundingClientRect = () =>
+        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+      await fireEvent.load(img);
+    }
+    await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
+
+    // The old −/+ buttons are gone; a single labelled slider is present.
+    expect(screen.queryByRole('button', { name: /Zoom in/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Zoom out/i })).toBeNull();
+    const slider = screen.getByRole('slider', { name: /Zoom/i }) as HTMLInputElement;
+    expect(slider).toBeInTheDocument();
+    expect(slider.value).toBe('1');
+
+    // Dragging the slider drives the photo transform via overlayRef.setZoom.
+    slider.value = '3';
+    await fireEvent.input(slider);
+    // The zoom badge (N.N×) appears once zoom > 1.01.
+    expect(screen.getByText(/3\.0×/)).toBeInTheDocument();
+    // The photo transform wrapper now carries scale(3).
+    const transformed = container.querySelector('.origin-top-left') as HTMLElement;
+    expect(transformed.getAttribute('style') ?? '').toContain('scale(3)');
+    // Slider thumb tracks the mirrored-out zoom.
+    expect(slider.value).toBe('3');
+  });
+
   it('ESC inside crop mode cancels crop, not the whole modal', async () => {
     const oncancel = vi.fn();
     const file = makeFile();

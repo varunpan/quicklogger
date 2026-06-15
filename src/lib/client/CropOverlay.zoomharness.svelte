@@ -1,8 +1,8 @@
 <script lang="ts">
   // Test-only harness: mounts CropOverlay with zoom/pan BOUND and a bind:this
-  // ref, mirroring how OcrPreview drives zoom in production. Renders +/-/readout
-  // and a host-Done that commits the inverse-transformed box. Lets the unit
-  // tests exercise the button-driven zoom + commit-with-zoom paths.
+  // ref, mirroring how OcrPreview drives zoom in production. Renders a setZoom
+  // control + readout and a host-Done that commits the inverse-transformed box.
+  // Lets the unit tests exercise the slider-driven zoom + commit-with-zoom paths.
   import { untrack } from 'svelte';
   import CropOverlay from './CropOverlay.svelte';
   import { viewportToBase } from './cropCoords';
@@ -36,7 +36,14 @@
   oncancel={() => {}}
 />
 
-<button type="button" data-action="zoom-in" onclick={() => overlayRef?.zoomIn()}>+</button>
-<button type="button" data-action="zoom-out" onclick={() => overlayRef?.zoomOut()}>−</button>
+<input
+  type="range"
+  data-action="zoom"
+  min="1"
+  max="5"
+  step="0.01"
+  value={zoom}
+  oninput={(e) => overlayRef?.setZoom(e.currentTarget.valueAsNumber)}
+/>
 <span data-testid="zoom">{zoom.toFixed(2)}</span>
 <button type="button" data-action="host-done" onclick={() => oncommit(viewportToBase({ ...live }, zoom, pan))}>Done</button>

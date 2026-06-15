@@ -236,6 +236,16 @@ For 5+ real pump fillups + 5+ real odometer reads, record:
 Use mismatches to refine the system prompt in `ocrModes.ts` via patch
 releases (v0.2.x).
 
+## Pinch-zoom & pan crop (v0.3.0)
+
+- [ ] In Photo OCR preview, tap **Crop** to enter crop mode
+- [ ] Pinch with two fingers → the photo zooms behind a **fixed** crop box (the box stays put; the photo zooms/pans under it)
+- [ ] Two-finger drag → the photo pans behind the fixed box
+- [ ] The toolbar **zoom slider** scrubs smoothly from 1× to 5×, and the `N.N×` badge over the photo tracks the slider as you drag it
+- [ ] Drag the slider all the way left → returns to 1× and the badge disappears
+- [ ] At 1× (slider untouched / fully left), tap **Done** → the committed crop is unchanged vs. before this feature (a 1× crop is byte-for-byte identical)
+- [ ] Zoom in + frame a small region (e.g. just the pump digits), tap **Done** → the cropped preview frames that tight region, and **Send for OCR** reads it correctly
+
 ## Drawer footer (v0.2.0)
 
 - [ ] Open the drawer (top-right hamburger). Bottom of the drawer shows

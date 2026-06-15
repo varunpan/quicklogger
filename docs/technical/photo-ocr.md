@@ -125,9 +125,9 @@ upload and never blocks or affects it. User guide:
   pinch). A pointer **map** (not a single `drag`) detects two-finger gestures: the
   2nd pointer-down starts a `pinch` (non-reactive, like `drag`) and suspends
   one-finger box drags; `applyZoom(nextZoom, anchor)` is the single funnel for
-  pinch, wheel, and the host's `+`/`−` (exposed `zoomIn`/`zoomOut`) — it clamps
-  zoom, keeps the anchor point stationary, and re-clamps pan so the image always
-  covers the viewport. Because the box is in screen space, handle drags need **no**
+  pinch, wheel, and the host's zoom slider (exposed `setZoom`, an absolute zoom
+  anchored at the viewport centre) — it clamps zoom, keeps the anchor point
+  stationary, and re-clamps pan so the image always covers the viewport. Because the box is in screen space, handle drags need **no**
   `/zoom` scaling; the only zoom-aware box rule is the floor, which scales as
   `floorScreenPx = floorDisplayPx × zoom` so the committed crop never falls below
   the source-space floor at any zoom. The reseed `$effect` bails while `drag`
@@ -180,9 +180,11 @@ upload and never blocks or affects it. User guide:
   zoomed** (`cropZoom > 1.01`), so rotate-then-crop at zoom=1 is not clipped. The
   resize listener **skips re-measuring during crop mode** so a reflow mid-zoom
   can't read the zoomed bounding box into `imgRendered` (the base frame is frozen
-  for the session, matching the #37b `cropInitial` freeze). The `+`/`−` buttons
-  live in the crop-mode footer and call the overlay's exposed `zoomIn`/`zoomOut`
-  via `bind:this`; a `N.N×` chip overlays the photo when zoomed. `[Done]`
+  for the session, matching the #37b `cropInitial` freeze). A continuous zoom
+  slider lives in the crop-mode footer and calls the overlay's exposed `setZoom`
+  via `bind:this` as it scrubs (the slider reads `cropZoom` one-way for its thumb
+  position — never `bind:value`, which would reintroduce the #37 unbound-`$bindable`
+  trap); a `N.N×` chip overlays the photo when zoomed. `[Done]`
   inverse-transforms the live box once via `viewportToBase(cropLive, cropZoom,
   cropPan)` before the unchanged `displayToSource` — zoom enters the math in
   exactly one place.
@@ -427,7 +429,7 @@ old-era rows over time; no backfill.
 | User taps `[Crop]` → `[Reset]` → `[Done]` | `crop = null`, preview shows un-cropped image again | Reset is explicit "no crop"; Done commits the (null) state |
 | User taps `[Crop]` then `[✕ Cancel crop]` without dragging | Returns to preview with prior `crop` value unchanged (or `null`) | Cancel = "discard my in-progress edit," not "reset the prior crop" |
 | User shrinks rect to the 200 source-px floor and keeps dragging | Handle stops moving; no haptic | Soft stop — floor is UX safety net, not a security gate |
-| Never pinch / never tap +/- (zoom stays 1×) | Crop identical to pre-v0.3.0 | `viewportToBase` is the identity at zoom=1, pan=0; wrapper transform is identity |
+| Never pinch / never move the zoom slider (zoom stays 1×) | Crop identical to pre-v0.3.0 | `viewportToBase` is the identity at zoom=1, pan=0; wrapper transform is identity |
 | Pinch to zoom, then Reset | Box → default, zoom/pan → fit | Reset clears all adjustments; reseed `$effect` resets the view |
 | Cancel crop while zoomed | Exits crop, zoom/pan discarded | Leaving crop mode drops view state (host clears it; overlay unmounts) |
 | Re-enter crop mode after a committed crop | Starts at 1× / fit, box from prior crop | Fresh overlay mount + host clears cropZoom/cropPan |

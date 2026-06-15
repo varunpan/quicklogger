@@ -215,7 +215,7 @@ test('crop: Cancel crop returns to preview with prior state, Send omits crop fie
   }
 });
 
-test('crop: zoom in via + button → Done → Send POSTs valid crop fields', async ({ page }) => {
+test('crop: zoom in via slider → Done → Send POSTs valid crop fields', async ({ page }) => {
   await commonRoutes(page);
   let postedBody = '';
   await page.route('**/api/ocr', (route) => {
@@ -234,12 +234,17 @@ test('crop: zoom in via + button → Done → Send POSTs valid crop fields', asy
   const dialog = page.getByRole('dialog', { name: /Photo preview/i });
   await dialog.getByRole('button', { name: /Crop image/i }).click();
 
-  // Zoom in once via the toolbar button → photo magnifies behind the fixed box.
-  const zoomIn = dialog.getByRole('button', { name: /Zoom in/i });
-  await expect(zoomIn).toBeEnabled();
-  await zoomIn.click();
-  // The zoom-level chip appears (1.5×).
-  await expect(dialog.getByText(/1\.5×/)).toBeVisible();
+  // Scrub the zoom slider → photo magnifies behind the fixed box. `.fill()`
+  // does NOT work on <input type=range>, so set the value and fire `input`
+  // exactly as a real drag would.
+  const slider = dialog.getByRole('slider', { name: /Zoom/i });
+  await expect(slider).toBeVisible();
+  await slider.evaluate((el: HTMLInputElement, v) => {
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, '2');
+  // The zoom-level chip appears (2.0×).
+  await expect(dialog.getByText(/2\.0×/)).toBeVisible();
 
   // Commit + send — zooming changed the framing, so this commits a crop.
   await dialog.getByRole('button', { name: /^Done$/i }).click();

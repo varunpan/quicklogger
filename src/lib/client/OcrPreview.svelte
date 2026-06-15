@@ -70,9 +70,9 @@
   });
 
   // View transform mirrored out from CropOverlay (zoom factor + pan in screen
-  // px). The host applies these to the photo and drives the +/- buttons; the
-  // overlay owns the working copy (#37). overlayRef calls the overlay's exposed
-  // zoomIn/zoomOut for the toolbar buttons.
+  // px). The host applies these to the photo and reads cropZoom for the zoom
+  // slider's thumb position; the overlay owns the working copy (#37). overlayRef
+  // calls the overlay's exposed setZoom() as the slider scrubs.
   let cropZoom = $state(1);
   let cropPan = $state({ x: 0, y: 0 });
   let overlayRef: CropOverlay | undefined = $state();
@@ -503,23 +503,24 @@
   {:else}
     <div class="px-4 pb-4 pt-2">
       <div class="flex items-center gap-2">
-        <div class="flex rounded-xl overflow-hidden bg-zinc-800">
-          <button
-            type="button"
-            class="w-11 py-3 inline-flex items-center justify-center text-lg font-semibold {cropZoom <= 1 ? 'text-zinc-600' : 'text-zinc-200'}"
-            aria-label="Zoom out"
-            disabled={cropZoom <= 1}
-            onclick={() => overlayRef?.zoomOut()}
-          >−</button>
-          <div class="w-px bg-zinc-700"></div>
-          <button
-            type="button"
-            class="w-11 py-3 inline-flex items-center justify-center text-lg font-semibold {cropZoom >= MAX_ZOOM ? 'text-zinc-600' : 'text-zinc-200'}"
-            aria-label="Zoom in"
-            disabled={cropZoom >= MAX_ZOOM}
-            onclick={() => overlayRef?.zoomIn()}
-          >+</button>
-        </div>
+        <!--
+          Continuous zoom slider (replaces the old −/+ button group, whose
+          1.5× step overshot ~50% per tap → 1×→5× in ~4 taps). value is ONE-WAY
+          (NOT bind:value): cropZoom is mirrored OUT from the overlay, so the
+          slider only READS it for the thumb and pushes new values back through
+          overlayRef.setZoom — exactly how the buttons worked. bind:value here
+          would reintroduce the #37 unbound-$bindable trap.
+        -->
+        <input
+          type="range"
+          min="1"
+          max={MAX_ZOOM}
+          step="0.01"
+          value={cropZoom}
+          aria-label="Zoom"
+          class="flex-1 h-12 px-3 bg-zinc-800 rounded-xl accent-blue-500 touch-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          oninput={(e) => overlayRef?.setZoom(e.currentTarget.valueAsNumber)}
+        />
         <button
           type="button"
           class="flex-1 inline-flex items-center justify-center text-zinc-300 bg-zinc-800 rounded-xl px-3 py-3 text-sm font-semibold"

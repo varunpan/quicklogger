@@ -10,7 +10,7 @@ All notable changes to this project are documented here. Format roughly follows 
   fixed on screen while the photo zooms and pans behind it (the iOS / Google
   Photos cropper feel), so a small region — the pump digits on a 4032 px capture
   — can be framed precisely. Pinch with two fingers, drag two fingers to pan, or
-  use the new `−` / `+` buttons in the crop toolbar (wheel / trackpad-pinch on
+  use the crop toolbar's zoom slider (wheel / trackpad-pinch on
   desktop); a small `N.N×` badge shows the current zoom, capped at 5×. The
   committed crop is unchanged on the wire (still a normalized rect in un-rotated
   source space) and at 1× the crop is byte-for-byte identical to before — zoom is
