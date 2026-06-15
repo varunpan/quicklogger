@@ -404,6 +404,7 @@
           is a SIBLING of the zoompan wrapper (screen space), so the box/handles
           stay fixed while the photo moves.
         -->
+          <!-- 1.01 (not 1) is a small hysteresis so a near-1× pinch doesn't flicker the clip/badge on and off. -->
         <div class="relative inline-block {previewMode === 'crop' && cropZoom > 1.01 ? 'overflow-hidden' : ''}">
           <div
             class="origin-top-left"

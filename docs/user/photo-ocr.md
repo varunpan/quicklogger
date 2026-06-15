@@ -168,7 +168,7 @@ Full env-var reference:
      - **Drag** the corners or edges (or drag inside the box to move it).
      - **Zoom in** to nail a small target (the pump digits on a big photo):
        **pinch** with two fingers, or tap the **`−` / `+`** buttons in the crop
-       toolbar. The box stays put while the **photo moves behind it** — what the
+       toolbar (on a computer, scroll-wheel or trackpad-pinch also zooms). The box stays put while the **photo moves behind it** — what the
        box frames is what gets read. Drag with two fingers to pan. A small
        `2.5×`-style badge shows the current zoom.
      - Tap `[Done]`. A small **Cropped** chip appears in the header. Tap `[Crop]`
