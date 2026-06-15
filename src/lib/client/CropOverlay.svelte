@@ -277,6 +277,8 @@
   function onPointerUp(ev: PointerEvent) {
     pointers.delete(ev.pointerId);
     if (pointers.size < 2) pinch = null;
+    // If a pinch cancelled the drag mid-gesture, capture is released implicitly
+    // by the browser on pointerup/pointercancel — no explicit release needed.
     if (drag) {
       (ev.target as Element).releasePointerCapture?.(ev.pointerId);
       drag = null;
@@ -286,7 +288,10 @@
   function onWheel(ev: WheelEvent) {
     ev.preventDefault();
     const anchor = toLocal(ev.clientX, ev.clientY);
-    // Trackpad pinch arrives as wheel + ctrlKey; both step zoom about the cursor.
+    // Every wheel event (mouse scroll or trackpad pinch) zooms about the cursor:
+    // the overlay owns the whole touch-action:none surface, so there's nothing
+    // else for a wheel to do here.
+    // A quarter of a button step per wheel notch (~4 notches ≈ one +/- press).
     const factor = ev.deltaY < 0 ? ZOOM_STEP ** 0.25 : 1 / ZOOM_STEP ** 0.25;
     applyZoom(zoom * factor, anchor);
   }
