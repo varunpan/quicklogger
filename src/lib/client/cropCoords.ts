@@ -101,3 +101,61 @@ export function sourceToDisplay(
       };
   }
 }
+
+// --- Zoom/pan view transform (pinch-zoom crop, v0.3.0) -----------------------
+//
+// The crop box lives in SCREEN space and stays fixed; the photo zooms/pans
+// behind it. The on-screen view transform is `screen = base·zoom + pan`
+// (transform-origin top-left), where `base` is a point in the existing
+// fit-rendered, rotation-aware display frame that displayToSource already
+// consumes. zoom enters the crop math in exactly ONE place: viewportToBase at
+// commit time. At zoom=1, pan={0,0} every helper below is the identity, so the
+// no-zoom workflow is byte-for-byte unchanged.
+
+// Max on-screen magnification. 5× on a 4032-px photo fit to a ~360-px viewport
+// is ~2 source px per screen px — ample for digit selection. Tunable here only.
+export const MAX_ZOOM = 5;
+
+// Clamp magnification to [1, MAX_ZOOM]. Min 1 = fit (no zoom-out past the whole
+// image; no letterbox). Non-finite input collapses to 1.
+export function clampZoom(zoom: number, maxZoom: number = MAX_ZOOM): number {
+  if (!Number.isFinite(zoom)) return zoom > 0 ? maxZoom : 1;
+  if (zoom < 1) return 1;
+  if (zoom > maxZoom) return maxZoom;
+  return zoom;
+}
+
+// Clamp pan so the zoomed image always covers the viewport (no empty gutter).
+// With origin top-left the image spans [pan, pan + viewport·zoom]; to cover
+// [0, viewport] we need viewport·(1 - zoom) ≤ pan ≤ 0. At zoom=1 this forces
+// (0, 0). Non-finite components coerce to 0.
+export function clampPan(
+  pan: { x: number; y: number },
+  zoom: number,
+  viewport: Size
+): { x: number; y: number } {
+  const minX = viewport.w * (1 - zoom);
+  const minY = viewport.h * (1 - zoom);
+  const px = Number.isFinite(pan.x) ? pan.x : 0;
+  const py = Number.isFinite(pan.y) ? pan.y : 0;
+  return {
+    x: Math.min(0, Math.max(minX, px)),
+    y: Math.min(0, Math.max(minY, py))
+  };
+}
+
+// Invert the view transform: recover the base-display rect that a screen-space
+// box covers. Identity at zoom=1, pan={0,0}. Composed before displayToSource at
+// commit; pan does not affect w/h.
+export function viewportToBase(
+  box: PixelRect,
+  zoom: number,
+  pan: { x: number; y: number }
+): PixelRect {
+  return {
+    x: (box.x - pan.x) / zoom,
+    y: (box.y - pan.y) / zoom,
+    w: box.w / zoom,
+    h: box.h / zoom
+  };
+}
