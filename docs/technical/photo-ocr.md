@@ -82,6 +82,9 @@ upload and never blocks or affects it. User guide:
   rect the user touched (inside `CropOverlay`) and the un-rotated
   normalized rect that lives in `OcrPreview` state and rides the wire.
   No DOM access; testable in isolation.
+  Also exports the v0.3.0 zoom/pan helpers — `MAX_ZOOM`, `clampZoom`,
+  `clampPan`, and `viewportToBase` (the commit-time inverse of the screen-space
+  `translate(pan) scale(zoom)` view transform) — all pure.
 - [`src/lib/client/CropOverlay.svelte`](../../src/lib/client/CropOverlay.svelte)
   — pointer-driven crop UI. Four corner + four edge handles, interior
   drag-to-translate, dimmed shroud, rule-of-thirds grid. Refuses to
@@ -116,6 +119,20 @@ upload and never blocks or affects it. User guide:
   and reset the crop the user is editing — even after the finger lifts
   (#37b). Two layers: the host freeze keeps `initial` stable in production;
   the overlay's internal state keeps it robust unbound.
+  **Zoom/pan (v0.3.0):** owns `zoom`/`pan` as internal `$state` (mirrored out to
+  bindable `liveZoom`/`livePan`, same #37-safe pattern as `liveRect` — an unbound
+  `$bindable` fallback re-applies on every re-render and would wipe an in-progress
+  pinch). A pointer **map** (not a single `drag`) detects two-finger gestures: the
+  2nd pointer-down starts a `pinch` (non-reactive, like `drag`) and suspends
+  one-finger box drags; `applyZoom(nextZoom, anchor)` is the single funnel for
+  pinch, wheel, and the host's `+`/`−` (exposed `zoomIn`/`zoomOut`) — it clamps
+  zoom, keeps the anchor point stationary, and re-clamps pan so the image always
+  covers the viewport. Because the box is in screen space, handle drags need **no**
+  `/zoom` scaling; the only zoom-aware box rule is the floor, which scales as
+  `floorScreenPx = floorDisplayPx × zoom` so the committed crop never falls below
+  the source-space floor at any zoom. The reseed `$effect` bails while `drag`
+  **or** `pinch` is active and resets zoom/pan to fit on a genuine `initial`
+  change (Reset / re-entry).
 - [`src/lib/client/OcrPreview.svelte`](../../src/lib/client/OcrPreview.svelte)
   — full-screen modal mounted between capture and OCR submit. Holds
   the user's rotation choice and (optionally) a crop rect in
@@ -155,6 +172,20 @@ upload and never blocks or affects it. User guide:
   and a Tab/Shift+Tab trap wraps focus at the ends so it stays inside the
   dialog rather than reaching the form behind the opaque overlay. Escape
   exits crop sub-mode if active, otherwise closes the modal (`oncancel`).
+  **Zoom/pan host (v0.3.0):** binds `liveZoom`/`livePan` from the overlay and
+  applies `transform: translate(pan) scale(zoom)` (origin top-left) to an inner
+  wrapper around the `<img>` — composed with, but separate from, the img's own
+  `rotate()` (centre origin), so at zoom=1 the wrapper is the identity and
+  rendering is unchanged. `overflow-hidden` is applied to the wrapper **only while
+  zoomed** (`cropZoom > 1.01`), so rotate-then-crop at zoom=1 is not clipped. The
+  resize listener **skips re-measuring during crop mode** so a reflow mid-zoom
+  can't read the zoomed bounding box into `imgRendered` (the base frame is frozen
+  for the session, matching the #37b `cropInitial` freeze). The `+`/`−` buttons
+  live in the crop-mode footer and call the overlay's exposed `zoomIn`/`zoomOut`
+  via `bind:this`; a `N.N×` chip overlays the photo when zoomed. `[Done]`
+  inverse-transforms the live box once via `viewportToBase(cropLive, cropZoom,
+  cropPan)` before the unchanged `displayToSource` — zoom enters the math in
+  exactly one place.
 - [`src/routes/+page.ts`](../../src/routes/+page.ts) — probes
   `GET /api/ocr` and surfaces `ocrEnabled` + `ocrModes` to the page.
   Failure to probe = `enabled: false`; page load never blocks on OCR.
@@ -396,6 +427,16 @@ old-era rows over time; no backfill.
 | User taps `[Crop]` → `[Reset]` → `[Done]` | `crop = null`, preview shows un-cropped image again | Reset is explicit "no crop"; Done commits the (null) state |
 | User taps `[Crop]` then `[✕ Cancel crop]` without dragging | Returns to preview with prior `crop` value unchanged (or `null`) | Cancel = "discard my in-progress edit," not "reset the prior crop" |
 | User shrinks rect to the 200 source-px floor and keeps dragging | Handle stops moving; no haptic | Soft stop — floor is UX safety net, not a security gate |
+| Never pinch / never tap +/- (zoom stays 1×) | Crop identical to pre-v0.3.0 | `viewportToBase` is the identity at zoom=1, pan=0; wrapper transform is identity |
+| Pinch to zoom, then Reset | Box → default, zoom/pan → fit | Reset clears all adjustments; reseed `$effect` resets the view |
+| Cancel crop while zoomed | Exits crop, zoom/pan discarded | Leaving crop mode drops view state (host clears it; overlay unmounts) |
+| Re-enter crop mode after a committed crop | Starts at 1× / fit, box from prior crop | Fresh overlay mount + host clears cropZoom/cropPan |
+| Viewport reflow (URL-bar) mid-pinch | Zoom/pan survive | reseed `$effect` bails while `pinch` active; resize listener skips re-measure in crop mode |
+| Shrink box past floor at high zoom | Blocked at `floorDisplayPx × zoom` (base never below floor) | Floor enforced in screen space, scaled by zoom |
+| Pan toward an image edge | Clamped so the image covers the viewport | `clampPan`: `viewport·(1-zoom) ≤ pan ≤ 0` |
+| Zoom past 5× (pinch hard, or hold +) | Capped at MAX_ZOOM=5 | `clampZoom`; the `+` button disables at the cap |
+| Rotated photo (90/180/270) + zoom | Committed crop correct; clip may be imperfect for the rare rotate+zoom combo | Rotation handled by unchanged `displayToSource` after `viewportToBase`; wrapper clip is exact for the common rotation-0 case |
+| Third finger down during a pinch | Ignored; the first two pointers own the gesture | `onContainerPointerDown` only arms pinch at `size === 2` |
 | Old client (no rotation field) on new server | Audit row records `rotationApplied: 0` | Field-additive change — `0` is the documented default, not "absent" |
 | Safari (iOS **and** desktop) pump submission returns `400 multipart parse failed` | **Root cause (proven v0.2.5):** the production container ran adapter-node with `ENV BODY_SIZE_LIMIT=131072` (128 KiB) — *below* the resized upload size. A 1024 px / q0.8 pump JPEG encodes to ~150–400 KB, so adapter-node destroyed the request stream at 128 KiB and `request.formData()` threw → `400 multipart parse failed`. The app's own image-size check (5 MiB) never ran. Not Safari-specific in mechanism (any browser exceeding 128 KiB hits it); it just reads as "pump photos" because that's the only large upload. **Fix:** `BODY_SIZE_LIMIT=Infinity` (no transport cap) + the image limit is now the env-configurable `OCR_MAX_IMAGE_MB` (default 5 MiB), the single authoritative gate that returns a clean 413. Confirmed by A/B reproduction: same 200 KB body → `400 multipart parse failed` at `BODY_SIZE_LIMIT=131072`, parses fine at `6291456`. **v0.2.6 follow-up:** v0.2.5 shipped the disable value as `0`, but adapter-node treats `0` as a literal 0-byte limit (reject-all) — `Infinity` is the real disable sentinel; the Dockerfile default was corrected. | **Supersedes the v0.2.3 AND v0.2.4 diagnoses — both were wrong.** The bug is structurally invisible in dev (`vite dev` enforces no body cap) and UAT (`node build` uses adapter-node's 512 KiB default), so the upload always succeeded there and *any* client-side change — including a no-op — looked like a fix. v0.2.3 (zero-byte blob) and v0.2.4 (WebKit short-stream from a shared `File`) were plausible-but-unfalsifiable client theories that green dev runs falsely confirmed; neither touched the transport cap, which is why the symptom survived both. The `photo-buffer.ts` two-independent-Files split (v0.2.4) and the `convertToBlob` fallback (v0.2.3) are retained as harmless defensive code. Regression guard: `tests/integration/body-size-limit.test.ts` asserts the Dockerfile cap is `Infinity` or `≥` the image policy and explicitly rejects `0`, so neither a tight cap nor the `0` reject-all can silently return. |
 | `resizeForOcr` produces zero bytes on BOTH OffscreenCanvas and HTMLCanvasElement paths | Throws `Error('image encode produced 0 bytes on both OffscreenCanvas and HTMLCanvasElement')` — `postOcr` never runs, the user sees `"OCR failed (network)"` toast | Sanity backstop. Means the source ImageBitmap itself is degenerate (e.g., `createImageBitmap` returned a 0×0 bitmap). No multipart is sent to the server. |
@@ -601,6 +642,33 @@ origin and lets the preview remap on rotate without re-asking the user.
 The display→source conversion is ~15 lines of switch-on-rotation math
 in `cropCoords.ts`; living once at commit-time beats living everywhere
 downstream.
+
+**Box in screen space, not glued to the photo (v0.3.0).** The box stays fixed on
+screen and the photo moves behind it (iOS / Google Photos feel). Both designs
+reuse the existing crop math; screen-space means handle drags need no zoom
+scaling and `zoom` enters only once, at the commit inverse-transform
+(`viewportToBase`). `displayToSource`/`sourceToDisplay`/rotation/floor are
+unmodified — minimal blast radius on well-tested code.
+
+**Zoom/pan held as `$state`, mirrored out via bindable — never an unbound
+`$bindable` (v0.3.0).** Direct reuse of the hard-won `rect`/`liveRect` pattern
+from #37: an unbound bindable's fallback re-applies on every re-render, which
+would wipe an in-progress pinch on an incidental reflow. The reseed `$effect`
+bail was extended from `drag` to `drag || pinch` for the same reason.
+
+**Base frame frozen during crop by guarding the resize listener, not by
+switching to `offsetWidth` (v0.3.0).** The spec floated measuring
+`offsetWidth/offsetHeight` so zoom can't feed back into `imgRendered`. That would
+require a rotation-aware swap and would break the existing crop tests (which stub
+`getBoundingClientRect`). Skipping re-measure entirely while `previewMode ===
+'crop'` achieves the same guarantee, is consistent with the existing #37b
+`cropInitial` freeze, and leaves every test green. `overflow-hidden` is likewise
+gated on `cropZoom > 1.01` so the no-zoom (incl. rotated) path is untouched.
+
+**Max zoom is a constant (5×), and a zoom-readout chip was added (v0.3.0).** 5×
+is a predictable cap (an adaptive "zoom to native" was rejected as YAGNI). The
+`N.N×` chip is the one element not in the original spec — it makes the zoom state
+legible and reuses the `Cropped` badge vocabulary; it carries no behaviour.
 
 **`cropApplied: boolean` AND `cropRect: rect|null` both on every row,
 not derivable from each other.** Symmetry's lost vs rotation's single

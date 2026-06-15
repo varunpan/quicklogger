@@ -3,7 +3,7 @@
   import type { Rotation, NormalizedRect } from './image';
   import type { OcrMode } from '$lib/shared/types';
   import CropOverlay from './CropOverlay.svelte';
-  import { displayToSource, sourceToDisplay } from './cropCoords';
+  import { displayToSource, sourceToDisplay, viewportToBase, MAX_ZOOM } from './cropCoords';
 
   interface Props {
     file: File;
@@ -69,6 +69,14 @@
     h: 0
   });
 
+  // View transform mirrored out from CropOverlay (zoom factor + pan in screen
+  // px). The host applies these to the photo and drives the +/- buttons; the
+  // overlay owns the working copy (#37). overlayRef calls the overlay's exposed
+  // zoomIn/zoomOut for the toolbar buttons.
+  let cropZoom = $state(1);
+  let cropPan = $state({ x: 0, y: 0 });
+  let overlayRef: CropOverlay | undefined = $state();
+
   function measureImg() {
     if (!imgEl) return;
     // Use the bounding-box dimensions of the rendered image (after CSS
@@ -87,7 +95,12 @@
     // the Tab trap has an anchor. role="dialog"/aria-modal announce it; this
     // plus the trap keep focus from escaping to the form behind the overlay.
     dialogEl?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
-    const onResize = () => measureImg();
+    // Skip re-measuring while cropping: the base frame is frozen for the crop
+    // session (matches the #37b cropInitial freeze), and a re-measure mid-zoom
+    // would read the zoomed bounding box and corrupt imgRendered.
+    const onResize = () => {
+      if (previewMode !== 'crop') measureImg();
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   });
@@ -149,6 +162,8 @@
     // CURRENT image size, then hold it stable for the whole crop session.
     cropInitial = snapshotCropInitial();
     cropLive = { ...cropInitial };
+    cropZoom = 1;
+    cropPan = { x: 0, y: 0 };
     previewMode = 'crop';
   }
 
@@ -171,7 +186,9 @@
   }
 
   function cancelCrop() {
-    // Discard in-progress edit, restore prior crop value (or null).
+    // Discard in-progress edit + view transform; restore prior crop (or null).
+    cropZoom = 1;
+    cropPan = { x: 0, y: 0 };
     previewMode = 'preview';
   }
 
@@ -183,6 +200,8 @@
     crop = null;
     cropInitial = defaultDisplayRect();
     cropLive = { ...cropInitial };
+    cropZoom = 1;
+    cropPan = { x: 0, y: 0 };
   }
 
   function send() {
@@ -373,18 +392,46 @@
           (now-clamped) image and CropOverlay's `absolute inset-0`
           continues to match the img's display rect exactly.
         -->
-        <div class="relative inline-block">
-          <img
-            bind:this={imgEl}
-            src={objectUrl}
-            alt="Captured for OCR preview"
-            class="max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_14rem)] object-contain transition-transform duration-150 block"
-            style="transform: rotate({rotation}deg)"
-            onload={measureImg}
-          />
+        <!--
+          Crop zoom/pan (v0.3.0): the photo zooms/pans behind a fixed crop box.
+          The transform lives on an inner wrapper (origin top-left) so it
+          composes cleanly as `screen = base·zoom + pan`; the <img> keeps its
+          own `rotate()` (centre origin) untouched. At zoom=1 the wrapper
+          transform is the identity → rendering is byte-for-byte identical to
+          today. overflow-hidden is applied ONLY while actually zoomed so the
+          enlarged photo is clipped to the base frame — at zoom=1 (incl.
+          rotate-then-crop) there is no clipping and no regression. CropOverlay
+          is a SIBLING of the zoompan wrapper (screen space), so the box/handles
+          stay fixed while the photo moves.
+        -->
+        <div class="relative inline-block {previewMode === 'crop' && cropZoom > 1.01 ? 'overflow-hidden' : ''}">
+          <div
+            class="origin-top-left"
+            style={previewMode === 'crop'
+              ? `transform: translate(${cropPan.x}px, ${cropPan.y}px) scale(${cropZoom});`
+              : ''}
+          >
+            <img
+              bind:this={imgEl}
+              src={objectUrl}
+              alt="Captured for OCR preview"
+              class="max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_14rem)] object-contain transition-transform duration-150 block"
+              style="transform: rotate({rotation}deg)"
+              onload={measureImg}
+            />
+          </div>
 
           {#if previewMode === 'crop' && imgRendered.w > 0 && sourceSize.w > 0}
+            {#if cropZoom > 1.01}
+              <div
+                class="absolute left-2 top-2 z-10 rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-blue-200 bg-blue-600/20 border border-blue-500/40 pointer-events-none"
+                aria-hidden="true"
+              >
+                {cropZoom.toFixed(1)}×
+              </div>
+            {/if}
             <CropOverlay
+              bind:this={overlayRef}
               imageDisplayRect={{ x: 0, y: 0, w: imgRendered.w, h: imgRendered.h }}
               sourceSize={sourceSize}
               initial={cropInitial}
@@ -393,6 +440,8 @@
               showOwnDone={false}
               showOwnReset={false}
               bind:liveRect={cropLive}
+              bind:liveZoom={cropZoom}
+              bind:livePan={cropPan}
               oncommit={commitCrop}
               oncancel={cancelCrop}
             />
@@ -452,7 +501,24 @@
     </div>
   {:else}
     <div class="px-4 pb-4 pt-2">
-      <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <div class="flex rounded-xl overflow-hidden bg-zinc-800">
+          <button
+            type="button"
+            class="w-11 py-3 inline-flex items-center justify-center text-lg font-semibold {cropZoom <= 1 ? 'text-zinc-600' : 'text-zinc-200'}"
+            aria-label="Zoom out"
+            disabled={cropZoom <= 1}
+            onclick={() => overlayRef?.zoomOut()}
+          >−</button>
+          <div class="w-px bg-zinc-700"></div>
+          <button
+            type="button"
+            class="w-11 py-3 inline-flex items-center justify-center text-lg font-semibold {cropZoom >= MAX_ZOOM ? 'text-zinc-600' : 'text-zinc-200'}"
+            aria-label="Zoom in"
+            disabled={cropZoom >= MAX_ZOOM}
+            onclick={() => overlayRef?.zoomIn()}
+          >+</button>
+        </div>
         <button
           type="button"
           class="flex-1 inline-flex items-center justify-center text-zinc-300 bg-zinc-800 rounded-xl px-3 py-3 text-sm font-semibold"
@@ -463,7 +529,7 @@
         <button
           type="button"
           class="flex-1 inline-flex items-center justify-center text-white bg-blue-600 rounded-xl px-3 py-3 text-sm font-semibold"
-          onclick={() => commitCrop(cropLive)}
+          onclick={() => commitCrop(viewportToBase(cropLive, cropZoom, cropPan))}
         >
           Done
         </button>

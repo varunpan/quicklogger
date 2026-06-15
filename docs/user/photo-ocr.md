@@ -164,11 +164,16 @@ Full env-var reference:
 4. After you pick or shoot the photo, the **preview screen** takes
    over. You can:
    - **Rotate** the image (`[↺]` / `[↻]`) to fix orientation.
-   - **Crop** the image — tap `[Crop]`, drag the corners or edges to
-     box in the pump display (or just the digits), tap `[Done]`. A
-     small **Cropped** chip appears in the header. Tap `[Crop]` again
-     to refine; tap `[Reset]` then `[Done]` inside crop mode to
-     remove the crop.
+   - **Crop** the image — tap `[Crop]`, then frame the part you want:
+     - **Drag** the corners or edges (or drag inside the box to move it).
+     - **Zoom in** to nail a small target (the pump digits on a big photo):
+       **pinch** with two fingers, or tap the **`−` / `+`** buttons in the crop
+       toolbar. The box stays put while the **photo moves behind it** — what the
+       box frames is what gets read. Drag with two fingers to pan. A small
+       `2.5×`-style badge shows the current zoom.
+     - Tap `[Done]`. A small **Cropped** chip appears in the header. Tap `[Crop]`
+       again to refine; tap `[Reset]` (which also returns zoom to fit) then
+       `[Done]` to remove the crop.
    - **Retake** to pick another photo, or **Cancel** to bail out
      without sending.
 
@@ -207,6 +212,9 @@ Two reasons it's worth a tap:
 2. **Better OCR.** Glare, the neighbouring pump, dash lights — all
    are real OCR confusion fuel. Cropping focuses the model on the
    digits you care about.
+3. **Zoom for precision.** On a high-resolution photo the digits can be tiny.
+   Pinch (or use `+`) to magnify, pan to centre them, and box them tightly —
+   far easier than nudging a finger-sized handle around a full-frame shot.
 
 You don't *need* to crop — the model handles a fair amount of
 context. But a 2-second crop on a difficult photo turns 422
