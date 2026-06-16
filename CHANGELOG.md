@@ -53,6 +53,12 @@ All notable changes to this project are documented here. Format roughly follows 
   captured those values once; this just makes the intent explicit and keeps the
   warning class from creeping back. (#47)
 
+- **Refreshed five dev-tooling dependencies to their latest patches.**
+  `@playwright/test` (1.60→1.61), `vitest` + `@vitest/coverage-v8` (4.1.8→4.1.9),
+  `typescript-eslint` (8.61.0→8.61.1), and `prettier-plugin-svelte` (4.1.0→4.1.1).
+  Tooling-only — none compile into the shipped bundle. Full lint/check/test/build/e2e
+  gate green; no behaviour change.
+
 ### Fixed
 
 - **First page load no longer fires spurious asset 404s.** The dev-dependency
