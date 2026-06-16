@@ -43,6 +43,8 @@ The home page (`/`) accepts query params. The shortcut just builds a URL and ope
 | `cost` | decimal | Matches the chosen currency |
 | `currency` | ISO 4217 | `USD`, `CAD`, `EUR`, `GBP`, `MXN` |
 | `fillToFull` | `true` \| `false` | Defaults `true` if missing |
+| `date` | `YYYY-MM-DD` | Defaults to today; ignored if not a valid ISO date |
+| `notes` | text | Free text — note / station / grade |
 
 All params are optional — anything you don't pass uses the form's normal defaults (last vehicle, today's date, your Settings defaults for unit/currency).
 

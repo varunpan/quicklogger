@@ -79,7 +79,13 @@ export const load: PageLoad = async ({ fetch, url }) => {
       volumeUnit: url.searchParams.get('volumeUnit'),
       cost: url.searchParams.get('cost'),
       currency: url.searchParams.get('currency'),
-      fillToFull: url.searchParams.get('fillToFull')
+      fillToFull: url.searchParams.get('fillToFull'),
+      // date + notes round-trip through the vehicle picker (#50) so entered
+      // values survive a vehicle change; also accepted on the Shortcuts
+      // deep-link. odometer is deliberately NOT carried — it re-prefills from
+      // the newly-picked vehicle's last fillup.
+      date: url.searchParams.get('date'),
+      notes: url.searchParams.get('notes')
     }
   };
 };

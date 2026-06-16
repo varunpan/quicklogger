@@ -85,8 +85,11 @@
   // Local calendar date, NOT toISOString().slice(0, 10): the UTC form is
   // already "tomorrow" late in the evening west of UTC, and smart-check D
   // (which compares against the LOCAL date) then flags every submission as
-  // "Date is in the future." Same basis as check D by construction.
-  let isoDate: string = $state(localIsoDate());
+  // "Date is in the future." Same basis as check D by construction. Seeds
+  // from prefill.date when present (vehicle-picker round-trip / deep-link),
+  // validated to ISO; falls back to today on absence or garbage. lubeDateToIso
+  // is a hoisted function declaration, so it's callable here.
+  let isoDate: string = $state(untrack(() => lubeDateToIso(data.prefill.date ?? '') ?? localIsoDate()));
   let volume: string = $state(untrack(() => data.prefill.volume ?? ''));
   let volumeUnit: VolumeUnit = $state(
     untrack(() => (data.prefill.volumeUnit as VolumeUnit) ?? prefs.defaultVolumeUnit)
@@ -95,7 +98,7 @@
   let currency: string = $state(untrack(() => data.prefill.currency ?? prefs.defaultCurrency));
   let isFillToFull: boolean = $state(untrack(() => data.prefill.fillToFull !== 'false'));
   let missedFuelup: boolean = $state(false);
-  let notes: string = $state('');
+  let notes: string = $state(untrack(() => data.prefill.notes ?? ''));
   let manualFxRate: string = $state('');
   let needsManualFx: boolean = $state(false);
   let submitting: boolean = $state(false);
@@ -493,10 +496,25 @@
     return od - last;
   });
 
-  // /vehicles route is stood up in Task 20. Until then, route into it via a string-typed
-  // intermediate so the typed-routes RouteId union doesn't reject the literal.
+  // Hand off to the vehicle picker, carrying the entered pump values + date +
+  // notes so they survive the round-trip (#50). odometer is intentionally
+  // omitted — it re-prefills from the newly-picked vehicle's last fillup. The
+  // picker forwards these params onto its return URL; `from=home` routes it
+  // back here. Route via a string-typed intermediate so the typed-routes
+  // RouteId union doesn't reject the literal.
   function navigateToVehicles(): void {
-    const path: string = '/vehicles';
+    // Transient builder for one goto() — not reactive state, and we need proper
+    // encoding for the free-text `notes`; SvelteURLSearchParams would be wrong here.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const params = new URLSearchParams({ from: 'home' });
+    if (volume) params.set('volume', volume);
+    if (volumeUnit) params.set('volumeUnit', volumeUnit);
+    if (cost) params.set('cost', cost);
+    if (currency) params.set('currency', currency);
+    params.set('fillToFull', String(isFillToFull));
+    if (isoDate) params.set('date', isoDate);
+    if (notes) params.set('notes', notes);
+    const path: string = `/vehicles?${params.toString()}`;
     // eslint-disable-next-line svelte/no-navigation-without-resolve
     goto(path);
   }

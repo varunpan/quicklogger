@@ -73,6 +73,13 @@ All notable changes to this project are documented here. Format roughly follows 
   still a touch smaller than the 18px primary fields, but above the zoom
   threshold. (#51)
 
+- **Changing the vehicle no longer wipes an in-progress fill-up.** With volume,
+  cost, date, or a note already entered (typed or from OCR), switching vehicle
+  cleared every field — because the picker is a separate page and the round-trip
+  unmounted the form. The entered values now ride through the picker and re-seed
+  on return; only the odometer resets, to the newly-picked vehicle's last
+  fill-up. (#50)
+
 ### Tests
 
 - **Regression guard for the CSS-preload doubling.** `tests/e2e/css-preload.spec.ts`
@@ -83,6 +90,10 @@ All notable changes to this project are documented here. Format roughly follows 
 - **Regression guard for input focus-zoom.** `tests/e2e/input-zoom.spec.ts`
   asserts every `.field-input` on the log form renders at >= 16px, so no future
   field can reintroduce the iOS auto-zoom-on-focus the notes field had. (#51)
+
+- **Regression guard for the vehicle-change wipe.** `tests/e2e/vehicle-pick-preserve.spec.ts`
+  enters values, switches vehicle, and asserts volume/cost/date/notes survive
+  while the odometer re-prefills from the newly-picked vehicle. (#50)
 
 ## [0.2.10] — 2026-06-13
 

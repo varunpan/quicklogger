@@ -10,6 +10,7 @@
   // return there post-pick. Anything else (including absent / unknown
   // values) falls back to '/' to avoid open-redirect surface.
   const RETURN_TO: Record<string, string> = {
+    home: '/',
     maintenance: '/maintenance',
     history: '/history'
   };
@@ -19,10 +20,25 @@
     return (from && RETURN_TO[from]) || '/';
   }
 
+  // Form values the home page hands off so an entered fillup survives a vehicle
+  // change (#50). Forwarded verbatim onto the return URL where the home form
+  // re-seeds from them. odometer is intentionally absent — it re-prefills from
+  // the picked vehicle's last fillup. The maintenance / history entry points
+  // never set these, so their round-trips are unaffected.
+  const CARRY_PARAMS = ['volume', 'volumeUnit', 'cost', 'currency', 'fillToFull', 'date', 'notes'];
+
   function pick(id: number) {
     savePrefs({ lastVehicleId: id });
+    // Transient builder for one goto() — not reactive state, and the forwarded
+    // `notes` needs proper encoding; SvelteURLSearchParams would be wrong here.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const params = new URLSearchParams({ vehicleId: String(id) });
+    for (const key of CARRY_PARAMS) {
+      const v = page.url.searchParams.get(key);
+      if (v !== null) params.set(key, v);
+    }
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    goto(`${returnPath()}?vehicleId=${id}`);
+    goto(`${returnPath()}?${params.toString()}`);
   }
 </script>
 
