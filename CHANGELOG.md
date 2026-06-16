@@ -66,12 +66,23 @@ All notable changes to this project are documented here. Format roughly follows 
   `@sveltejs/kit` is pinned to 2.64.0 until the upstream fix (#16026) ships in a
   release. Caught by the new `compose.dev.yml` prod-mirror.
 
+- **The notes field no longer zooms the page on iOS Safari.** Tapping the
+  "Note · station · grade" field triggered mobile Safari's auto-zoom — which
+  never zoomed back out — because the field rendered at 14px (`text-sm`), and
+  Safari force-zooms any focused input under 16px. It's now 16px (`text-base`):
+  still a touch smaller than the 18px primary fields, but above the zoom
+  threshold. (#51)
+
 ### Tests
 
 - **Regression guard for the CSS-preload doubling.** `tests/e2e/css-preload.spec.ts`
   asserts a first page load fires no doubled-path asset 404s or CSS-preload
   rejections, so a future re-bump to a still-broken `@sveltejs/kit` is caught in
   CI before it ships.
+
+- **Regression guard for input focus-zoom.** `tests/e2e/input-zoom.spec.ts`
+  asserts every `.field-input` on the log form renders at >= 16px, so no future
+  field can reintroduce the iOS auto-zoom-on-focus the notes field had. (#51)
 
 ## [0.2.10] — 2026-06-13
 

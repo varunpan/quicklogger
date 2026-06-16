@@ -28,6 +28,9 @@ button, [role="button"] {
     @apply text-xs uppercase tracking-wide text-zinc-400;
   }
   .field-input {
+    /* iOS Safari auto-zooms (and never zooms back) on focus of any input whose
+       font-size is < 16px. Keep this >= 16px, and never override it lower on a
+       field (e.g. text-sm = 14px) — see #51, guarded by tests/e2e/input-zoom.spec.ts. */
     @apply w-full bg-zinc-800 rounded-xl px-4 py-3 text-lg font-semibold text-zinc-100 outline-none focus:ring-2 focus:ring-blue-500;
     /* Safari ignores min-width:0 on date/number inputs in grid cells without box-sizing reinforcement. */
     box-sizing: border-box;

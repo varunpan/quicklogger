@@ -930,7 +930,10 @@
 
   <label class="field mb-3">
     <span class="field-label">Note · station · grade</span>
-    <input class="field-input text-sm" type="text" bind:value={notes}
+    <!-- text-base (16px), not text-sm (14px): a focused input under 16px makes
+         iOS Safari auto-zoom and never zoom back out (#51). 16px keeps notes a
+         touch smaller than the 18px primary fields while clearing that floor. -->
+    <input class="field-input text-base" type="text" bind:value={notes}
            placeholder="Costco Pump 4, regular grade" />
   </label>
 
