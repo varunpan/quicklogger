@@ -49,6 +49,31 @@ export interface Reminder {
 	tags: string;           // always present, possibly ""
 }
 
+/** Shape returned by GET /api/vehicle/info?vehicleId=N (the unwrapped element
+ *  of LubeLogger's 1-element array). Aggregate running-cost + reminder summary
+ *  for one vehicle. Verified live against LubeLogger v1.6.5 during design.
+ *  Costs are in the LubeLogger instance currency. `plan*` counts exist upstream
+ *  but are intentionally not modelled in v1. */
+export interface VehicleInfo {
+	vehicleData: Vehicle;
+	gasRecordCount: number;
+	gasRecordCost: number;
+	serviceRecordCount: number;
+	serviceRecordCost: number;
+	repairRecordCount: number;
+	repairRecordCost: number;
+	upgradeRecordCount: number;
+	upgradeRecordCost: number;
+	taxRecordCount: number;
+	taxRecordCost: number;
+	lastReportedOdometer: number;
+	pastDueReminderCount: number;
+	veryUrgentReminderCount: number;
+	urgentReminderCount: number;
+	notUrgentReminderCount: number;
+	nextReminder: Reminder | null;
+}
+
 /** Shape returned by GET /api/info. Flat, all-string (verified against
  *  LubeLogger v1.6.5 during design). `currentVersion` is repeated here and
  *  on /api/version. The locale/currency/format fields are consumed by
@@ -194,6 +219,18 @@ export class LubeLoggerClient {
 	async listReminders(vehicleId: number): Promise<Reminder[]> {
 		const res = await this.request(`/api/vehicle/reminders?vehicleId=${vehicleId}`);
 		return res.json() as Promise<Reminder[]>;
+	}
+
+	/** GET /api/vehicle/info — LubeLogger wraps the aggregate in a 1-element
+	 *  array; unwrap to the single object. Throws LubeLoggerError if the array
+	 *  is empty / malformed (mirrors uploadDocument's empty-array guard). */
+	async getVehicleInfo(vehicleId: number): Promise<VehicleInfo> {
+		const res = await this.request(`/api/vehicle/info?vehicleId=${vehicleId}`);
+		const arr = (await res.json()) as VehicleInfo[];
+		if (!Array.isArray(arr) || arr.length === 0) {
+			throw new LubeLoggerError(502, 'vehicle/info returned no entries');
+		}
+		return arr[0];
 	}
 
 	async getInfo(): Promise<LubeLoggerInfo> {

@@ -167,6 +167,51 @@ describe('LubeLoggerClient', () => {
 		await expect(client().listReminders(1)).rejects.toMatchObject({ status: 503 });
 	});
 
+	it('getVehicleInfo unwraps the 1-element array and returns the aggregate object', async () => {
+		let observedQs = '';
+		let observedCulture = '';
+		server.use(
+			http.get(`${BASE}/api/vehicle/info`, ({ request }) => {
+				observedQs = new URL(request.url).searchParams.toString();
+				observedCulture = request.headers.get('culture-invariant') ?? '';
+				return HttpResponse.json([
+					{
+						vehicleData: { id: 1, year: 2014, make: 'Honda', model: 'Accord' },
+						gasRecordCount: 22, gasRecordCost: 707.39,
+						serviceRecordCount: 44, serviceRecordCost: 4164.2,
+						repairRecordCount: 9, repairRecordCost: 1018.24,
+						upgradeRecordCount: 1, upgradeRecordCost: 595,
+						taxRecordCount: 0, taxRecordCost: 0,
+						lastReportedOdometer: 111180,
+						pastDueReminderCount: 2,
+						veryUrgentReminderCount: 0,
+						urgentReminderCount: 0,
+						notUrgentReminderCount: 7,
+						nextReminder: {
+							vehicleId: 1, id: 12, description: 'Engine Oil change',
+							urgency: 'NotUrgent', metric: 'Both', userMetric: 'Both',
+							notes: null, dueDate: '2026-11-30',
+							dueOdometer: 116124, dueDays: 166, dueDistance: 4944, tags: ''
+						}
+					}
+				]);
+			})
+		);
+		const info = await client().getVehicleInfo(1);
+		expect(observedQs).toBe('vehicleId=1');
+		expect(observedCulture).toBe('true');
+		expect(info.vehicleData.id).toBe(1);
+		expect(info.gasRecordCost).toBe(707.39);
+		expect(info.taxRecordCount).toBe(0);
+		expect(info.lastReportedOdometer).toBe(111180);
+		expect(info.nextReminder?.description).toBe('Engine Oil change');
+	});
+
+	it('getVehicleInfo throws LubeLoggerError when upstream returns an empty array', async () => {
+		server.use(http.get(`${BASE}/api/vehicle/info`, () => HttpResponse.json([])));
+		await expect(client().getVehicleInfo(1)).rejects.toMatchObject({ name: 'LubeLoggerError' });
+	});
+
 	it('fetches an image with x-api-key + culture-invariant and returns the raw Response', async () => {
 		let observedKey = '';
 		let observedCulture = '';
