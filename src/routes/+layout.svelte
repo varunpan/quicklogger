@@ -21,6 +21,7 @@
     { href: '/', label: 'Log Fuel' },
     { href: '/history', label: 'History' },
     { href: '/maintenance', label: 'Maintenance' },
+    { href: '/stats', label: 'Stats' },
     { href: '/vehicles', label: 'Vehicles' },
     { href: '/settings', label: 'Settings' }
   ];

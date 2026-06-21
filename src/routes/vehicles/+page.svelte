@@ -12,7 +12,8 @@
   const RETURN_TO: Record<string, string> = {
     home: '/',
     maintenance: '/maintenance',
-    history: '/history'
+    history: '/history',
+    stats: '/stats'
   };
 
   function returnPath(): string {
