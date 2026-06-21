@@ -446,7 +446,7 @@ regardless of LubeLogger's instance locale. Set once in
 ### Client surface
 
 `LubeLoggerClient` (instantiated per request inside each route
-handler) exposes three methods mapped to LubeLogger's REST API:
+handler) exposes the following methods mapped to LubeLogger's REST API:
 
 | quicklogger method | LubeLogger endpoint | Returns |
 |---|---|---|
