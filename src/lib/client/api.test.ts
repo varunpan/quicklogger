@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { submitFuelupWithPhotos } from './api';
+import { submitFuelupWithPhotos, getVehicleInfo } from './api';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 const input: FuelSubmissionInput = {
@@ -46,5 +46,35 @@ describe('submitFuelupWithPhotos', () => {
     await expect(
       submitFuelupWithPhotos(input, { pump: null, odometer: null }, f as unknown as typeof fetch)
     ).rejects.toMatchObject({ status: 400 });
+  });
+});
+
+describe('getVehicleInfo', () => {
+  const INFO = {
+    vehicleData: { id: 1, year: 2014, make: 'Honda', model: 'Accord' },
+    gasRecordCount: 22, gasRecordCost: 707.39,
+    serviceRecordCount: 44, serviceRecordCost: 4164.2,
+    repairRecordCount: 9, repairRecordCost: 1018.24,
+    upgradeRecordCount: 1, upgradeRecordCost: 595,
+    taxRecordCount: 0, taxRecordCost: 0,
+    lastReportedOdometer: 111180,
+    pastDueReminderCount: 2, veryUrgentReminderCount: 0,
+    urgentReminderCount: 0, notUrgentReminderCount: 7,
+    nextReminder: null
+  };
+
+  it('requests /api/vehicle/info with the vehicle id and returns the parsed body', async () => {
+    const f = vi.fn(async () =>
+      new Response(JSON.stringify(INFO), { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const info = await getVehicleInfo(1, f as unknown as typeof fetch);
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe('/api/vehicle/info?vehicleId=1');
+    expect(info.vehicleData.id).toBe(1);
+    expect(info.gasRecordCost).toBe(707.39);
+  });
+
+  it('throws with .status on a non-ok response', async () => {
+    const f = vi.fn(async () => new Response('boom', { status: 502 }));
+    await expect(getVehicleInfo(1, f as unknown as typeof fetch)).rejects.toMatchObject({ status: 502 });
   });
 });

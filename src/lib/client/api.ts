@@ -5,7 +5,7 @@ import type {
   OcrStatus,
   OcrMode
 } from '$lib/shared/types';
-import type { Vehicle, GasRecord, Reminder } from '$lib/server/lubelogger';
+import type { Vehicle, GasRecord, Reminder, VehicleInfo } from '$lib/server/lubelogger';
 import type { Rotation, NormalizedRect } from './image';
 
 export async function listVehicles(fetchImpl = fetch): Promise<Vehicle[]> {
@@ -91,6 +91,17 @@ export async function listReminders(vehicleId: number, fetchImpl = fetch): Promi
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     const err = new Error(`reminders ${res.status}${text ? `: ${text}` : ''}`);
+    (err as Error & { status?: number }).status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function getVehicleInfo(vehicleId: number, fetchImpl = fetch): Promise<VehicleInfo> {
+  const res = await fetchImpl(`/api/vehicle/info?vehicleId=${vehicleId}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const err = new Error(`vehicle-info ${res.status}${text ? `: ${text}` : ''}`);
     (err as Error & { status?: number }).status = res.status;
     throw err;
   }
