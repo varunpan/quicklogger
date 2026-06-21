@@ -232,7 +232,7 @@ These are intentionally separated: prefs are sync + tiny, the queue is async + s
 
 ## Frontend pages
 
-Five pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), **History** (`/history`), and **Maintenance** (`/maintenance`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md); internals for the maintenance route in [`docs/technical/maintenance-page.md`](./technical/maintenance-page.md).
+Six pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), **History** (`/history`), **Maintenance** (`/maintenance`), and **Stats** (`/stats`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md); internals for the maintenance route in [`docs/technical/maintenance-page.md`](./technical/maintenance-page.md) and the stats route in [`docs/technical/stats-page.md`](./technical/stats-page.md).
 
 ### `/` — main form
 

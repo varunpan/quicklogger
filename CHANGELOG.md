@@ -25,6 +25,14 @@ All notable changes to this project are documented here. Format roughly follows 
   the Ollama URL rewritten to `host.docker.internal` so the container reaches a
   host-run Ollama), so the photo-OCR / crop flow — which gates the camera UI on
   `/api/ocr` — is testable in the container, not just on the host preview.
+- **Per-vehicle Stats page (`/stats`).** A read-only running-cost summary for
+  the active vehicle, pulled from LubeLogger's own aggregate numbers: total cost
+  of ownership (the sum of its fuel, service, repair, upgrade, and tax costs), a
+  per-category cost breakdown (zero-record categories hidden), the last reported
+  odometer, an optional purchase-price line, and a compact reminder summary that
+  links through to Maintenance. Reachable from the drawer (between Maintenance
+  and Vehicles) and via the vehicle picker round-trip. Online-only, like the
+  Maintenance page — no local cache.
 
 ### Changed
 

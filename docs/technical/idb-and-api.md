@@ -205,6 +205,44 @@ Primitives are JSON-typed; dates ISO. Page-side render logic uses
 `userMetric` to decide which due-side fields are meaningful — see
 [`maintenance-page.md`](./maintenance-page.md).
 
+### `GET /api/vehicle/info?vehicleId=<id>`
+
+Source: `src/routes/api/vehicle/info/+server.ts`. Backs the `/stats` page —
+see [`stats-page.md`](./stats-page.md).
+
+| Field | Value |
+|---|---|
+| Request | Query: `vehicleId` (required, finite number). |
+| Cache | None — every request hits LubeLogger (matches `reminders` / `last-fuelup`). |
+| Response 200 | `VehicleInfo` — the **unwrapped** object (LubeLogger returns a 1-element array; the client unwraps `[0]`). |
+| Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
+| Response 502 | `{ error: string }` — any `LubeLoggerError`, including an empty / malformed upstream array (matches the `reminders` route's blanket-502 pattern). |
+| Response 500 | `{ error: string }` — anything else thrown. |
+
+`VehicleInfo` shape (`src/lib/server/lubelogger.ts`) — typed under `culture-invariant: true`:
+
+```ts
+interface VehicleInfo {
+  vehicleData: Vehicle;                 // reuses the loose Vehicle type
+  gasRecordCount: number;     gasRecordCost: number;
+  serviceRecordCount: number; serviceRecordCost: number;
+  repairRecordCount: number;  repairRecordCost: number;
+  upgradeRecordCount: number; upgradeRecordCost: number;
+  taxRecordCount: number;     taxRecordCost: number;
+  lastReportedOdometer: number;
+  pastDueReminderCount: number;
+  veryUrgentReminderCount: number;
+  urgentReminderCount: number;
+  notUrgentReminderCount: number;
+  nextReminder: Reminder | null;        // object when reminders exist, else null
+}
+```
+
+Costs are in the LubeLogger instance currency. `plan*` counts exist upstream
+but are intentionally not modelled. Page-side display math (TCO sum, zero-row
+drop, reminder summary) lives in `src/lib/client/stats.ts` — see
+[`stats-page.md`](./stats-page.md).
+
 ### `GET /api/fx?from=<code>&to=<code>`
 
 Source: `src/routes/api/fx/+server.ts`. Backed by `CurrencyService` —
@@ -415,6 +453,7 @@ handler) exposes three methods mapped to LubeLogger's REST API:
 | `listVehicles()` | `GET /api/vehicles` | `Vehicle[]` |
 | `listGasRecords(vehicleId)` | `GET /api/vehicle/gasrecords?vehicleId=N` | `GasRecord[]` |
 | `listReminders(vehicleId)` | `GET /api/vehicle/reminders?vehicleId=N` | `Reminder[]` |
+| `getVehicleInfo(vehicleId)` | `GET /api/vehicle/info?vehicleId=N` | `VehicleInfo` (unwrapped from a 1-element array) |
 | `uploadDocument(bytes, filename)` | `POST /api/documents/upload` | `UploadedFile` (`{ name, location, isPending }`) |
 | `addGasRecord(vehicleId, payload, files?)` | `POST .../gasrecords/add` — JSON variant when `files` non-empty, else flat multipart | `void` |
 | `fetchImage(path)` | `GET <path>` (expects `/images/<uuid>.<ext>`) | raw `Response` — caller streams the body, copies `content-type` |

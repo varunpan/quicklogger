@@ -1,8 +1,8 @@
 # App pages
 
-quicklogger has five pages, reachable from the drawer (top-right
-hamburger): **Log Fuel**, **History**, **Maintenance**, **Vehicles**,
-**Settings**. The active page is highlighted in the drawer. This
+quicklogger has six pages, reachable from the drawer (top-right
+hamburger): **Log Fuel**, **History**, **Maintenance**, **Stats**,
+**Vehicles**, **Settings**. The active page is highlighted in the drawer. This
 page walks through each one.
 
 At the bottom of the drawer, a small footer shows the running app
@@ -212,6 +212,45 @@ set, the card hides entirely.
 
 A small "← Back to Log Fuel" link at the bottom returns you to the
 form.
+
+## Stats (`/stats`)
+
+A read-only summary of what a vehicle has cost you, pulled from
+LubeLogger for the active vehicle. Everything here is LubeLogger's own
+numbers — quicklogger only adds them up; there's nothing to edit.
+
+The page shows:
+
+- **Total cost of ownership** — the sum of LubeLogger's fuel, service,
+  repair, upgrade, and tax costs for the vehicle, with the total number
+  of records underneath. Running costs only — a vehicle's purchase
+  price is shown on its own line below the breakdown, and only if you've
+  set one in LubeLogger.
+- **Cost breakdown** — one row per category (Fuel, Service, Repairs,
+  Upgrades, Tax) with its total and record count. Categories with no
+  records are hidden, so you only see what actually applies.
+- **Last reported odometer** — the most recent reading LubeLogger has.
+- **Reminders** — a compact status: a `Past Due` badge and an upcoming
+  count (e.g. **2 Past Due**, **7 upcoming**), with the next reminder on
+  its own line below (`Next: Engine Oil change`). Tap it to jump to the
+  full Maintenance list for the same vehicle.
+
+Like Maintenance and History, a **vehicle card** at the top switches
+which vehicle you're looking at (the picker returns you straight back
+to Stats), and a **Plate + VIN** card sits below it.
+
+States you may see:
+
+- **No records logged for this vehicle yet** — the vehicle has no fuel,
+  service, repair, upgrade, or tax records in LubeLogger, so there's
+  nothing to total.
+- **Couldn't reach LubeLogger right now** — the API call failed. Stats
+  are online-only; nothing is cached locally for this page. The vehicle
+  card still shows so you can switch vehicles or head back.
+- **Pick a vehicle first** — quicklogger doesn't know which vehicle to
+  show. Tap through to `/vehicles` and select one.
+
+A small "← Back to Log Fuel" link at the bottom returns you to the form.
 
 ## History (`/history`)
 
