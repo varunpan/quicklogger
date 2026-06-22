@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Unit price on History cards.** Each `/history` fillup card now shows what a
+  single unit of fuel cost — the as-paid price (`CA$1.45/L`, `$3.15/gal`) and,
+  when you paid in a different currency or unit than your LubeLogger instance,
+  the same price in the instance's basis (`≈ $4.06/gal`). The converted value
+  is computed from a snapshot saved when the fillup syncs, so History stays
+  fully offline and uses the fillup-day exchange rate.
 - **Pinch-zoom & pan while cropping a photo for OCR.** The crop box now stays
   fixed on screen while the photo zooms and pans behind it (the iOS / Google
   Photos cropper feel), so a small region — the pump digits on a 4032 px capture

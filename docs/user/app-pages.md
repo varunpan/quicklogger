@@ -272,6 +272,12 @@ Each card shows:
   (`May 12, 2026 · yesterday`, `Apr 7, 2026 · 36 days ago`).
 - **Odometer reading**.
 - **Volume + cost line** — formatted as `14.279 gal · USD 50.96`.
+- **Unit price** — what one unit cost: the as-paid price (e.g.
+  `CA$1.45/L` or `$3.15/gal`). When you paid in a different currency or
+  unit than your LubeLogger instance, a second value shows the same price
+  in the instance's basis (`≈ $4.06/gal`); the `≈` marks a currency
+  conversion. A foreign-currency fillup logged offline shows the converted
+  value once it syncs.
 - **Fill-to-full** or **Missed fillup** when those flags were set.
 - **note:** the free-text note, when you wrote one.
 - **#tag chips** when you tagged the entry.

@@ -281,3 +281,40 @@ test('vehicle picker filters and round-trips through /vehicles', async ({ page }
   await expect(page.getByText(/sienna note/)).toBeVisible();
   await expect(page.getByText(/accord note/)).not.toBeVisible();
 });
+
+test('USD/gal card shows a single $/gal unit price, no converted half', async ({ page }) => {
+  await pinClock(page, '2026-06-22T10:00:00');
+  await mockVehiclesOnly(page);
+  await seedQueueEntry(page, {
+    input: {
+      vehicleId: 1, date: '2026-03-01', odometer: 9740,
+      volume: 11.544, volumeUnit: 'gal', cost: 36.35, currency: 'USD',
+      isFillToFull: true, missedFuelup: false, clientSubmissionId: 'up-usd'
+    },
+    status: 'synced'
+  });
+  await gotoHistoryViaDrawer(page);
+
+  const card = page.locator('[data-testid="fillup-card"]');
+  await expect(card).toContainText('$3.15/gal');
+  await expect(card).not.toContainText('≈'); // no currency conversion
+});
+
+test('CAD/L card shows actual + converted halves with the ≈ marker', async ({ page }) => {
+  await pinClock(page, '2026-06-22T10:00:00');
+  await mockVehiclesOnly(page);
+  await seedQueueEntry(page, {
+    input: {
+      vehicleId: 1, date: '2026-06-18', odometer: 10140,
+      volume: 40.0, volumeUnit: 'L', cost: 60.0, currency: 'CAD',
+      isFillToFull: true, missedFuelup: false, clientSubmissionId: 'up-cad'
+    },
+    status: 'synced',
+    converted: { cost: 42.3, currency: 'USD' }
+  });
+  await gotoHistoryViaDrawer(page);
+
+  const card = page.locator('[data-testid="fillup-card"]');
+  await expect(card).toContainText('CA$1.50/L');
+  await expect(card).toContainText('≈ $4.00/gal');
+});

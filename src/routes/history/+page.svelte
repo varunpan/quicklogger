@@ -1,10 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Queue, type QueueEntry } from '$lib/client/idb';
-  import { formatIsoDate, formatOdometer, formatCost } from '$lib/client/format';
+  import { formatIsoDate, formatOdometer, formatCost, effectiveCurrencyCode } from '$lib/client/format';
+  import { unitPriceDisplay } from '$lib/client/unit-price';
   import VehicleImage from '$lib/client/VehicleImage.svelte';
 
   let { data } = $props();
+
+  // Instance currency for the needsConversion comparison. Read on the client
+  // (localStorage); SSR returns the 'USD' fallback but the {#each} only renders
+  // after onMount, on the client instance.
+  const instanceCurrency = effectiveCurrencyCode();
 
   let allEntries: QueueEntry[] = $state([]);
   let loading: boolean = $state(true);
@@ -104,6 +110,7 @@
 {:else}
   {#each visible as entry (entry.id)}
     {@const tagList = tagsOf(entry.input.tags)}
+    {@const unitPrice = unitPriceDisplay(entry.input, entry.converted, instanceCurrency)}
     <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-2" data-testid="fillup-card">
       <div class="flex items-center gap-2">
         {#if entry.status === 'queued'}
@@ -122,6 +129,9 @@
       </div>
       <div class="text-sm text-zinc-300 mt-0.5">
         {fuelCostLine(entry.input)}
+      </div>
+      <div class="text-sm text-zinc-400 mt-0.5" data-testid="unit-price">
+        {unitPrice.actual}{#if unitPrice.converted}<span class="text-zinc-500"> · {unitPrice.converted}</span>{/if}
       </div>
       {#if entry.input.isFillToFull}
         <div class="text-xs text-zinc-400 mt-1">Fill-to-full</div>

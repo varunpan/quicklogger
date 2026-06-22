@@ -34,6 +34,7 @@ interface QueueEntry {
   attempts: number;
   enqueuedAt: number;
   lastError?: string;
+  converted?: ConvertedSnapshot;  // converted-cost snapshot, see fillup-unit-price.md
 }
 ```
 
@@ -84,6 +85,7 @@ Page-local state:
 | Pre-v0.1.3 submissions | Don't appear. | They never landed in IDB — footer disclaimer sets expectation. |
 | LubeLogger-direct submissions | Don't appear. | Same disclaimer. Merging with upstream `GasRecord[]` is an explicit non-goal. |
 | Failed rows with no retry UI | The card surfaces `lastError` and `attempts`; user must dismiss via dev tools. | Retry / dismiss controls are an explicit out-of-scope follow-up. |
+| Cross-currency row, not yet synced | Actual unit price only; converted half appears after sync. | The snapshot is written at sync time; a queued row has none yet. |
 
 ## Non-obvious decisions
 
@@ -133,3 +135,4 @@ month names.
 - [`idb-and-api.md`](./idb-and-api.md) — IDB store + `QueueEntry` shape.
 - [`offline-queue.md`](./offline-queue.md) — how entries reach the store and what triggers status changes.
 - [`maintenance-page.md`](./maintenance-page.md) — the page this one mirrors structurally.
+- [`fillup-unit-price.md`](./fillup-unit-price.md) — the unit-price line, snapshot, and conditional rule.

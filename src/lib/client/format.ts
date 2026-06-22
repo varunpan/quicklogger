@@ -11,7 +11,7 @@ function effectiveLocale(): string {
   return loadServerInfo()?.locale ?? 'en-US';
 }
 
-function effectiveCurrencyCode(): string {
+export function effectiveCurrencyCode(): string {
   return loadServerInfo()?.lubeloggerCurrency ?? 'USD';
 }
 

@@ -140,6 +140,7 @@ export async function seedQueueEntry(
     enqueuedAt?: number;
     attempts?: number;
     lastError?: string;
+    converted?: { cost: number; currency: string };
   }
 ) {
   await page.addInitScript(async (e) => {
@@ -165,6 +166,7 @@ export async function seedQueueEntry(
           enqueuedAt: e.enqueuedAt ?? Date.now()
         };
         if (e.lastError !== undefined) row.lastError = e.lastError;
+        if (e.converted !== undefined) row.converted = e.converted;
         tx.objectStore('pendingSubmissions').add(row);
         tx.oncomplete = () => {
           db.close();
