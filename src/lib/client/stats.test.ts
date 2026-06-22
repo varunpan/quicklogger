@@ -67,7 +67,7 @@ describe('costRows', () => {
 });
 
 describe('reminderSummary', () => {
-  it('computes pastDue, upcoming (very+urgent+notUrgent), and next description', () => {
+  it('computes pastDue and upcoming (very+urgent+notUrgent)', () => {
     const s = reminderSummary(
       makeInfo({
         pastDueReminderCount: 2,
@@ -82,7 +82,8 @@ describe('reminderSummary', () => {
         }
       })
     );
-    expect(s).toEqual({ pastDue: 2, upcoming: 11, nextDescription: 'Engine Oil change' });
+    // nextReminder is deliberately ignored — see reminderSummary's docstring.
+    expect(s).toEqual({ pastDue: 2, upcoming: 11 });
   });
   it('returns null when there are no reminders at all', () => {
     expect(
@@ -91,18 +92,19 @@ describe('reminderSummary', () => {
       )
     ).toBeNull();
   });
-  it('returns a summary when only a nextReminder exists', () => {
-    const s = reminderSummary(
-      makeInfo({
-        pastDueReminderCount: 0, veryUrgentReminderCount: 0, urgentReminderCount: 0, notUrgentReminderCount: 0,
-        nextReminder: {
-          vehicleId: 1, id: 1, description: 'Tire Rotation',
-          urgency: 'NotUrgent', metric: 'Odometer', userMetric: 'Odometer',
-          notes: null, dueDate: '2026-10-03', dueOdometer: 112552, dueDays: 0, dueDistance: 3000, tags: ''
-        }
-      })
-    );
-    expect(s).toEqual({ pastDue: 0, upcoming: 0, nextDescription: 'Tire Rotation' });
+  it('returns null when a nextReminder exists but every count is 0 (counts drive the card)', () => {
+    expect(
+      reminderSummary(
+        makeInfo({
+          pastDueReminderCount: 0, veryUrgentReminderCount: 0, urgentReminderCount: 0, notUrgentReminderCount: 0,
+          nextReminder: {
+            vehicleId: 1, id: 1, description: 'Tire Rotation',
+            urgency: 'NotUrgent', metric: 'Odometer', userMetric: 'Odometer',
+            notes: null, dueDate: '2026-10-03', dueOdometer: 112552, dueDays: 0, dueDistance: 3000, tags: ''
+          }
+        })
+      )
+    ).toBeNull();
   });
 });
 

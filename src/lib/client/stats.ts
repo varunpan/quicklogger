@@ -46,19 +46,23 @@ export function costRows(info: VehicleInfo): CostRow[] {
 export interface ReminderSummary {
   pastDue: number;
   upcoming: number;
-  nextDescription: string | null;
 }
 
-/** Summary for the compact reminder line. `upcoming` is everything not past-due
- *  (very-urgent + urgent + not-urgent). Returns null when the vehicle has no
- *  reminders at all, so the page can hide the line. */
+/** Counts for the compact reminder line: how many reminders are past due and
+ *  how many are upcoming (very-urgent + urgent + not-urgent). We intentionally
+ *  do NOT surface `nextReminder` here — LubeLogger's "next" is the next
+ *  *upcoming* reminder and skips past-due items, so showing it beside a
+ *  "past due" badge read as "that reminder is past due" when it wasn't (e.g. an
+ *  oil change due in months under a brake-fluid past-due count). The card shows
+ *  counts only and links to /maintenance for the detail. Returns null when the
+ *  vehicle has no past-due or upcoming reminders, so the page can hide the
+ *  line. */
 export function reminderSummary(info: VehicleInfo): ReminderSummary | null {
   const pastDue = info.pastDueReminderCount;
   const upcoming =
     info.veryUrgentReminderCount + info.urgentReminderCount + info.notUrgentReminderCount;
-  const nextDescription = info.nextReminder?.description ?? null;
-  if (pastDue === 0 && upcoming === 0 && !nextDescription) return null;
-  return { pastDue, upcoming, nextDescription };
+  if (pastDue === 0 && upcoming === 0) return null;
+  return { pastDue, upcoming };
 }
 
 /** Vehicle purchase price, only when it's a positive number. `vehicleData` is

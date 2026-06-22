@@ -66,10 +66,14 @@ test('renders the TCO headline, cost breakdown, odometer, and reminder line', as
   // Last odometer.
   await expect(page.getByText('111,180 mi')).toBeVisible();
 
-  // Reminder summary line.
+  // Reminder summary line — counts only. The named "Next:" reminder was removed:
+  // LubeLogger's nextReminder is the next *upcoming* item and skips past-due
+  // ones, so showing it beside the "Past Due" badge read as "that reminder is
+  // past due" when it wasn't. The card shows counts + a Maintenance link.
   await expect(page.getByText('2 Past Due')).toBeVisible();
   await expect(page.getByText('7 upcoming')).toBeVisible();
-  await expect(page.getByText('Next: Engine Oil change')).toBeVisible();
+  await expect(page.getByText('View in Maintenance')).toBeVisible();
+  await expect(page.getByText(/Next:/)).not.toBeVisible();
 
   await expect(page.getByRole('link', { name: /Back to Log Fuel/i })).toBeVisible();
 });

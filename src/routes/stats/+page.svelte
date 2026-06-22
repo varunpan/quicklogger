@@ -118,9 +118,7 @@
               <span class="text-xs text-zinc-500">{reminders.upcoming} upcoming</span>
             {/if}
           </div>
-          {#if reminders.nextDescription}
-            <div class="text-sm text-zinc-300 mt-1.5 truncate">Next: {reminders.nextDescription}</div>
-          {/if}
+          <div class="text-sm text-zinc-400 mt-1.5">View in Maintenance</div>
         </div>
         <span class="text-zinc-500" aria-hidden="true">›</span>
       </a>

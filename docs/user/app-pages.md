@@ -230,10 +230,12 @@ The page shows:
   Upgrades, Tax) with its total and record count. Categories with no
   records are hidden, so you only see what actually applies.
 - **Last reported odometer** — the most recent reading LubeLogger has.
-- **Reminders** — a compact status: a `Past Due` badge and an upcoming
-  count (e.g. **2 Past Due**, **7 upcoming**), with the next reminder on
-  its own line below (`Next: Engine Oil change`). Tap it to jump to the
-  full Maintenance list for the same vehicle.
+- **Reminders** — a compact status showing how many reminders are
+  `Past Due` and how many are upcoming (e.g. **2 Past Due**, **7 upcoming**).
+  Tap it to jump to the full Maintenance list for the same vehicle, which
+  names each one. (It deliberately doesn't name a single reminder here —
+  LubeLogger's "next" reminder is the next *upcoming* one, so showing it
+  beside the Past Due badge made an upcoming item look overdue.)
 
 Like Maintenance and History, a **vehicle card** at the top switches
 which vehicle you're looking at (the picker returns you straight back
