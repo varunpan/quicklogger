@@ -1,4 +1,5 @@
-import { Queue } from './idb';
+import { Queue, type ConvertedSnapshot } from './idb';
+import { loadServerInfo } from './server-info';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 /**
@@ -45,7 +46,27 @@ export async function syncQueue(dbName?: string): Promise<void> {
           body: JSON.stringify(entry.input satisfies FuelSubmissionInput)
         });
         if (res.ok) {
-          await q.markSynced(entry.id);
+          // Save the converted snapshot from the response body so the
+          // cross-currency unit price renders on /history.
+          //
+          // KNOWN LIMITATION (issue #57): this loop runs in the SERVICE WORKER,
+          // which has no localStorage, so loadServerInfo() returns null and the
+          // currency resolves to the 'USD' fallback. Correct for a USD instance;
+          // the general fix is to carry the instance currency in the response body.
+          //
+          // A missing/invalid body is non-fatal: the row still advances to
+          // 'synced'; the converted half just stays absent.
+          let snapshot: ConvertedSnapshot | undefined;
+          try {
+            const body = await res.json();
+            const cost = body?.submitted?.cost;
+            if (typeof cost === 'number') {
+              snapshot = { cost, currency: loadServerInfo()?.lubeloggerCurrency ?? 'USD' };
+            }
+          } catch {
+            // Non-JSON / empty body → advance status without a snapshot.
+          }
+          await q.markSynced(entry.id, snapshot);
         } else if (res.status >= 400 && res.status < 500) {
           await q.markFailed(entry.id, `${res.status}`);
         }

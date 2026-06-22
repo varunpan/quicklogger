@@ -156,7 +156,13 @@ For every entry returned by `Queue.list()`:
 4. `POST /api/fuelup` with `application/json` body = the stored
    `FuelSubmissionInput`.
 5. Branching on the response:
-   - `res.ok` (2xx) → `Queue.markSynced(entry.id)`.
+   - `res.ok` (2xx) → `Queue.markSynced(entry.id, snapshot)`, where `snapshot`
+     is `{ cost, currency }` — `cost` from `submitted.cost` in the response body,
+     `currency` from `loadServerInfo()?.lubeloggerCurrency ?? 'USD'`. ⚠️ This loop
+     runs in the service worker, which has no `localStorage`, so the currency is
+     always the `'USD'` fallback (correct for a USD instance; tracked in
+     [#57](https://github.com/varunpan/quicklogger/issues/57)). A non-JSON / empty
+     body is non-fatal — the row still advances to `'synced'`, just without the snapshot.
    - `res.status >= 400 && res.status < 500` → `Queue.markFailed(entry.id, ${res.status})`.
    - Anything else (5xx) → no transition; entry stays `'queued'` for
      the next trigger. The attempt is consumed — the server was reached

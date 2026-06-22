@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
   import { Queue } from '$lib/client/idb';
+  import { toGallons } from '$lib/shared/units';
   import { submitFuelup, submitFuelupWithPhotos, getFx, postOcr } from '$lib/client/api';
   import { resizeForOcr } from '$lib/client/image';
   import { bufferPickedPhoto, type BufferedPhoto } from '$lib/client/photo-buffer';
@@ -451,7 +452,7 @@
   const previewGallons = $derived.by(() => {
     const v = Number(volume);
     if (!Number.isFinite(v) || v <= 0) return null;
-    return volumeUnit === 'gal' ? v : v / 3.785411784;
+    return toGallons(v, volumeUnit);
   });
 
   const previewUsd = $derived.by(() => {
@@ -588,7 +589,7 @@
       savePrefs({ lastVehicleId: vehicle.id });
       try {
         const q = await Queue.open();
-        await q.enqueue(input, 'synced');
+        await q.enqueue(input, 'synced', { cost: result.submitted.cost, currency: TARGET_CURRENCY });
       } catch {
         // IDB unavailable (private mode, quota); ignore.
       }

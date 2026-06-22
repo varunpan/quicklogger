@@ -148,4 +148,38 @@ describe('syncQueue', () => {
     expect(entries.filter((e) => e.input.vehicleId === 2)).toHaveLength(1);
     expect(entries.filter((e) => e.status === 'failed')).toHaveLength(1);
   });
+
+  it('persists the converted snapshot from a 2xx JSON body', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ ok: true, submitted: { gallons: 11.2, cost: 47.92 } }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+    // currency is the 'USD' fallback in the test env (no localStorage seeded);
+    // see issue #57 — the SW path can't read the real instance currency.
+    expect(entry.converted).toEqual({ cost: 47.92, currency: 'USD' });
+  });
+
+  it('still syncs (no snapshot) when the 2xx body is not parseable', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    globalThis.fetch = vi.fn(
+      async () => new Response(null, { status: 200 })
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+    expect(entry.converted).toBeUndefined();
+  });
 });
