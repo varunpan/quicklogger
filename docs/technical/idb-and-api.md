@@ -45,6 +45,7 @@ this document under § *LubeLogger upstream calls*.
 | `attempts` | `number` | no | Replay attempt counter, capped at `5`. |
 | `enqueuedAt` | `number` | no | `Date.now()` at enqueue time (ms epoch). |
 | `lastError` | `string` | yes | Response status string on failed replay (set by `markFailed`). |
+| `converted` | `{ cost: number; currency: string }` | yes | Conversion snapshot saved at sync time: the converted total cost + instance currency. Powers the cross-currency unit price on `/history`. Absent on pre-feature rows and never-synced rows. |
 
 ### Consumers
 
@@ -79,11 +80,11 @@ Source: `src/lib/shared/types.ts`.
 | Method | Effect |
 |---|---|
 | `Queue.open(name?)` | Open / create the DB. Default name `quicklogger`. |
-| `enqueue(input, status?)` | Insert a row. Default status `'queued'`. |
+| `enqueue(input, status?, converted?)` | Insert a row. Default status `'queued'`. Stores `converted` when provided. |
 | `list()` | Return every row in the store. |
 | `remove(id)` | Delete a row. Called by `pruneSynced`; also covered directly by `idb.test.ts`. |
 | `markFailed(id, error)` | Set status `'failed'` and `lastError = error`. No-op if id missing. |
-| `markSynced(id)` | Set status `'synced'`. No-op if id missing. |
+| `markSynced(id, converted?)` | Set status `'synced'`; store `converted` when provided. No-op if id missing. |
 | `incrementAttempts(id)` | `attempts += 1`. No-op if id missing. |
 | `decrementAttempts(id)` | `attempts -= 1` (floored at 0). Reverts the pre-fetch bump after a network error. No-op if id missing. |
 | `pruneSynced(keepPerVehicle)` | Delete all but the newest N `'synced'` rows per vehicle (newest by `enqueuedAt`, ties by `id`). Run at the end of every `syncQueue` drain. |

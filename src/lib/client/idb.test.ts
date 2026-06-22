@@ -73,4 +73,32 @@ describe('Queue', () => {
     const [entry] = await q.list();
     expect(entry.status).toBe('queued');
   });
+
+  it('enqueue persists a converted snapshot when provided', async () => {
+    await q.enqueue(baseInput, 'synced', { cost: 47.92, currency: 'USD' });
+    const [entry] = await q.list();
+    expect(entry.converted).toEqual({ cost: 47.92, currency: 'USD' });
+  });
+
+  it('enqueue stores no converted field when the snapshot is omitted', async () => {
+    await q.enqueue(baseInput, 'synced');
+    const [entry] = await q.list();
+    expect(entry.converted).toBeUndefined();
+  });
+
+  it('markSynced persists a converted snapshot when provided', async () => {
+    const id = await q.enqueue(baseInput);
+    await q.markSynced(id, { cost: 47.92, currency: 'USD' });
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+    expect(entry.converted).toEqual({ cost: 47.92, currency: 'USD' });
+  });
+
+  it('markSynced without a snapshot leaves converted undefined', async () => {
+    const id = await q.enqueue(baseInput);
+    await q.markSynced(id);
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+    expect(entry.converted).toBeUndefined();
+  });
 });

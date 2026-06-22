@@ -8,6 +8,16 @@ import type { FuelSubmissionInput } from '$lib/shared/types';
 // devices stay intact.
 export type QueueStatus = 'queued' | 'failed' | 'synced';
 
+// Server-derived conversion snapshot, saved onto the row at sync time so
+// /history can render the cross-currency unit price fully offline. NOT part
+// of FuelSubmissionInput — it is not user input. See docs/technical/fillup-unit-price.md.
+export interface ConvertedSnapshot {
+  /** Converted total cost in the instance currency (server `submitted.cost`). */
+  cost: number;
+  /** Instance currency code at sync time. */
+  currency: string;
+}
+
 export interface QueueEntry {
   id: number;
   input: FuelSubmissionInput;
@@ -15,6 +25,7 @@ export interface QueueEntry {
   attempts: number;
   enqueuedAt: number;
   lastError?: string;
+  converted?: ConvertedSnapshot;
 }
 
 const STORE = 'pendingSubmissions';
@@ -40,8 +51,13 @@ export class Queue {
 
   private constructor(private readonly db: IDBPDatabase<DbSchema>) {}
 
-  async enqueue(input: FuelSubmissionInput, status: QueueStatus = 'queued'): Promise<number> {
-    const entry = { input, status, attempts: 0, enqueuedAt: Date.now() };
+  async enqueue(
+    input: FuelSubmissionInput,
+    status: QueueStatus = 'queued',
+    converted?: ConvertedSnapshot
+  ): Promise<number> {
+    const entry: Omit<QueueEntry, 'id'> = { input, status, attempts: 0, enqueuedAt: Date.now() };
+    if (converted) entry.converted = converted;
     return await this.db.add(STORE, entry) as number;
   }
 
@@ -61,10 +77,11 @@ export class Queue {
     await this.db.put(STORE, entry);
   }
 
-  async markSynced(id: number): Promise<void> {
+  async markSynced(id: number, converted?: ConvertedSnapshot): Promise<void> {
     const entry = await this.db.get(STORE, id) as QueueEntry | undefined;
     if (!entry) return;
     entry.status = 'synced';
+    if (converted) entry.converted = converted;
     await this.db.put(STORE, entry);
   }
 
