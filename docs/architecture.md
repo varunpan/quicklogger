@@ -36,7 +36,7 @@ The system has three surfaces:
 
 Every server module is pure and unit-testable; I/O is centralized in `env.ts` and `lubelogger.ts`.
 
-### Units conversion (`src/lib/server/units.ts`)
+### Units conversion (`src/lib/shared/units.ts`)
 
 Pure helpers between US gallons and liters. The constant `GAL_TO_L = 3.785411784` is the exact definitional ratio (US gallon, NIST). `toGallons(value, unit)` / `toLiters(value, unit)` accept `'gal' | 'L'`. Negative inputs throw `RangeError`; unknown units throw `TypeError`. No external dependencies.
 

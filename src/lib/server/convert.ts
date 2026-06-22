@@ -1,4 +1,4 @@
-import { toGallons, type VolumeUnit } from './units';
+import { toGallons, type VolumeUnit } from '$lib/shared/units';
 import type { CurrencyService } from './currency';
 
 export interface FuelInput {
