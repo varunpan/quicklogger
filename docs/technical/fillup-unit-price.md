@@ -35,11 +35,15 @@ interface ConvertedSnapshot { cost: number; currency: string }
 ## Lifecycle / control flow
 
 1. **Submit (online).** `+page.svelte` POSTs, then
-   `q.enqueue(input, 'synced', { cost: submitted.cost, currency: TARGET_CURRENCY })`.
-   `TARGET_CURRENCY` is the instance currency read on the page.
+   `q.enqueue(input, 'synced', { cost: submitted.cost, currency: submitted.currency })`.
+   Both halves come from the response body — the page does not read its own
+   instance-currency copy for the snapshot.
 2. **Submit (offline).** `q.enqueue(input)` as `'queued'` — no snapshot yet.
 3. **Replay (service worker).** `sync-queue.ts` POSTs each queued row; on 2xx it
-   parses `submitted.cost` from the body and `q.markSynced(id, { cost, currency })`.
+   parses `submitted.cost` and `submitted.currency` from the body and
+   `q.markSynced(id, { cost, currency })`. The currency comes from the response
+   because the SW has no `localStorage` (issue #57); both fields are required or
+   no snapshot is saved.
 4. **Render.** `/history` reads `effectiveCurrencyCode()` (page context), calls
    `unitPriceDisplay(entry.input, entry.converted, instanceCurrency)`.
 
@@ -51,7 +55,7 @@ interface ConvertedSnapshot { cost: number; currency: string }
 | Currency matches, unit differs (USD·L on USD) | Converted half from pure math; **no** `≈`. |
 | Currency differs, snapshot present (CAD·L on USD) | `CA$x/L · ≈ $y/gal`. |
 | Currency differs, snapshot absent (queued, pre-sync) | Actual only; converted half appears once synced. |
-| `submitted.cost` missing/invalid in replay body | Row still `'synced'`; converted half stays absent (no throw). |
+| `submitted.cost`/`currency` missing/invalid in replay body | Row still `'synced'`; converted half stays absent (no throw — both fields required). |
 | `volume <= 0` | `formatCost` returns `''` (finite guard); unit price reads as `/unit`. Not reachable from the form (volume > 0 enforced). |
 
 ## Non-obvious decisions
@@ -64,21 +68,13 @@ interface ConvertedSnapshot { cost: number; currency: string }
    app already assumes gallons. This feature matches that assumption.
 3. **`≈` marks a currency conversion only.** Unit-only conversions are exact, so
    they render without `≈`.
-
-## Known limitation — offline-replay currency (issue #57)
-
-The two write sites resolve the snapshot currency differently:
-
-- **Online** (`+page.svelte`, runs on the page): reads the real instance
-  currency from `localStorage` (`TARGET_CURRENCY` / `effectiveCurrencyCode()`).
-- **Offline replay** (`sync-queue.ts`, runs in the **service worker**): the SW
-  has no `localStorage`, so `loadServerInfo()` returns `null` and the currency
-  falls back to `'USD'`.
-
-Correct for the current USD instance; for a non-USD instance an offline-then-
-replayed cross-currency fillup would be mis-labelled. The fix — carry the
-instance currency in the `/api/fuelup` response body — is tracked in
-[#57](https://github.com/varunpan/quicklogger/issues/57).
+4. **Currency is server-authoritative (issue #57).** Both write sites take the
+   instance currency from the `/api/fuelup` response (`submitted.currency`), not
+   from client config. The replay loop runs in the **service worker**, which has
+   no `localStorage`, so carrying the currency in the response body is the only
+   SW-safe source; the online path uses the same field for symmetry. (Earlier the
+   offline path fell back to `'USD'` via `loadServerInfo()` — correct only on a
+   USD instance.)
 
 ## Cross-references
 

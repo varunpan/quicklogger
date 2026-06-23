@@ -289,12 +289,18 @@ IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-
   "submitted": {
     "gallons": 11.23,
     "cost": 42.18,
+    "currency": "USD",
     "fxRate": 1.0,
     "fxSource": "frankfurter",
     "fxStale": false
   }
 }
 ```
+
+`submitted.currency` — the instance currency (`LUBELOGGER_CURRENCY`) that `submitted.cost` is
+denominated in. Both snapshot write sites read it from here so the cross-currency unit price on
+`/history` is server-authoritative; the service-worker replay loop has no `localStorage` to read it
+from otherwise (see [`fillup-unit-price.md`](./fillup-unit-price.md), issue #57).
 
 `photoWarning?: string` — present iff attach was requested but ≥1 image did not attach (the record
 was still created).

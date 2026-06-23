@@ -1,5 +1,4 @@
 import { Queue, type ConvertedSnapshot } from './idb';
-import { loadServerInfo } from './server-info';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 /**
@@ -47,21 +46,22 @@ export async function syncQueue(dbName?: string): Promise<void> {
         });
         if (res.ok) {
           // Save the converted snapshot from the response body so the
-          // cross-currency unit price renders on /history.
-          //
-          // KNOWN LIMITATION (issue #57): this loop runs in the SERVICE WORKER,
-          // which has no localStorage, so loadServerInfo() returns null and the
-          // currency resolves to the 'USD' fallback. Correct for a USD instance;
-          // the general fix is to carry the instance currency in the response body.
+          // cross-currency unit price renders on /history. Both `cost` and
+          // `currency` come from the body: this loop runs in the SERVICE WORKER,
+          // which has no localStorage, so the instance currency MUST be carried
+          // in the response rather than read from client config (issue #57).
           //
           // A missing/invalid body is non-fatal: the row still advances to
-          // 'synced'; the converted half just stays absent.
+          // 'synced'; the converted half just stays absent. Both fields are
+          // required — a body missing either one yields no snapshot rather than
+          // a guessed currency.
           let snapshot: ConvertedSnapshot | undefined;
           try {
             const body = await res.json();
             const cost = body?.submitted?.cost;
-            if (typeof cost === 'number') {
-              snapshot = { cost, currency: loadServerInfo()?.lubeloggerCurrency ?? 'USD' };
+            const currency = body?.submitted?.currency;
+            if (typeof cost === 'number' && typeof currency === 'string') {
+              snapshot = { cost, currency };
             }
           } catch {
             // Non-JSON / empty body → advance status without a snapshot.

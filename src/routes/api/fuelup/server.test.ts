@@ -79,6 +79,26 @@ describe('POST /api/fuelup — culture-invariant write', () => {
     expect(observedCulture).toBe('true');
   });
 
+  it('returns the instance currency in the success body so the SW snapshot is server-authoritative', async () => {
+    upstream.use(
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () =>
+        HttpResponse.json({ success: true })
+      )
+    );
+    const res = await POST(event({
+      vehicleId: 1, date: '2026-05-28', odometer: 87500, volume: 11.2,
+      volumeUnit: 'gal', cost: 42.18, currency: 'USD',
+      isFillToFull: true, missedFuelup: false,
+      clientSubmissionId: '22222222-2222-2222-2222-222222222222'
+    }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // The service-worker replay loop has no localStorage; it builds the
+    // converted-cost snapshot from this field (issue #57). Harness instance
+    // currency is USD (LUBELOGGER_CURRENCY in the beforeAll above).
+    expect(body.submitted.currency).toBe('USD');
+  });
+
   it('multipart with pumpImage uploads it and adds the record via the JSON files variant', async () => {
     let uploadName = '';
     let addCt = '';

@@ -100,6 +100,15 @@ All notable changes to this project are documented here. Format roughly follows 
   on return; only the odometer resets, to the newly-picked vehicle's last
   fill-up. (#50)
 
+- **A fill-up logged offline now shows the right currency on History after it
+  syncs.** When you logged a fill-up in a different currency than your LubeLogger
+  instance while offline, the background sync labelled its converted History
+  price in US dollars regardless of your instance's actual currency — because the
+  background sync (a service worker) can't read the stored instance currency. The
+  instance currency now travels with the submit response, so both online and
+  background-synced fill-ups label the converted price correctly. Harmless on a
+  US-dollar instance (the old fallback happened to match). (#57)
+
 ### Tests
 
 - **Regression guard for the CSS-preload doubling.** `tests/e2e/css-preload.spec.ts`

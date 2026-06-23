@@ -21,6 +21,10 @@ export interface FuelSubmissionResult {
   submitted: {
     gallons: number;
     cost: number;
+    /** Instance currency `cost` is denominated in (ISO 4217). Used by both
+     *  snapshot write sites so the converted unit price is server-authoritative
+     *  and SW-safe — see docs/technical/fillup-unit-price.md. */
+    currency: string;
     fxRate: number;
     fxSource: string;
     fxStale?: boolean;

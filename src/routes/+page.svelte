@@ -589,7 +589,7 @@
       savePrefs({ lastVehicleId: vehicle.id });
       try {
         const q = await Queue.open();
-        await q.enqueue(input, 'synced', { cost: result.submitted.cost, currency: TARGET_CURRENCY });
+        await q.enqueue(input, 'synced', { cost: result.submitted.cost, currency: result.submitted.currency });
       } catch {
         // IDB unavailable (private mode, quota); ignore.
       }

@@ -149,9 +149,34 @@ describe('syncQueue', () => {
     expect(entries.filter((e) => e.status === 'failed')).toHaveLength(1);
   });
 
-  it('persists the converted snapshot from a 2xx JSON body', async () => {
+  it('persists the converted snapshot using the currency from the 2xx JSON body', async () => {
     const q = await Queue.open(dbName);
     await q.enqueue(baseInput);
+    // A non-USD instance currency: proves the snapshot reads `submitted.currency`
+    // from the response body and is NOT the old 'USD' fallback. The service
+    // worker has no localStorage, so the currency must come from the body — the
+    // regression guard for issue #57.
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ ok: true, submitted: { gallons: 11.2, cost: 47.92, currency: 'CAD' } }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+    expect(entry.converted).toEqual({ cost: 47.92, currency: 'CAD' });
+  });
+
+  it('omits the snapshot when the 2xx body has a cost but no currency', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    // Both cost and currency are required to build a snapshot; a body missing
+    // currency advances the row to 'synced' without a converted half rather
+    // than guessing the currency.
     globalThis.fetch = vi.fn(
       async () =>
         new Response(
@@ -164,9 +189,7 @@ describe('syncQueue', () => {
 
     const [entry] = await q.list();
     expect(entry.status).toBe('synced');
-    // currency is the 'USD' fallback in the test env (no localStorage seeded);
-    // see issue #57 — the SW path can't read the real instance currency.
-    expect(entry.converted).toEqual({ cost: 47.92, currency: 'USD' });
+    expect(entry.converted).toBeUndefined();
   });
 
   it('still syncs (no snapshot) when the 2xx body is not parseable', async () => {

@@ -263,6 +263,11 @@ async function submitToLubeLogger(
         submitted: {
           gallons: conv.gallons,
           cost: conv.cost,
+          // Instance currency `conv.cost` is denominated in (the conversion's
+          // targetCurrency). Carried in the response so the service-worker
+          // replay loop — which has no localStorage — can build the converted
+          // snapshot without reading client config (issue #57).
+          currency: env.lubeloggerCurrency,
           fxRate: conv.fxRate,
           fxSource: conv.fxSource,
           fxStale: conv.fxStale
