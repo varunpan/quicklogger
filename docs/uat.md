@@ -268,3 +268,33 @@ releases (v0.2.x).
 - [ ] Switch to a vehicle whose `extraFields` has no `VIN` row (or one with an empty value). Reload. Confirm only the plate row renders.
 - [ ] Switch to a vehicle missing both. Confirm no card renders at all — page reverts to picker → reminders.
 - [ ] With LubeLogger upstream down: confirm the existing "Couldn't reach LubeLogger" banner shows and the Plate + VIN card hides (no vehicle data to draw from).
+
+## Unit price on History cards (v0.3.0)
+
+`/history` shows only fillups logged through this PWA on this device, so test
+against fillups logged here. The unit-price line sits beneath each card's
+volume·cost line (`data-testid="unit-price"`), with the converted half dimmed
+after a ` · ` separator.
+
+- [ ] Open `/history`. Every fillup card shows a unit-price line in the **logged**
+      currency + unit (e.g. `CA$1.45/L`, `$3.15/gal`). Actual price is
+      `cost ÷ volume` — eyeball one against the card's volume·cost line.
+- [ ] **Instance basis (no conversion).** A fillup in gallons + your instance
+      currency (e.g. USD·gal on a USD instance) shows a **single** value —
+      actual only, no ` · ` second half.
+- [ ] **Unit-only difference.** A fillup in litres with the instance currency
+      (USD·L on USD) shows `$x/L · $y/gal` — converted half present but with
+      **no** `≈` (exact arithmetic, no FX).
+- [ ] **Cross-currency (snapshot).** With the app online, log a **new** fillup in
+      a currency different from the instance (e.g. CAD on a USD instance), let it
+      submit, then open `/history` → that card shows `CA$x/L · ≈ $y/gal`. The `≈`
+      marks a currency conversion, at the **fillup-day** rate (not today's).
+- [ ] **Pre-sync graceful degradation.** A cross-currency fillup still **queued**
+      (logged offline, not yet synced) shows the actual line **only** — no
+      converted half, no error. The `≈ $y/gal` half appears once it syncs.
+- [ ] **Offline → replay.** Log a cross-currency fillup with the device offline
+      (it queues, actual-only), then go back online so the queue replays → reopen
+      `/history` and confirm the `≈ $y/gal` half is now present. (Snapshot currency
+      is correct on a USD instance; non-USD has a known gap — issue #57.)
+- [ ] **Regression.** Rest of each card (date, odometer, volume·cost, "Missed
+      fillup" badge) unchanged; `/maintenance`, `/settings`, `/stats` unaffected.
