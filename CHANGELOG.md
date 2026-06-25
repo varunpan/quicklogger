@@ -86,6 +86,14 @@ All notable changes to this project are documented here. Format roughly follows 
   `@sveltejs/kit` is pinned to 2.64.0 until the upstream fix (#16026) ships in a
   release. Caught by the new `compose.dev.yml` prod-mirror.
 
+- **Cleared the open development-dependency security advisories.** Bumped two
+  transitive, build/test-only dependencies past their patched releases via npm
+  `overrides` — `undici` (≥ 7.28.0, pulled in by `jsdom`) and `cookie` (≥ 0.7.0,
+  pulled in by SvelteKit) — which resolves 7 of the 10 outstanding Dependabot
+  alerts. The remaining 3 (against `vite` and `@sveltejs/kit`) were already fixed
+  earlier in this release and close when it ships. None of the affected packages
+  are part of the shipped runtime, so the deployed app was never exposed.
+
 - **The notes field no longer zooms the page on iOS Safari.** Tapping the
   "Note · station · grade" field triggered mobile Safari's auto-zoom — which
   never zoomed back out — because the field rendered at 14px (`text-sm`), and

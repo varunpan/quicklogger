@@ -52,6 +52,12 @@
 		"vitest": "^4.1.9"
 	},
 	"overrides": {
-		"devalue": "^5.8.1"
+		"devalue": "^5.8.1",
+		"jsdom": {
+			"undici": "^7.28.0"
+		},
+		"@sveltejs/kit": {
+			"cookie": "^0.7.0"
+		}
 	}
 }
