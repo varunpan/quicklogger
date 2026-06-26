@@ -2,7 +2,7 @@
 
 Mobile-first PWA for logging fuel fill-ups to a self-hosted [LubeLogger](https://lubelogger.com) instance.
 
-> **Status:** v0.2.10 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
+> **Status:** v0.3.0 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
 
 ## Built with Claude Code
 
@@ -42,6 +42,12 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
     <td><img src="docs/screenshots/vehicles.jpeg" alt="Vehicle picker" width="240"></td>
     <td><img src="docs/screenshots/settings.jpeg" alt="Settings" width="240"></td>
     <td><img src="docs/screenshots/photo-preview.jpeg" alt="Photo preview before OCR" width="240"></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="3"><strong>Stats</strong></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="3"><img src="docs/screenshots/stats.jpeg" alt="Per-vehicle Stats" width="240"></td>
   </tr>
 </table>
 
