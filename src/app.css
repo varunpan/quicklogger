@@ -1,4 +1,9 @@
-@import 'tailwindcss';
+/* Scope Tailwind v4's automatic class detection to src/ only. By default it
+   scans the whole project (the cwd), which pulls in non-source files like the
+   compose YAMLs and turns their config tokens into invalid utility classes that
+   browsers drop with a console warning. All app markup lives in src/, so this
+   is both correct and removes that noise. */
+@import 'tailwindcss' source('../src');
 
 :root {
   color-scheme: dark light;
