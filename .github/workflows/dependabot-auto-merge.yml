@@ -25,7 +25,7 @@ jobs:
     steps:
       - name: Fetch Dependabot metadata
         id: meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
       - name: Enable auto-merge for github-actions updates
         if: ${{ steps.meta.outputs.package-ecosystem == 'github_actions' }}
         run: gh pr merge --auto --rebase "$PR_URL"
