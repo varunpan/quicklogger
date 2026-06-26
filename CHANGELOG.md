@@ -39,6 +39,12 @@ All notable changes to this project are documented here. Format roughly follows 
   links through to Maintenance. Reachable from the drawer (between Maintenance
   and Vehicles) and via the vehicle picker round-trip. Online-only, like the
   Maintenance page — no local cache.
+- **Installed PWA now shows an app icon.** Adding QuickLogger to a phone home
+  screen — or installing it as a desktop PWA — now displays a proper app icon
+  instead of the browser's generic fallback. The web manifest had carried no
+  icons since the placeholder references were dropped (#3) pending real art; it
+  now ships a full set of PNG home-screen / install icons and displays the app
+  as "QuickLogger". Our first community contribution — thanks @Zeromark30! (#58)
 
 ### Changed
 
