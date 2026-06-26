@@ -8,6 +8,14 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- **Re-bumped `@sveltejs/kit` to 2.68.0, dropping the temporary 2.64.0 pin.**
+  v0.3.0 pinned kit to 2.64.0 to dodge a CSS-preload doubled-path 404 regression
+  introduced in 2.65.0 ([kit #16039](https://github.com/sveltejs/kit/issues/16039));
+  the upstream fix ([#16026](https://github.com/sveltejs/kit/pull/16026)) shipped in
+  2.65.1, so the pin is no longer needed and kit is back on a caret range at the
+  current latest. The `css-preload` e2e guard confirms the doubled-path 404s stay
+  gone. Dev/build dependency only — no runtime or behaviour change.
+
 ### Fixed
 
 ### Tests
