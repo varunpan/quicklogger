@@ -124,9 +124,10 @@ resolves and the SSR'd page is returned unchanged.
   side-effect of #15936): with `relative: false` it emitted `./`-prefixed CSS
   preload deps resolved against the entry chunk's `import.meta.url`, yielding a
   doubled `/_app/immutable/entry/_app/immutable/…` 404 plus an "Unable to preload
-  CSS" rejection on first load. Kit is therefore pinned to **2.64.0** (the last
-  release honoring the setting) until the upstream fix (#16026) ships in a
-  release; guarded by `tests/e2e/css-preload.spec.ts`.
+  CSS" rejection on first load. v0.3.0 pinned kit to **2.64.0** (the last release
+  honoring the setting) as a stopgap; the upstream fix (#16026) shipped in
+  **2.65.1**, so v0.3.1 dropped the pin and re-bumped to **2.68.0** (caret range
+  restored). The regression stays guarded by `tests/e2e/css-preload.spec.ts`.
 
 ## Testing
 
