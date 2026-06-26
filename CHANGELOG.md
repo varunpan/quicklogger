@@ -18,6 +18,14 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Stopped Tailwind from emitting an invalid utility class out of the compose
+  files.** Tailwind v4's automatic class detection scanned the whole project —
+  including `compose.dev.yml` / `compose.example.yml` — and turned the Docker
+  `security_opt` hardening line into a bogus arbitrary-property CSS rule that
+  browsers logged as a dropped declaration on every page load. Detection is now
+  scoped to `src/` (where all the app's markup lives), so the junk rule and its
+  console warning are gone; every real utility class is unaffected.
+
 ### Tests
 
 ## [0.3.0] — 2026-06-26
