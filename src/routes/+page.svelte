@@ -81,6 +81,12 @@
     if (!Number.isFinite(n)) return '';
     return String(Math.round(n));
   }
+  function placeholderOdometer(): string {
+    if (!data.lastFuelup) return 'No last fuel up';
+    const n = Number(data.lastFuelup.odometer);
+    if (!Number.isFinite(n)) return '';
+    return String(Math.round(n));
+  }
   let odometer: string = $state(initialOdometer());
   let odometerEdited: boolean = $state(false);
   // Local calendar date, NOT toISOString().slice(0, 10): the UTC form is
@@ -833,10 +839,15 @@
       <label for="odometer" class="field-label">Odometer</label>
       <div class="relative">
         <input id="odometer" class="field-input min-w-0" type="number" inputmode="numeric"
-               bind:value={odometer}
-               oninput={() => { odometerEdited = true; clearSmartCheckIssues(); }}
-               class:text-zinc-400={!odometerEdited && odometer !== ''}
-               placeholder="87,432" />
+       step="1"
+       onkeydown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
+       bind:value={odometer}
+       oninput={() => { 
+           odometerEdited = true; 
+           clearSmartCheckIssues(); 
+       }}
+       class:text-zinc-400={!odometerEdited && odometer !== ''}
+       placeholder={placeholderOdometer()} />
         {#if !odometerEdited && odometer !== ''}
           <span class="absolute top-1.5 right-2 text-[10px] uppercase tracking-wider font-semibold text-zinc-500 bg-zinc-700/60 px-1.5 py-0.5 rounded">
             prefilled
