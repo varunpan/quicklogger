@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Odometer entry is now whole-numbers only.** The odometer field rejects a
+  decimal point or comma as you type and enforces whole-number steps, so a
+  stray `.` or `,` can no longer land in a reading. When the field is empty its
+  placeholder now hints the last recorded reading — or "No last fuel up" when
+  there's no history — instead of a fixed example (#64).
+
 ### Changed
 
 - **Re-bumped `@sveltejs/kit` to 2.68.0, dropping the temporary 2.64.0 pin.**
@@ -27,6 +33,11 @@ All notable changes to this project are documented here. Format roughly follows 
   console warning are gone; every real utility class is unaffected.
 
 ### Tests
+
+- **e2e specs locate the odometer field by its `#odometer` id** rather than by
+  placeholder text (6 specs, 21 call sites). Placeholder text isn't a stable
+  test contract — matching on it coupled the specs to a fixed string and would
+  break them when the placeholder becomes dynamic; the id keeps them robust.
 
 ## [0.3.0] — 2026-06-26
 
