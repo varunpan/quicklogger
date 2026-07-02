@@ -839,15 +839,12 @@
       <label for="odometer" class="field-label">Odometer</label>
       <div class="relative">
         <input id="odometer" class="field-input min-w-0" type="number" inputmode="numeric"
-       step="1"
-       onkeydown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
-       bind:value={odometer}
-       oninput={() => { 
-           odometerEdited = true; 
-           clearSmartCheckIssues(); 
-       }}
-       class:text-zinc-400={!odometerEdited && odometer !== ''}
-       placeholder={placeholderOdometer()} />
+               step="1"
+               onkeydown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
+               bind:value={odometer}
+               oninput={() => { odometerEdited = true; clearSmartCheckIssues(); }}
+               class:text-zinc-400={!odometerEdited && odometer !== ''}
+               placeholder={placeholderOdometer()} />
         {#if !odometerEdited && odometer !== ''}
           <span class="absolute top-1.5 right-2 text-[10px] uppercase tracking-wider font-semibold text-zinc-500 bg-zinc-700/60 px-1.5 py-0.5 rounded">
             prefilled
