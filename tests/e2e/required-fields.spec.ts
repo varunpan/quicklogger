@@ -22,7 +22,7 @@ test.describe('submit gate — required fields', () => {
     await mockLubelogger(page);
     await page.goto('/');
 
-    await page.getByPlaceholder('87,432').fill('87432');
+    await page.locator('#odometer').fill('87432');
     await page.getByPlaceholder('11.2').fill('11.2');
     await page.getByPlaceholder('42.18').fill('42.18');
 
@@ -39,7 +39,7 @@ test.describe('submit gate — required fields', () => {
     await page.goto('/');
 
     // Date prefills to today, so we just need the three numeric fields.
-    await page.getByPlaceholder('87,432').fill('87432');
+    await page.locator('#odometer').fill('87432');
     await page.getByPlaceholder('11.2').fill('11.2');
     await page.getByPlaceholder('42.18').fill('42.18');
 
@@ -51,7 +51,7 @@ test.describe('submit gate — required fields', () => {
     await mockLubelogger(page);
     await page.goto('/');
 
-    await page.getByPlaceholder('87,432').fill('87432');
+    await page.locator('#odometer').fill('87432');
     await page.getByPlaceholder('11.2').fill('0');
     await page.getByPlaceholder('42.18').fill('42.18');
 

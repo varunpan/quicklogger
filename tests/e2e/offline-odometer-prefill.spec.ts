@@ -39,7 +39,7 @@ test('upstream-down + cached snapshot renders strip with offline chip', async ({
   // Cached upstream — costCurrency is null, formatCost falls back to instance currency (USD by default).
   await expect(page.getByText(/10\.8 Gal · \$39\.42 · Costco Pump 4/)).toBeVisible();
   // Field prefilled.
-  await expect(page.getByPlaceholder('87,432')).toHaveValue('87234');
+  await expect(page.locator('#odometer')).toHaveValue('87234');
 });
 
 test('upstream-down + queue synced entry renders <currency> <cost>', async ({ page }) => {
@@ -69,7 +69,7 @@ test('upstream-down + queue synced entry renders <currency> <cost>', async ({ pa
   await expect(page.getByText(/^offline copy$/i)).toBeVisible();
   // Queue entry has costCurrency='CAD' → formatCost renders as en-US currency: CA$60.00.
   await expect(page.getByText(/11\.50 Gal · CA\$60\.00/)).toBeVisible();
-  await expect(page.getByPlaceholder('87,432')).toHaveValue('87800');
+  await expect(page.locator('#odometer')).toHaveValue('87800');
 });
 
 test('upstream-down + nothing local: no strip, empty field', async ({ page }) => {
@@ -82,7 +82,7 @@ test('upstream-down + nothing local: no strip, empty field', async ({ page }) =>
 
   await expect(page.getByText(/Last fill:/)).toHaveCount(0);
   await expect(page.getByText(/^offline copy$/i)).toHaveCount(0);
-  await expect(page.getByPlaceholder('87,432')).toHaveValue('');
+  await expect(page.locator('#odometer')).toHaveValue('');
 });
 
 test('upstream-up: no offline chip on the strip', async ({ page }) => {

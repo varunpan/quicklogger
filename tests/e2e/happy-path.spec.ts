@@ -18,7 +18,7 @@ test('logs a CAD/L fillup, shows USD/gal in confirmation, and redirects to maint
 
   await page.goto('/');
 
-  await page.getByPlaceholder('87,432').fill('87432');
+  await page.locator('#odometer').fill('87432');
   await page.getByPlaceholder('11.2').fill('50');
   await page.getByRole('button', { name: 'L', exact: true }).click();
   await page.getByPlaceholder('42.18').fill('65');
