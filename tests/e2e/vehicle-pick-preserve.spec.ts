@@ -45,7 +45,7 @@ test('changing vehicle preserves entered values and resets the odometer (#50)', 
   await expect(page).toHaveURL('/');
 
   // Vehicle 1 (Honda Accord) is selected; odometer prefilled from its last fillup.
-  await expect(page.getByPlaceholder('87,432')).toHaveValue('87234');
+  await expect(page.locator('#odometer')).toHaveValue('87234');
 
   // Enter pump values, a custom date, and a note.
   await page.getByPlaceholder('11.2').fill('9.42');
@@ -66,5 +66,5 @@ test('changing vehicle preserves entered values and resets the odometer (#50)', 
   await expect(page.getByPlaceholder('Costco Pump 4, regular grade')).toHaveValue('Shell premium');
 
   // The odometer reset to the newly-picked vehicle's last fillup (NOT carried).
-  await expect(page.getByPlaceholder('87,432')).toHaveValue('55000');
+  await expect(page.locator('#odometer')).toHaveValue('55000');
 });

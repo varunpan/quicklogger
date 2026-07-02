@@ -42,7 +42,7 @@ test('clean submit: valid values, no chip, posts immediately', async ({ page }) 
   await gotoHomeViaClientRouter(page);
 
   // Fill the required fields with valid values.
-  await page.getByPlaceholder('87,432').fill('87500');
+  await page.locator('#odometer').fill('87500');
   await page.getByPlaceholder('11.2').fill('11.2');
   await page.getByPlaceholder('42.18').fill('42.50');
 
@@ -58,7 +58,7 @@ test('single-issue chip: low odometer triggers, Submit disabled, override posts'
   await gotoHomeViaClientRouter(page);
 
   // Odometer lower than last (87234), today's date, decent volume + cost.
-  await page.getByPlaceholder('87,432').fill('1000');
+  await page.locator('#odometer').fill('1000');
   await page.getByPlaceholder('11.2').fill('11.2');
   await page.getByPlaceholder('42.18').fill('42.50');
 
@@ -83,7 +83,7 @@ test('multi-issue chip: low odo + future date + tiny volume → 3 lines, one ove
   await mockWithLastFuelup(page);
   await gotoHomeViaClientRouter(page);
 
-  await page.getByPlaceholder('87,432').fill('1000');
+  await page.locator('#odometer').fill('1000');
   // Future date — type directly into the date input (it's bound).
   await page.locator('input[type="date"]').fill('2099-01-01');
   await page.getByPlaceholder('11.2').fill('0.1');
@@ -107,7 +107,7 @@ test('field-edit clears chip and re-enables Submit', async ({ page }) => {
   await mockWithLastFuelup(page);
   await gotoHomeViaClientRouter(page);
 
-  await page.getByPlaceholder('87,432').fill('1000');
+  await page.locator('#odometer').fill('1000');
   await page.getByPlaceholder('11.2').fill('11.2');
   await page.getByPlaceholder('42.18').fill('42.50');
   await page.getByRole('button', { name: /^Log fillup$/ }).click();
@@ -117,7 +117,7 @@ test('field-edit clears chip and re-enables Submit', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Log fillup$/ })).toBeDisabled();
 
   // Edit the odometer to a valid value.
-  await page.getByPlaceholder('87,432').fill('87500');
+  await page.locator('#odometer').fill('87500');
 
   // Chip clears immediately; Submit re-enables.
   await expect(chip).toHaveCount(0);
@@ -141,7 +141,7 @@ test('master toggle off: bad combination posts without a chip', async ({ page })
   await gotoHomeViaClientRouter(page);
 
   // Same bad combo as the multi-issue test.
-  await page.getByPlaceholder('87,432').fill('1000');
+  await page.locator('#odometer').fill('1000');
   await page.locator('input[type="date"]').fill('2099-01-01');
   await page.getByPlaceholder('11.2').fill('0.1');
   await page.getByPlaceholder('42.18').fill('42.50');
