@@ -185,15 +185,18 @@
     return data.ocrEnabled && data.ocrModes.includes('odometer' as OcrMode);
   }
 
+  // The retained attach blobs are NOT cleared here: cancelling the picker
+  // returns without a change event (or with an empty file list), and clearing
+  // eagerly would discard a perfectly good retained photo on a reopen→cancel.
+  // Each mode's blob is cleared in its onchange handler once a file is
+  // actually picked (a fresh capture/retake supersedes the retained bytes).
   function openPumpCamera() {
     pumpSuggestion = null;
-    attachPumpBlob = null;   // a fresh capture/retake supersedes retained pump bytes
     pumpCameraInput?.click();
   }
   function openOdoCamera() {
     odoSuggestion = null;
     odoWarning = null;
-    attachOdometerBlob = null;
     odoCameraInput?.click();
   }
 
@@ -221,6 +224,7 @@
     const picked = input.files?.[0];
     input.value = '';
     if (!picked) return;
+    attachPumpBlob = null;   // a fresh pick supersedes retained pump bytes
     const buf = await bufferPickedPhotoOrToast(picked);
     if (!buf) return;
     pendingCapture = { file: buf.ocrFile, mode: 'pump' };
@@ -268,6 +272,7 @@
     const picked = input.files?.[0];
     input.value = '';
     if (!picked) return;
+    attachOdometerBlob = null;   // a fresh pick supersedes retained odometer bytes
     const buf = await bufferPickedPhotoOrToast(picked);
     if (!buf) return;
     pendingCapture = { file: buf.ocrFile, mode: 'odometer' };

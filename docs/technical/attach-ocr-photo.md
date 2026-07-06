@@ -35,7 +35,9 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
 
 ## Lifecycle / control flow
 
-1. User taps a capture pill → `openPumpCamera` / `openOdoCamera` clears that mode's retained blob.
+1. User taps a capture pill → `openPumpCamera` / `openOdoCamera` opens the picker. The mode's
+   retained blob is cleared in the onchange handler only once a file is actually picked — cancelling
+   the picker leaves the retained photo (and the attach row) intact.
 2. User picks a photo → `OcrPreview` → "Send for OCR" → `runOcr` resizes to a `Blob` and **retains it
    in the mode's slot before the OCR call** (so a misread still attaches).
 3. The checkbox renders iff `attachPumpBlob || attachOdometerBlob`; label/sublabel reflect which
@@ -55,8 +57,9 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
 ## Edge cases & invariants
 
 - **Set on send, not success** — a misread photo is still retained and attachable.
-- **Latest send of a mode wins** — re-OCR/retake replaces that slot (cleared in `openPumpCamera` /
-  `openOdoCamera`, re-set in `runOcr`).
+- **Latest send of a mode wins** — re-OCR/retake replaces that slot (cleared in
+  `handlePumpCamera` / `handleOdoCamera` on a real pick — not when the picker merely opens —
+  re-set in `runOcr`).
 - **Record-first** — no photo failure (gate, upload, partial) ever fails the fuelup; the record is
   created and `photoWarning` flags the shortfall. Both-fail → record with `files: []` + warning.
 - **`addGasRecord` failure after a successful upload** — the record genuinely isn't created → normal
@@ -64,8 +67,9 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
   is the operator sweep). Accepted.
 - **No image bytes in IDB** — preserves the deliberate rule in `docs/technical/photo-ocr.md`
   (§ *No image queue-for-replay*). Online-only by design.
-- **Visibility is derived from blob presence** — toggling the checkbox on then clearing all blobs
-  (retake→cancel) hides it and makes `attachPhotos` irrelevant (no blobs to send).
+- **Visibility is derived from blob presence** — when no blobs remain (e.g. picking a fresh photo
+  clears the slot until the next send), the checkbox hides and `attachPhotos` is irrelevant (no
+  blobs to send). Reopening the picker and cancelling does *not* clear the slot.
 - **Wire-additive both directions** — an old JSON client hits the no-files branch (unchanged); a new
   multipart client hitting an old server has its image parts ignored (graceful degradation).
 - **OCR disabled** — no capture affordance → no blobs → checkbox never shows → feature inert.
