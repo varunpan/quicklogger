@@ -181,13 +181,33 @@ describe('resizeForOcr', () => {
     expect(canvasCalls[0].drawImage?.sh).toBe(1000);
   });
 
-  it('defensive: crop with x + w > 1 falls back to full image', async () => {
+  it('defensive: crop overshooting the far edge is clamped to it, not discarded', async () => {
     vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { crop: { x: 0.6, y: 0.1, w: 0.5, h: 0.2 } });
-    // Falls back to full → 2000×1500 → 1024×768.
-    expect(canvasCalls[0].width).toBe(1024);
-    expect(canvasCalls[0].height).toBe(768);
+    // w clamps 0.5 → 0.4 (source 800 px from x=1200); h fits and is untouched.
+    expect(canvasCalls[0].drawImage?.sx).toBe(1200);
+    expect(canvasCalls[0].drawImage?.sw).toBe(800);
+    expect(canvasCalls[0].drawImage?.sy).toBe(150);
+    expect(canvasCalls[0].drawImage?.sh).toBe(300);
+  });
+
+  it('flush-to-edge crop with a float-ulp overshoot is kept (regression: was silently discarded)', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
+    // x + w = 1 + one ulp — the viewport→base→source math can produce exactly
+    // this for a crop dragged flush against the right edge. The old strict
+    // `x + w > 1` reject collapsed it to the full image.
+    await resizeForOcr(file, { crop: { x: 0.5, y: 0.25, w: 0.5 * (1 + Number.EPSILON), h: 0.5 } });
+    expect(canvasCalls[0].drawImage?.sx).toBe(1000);
+    expect(canvasCalls[0].drawImage?.sw).toBe(1000);  // clamped to the edge, crop kept
+    expect(canvasCalls[0].drawImage?.sh).toBe(750);
+  });
+
+  it('defensive: crop with its origin past the far edge falls back to full image', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
+    await resizeForOcr(file, { crop: { x: 1.2, y: 0.1, w: 0.3, h: 0.2 } });
     expect(canvasCalls[0].drawImage?.sw).toBe(2000);
   });
 

@@ -71,8 +71,14 @@ function sanitizeCrop(c: NormalizedRect | null | undefined): NormalizedRect | nu
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   if (!Number.isFinite(w) || !Number.isFinite(h)) return null;
   if (x < 0 || y < 0 || w <= 0 || h <= 0) return null;
-  if (x + w > 1 || y + h > 1) return null;
-  return { x, y, w, h };
+  if (x >= 1 || y >= 1) return null;
+  // Clamp the size to the far edge instead of rejecting. A flush-to-edge crop
+  // can arrive with x + w = 1 + one float ulp — the viewport→base→source
+  // divisions in cropCoords.ts don't cancel exactly — and a strict
+  // `x + w > 1` reject silently discarded the user's crop (null = full
+  // image). Genuinely invalid rects (origin at/past the far edge,
+  // non-positive size, non-finite components) still collapse to null above.
+  return { x, y, w: Math.min(w, 1 - x), h: Math.min(h, 1 - y) };
 }
 
 interface Dimensioned {

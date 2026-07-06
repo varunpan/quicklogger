@@ -93,6 +93,12 @@ All notable changes to this project are documented here. Format roughly follows 
   pump/odometer photo the moment the picker opened — backing out of the picker
   left nothing to attach and the attach row gone. The retained photo is now
   replaced only when a new one is actually picked.
+- **A crop dragged flush against the photo's edge is no longer silently
+  discarded.** Floating-point rounding in the zoom/pan crop math could push an
+  edge-flush crop a hair past the image boundary, and the sanitizer then threw
+  the whole crop away — the full photo went to OCR as if no crop had been
+  made. Such crops are now clamped to the edge and kept; genuinely invalid
+  crop rectangles still fall back to the full image.
 
 ### Tests
 

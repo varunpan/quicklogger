@@ -78,7 +78,12 @@ upload and never blocks or affects it. User guide:
   inside the same canvas pass via a 9-arg `drawImage` — one pixel
   encoding event per send, even with both crop and rotation. The
   1024 px long-edge clamp applies to the **cropped** region; a tight
-  crop produces a smaller output JPEG.
+  crop produces a smaller output JPEG. `sanitizeCrop` collapses an
+  invalid rect to `null` (= full image) but **clamps** a size that
+  overshoots the far edge (`w → min(w, 1 - x)`, same for `h`): a
+  flush-to-edge crop can arrive with `x + w = 1 + one float ulp` from
+  the viewport→base→source divisions in `cropCoords.ts`, and a strict
+  `x + w > 1` reject silently discarded the user's crop.
 - [`src/lib/client/cropCoords.ts`](../../src/lib/client/cropCoords.ts) —
   pure `displayToSource(rect, displaySize, rotation)` /
   `sourceToDisplay(...)` helpers. Convert between the display-space
