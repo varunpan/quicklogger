@@ -81,8 +81,9 @@ Transitions, with code refs:
   retry button — the user has to act manually (or wait for the next
   release that adds one).
 - `'synced'` is terminal. Synced rows are kept as local history for the
-  offline-prefill resolver and pruned to the newest 5 per vehicle at the
-  end of every drain (see "Pruning" below).
+  offline-prefill resolver and the History page, and pruned per vehicle at
+  the end of every drain to the `historyKeepPerVehicle` preference
+  (default 200 — see "Pruning" below).
 
 5xx responses leave the entry in `'queued'` for the next sync — no
 transition, but the attempt is consumed (the server was reached). Network
@@ -224,14 +225,24 @@ PWA.
 
 ### Pruning
 
-`syncQueue()` ends every drain with `Queue.pruneSynced(5)`: all but the
-newest five `'synced'` rows per vehicle are deleted (newest by
+`syncQueue()` ends every drain with `Queue.pruneSynced(keep)`: all but the
+newest `keep` `'synced'` rows per vehicle are deleted (newest by
 `enqueuedAt`, ties broken by `id`, which auto-increments in insertion
 order). Rationale: the form's success path appends a `'synced'` row per
 submit, so without pruning every fillup ever made is re-iterated on every
-drain; the offline-prefill resolver only ever consumes the newest synced
-row per vehicle, so five leaves slack for debugging. `'queued'` and
-`'failed'` rows are never pruned.
+drain. `'queued'` and `'failed'` rows are never pruned.
+
+The bound `keep` is the **`historyKeepPerVehicle` preference** (Settings →
+"Fill-ups kept per vehicle", default **200**; whole number ≥ 1). Because
+synced rows are also the History page's data and carry the converted-cost
+snapshots, this bound is History's per-vehicle retention cap — it was
+previously a hardcoded `5`, which silently capped History at five fill-ups
+per vehicle. Plumbing: the drain runs in the service worker, which has no
+`localStorage`, so `sync-trigger.ts` reads the preference in the window
+context and sends it on the `{ type: 'sync-queue', historyKeepPerVehicle }`
+message; `syncQueue(dbName?, historyKeepPerVehicle?)` sanitizes it (whole
+number ≥ 1) and falls back to `loadPrefs()` (window contexts / tests) and
+finally the 200 default when both sources are absent or garbage.
 
 ## Cross-references
 

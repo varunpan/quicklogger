@@ -56,6 +56,20 @@ describe('prefs', () => {
     expect(p.smartChecksEnabled).toBe(false);
     expect(p.defaultCurrency).toBe('EUR');
   });
+  it('defaults historyKeepPerVehicle to 200', () => {
+    expect(loadPrefs().historyKeepPerVehicle).toBe(200);
+  });
+  it('round-trips historyKeepPerVehicle', () => {
+    savePrefs({ historyKeepPerVehicle: 50 });
+    expect(loadPrefs().historyKeepPerVehicle).toBe(50);
+  });
+  it('legacy JSON without historyKeepPerVehicle picks up the default', () => {
+    localStorage.setItem(
+      'quicklogger.prefs',
+      JSON.stringify({ lastVehicleId: 4, smartChecksEnabled: true })
+    );
+    expect(loadPrefs().historyKeepPerVehicle).toBe(200);
+  });
   it('legacy JSON without smartChecksEnabled picks up the default', () => {
     // Mimics a localStorage value written by a pre-0.2.0 build.
     localStorage.setItem(

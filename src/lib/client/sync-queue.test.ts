@@ -17,6 +17,7 @@ describe('syncQueue', () => {
   beforeEach(() => {
     dbName = `sync-${Math.random()}`;
     realFetch = globalThis.fetch;
+    localStorage.clear(); // the prune bound falls back to the stored pref
   });
   afterEach(() => {
     globalThis.fetch = realFetch;
@@ -128,7 +129,7 @@ describe('syncQueue', () => {
     expect(entries.map((e) => e.status)).toEqual(['failed', 'synced']);
   });
 
-  it('prunes synced rows to the newest 5 per vehicle, leaving other statuses alone', async () => {
+  it('prunes synced rows to the configured cap per vehicle, leaving other statuses alone', async () => {
     const q = await Queue.open(dbName);
     for (let i = 0; i < 7; i++) await q.enqueue(baseInput, 'synced'); // vehicle 1
     await q.enqueue({ ...baseInput, vehicleId: 2 }, 'synced');
@@ -138,7 +139,7 @@ describe('syncQueue', () => {
       async () => new Response(null, { status: 200 })
     ) as unknown as typeof globalThis.fetch;
 
-    await syncQueue(dbName);
+    await syncQueue(dbName, 5);
 
     const entries = await q.list();
     const v1Synced = entries.filter((e) => e.status === 'synced' && e.input.vehicleId === 1);
@@ -147,6 +148,45 @@ describe('syncQueue', () => {
     expect(Math.min(...v1Synced.map((e) => e.id))).toBe(3);
     expect(entries.filter((e) => e.input.vehicleId === 2)).toHaveLength(1);
     expect(entries.filter((e) => e.status === 'failed')).toHaveLength(1);
+  });
+
+  it('keeps synced rows up to the 200 default when no cap is passed and no pref is stored', async () => {
+    const q = await Queue.open(dbName);
+    for (let i = 0; i < 7; i++) await q.enqueue(baseInput, 'synced');
+    globalThis.fetch = vi.fn(
+      async () => new Response(null, { status: 200 })
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName); // the old hardcoded 5 would have pruned two of these
+
+    expect((await q.list()).filter((e) => e.status === 'synced')).toHaveLength(7);
+  });
+
+  it('falls back to the historyKeepPerVehicle pref when no cap is passed (window context)', async () => {
+    localStorage.setItem('quicklogger.prefs', JSON.stringify({ historyKeepPerVehicle: 3 }));
+    const q = await Queue.open(dbName);
+    for (let i = 0; i < 7; i++) await q.enqueue(baseInput, 'synced');
+    globalThis.fetch = vi.fn(
+      async () => new Response(null, { status: 200 })
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    expect((await q.list()).filter((e) => e.status === 'synced')).toHaveLength(3);
+  });
+
+  it('a garbage cap (message and stored pref) falls back to the 200 default', async () => {
+    // Both sources unusable: a NaN riding the message and a non-numeric pref.
+    localStorage.setItem('quicklogger.prefs', JSON.stringify({ historyKeepPerVehicle: 'lots' }));
+    const q = await Queue.open(dbName);
+    for (let i = 0; i < 7; i++) await q.enqueue(baseInput, 'synced');
+    globalThis.fetch = vi.fn(
+      async () => new Response(null, { status: 200 })
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName, Number.NaN);
+
+    expect((await q.list()).filter((e) => e.status === 'synced')).toHaveLength(7);
   });
 
   it('persists the converted snapshot using the currency from the 2xx JSON body', async () => {

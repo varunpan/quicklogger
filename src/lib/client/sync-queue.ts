@@ -1,4 +1,5 @@
 import { Queue, type ConvertedSnapshot } from './idb';
+import { loadPrefs, DEFAULT_PREFS } from './prefs';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 /**
@@ -13,10 +14,23 @@ import type { FuelSubmissionInput } from '$lib/shared/types';
  *
  * `dbName` overrides the IndexedDB database name (tests only); production
  * always uses the default `Queue.open()` database.
+ *
+ * `historyKeepPerVehicle` bounds the synced-history trail kept per vehicle
+ * (the rows the History page renders). This loop runs in the SERVICE WORKER,
+ * which has no localStorage, so the page's `historyKeepPerVehicle` preference
+ * rides in on the `sync-queue` message (sync-trigger.ts) rather than being
+ * read here; `loadPrefs()` is only the window-context fallback (in the SW it
+ * safely returns defaults). Garbage in either source falls back to the
+ * default of 200.
  */
 let syncing = false;
 
-export async function syncQueue(dbName?: string): Promise<void> {
+// Whole number ≥ 1, or null when the value is unusable.
+function sanitizeKeep(n: unknown): number | null {
+  return typeof n === 'number' && Number.isFinite(n) && n >= 1 ? Math.floor(n) : null;
+}
+
+export async function syncQueue(dbName?: string, historyKeepPerVehicle?: number): Promise<void> {
   // In-flight guard. iOS fires `focus` + `visibilitychange` back-to-back, so
   // two `sync-queue` messages can arrive almost simultaneously. Without this,
   // both runs read the same `'queued'` entry (neither has marked it synced
@@ -83,9 +97,15 @@ export async function syncQueue(dbName?: string): Promise<void> {
     }
     // Bound the synced-history trail. The form's success path appends a
     // 'synced' row per submit, so without pruning every fillup ever made is
-    // re-iterated on every drain. The prefill resolver only reads the newest
-    // row per vehicle; 5 leaves slack for debugging.
-    await q.pruneSynced(5);
+    // re-iterated on every drain. These rows ARE the History page's data,
+    // so the bound is the user-facing "fill-ups kept per vehicle" setting
+    // (default 200) — it was previously a hardcoded 5, which silently capped
+    // History at 5 fill-ups per vehicle.
+    const keep =
+      sanitizeKeep(historyKeepPerVehicle) ??
+      sanitizeKeep(loadPrefs().historyKeepPerVehicle) ??
+      DEFAULT_PREFS.historyKeepPerVehicle;
+    await q.pruneSynced(keep);
   } finally {
     syncing = false;
   }

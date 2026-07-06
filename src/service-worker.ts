@@ -105,8 +105,10 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('message', (event: ExtendableMessageEvent) => {
-  const data = event.data as { type?: string } | undefined;
-  if (data?.type === 'sync-queue') event.waitUntil(syncQueue());
+  const data = event.data as { type?: string; historyKeepPerVehicle?: number } | undefined;
+  // historyKeepPerVehicle rides in on the message — this worker has no
+  // localStorage, so the page's preference can't be read here directly.
+  if (data?.type === 'sync-queue') event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle));
   // Version query from registerControllerReload: reply on the transferred
   // port with this worker's build version so the page can decide whether a
   // controllerchange means "new deploy → reload" or "same build → ignore".

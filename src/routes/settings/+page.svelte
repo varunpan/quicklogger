@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { loadPrefs, savePrefs } from '$lib/client/prefs';
+  import { loadPrefs, savePrefs, DEFAULT_PREFS } from '$lib/client/prefs';
   import { loadServerInfo } from '$lib/client/server-info';
   import type { ServerInfo, VolumeUnit } from '$lib/shared/types';
 
@@ -37,6 +37,14 @@
   function updateSmartChecks(enabled: boolean) {
     prefs.smartChecksEnabled = enabled;
     savePrefs({ smartChecksEnabled: enabled });
+  }
+
+  function updateHistoryKeep(value: string) {
+    // Validate to a whole number ≥ 1; anything else snaps back to the default.
+    const n = Number(value);
+    const safe = Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_PREFS.historyKeepPerVehicle;
+    prefs.historyKeepPerVehicle = safe;
+    savePrefs({ historyKeepPerVehicle: safe });
   }
 </script>
 
@@ -153,6 +161,25 @@
         >Off</button>
       </div>
     </div>
+  </div>
+
+  <div class="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
+    <label class="field">
+      <span class="field-label">Fill-ups kept per vehicle</span>
+      <input
+        class="field-input"
+        type="number"
+        inputmode="numeric"
+        min="1"
+        step="1"
+        bind:value={prefs.historyKeepPerVehicle}
+        onchange={(e) => updateHistoryKeep((e.currentTarget as HTMLInputElement).value)}
+      />
+      <span class="text-xs text-zinc-500 mt-2 leading-relaxed">
+        History shows at most this many synced fill-ups per vehicle; older ones
+        are pruned from this device. Queued and failed fill-ups are always kept.
+      </span>
+    </label>
   </div>
 
   <div

@@ -87,7 +87,7 @@ Source: `src/lib/shared/types.ts`.
 | `markSynced(id, converted?)` | Set status `'synced'`; store `converted` when provided. No-op if id missing. |
 | `incrementAttempts(id)` | `attempts += 1`. No-op if id missing. |
 | `decrementAttempts(id)` | `attempts -= 1` (floored at 0). Reverts the pre-fetch bump after a network error. No-op if id missing. |
-| `pruneSynced(keepPerVehicle)` | Delete all but the newest N `'synced'` rows per vehicle (newest by `enqueuedAt`, ties by `id`). Run at the end of every `syncQueue` drain. |
+| `pruneSynced(keepPerVehicle)` | Delete all but the newest N `'synced'` rows per vehicle (newest by `enqueuedAt`, ties by `id`). Run at the end of every `syncQueue` drain with the `historyKeepPerVehicle` preference (default 200) as N. |
 
 ## HTTP API
 

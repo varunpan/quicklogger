@@ -7,6 +7,11 @@ export interface Prefs {
   odometerPrefillEnabled: boolean;
   odometerIncrementMi: number;
   smartChecksEnabled: boolean;
+  /** How many synced fill-ups the offline queue keeps per vehicle — the
+   *  History page renders these rows, so this is History's retention cap.
+   *  Consumed by the queue drain's pruneSynced (sync-queue.ts). Whole
+   *  number ≥ 1; consumers sanitize and fall back to the default. */
+  historyKeepPerVehicle: number;
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -15,7 +20,8 @@ export const DEFAULT_PREFS: Prefs = {
   defaultCurrency: 'USD',
   odometerPrefillEnabled: true,
   odometerIncrementMi: 300,
-  smartChecksEnabled: true
+  smartChecksEnabled: true,
+  historyKeepPerVehicle: 200
 };
 
 const KEY = 'quicklogger.prefs';

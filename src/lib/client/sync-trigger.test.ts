@@ -1,5 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { registerSyncTriggers, type SyncTriggerDeps } from './sync-trigger';
+
+// The flush message carries the history-retention pref (the SW can't read
+// localStorage); with nothing stored, the default of 200 rides along.
+beforeEach(() => localStorage.clear());
 
 type FlushTarget = { postMessage: (message: unknown) => void };
 
@@ -26,7 +30,7 @@ describe('registerSyncTriggers', () => {
 
     win.dispatchEvent(new Event('online'));
 
-    expect(post).toHaveBeenCalledWith({ type: 'sync-queue' });
+    expect(post).toHaveBeenCalledWith({ type: 'sync-queue', historyKeepPerVehicle: 200 });
   });
 
   it('flushes on window focus', () => {
@@ -35,7 +39,7 @@ describe('registerSyncTriggers', () => {
 
     win.dispatchEvent(new Event('focus'));
 
-    expect(post).toHaveBeenCalledWith({ type: 'sync-queue' });
+    expect(post).toHaveBeenCalledWith({ type: 'sync-queue', historyKeepPerVehicle: 200 });
   });
 
   it('flushes on visibilitychange when the page is visible', () => {
@@ -45,7 +49,7 @@ describe('registerSyncTriggers', () => {
 
     doc.dispatchEvent(new Event('visibilitychange'));
 
-    expect(post).toHaveBeenCalledWith({ type: 'sync-queue' });
+    expect(post).toHaveBeenCalledWith({ type: 'sync-queue', historyKeepPerVehicle: 200 });
   });
 
   it('does not flush on visibilitychange when the page is hidden', () => {
@@ -64,7 +68,17 @@ describe('registerSyncTriggers', () => {
 
     await Promise.resolve(); // let the ready.then microtask run
 
-    expect(post).toHaveBeenCalledWith({ type: 'sync-queue' });
+    expect(post).toHaveBeenCalledWith({ type: 'sync-queue', historyKeepPerVehicle: 200 });
+  });
+
+  it('carries the stored historyKeepPerVehicle pref on the flush message', () => {
+    localStorage.setItem('quicklogger.prefs', JSON.stringify({ historyKeepPerVehicle: 50 }));
+    const { post, win, deps } = makeDeps();
+    registerSyncTriggers(deps);
+
+    win.dispatchEvent(new Event('online'));
+
+    expect(post).toHaveBeenCalledWith({ type: 'sync-queue', historyKeepPerVehicle: 50 });
   });
 
   it('does not throw when no controller is controlling the page yet', () => {
