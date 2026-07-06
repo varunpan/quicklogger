@@ -160,6 +160,26 @@ describe('POST /api/fuelup', () => {
     expect(body.error).toMatch(/date/);
   });
 
+  it('rejects an oversized Content-Length with 413 before parsing the body', async () => {
+    // No upstream handlers registered: if the guard failed and the request
+    // were processed, msw's onUnhandledRequest: 'error' would fail the test.
+    // 50 MiB advertised >> 2 × 5 MiB image policy + 256 KiB form slack.
+    const req = new Request('http://localhost/api/fuelup', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': String(50 * 1024 * 1024)
+      },
+      body: JSON.stringify(baseInput)
+    });
+    const res = await POST({
+      request: req,
+      locals: { logger: noopLogger, requestId: 't' }
+    } as unknown as Parameters<typeof POST>[0]);
+    expect(res.status).toBe(413);
+    expect((await res.json()).error).toMatch(/request body must be <=/);
+  });
+
   it('returns 400 when clientSubmissionId is empty or whitespace-only', async () => {
     // An empty-string key would pass the missing-check (it is neither
     // undefined nor null) and become a shared idempotency key — the second
