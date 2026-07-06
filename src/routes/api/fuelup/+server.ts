@@ -30,6 +30,11 @@ const IDEMPOTENCY_WINDOW_MS = 60_000;
 // user-facing — the client maps any truthy `photoWarning` to one fixed toast.
 const PHOTO_WARNING = 'one or more photos could not be attached';
 
+// Form slack for the early Content-Length guard: multipart boundaries, part
+// headers, and the dozen small text fields. Generous so an honest submission
+// is never rejected by the pre-parse check.
+const FORM_SLACK_BYTES = 256 * 1024;
+
 // Process-level singleton, so it binds the root logger rather than a
 // per-request child — otherwise the first request's `request_id` would be
 // stamped on every later `fx provider failed` line (review #28).
@@ -310,7 +315,37 @@ async function submitToLubeLogger(
   }
 }
 
+// Best-effort early rejection from the advertised Content-Length — same
+// pre-guard pattern as `/api/ocr`'s `_contentLengthExceeds`. The transport
+// runs with BODY_SIZE_LIMIT=Infinity (deliberate — see photo-ocr.md), so
+// without this, `parseBody()` buffers the entire body into memory before any
+// app-level check runs. Returns true only when the header is present,
+// numeric, positive, and exceeds `capBytes`; a missing / non-numeric / lying
+// header returns false so chunked bodies fall through to the post-parse
+// gates, which stay authoritative. Underscore-prefixed so SvelteKit's
+// endpoint export validation permits it (test-only export).
+export function _contentLengthExceeds(header: string | null, capBytes: number): boolean {
+  if (header === null) return false;
+  const n = Number(header);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  return n > capBytes;
+}
+
 export const POST: RequestHandler = async ({ request, locals }) => {
+  // Cap derivation: the endpoint accepts at most two photos (pumpImage +
+  // odometerImage), each individually gated to `env.ocrMaxImageBytes` after
+  // parsing — so 2 × that policy plus fixed form slack bounds every honest
+  // request. Mirrors how /api/ocr derives its cap from the same env value.
+  let bodyCapBytes: number | null = null;
+  try {
+    bodyCapBytes = 2 * loadEnv().ocrMaxImageBytes + FORM_SLACK_BYTES;
+  } catch {
+    // env unavailable — skip the guard; the submit path reports its own 500.
+  }
+  if (bodyCapBytes !== null && _contentLengthExceeds(request.headers.get('content-length'), bodyCapBytes)) {
+    return json({ error: `request body must be <= ${bodyCapBytes} bytes` }, { status: 413 });
+  }
+
   let parsed: Partial<FuelSubmissionInput>;
   let images: { pump: File | null; odometer: File | null };
   try {

@@ -37,6 +37,16 @@ export const POST: RequestHandler = async ({ request, locals, getClientAddress }
   const ip = getClientAddress();
   if (!rateLimit(ip)) return new Response(null, { status: 429 });
 
+  // Early Content-Length guard: with the transport's BODY_SIZE_LIMIT=Infinity,
+  // `request.text()` buffers the whole body before the post-buffer length
+  // check runs. Reject an advertised-oversized body up front; an absent or
+  // lying header (chunked bodies) falls through to the authoritative
+  // post-buffer check below.
+  const contentLength = Number(request.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > MAX_BATCH_BYTES) {
+    return new Response(null, { status: 413 });
+  }
+
   const raw = await request.text();
   if (raw.length > MAX_BATCH_BYTES) {
     return new Response(null, { status: 413 });

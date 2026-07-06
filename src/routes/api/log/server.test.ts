@@ -38,6 +38,16 @@ describe('POST /api/log', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects an oversized Content-Length with 413 before buffering the body', async () => {
+    // 200 KiB advertised > the 100 KiB batch cap. The body itself is tiny —
+    // the guard must fire from the header alone, before request.text().
+    const res = await POST(makeEvent(
+      { records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }] },
+      { 'content-length': String(200 * 1024) }
+    ));
+    expect(res.status).toBe(413);
+  });
+
   it('rejects > 20 records per batch', async () => {
     const records = Array.from({ length: 21 }, () => ({
       level: 'info', msg: 'x', ts: new Date().toISOString()

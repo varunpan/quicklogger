@@ -310,6 +310,7 @@ was still created).
 | Status | Body | When |
 |---|---|---|
 | 400 | `{ error: 'unsupported content-type: ...' }` | Body parse failed. |
+| 413 | `{ error: 'request body must be <= N bytes' }` | Advertised `Content-Length` exceeds 2 × `OCR_MAX_IMAGE_MB` + 256 KiB form slack (two photo parts max, each gated to the image policy post-parse). Early best-effort guard — with the transport's `BODY_SIZE_LIMIT=Infinity` the body would otherwise be fully buffered before any check; an absent or lying header falls through to the post-parse gates. |
 | 400 | `{ error: 'missing fields: ...' }` | Required field missing or null. |
 | 400 | `{ error: 'invalid fields (must be > 0 / non-empty): ...' }` | Zero/negative/NaN on a numeric field, non-integer `vehicleId`, unknown `volumeUnit`, empty `date`, or a non-string / empty / whitespace-only `clientSubmissionId`. |
 | 4xx | `{ error: string }` | `LubeLoggerError` with upstream 4xx — re-emitted with same status. Upstream status/body stay in server logs (`lubelogger non-ok`). |
@@ -375,7 +376,7 @@ and the parsed numeric fields only.
 
 ### `POST /api/log` (v0.2.3+)
 
-Browser + service worker forward `error` / `unhandledrejection` records here. Server tags each with `source: client` (or `source: service-worker`), the `User-Agent`, and the pathname from `Referer`. Rate-limited 60 req/min per IP, batches capped at 20 records / 100kb total, individual records capped at 8kb. Returns `204 No Content` on success.
+Browser + service worker forward `error` / `unhandledrejection` records here. Server tags each with `source: client` (or `source: service-worker`), the `User-Agent`, and the pathname from `Referer`. Rate-limited 60 req/min per IP, batches capped at 20 records / 100kb total, individual records capped at 8kb. The 100kb batch cap is enforced twice: from the advertised `Content-Length` *before* the body is buffered (early 413 — the transport's `BODY_SIZE_LIMIT=Infinity` means nothing below the app rejects first), then again on the buffered text for chunked/lying-header bodies. Returns `204 No Content` on success.
 
 Request body:
 

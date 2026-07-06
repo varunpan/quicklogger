@@ -24,6 +24,14 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Oversized uploads are now rejected before they are buffered into memory.**
+  The fillup and client-log endpoints read the whole request body before any
+  size check ran, so a huge (or hostile) upload could balloon server memory —
+  the container deliberately runs without a transport body cap. Both endpoints
+  now reject from the advertised `Content-Length` up front with a clean 413:
+  fillup at twice the photo policy (`OCR_MAX_IMAGE_MB`) plus form slack, the
+  log endpoint at its existing 100 KiB batch cap. Requests without the header
+  still fall through to the existing post-parse checks.
 - **The health endpoint no longer echoes raw LubeLogger error text.** When the
   upstream check failed, `/healthz` returned the internal error message —
   including the upstream status and a preview of its response body — to anyone
