@@ -99,6 +99,13 @@ All notable changes to this project are documented here. Format roughly follows 
   the whole crop away — the full photo went to OCR as if no crop had been
   made. Such crops are now clamped to the edge and kept; genuinely invalid
   crop rectangles still fall back to the full image.
+- **History is no longer silently capped at 5 fill-ups per vehicle.** The
+  offline queue pruned synced fill-ups down to the newest 5 per vehicle on
+  every sync — and those rows are exactly what the History page shows, so
+  older entries (and their converted-cost snapshots) quietly vanished. The
+  cap is now a setting — Settings → "Fill-ups kept per vehicle", default
+  200 — so History keeps a real trail and you control how much stays on the
+  device.
 
 ### Tests
 

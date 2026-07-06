@@ -82,6 +82,7 @@ Page-local state:
 | `status === 'failed'` but `attempts === 0` | Error line renders; attempts line doesn't. | The two are independent — `attempts > 0` gate is on the attempts line only. |
 | Notes contain HTML tags | Rendered as literal text. | Svelte's `{}` escapes by default; no `{@html}` anywhere on this page. |
 | IDB unavailable (private browsing, quota) | Rose notice; picker still tappable. | Page degrades gracefully — the picker doesn't depend on IDB. |
+| More synced fill-ups than the retention cap | Only the newest `historyKeepPerVehicle` (Settings → "Fill-ups kept per vehicle", default 200) synced rows per vehicle remain. | The queue drain ends with `pruneSynced(keep)` — synced rows (and their converted-cost snapshots) older than the cap are deleted from the device. Was a hardcoded 5 before v0.3.1, which silently capped History. `'queued'`/`'failed'` rows are never pruned. See [`offline-queue.md` § Pruning](./offline-queue.md#pruning). |
 | Pre-v0.1.3 submissions | Don't appear. | They never landed in IDB — footer disclaimer sets expectation. |
 | LubeLogger-direct submissions | Don't appear. | Same disclaimer. Merging with upstream `GasRecord[]` is an explicit non-goal. |
 | Failed rows with no retry UI | The card surfaces `lastError` and `attempts`; user must dismiss via dev tools. | Retry / dismiss controls are an explicit out-of-scope follow-up. |

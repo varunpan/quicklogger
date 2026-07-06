@@ -322,11 +322,16 @@ The replay glue is a `message` handler (which also answers the
 
 ```ts
 self.addEventListener('message', (event) => {
-  const data = event.data as { type?: string } | undefined;
-  if (data?.type === 'sync-queue') event.waitUntil(syncQueue());
+  const data = event.data as { type?: string; historyKeepPerVehicle?: number } | undefined;
+  if (data?.type === 'sync-queue') event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle));
   if (data?.type === SW_VERSION_REQUEST) event.ports[0]?.postMessage({ version });
 });
 ```
+
+`historyKeepPerVehicle` (the synced-history prune bound, default 200) rides
+in on the message because this worker has no `localStorage` to read the
+preference from — see
+[`offline-queue.md` § Pruning](./offline-queue.md#pruning).
 
 `syncQueue()` lives in `src/lib/client/sync-queue.ts` (extracted from the
 worker so it's unit-testable); the worker just imports and invokes it. It
@@ -341,7 +346,9 @@ The trigger wiring lives in `registerSyncTriggers()`
 `onMount` (extracted from the layout so the wiring is unit-testable):
 
 - A `trigger` function calls
-  `navigator.serviceWorker.controller?.postMessage({ type: 'sync-queue' })`.
+  `navigator.serviceWorker.controller?.postMessage({ type: 'sync-queue', historyKeepPerVehicle })`,
+  reading the retention preference fresh from `loadPrefs()` on every trigger
+  so a Settings change applies without a reload.
 - It runs once after `navigator.serviceWorker.ready` resolves — gated on
   `ready` so the initial drain isn't a no-op against a still-`null` controller.
 - It re-runs on every `window` `focus` event.

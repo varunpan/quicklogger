@@ -1,3 +1,5 @@
+import { loadPrefs } from './prefs';
+
 type FlushTarget = { postMessage: (message: unknown) => void };
 
 type Listenable = {
@@ -26,7 +28,15 @@ export interface SyncTriggerDeps {
 export function registerSyncTriggers(deps: SyncTriggerDeps): () => void {
   const { serviceWorker, window: win, document: doc } = deps;
 
-  const trigger = () => serviceWorker.controller?.postMessage({ type: 'sync-queue' });
+  // The drain runs in the service worker, which has no localStorage — the
+  // user's history-retention preference rides in on the message (read fresh
+  // per trigger so a Settings change applies without a reload). Sanitation
+  // happens in syncQueue; garbage falls back to the default there.
+  const trigger = () =>
+    serviceWorker.controller?.postMessage({
+      type: 'sync-queue',
+      historyKeepPerVehicle: loadPrefs().historyKeepPerVehicle
+    });
   const onVisible = () => {
     if (doc.visibilityState === 'visible') trigger();
   };
