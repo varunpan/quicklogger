@@ -160,6 +160,26 @@ describe('POST /api/fuelup', () => {
     expect(body.error).toMatch(/date/);
   });
 
+  it('returns 400 when clientSubmissionId is empty or whitespace-only', async () => {
+    // An empty-string key would pass the missing-check (it is neither
+    // undefined nor null) and become a shared idempotency key — the second
+    // submission with '' would receive the first's cached 200 and never be
+    // written upstream.
+    for (const bad of ['', '   ']) {
+      const res = await POST(eventFor({ ...baseInput, clientSubmissionId: bad }));
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toMatch(/invalid fields/);
+      expect(body.error).toMatch(/clientSubmissionId/);
+    }
+  });
+
+  it('returns 400 when clientSubmissionId is not a string', async () => {
+    const res = await POST(eventFor({ ...baseInput, clientSubmissionId: 12345 }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/clientSubmissionId/);
+  });
+
   it('rejects a query-injection vehicleId string with 400 (no upstream call)', async () => {
     const res = await POST(eventFor({ ...baseInput, vehicleId: '1&someParam=x' }));
     expect(res.status).toBe(400);

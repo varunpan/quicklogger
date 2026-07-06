@@ -145,6 +145,16 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
     else b[k] = n;
   }
   if (typeof b.date !== 'string' || b.date.trim() === '') invalid.push('date');
+  // clientSubmissionId keys the idempotency map. The missing-check above only
+  // catches undefined/null — an empty or whitespace-only string would become a
+  // *shared* key: two unrelated submissions both sending '' collide, and the
+  // second silently receives the first's cached 200 without ever being written
+  // upstream. Non-strings are rejected too (the JSON path delivers whatever
+  // the client sent, and a number would stringify into the same shared-key
+  // trap for every client with the same bug).
+  if (typeof b.clientSubmissionId !== 'string' || b.clientSubmissionId.trim() === '') {
+    invalid.push('clientSubmissionId');
+  }
   // manualFxRate is optional, but when present it must be a positive finite
   // number — otherwise `cost = cost * fxRate` (convert.ts) writes NaN/0/negative
   // straight to the LubeLogger record. This is the only gate: the form's

@@ -24,6 +24,12 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **A fillup submitted with a blank submission id can no longer silently
+  swallow the next one.** The API's required-field check let an empty or
+  whitespace-only `clientSubmissionId` through, where it became a *shared*
+  idempotency key — two different submissions sending `""` within a minute
+  collided, and the second got the first's cached "success" without ever being
+  recorded. The server now rejects a blank or non-string id with a clear 400.
 - **Stopped Tailwind from emitting an invalid utility class out of the compose
   files.** Tailwind v4's automatic class detection scanned the whole project —
   including `compose.dev.yml` / `compose.example.yml` — and turned the Docker
