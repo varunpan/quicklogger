@@ -109,7 +109,7 @@ reverse-proxy health probe hit this.
 | Request | No params. |
 | Behaviour | Calls `LubeLoggerClient.listVehicles()` with a 2-second timeout (override of the client's 5 s default). |
 | Response 200 | `{ ok: true }` — upstream reachable within the window. |
-| Response 503 | `{ ok: false, error: string }` — any thrown error (env missing, timeout, LubeLogger non-2xx, network failure). |
+| Response 503 | `{ ok: false, error: 'upstream unreachable' }` — any thrown error (env missing, timeout, LubeLogger non-2xx, network failure). Generic message only: the endpoint is unauthenticated and a `LubeLoggerError` message embeds upstream status + body preview, so the real cause goes to the server log (`healthz upstream check failed`), never the response. |
 
 ### `GET /api/vehicles`
 
