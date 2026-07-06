@@ -215,6 +215,7 @@ export class OpenRouterOcrProvider implements OcrProvider {
 export class ChainOcrProvider implements OcrProvider {
 	private _activeProvider: OcrProvider | null = null;
 	private _lastFellbackFrom: OcrSlotName | null = null;
+	private _lastFailedCostCents = 0;
 
 	constructor(private readonly _chain: OcrProvider[]) {
 		if (_chain.length === 0) throw new Error('ChainOcrProvider requires at least one provider');
@@ -228,6 +229,15 @@ export class ChainOcrProvider implements OcrProvider {
 	}
 	get lastFellbackFrom(): OcrSlotName | null {
 		return this._lastFellbackFrom;
+	}
+	/** Accumulated estimated cost (cents) of this extract()'s *failed* attempts
+	 *  whose provider actually returned a response — HTTP error body, missing
+	 *  content, unparseable content. Those calls billed tokens even though they
+	 *  threw; only NETWORK failures (timeout, DNS, refused) are known-free.
+	 *  Reset at the start of each extract(). The pipeline folds this into the
+	 *  outcome's costCents so paid-but-failed attempts hit the daily budget. */
+	get lastFailedCostCents(): number {
+		return this._lastFailedCostCents;
 	}
 
 	// Reflects the active provider's slot when one has served a call;
@@ -244,6 +254,7 @@ export class ChainOcrProvider implements OcrProvider {
 	async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
 		let lastErr: Error | undefined;
 		this._lastFellbackFrom = null;
+		this._lastFailedCostCents = 0;
 		for (let i = 0; i < this._chain.length; i++) {
 			const p = this._chain[i];
 			try {
@@ -253,6 +264,13 @@ export class ChainOcrProvider implements OcrProvider {
 				return result;
 			} catch (err) {
 				lastErr = err as Error;
+				// A response was received unless the failure was NETWORK — the
+				// upstream billed the call even though it's useless to us. Count
+				// non-OcrProviderError throws too (conservative: an unexpected
+				// throw happens after the request went out).
+				if (!(err instanceof OcrProviderError) || err.code !== 'NETWORK') {
+					this._lastFailedCostCents += p.estimateCostCents();
+				}
 			}
 		}
 		this._activeProvider = null;

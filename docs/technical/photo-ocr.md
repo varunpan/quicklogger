@@ -291,7 +291,12 @@ bind to the existing `isoDate: string` state.
    check → cross-field check (pump only) → returns
    `{ ok: true, result, ... }`.
 6. Route handler increments budget, appends audit row, returns the
-   discriminated `OcrResult`.
+   discriminated `OcrResult`. On the *failure* path the budget is also
+   incremented when the outcome carries a non-zero `costCents` — a paid
+   provider that returned a response which then failed parse / schema /
+   range validation billed tokens anyway, and the chain accumulates the
+   cost of every failed-but-billed attempt (only network/timeout
+   failures are known-free and stay 0).
 7. Client: chip renders in the OCR feedback zone immediately under the
    capture row (full form width, not next to the field). Pump goes
    straight to the blue confirm chip. Odometer runs
@@ -356,7 +361,12 @@ declarative contract.
   model: string,                              // resolved tag (modelForSlot)
   fellbackFrom: 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible' | null,
   latencyMs: number,                          // receipt → response sent
-  costCents: number,                          // 0 for ollama
+  costCents: number,                          // 0 for ollama; on failure rows, the estimated
+                                              // cost actually billed (a paid provider that
+                                              // *returned a response* which then failed parse /
+                                              // schema / range validation still burned tokens;
+                                              // network/timeout failures stay 0). Success rows
+                                              // include failed-but-billed earlier chain attempts.
   ok: boolean,
   parsed: OcrResult | null,                   // discriminated by mode
   error?: { code: string, message: string }

@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GET, POST, _contentLengthExceeds, _resetForTests } from './+server';
@@ -536,6 +536,57 @@ describe('POST /api/ocr', () => {
     await POST(makeRequestWithLogger(nonImage(), b.logger));
     expect(a.calls.filter((c) => c.msg === 'ocr audit append failed')).toHaveLength(0);
     expect(b.calls.filter((c) => c.msg === 'ocr audit append failed')).toHaveLength(0);
+  });
+
+  it('records spend for a paid response that fails validation (billed-but-failed)', async () => {
+    // Paid provider responds — tokens billed — but the content fails schema
+    // validation. The budget must still see the spend and the audit row must
+    // carry the real estimated cost, or paid failures burn money invisibly
+    // and the 402 gate never trips.
+    setEnv({ OPENROUTER_API_KEY: 'sk-or-test' });
+    ollamaServer.use(
+      http.post('https://openrouter.ai/api/v1/chat/completions', () =>
+        HttpResponse.json({
+          choices: [{ message: { content: '{"volume":"not-a-number"}' } }]
+        })
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(502);
+
+    const budget = JSON.parse(readFileSync(process.env.OCR_BUDGET_PATH!, 'utf-8'));
+    expect(budget.calls).toBe(1);
+    expect(budget.costCents).toBeGreaterThan(0);
+
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.ok).toBe(false);
+    expect(row.costCents).toBeGreaterThan(0);
+  });
+
+  it('records no spend when the paid provider fails at the network layer', async () => {
+    setEnv({ OPENROUTER_API_KEY: 'sk-or-test' });
+    ollamaServer.use(
+      http.post('https://openrouter.ai/api/v1/chat/completions', () =>
+        HttpResponse.error()
+      )
+    );
+    const fd = new FormData();
+    fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+    fd.set('mode', 'pump');
+    const res = await POST(makeRequest(fd));
+    expect(res.status).toBe(502);
+
+    // budget.add() is never called for a zero-cost failure — no file appears.
+    expect(existsSync(process.env.OCR_BUDGET_PATH!)).toBe(false);
+
+    const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+    const row = JSON.parse(auditLine);
+    expect(row.ok).toBe(false);
+    expect(row.costCents).toBe(0);
   });
 
   it('429 with Retry-After after rate-limit cap', async () => {

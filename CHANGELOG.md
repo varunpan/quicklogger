@@ -24,6 +24,13 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Failed-but-billed OCR calls now count against the daily budget.** When a
+  paid vision provider returned a response that then failed validation (bad
+  JSON, out-of-range reading), the spend was never recorded — the money was
+  burned invisibly and the daily budget cap could never trip on it. The budget
+  and the audit log now record the estimated cost of every paid attempt that
+  actually got a response, including failed attempts inside a provider chain;
+  pure network/timeout failures still cost nothing.
 - **Rate-limiter memory no longer grows forever.** The per-IP tracking maps
   behind the OCR and client-log endpoints kept an entry for every IP that ever
   called them — entries for IPs that never returned were never cleaned up, a

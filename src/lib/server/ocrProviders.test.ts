@@ -425,6 +425,76 @@ describe('ChainOcrProvider', () => {
 		expect(d.extract).not.toHaveBeenCalled();
 	});
 
+	it('accumulates lastFailedCostCents for paid attempts that received a response before failing', async () => {
+		// PARSE / HTTP / NO_CONTENT mean the upstream responded — tokens were
+		// billed even though extract threw. Both paid slots fail that way here.
+		const a: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => { throw new OcrProviderError('PARSE', 'garbage content'); })
+		};
+		const b: OcrProvider = {
+			name: 'openai-compatible',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => { throw new OcrProviderError('HTTP', '500 boom'); })
+		};
+		const chain = new ChainOcrProvider([a, b]);
+		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+			OcrProviderError
+		);
+		expect(chain.lastFailedCostCents).toBeCloseTo(0.012, 6);
+	});
+
+	it('does not count NETWORK failures toward lastFailedCostCents (nothing was billed)', async () => {
+		const a: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => { throw new OcrProviderError('NETWORK', 'timeout'); })
+		};
+		const chain = new ChainOcrProvider([a]);
+		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+			OcrProviderError
+		);
+		expect(chain.lastFailedCostCents).toBe(0);
+	});
+
+	it('accumulates a failed paid attempt even when a later slot succeeds', async () => {
+		const a: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => { throw new OcrProviderError('PARSE', 'garbage'); })
+		};
+		const b: OcrProvider = {
+			name: 'ollama-local',
+			estimateCostCents: () => 0,
+			extract: vi.fn(async () => ({ v: 1 }))
+		};
+		const chain = new ChainOcrProvider([a, b]);
+		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(result).toEqual({ v: 1 });
+		expect(chain.lastFailedCostCents).toBeCloseTo(0.006, 6);
+	});
+
+	it('resets lastFailedCostCents at the start of each extract()', async () => {
+		let fail = true;
+		const a: OcrProvider = {
+			name: 'openrouter',
+			estimateCostCents: () => 0.006,
+			extract: vi.fn(async () => {
+				if (fail) throw new OcrProviderError('PARSE', 'garbage');
+				return { v: 1 };
+			})
+		};
+		const chain = new ChainOcrProvider([a]);
+		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+			OcrProviderError
+		);
+		expect(chain.lastFailedCostCents).toBeCloseTo(0.006, 6);
+		fail = false;
+		await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+		expect(chain.lastFailedCostCents).toBe(0);
+	});
+
 	it('chain.name reflects the active provider when one exists, else chain[0].name', async () => {
 		const a: OcrProvider = {
 			name: 'ollama-local',
