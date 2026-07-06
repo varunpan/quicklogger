@@ -3,7 +3,7 @@ import {
   sniffImageType, selectProvider, runOcrPipeline,
   _resetChainMemoForTests, type PipelineOutcome
 } from './ocr';
-import { ChainOcrProvider, type OcrProvider } from './ocrProviders';
+import { ChainOcrProvider, OcrProviderError, type OcrProvider } from './ocrProviders';
 import type { Env } from './env';
 import type { Logger } from './logger';
 
@@ -461,6 +461,125 @@ describe('runOcrPipeline', () => {
     });
     expect(r.ok).toBe(true);
     expect(seenPrompt).not.toMatch(/most recent fuel price recorded/i);
+  });
+});
+
+describe('runOcrPipeline — billed-but-failed cost accounting', () => {
+  const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const PAID_COST = 0.006;
+
+  function paidProvider(payload: unknown): OcrProvider {
+    return {
+      name: 'openrouter',
+      estimateCostCents: () => PAID_COST,
+      extract: async () => payload
+    };
+  }
+
+  function throwingPaidProvider(err: Error): OcrProvider {
+    return {
+      name: 'openrouter',
+      estimateCostCents: () => PAID_COST,
+      extract: async () => { throw err; }
+    };
+  }
+
+  it('carries the paid cost when a received response fails schema validation', async () => {
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      provider: paidProvider({ volume: 'string-not-number' } as any),
+      env: envOverrides({ openrouterApiKey: 'k' })
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.statusCode).toBe(502);
+      expect(r.costCents).toBeCloseTo(PAID_COST, 6);
+    }
+  });
+
+  it('carries the paid cost when a received response fails range validation', async () => {
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      provider: paidProvider({ volume: 9999, volumeUnit: 'gal', cost: 1, pricePerUnit: 1 }),
+      env: envOverrides({ openrouterApiKey: 'k' })
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.statusCode).toBe(422);
+      expect(r.costCents).toBeCloseTo(PAID_COST, 6);
+    }
+  });
+
+  it('carries no cost on a NETWORK failure (nothing was billed)', async () => {
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      provider: throwingPaidProvider(new OcrProviderError('NETWORK', 'timeout')),
+      env: envOverrides({ openrouterApiKey: 'k' })
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.costCents).toBe(0);
+  });
+
+  it('carries the paid cost when extract throws after a received response (PARSE)', async () => {
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      provider: throwingPaidProvider(new OcrProviderError('PARSE', 'garbage content')),
+      env: envOverrides({ openrouterApiKey: 'k' })
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.costCents).toBeCloseTo(PAID_COST, 6);
+  });
+
+  it('carries no cost on pre-provider failures (unsupported image type)', async () => {
+    const r = await runOcrPipeline({
+      bytes: Buffer.from('plaintext-not-an-image'),
+      mode: 'pump',
+      provider: paidProvider({}),
+      env: envOverrides({ openrouterApiKey: 'k' })
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.costCents).toBe(0);
+  });
+
+  it('chain: accumulates a failed paid attempt into the failure outcome', async () => {
+    // Paid slot returns garbage (billed), free fallback times out (not
+    // billed) — the 502 outcome must still carry the paid slot's burn.
+    const paid = throwingPaidProvider(new OcrProviderError('PARSE', 'garbage'));
+    const free: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: async () => { throw new OcrProviderError('NETWORK', 'down'); }
+    };
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      provider: new ChainOcrProvider([paid, free]),
+      env: envOverrides({ openrouterApiKey: 'k', ollamaVisionUrl: 'x' })
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.costCents).toBeCloseTo(PAID_COST, 6);
+  });
+
+  it('chain: success cost includes an earlier failed-but-billed paid attempt', async () => {
+    const paid = throwingPaidProvider(new OcrProviderError('PARSE', 'garbage'));
+    const free: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: async () => ({ volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 })
+    };
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'pump',
+      provider: new ChainOcrProvider([paid, free]),
+      env: envOverrides({ openrouterApiKey: 'k', ollamaVisionUrl: 'x' })
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.costCents).toBeCloseTo(PAID_COST, 6);
   });
 });
 

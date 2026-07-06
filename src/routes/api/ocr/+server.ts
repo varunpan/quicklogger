@@ -189,6 +189,13 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
   // chain's entry slot (not the active provider, since none succeeded).
   // For a bare provider, that's just `provider.name`. For a chain, that's
   // the first slot in the chain — which is `chain.chain[0].name`.
+  // Paid attempts that *received a response* before failing (parse, schema,
+  // range) still billed tokens — outcome.costCents carries that estimate, and
+  // it must reach the budget or billed-but-failed calls burn money invisibly
+  // and the 402 gate never trips. Network/timeout failures carry 0.
+  if (outcome.costCents > 0) {
+    await budget!.add(outcome.costCents);
+  }
   const failSlot: OcrSlotName =
     provider instanceof ChainOcrProvider ? provider.chain[0].name : provider.name;
   await audit!.append({
@@ -203,7 +210,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
     provider: failSlot,
     model: modelForSlot(failSlot, env),
     fellbackFrom: null,
-    latencyMs: outcome.latencyMs, costCents: 0,
+    latencyMs: outcome.latencyMs, costCents: outcome.costCents,
     parsed: null, ok: false,
     error: { code: String(outcome.statusCode), message: outcome.error }
   });

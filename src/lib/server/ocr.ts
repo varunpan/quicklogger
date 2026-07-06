@@ -203,7 +203,21 @@ export type PipelineOutcome =
 			error: string;
 			imageType: ImageType | null;
 			latencyMs: number;
+			/** Estimated cents actually billed despite the failure — paid
+			 *  providers that *returned a response* (which then failed parse,
+			 *  schema, or range validation) burned tokens; the route must still
+			 *  record that spend or the daily budget gate never sees it.
+			 *  0 for pre-provider failures and pure network/timeout failures. */
+			costCents: number;
 		};
+
+// Cost already burned by a chain's failed-but-billed attempts (attempts whose
+// provider returned a response before the error). Bare providers track
+// nothing — their own billed-failure cost is decided at the call site from
+// the error code.
+function failedAttemptCostCents(provider: OcrProvider): number {
+	return provider instanceof ChainOcrProvider ? provider.lastFailedCostCents : 0;
+}
 
 interface PipelineInput {
 	bytes: Uint8Array;
@@ -233,7 +247,7 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 			ocr_mode: input.mode,
 			bytes_prefix_hex: Buffer.from(input.bytes.slice(0, 8)).toString('hex')
 		});
-		return { ok: false, statusCode: 415, error: 'unsupported image type', imageType: null, latencyMs: Date.now() - t0 };
+		return { ok: false, statusCode: 415, error: 'unsupported image type', imageType: null, latencyMs: Date.now() - t0, costCents: 0 };
 	}
 	// Cast to the base ModeContract so the dispatcher can pass the union result
 	// type back into validateRanges / validateCrossField. MODES preserves per-mode
@@ -246,7 +260,7 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 			ocr_mode: input.mode,
 			available_modes: Object.keys(MODES)
 		});
-		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0 };
+		return { ok: false, statusCode: 400, error: `unknown mode: ${input.mode}`, imageType, latencyMs: Date.now() - t0, costCents: 0 };
 	}
 
 	// Build the prompt context. Defensive on both hint fields — only forward
@@ -282,8 +296,25 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 			err
 		});
 		const code = err instanceof OcrProviderError ? err.code : 'UNKNOWN';
-		return { ok: false, statusCode: 502, error: `provider failed: ${code}`, imageType, latencyMs: Date.now() - t0 };
+		// Paid tokens may already be burned: a provider that *responded* (HTTP
+		// error body, missing content, unparseable content) billed the call even
+		// though extract threw. Only NETWORK (timeout, DNS, refused) is
+		// known-free. A chain tracked this per attempt; a bare provider is billed
+		// unless its failure was NETWORK.
+		const costCents =
+			input.provider instanceof ChainOcrProvider
+				? input.provider.lastFailedCostCents
+				: code === 'NETWORK'
+					? 0
+					: input.provider.estimateCostCents();
+		return { ok: false, statusCode: 502, error: `provider failed: ${code}`, imageType, latencyMs: Date.now() - t0, costCents };
 	}
+
+	// From here on a response HAS been received — the tokens are billed whether
+	// or not validation passes below. Every arm (success or schema/range/
+	// cross-field failure) therefore carries the active provider's cost, plus
+	// whatever a chain already burned on failed-but-billed earlier attempts.
+	const billedCostCents = input.provider.estimateCostCents() + failedAttemptCostCents(input.provider);
 
 	const schema = contract.validateSchema(raw);
 	if (!schema.ok) {
@@ -293,7 +324,7 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 			ocr_raw_full: raw,
 			ocr_validation: schema.error
 		});
-		return { ok: false, statusCode: 502, error: `schema invalid: ${schema.error}`, imageType, latencyMs: Date.now() - t0 };
+		return { ok: false, statusCode: 502, error: `schema invalid: ${schema.error}`, imageType, latencyMs: Date.now() - t0, costCents: billedCostCents };
 	}
 	const value = schema.value;
 	const ranges = contract.validateRanges(value, input.env);
@@ -305,7 +336,7 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 			ocr_raw_full: raw,
 			ocr_validation: ranges.error
 		});
-		return { ok: false, statusCode: 422, error: ranges.error, imageType, latencyMs: Date.now() - t0 };
+		return { ok: false, statusCode: 422, error: ranges.error, imageType, latencyMs: Date.now() - t0, costCents: billedCostCents };
 	}
 	if (contract.validateCrossField) {
 		const cross = contract.validateCrossField(value);
@@ -317,7 +348,7 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 				ocr_raw_full: raw,
 				ocr_validation: cross.error
 			});
-			return { ok: false, statusCode: 422, error: cross.error, imageType, latencyMs: Date.now() - t0 };
+			return { ok: false, statusCode: 422, error: cross.error, imageType, latencyMs: Date.now() - t0, costCents: billedCostCents };
 		}
 	}
 
@@ -325,7 +356,9 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
 	const active = isChain ? (input.provider as ChainOcrProvider).activeProvider ?? input.provider : input.provider;
 	const fellbackFrom = isChain ? (input.provider as ChainOcrProvider).lastFellbackFrom : null;
 	const latencyMs = Date.now() - t0;
-	const costCents = input.provider.estimateCostCents();
+	// Success cost includes any failed-but-billed earlier chain attempts —
+	// they were spent serving this call even though a later slot answered.
+	const costCents = billedCostCents;
 	log.info('ocr success', {
 		ocr_mode: input.mode,
 		ocr_provider: active.name,
