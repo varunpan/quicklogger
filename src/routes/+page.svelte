@@ -412,6 +412,13 @@
   let fxStale: boolean = $state(false);
 
   $effect(() => {
+    // A manually-entered rate belongs to the currency it was typed for, so
+    // every currency switch discards it (this effect's only reactive read is
+    // `currency`; writing manualFxRate here doesn't re-trigger it). Without
+    // this, switching back to the target currency hid the field but kept the
+    // value, and submit still sent it — the server applies manualFxRate
+    // unconditionally (src/lib/server/convert.ts), mispricing the fillup.
+    manualFxRate = '';
     if (!currency || currency === TARGET_CURRENCY) {
       fxRate = 1;
       fxStale = false;

@@ -105,6 +105,14 @@ changes. Two behaviours matter:
   currently-selected currency applies — a late CAD response can't overwrite
   EUR's rate (or clear a freshly-typed manual rate). Same last-write-wins
   guard as the photo-date prefill (`photoDatePickSeq`).
+- **Manual-rate reset on currency switch.** Every effect run starts by
+  clearing `manualFxRate` — a manually-typed rate belongs to the currency it
+  was typed for. Without the reset, switching the select (including back to
+  the target currency) hid the field but retained the value, and submit still
+  sent it; `convert.ts` applies `manualFxRate` unconditionally, so the stale
+  rate silently mis-priced the fillup. The success branch additionally clears
+  it after a rate lands, covering a rate typed while a lookup for the newly
+  selected currency was still in flight.
 - **Manual-rate trigger.** The manual-FX override field appears whenever the
   rate source can't be reached, in two cases: the deliberate **503**
   `{ available: false }` (chain all-fail, above), *and* when the `GET /api/fx`

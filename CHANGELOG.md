@@ -67,6 +67,12 @@ All notable changes to this project are documented here. Format roughly follows 
   browsers logged as a dropped declaration on every page load. Detection is now
   scoped to `src/` (where all the app's markup lives), so the junk rule and its
   console warning are gone; every real utility class is unaffected.
+- **A manually-entered FX rate no longer survives a currency switch.** When
+  the rate sources were unreachable and you typed a manual rate, switching the
+  currency select — including back to your instance's own currency — hid the
+  field but silently kept the value, and the next submit sent it, mis-pricing
+  the fillup (the same retention could carry one currency's rate into
+  another). Any currency change now discards the typed rate.
 
 ### Tests
 
