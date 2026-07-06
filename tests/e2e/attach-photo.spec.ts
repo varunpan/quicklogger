@@ -8,7 +8,7 @@ const FIXTURE = path.resolve('tests/e2e/sample.jpg');
 
 const FUELUP_OK = {
   ok: true,
-  submitted: { gallons: 11.2, cost: 42.18, fxRate: 1, fxSource: 'identity', fxStale: false }
+  submitted: { gallons: 11.2, cost: 42.18, currency: 'USD', fxRate: 1, fxSource: 'identity', fxStale: false }
 };
 
 async function baseMocks(page: Page) {

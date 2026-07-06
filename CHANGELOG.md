@@ -83,6 +83,11 @@ All notable changes to this project are documented here. Format roughly follows 
   field blocks a typed `.` or `,`, but pasting or autofilling a value like
   `50123.4` slipped through and was submitted as-is. The submission now rounds
   to the nearest whole reading, matching what the photo-OCR apply already did.
+- **The "Logged: …" confirmation now formats the cost in the currency the
+  server reported.** It previously fell back to the cached instance currency,
+  which shows the wrong symbol on a cold cache (a fresh install before the
+  server info has been fetched). The server response carries the authoritative
+  currency for the converted cost — the toast now uses it.
 
 ### Tests
 
