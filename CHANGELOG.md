@@ -24,6 +24,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **The health endpoint no longer echoes raw LubeLogger error text.** When the
+  upstream check failed, `/healthz` returned the internal error message —
+  including the upstream status and a preview of its response body — to anyone
+  who asked. It now answers a generic "upstream unreachable" and keeps the
+  real cause in the server log.
 - **A fillup submitted with a blank submission id can no longer silently
   swallow the next one.** The API's required-field check let an empty or
   whitespace-only `clientSubmissionId` through, where it became a *shared*
