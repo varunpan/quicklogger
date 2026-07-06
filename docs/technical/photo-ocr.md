@@ -45,6 +45,9 @@ upload and never blocks or affects it. User guide:
   the constructor's `slotName` field; one class per wire protocol.
 - [`src/lib/server/ocrRateLimit.ts`](../../src/lib/server/ocrRateLimit.ts)
   — in-memory sliding 1-hour window, keyed per IP. Single-replica only.
+  Keys whose hits have all expired are swept opportunistically on `check()`
+  (at most once per window) so IPs that never return can't grow the map
+  unboundedly on a long-lived process.
 - [`src/lib/server/ocrBudget.ts`](../../src/lib/server/ocrBudget.ts) —
   daily $ cap, persisted at `/data/ocr-budget.json`. UTC rollover.
 - [`src/lib/server/ocrAudit.ts`](../../src/lib/server/ocrAudit.ts) —

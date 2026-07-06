@@ -46,4 +46,29 @@ describe('OcrRateLimiter', () => {
     expect(r.allowed).toBe(false);
     if (!r.allowed) expect(r.retryAfterSec).toBe(45 * 60);
   });
+
+  it('evicts keys whose hits have all expired once the sweep interval elapses', () => {
+    // Keys for IPs that never return used to live forever — check() only
+    // rewrites the caller's own key.
+    const rl = new OcrRateLimiter({ perHour: 5 });
+    rl.check('a');
+    rl.check('b');
+    expect(rl.trackedKeyCount).toBe(2);
+    vi.advanceTimersByTime(61 * 60 * 1000);
+    rl.check('c'); // triggers the sweep; a and b are fully outside the window
+    expect(rl.trackedKeyCount).toBe(1);
+    // c is still tracked and functional.
+    expect(rl.check('c').allowed).toBe(true);
+  });
+
+  it('the sweep keeps keys that still have hits inside the window', () => {
+    const rl = new OcrRateLimiter({ perHour: 5 });
+    rl.check('a');
+    rl.check('b');
+    vi.advanceTimersByTime(30 * 60 * 1000);
+    rl.check('a'); // fresh hit for a at t+30min; b stays idle
+    vi.advanceTimersByTime(31 * 60 * 1000);
+    rl.check('c'); // sweep at t+61min: b fully expired, a's t+30min hit survives
+    expect(rl.trackedKeyCount).toBe(2); // a + c
+  });
 });
