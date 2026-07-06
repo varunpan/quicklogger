@@ -24,6 +24,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Two fillups on the same day no longer show the earlier one as "last
+  fillup".** The last-fillup lookup compared records by date only, so with two
+  fillups on one date it returned whichever LubeLogger listed first — usually
+  the earlier one, which threw off the odometer prefill and the home-page
+  strip. Same-day ties now go to the record with the higher odometer reading.
 - **Oversized uploads are now rejected before they are buffered into memory.**
   The fillup and client-log endpoints read the whole request body before any
   size check ran, so a huge (or hostile) upload could balloon server memory —

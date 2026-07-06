@@ -157,7 +157,7 @@ Source: `src/routes/api/vehicle/last-fuelup/+server.ts`.
 |---|---|
 | Request | Query: `vehicleId` (required, finite number). |
 | Cache | None — every request hits LubeLogger. |
-| Response 200 | `GasRecord` (the latest by `parseDate(record.date)`) or `null` (if no records). |
+| Response 200 | `GasRecord` (the latest by `parseDate(record.date)`; same-day ties broken by higher odometer — day-resolution dates can't order two fillups on one date, and the later fillup always has the larger reading — then by later array position) or `null` (if no records). |
 | Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
 | Response 502 | `{ error: string }` — `LubeLoggerError` from upstream. |
 | Response 500 | `{ error: 'unexpected server error' }` — any other error; detail logged server-side, never echoed. |

@@ -25,7 +25,18 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     });
     const records = await client.listGasRecords(vehicleId);
     if (records.length === 0) return json(null);
-    const latest = records.reduce((acc: GasRecord, r) => parseDate(r.date) > parseDate(acc.date) ? r : acc);
+    const latest = records.reduce((acc: GasRecord, r) => {
+      const dr = parseDate(r.date);
+      const da = parseDate(acc.date);
+      if (dr !== da) return dr > da ? r : acc;
+      // Same-day tie: day-resolution dates can't order two fillups on the
+      // same date, and a strict `>` alone kept whichever came first in the
+      // array — the *earlier* record with LubeLogger's ordering. The later
+      // fillup always has the larger odometer, so prefer it (Number() guards
+      // against upstream builds serializing numerics as strings); on a full
+      // tie `>=` keeps the later array entry.
+      return Number(r.odometer) >= Number(acc.odometer) ? r : acc;
+    });
     return json(latest);
   } catch (err) {
     if (err instanceof LubeLoggerError) {
