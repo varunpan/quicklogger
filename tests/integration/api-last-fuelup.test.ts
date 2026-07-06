@@ -43,6 +43,54 @@ describe('GET /api/vehicle/last-fuelup', () => {
     expect(body.fuelConsumed).toBe(11.5);
   });
 
+  it('same-date tie returns the record with the higher odometer', async () => {
+    // Two fillups on the same day: day-resolution dates can't order them, but
+    // the later fillup always has the larger reading. A strict `>` reduce
+    // kept the first array entry (the earlier fillup) — the regression this
+    // guards against.
+    upstream.use(
+      http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
+        HttpResponse.json([
+          { id: 1, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
+          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86450, fuelConsumed: 11.5, cost: 42.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
+        ])
+      )
+    );
+    const res = await GET(eventFor('1'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe(2);
+    expect(body.odometer).toBe(86450);
+  });
+
+  it('same-date tie keeps the higher odometer even when it comes first in the array', async () => {
+    upstream.use(
+      http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
+        HttpResponse.json([
+          { id: 1, vehicleId: 1, date: '2026-04-15', odometer: 86450, fuelConsumed: 11.5, cost: 42.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
+          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
+        ])
+      )
+    );
+    const res = await GET(eventFor('1'));
+    expect(res.status).toBe(200);
+    expect((await res.json()).id).toBe(1);
+  });
+
+  it('full tie (same date, same odometer) returns the later array entry', async () => {
+    upstream.use(
+      http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
+        HttpResponse.json([
+          { id: 1, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
+          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
+        ])
+      )
+    );
+    const res = await GET(eventFor('1'));
+    expect(res.status).toBe(200);
+    expect((await res.json()).id).toBe(2);
+  });
+
   it('returns 200 with null when no records exist', async () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicle/gasrecords', () => HttpResponse.json([]))
