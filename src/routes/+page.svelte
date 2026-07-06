@@ -552,7 +552,10 @@
     const input: FuelSubmissionInput = {
       vehicleId: vehicle.id,
       date: isoDate,
-      odometer: Number(odometer),
+      // Round to a whole reading: the input blocks a typed '.'/',' but a
+      // pasted or autofilled decimal still lands in the bound value. The
+      // OCR-apply paths already round — this keeps the submit path consistent.
+      odometer: Math.round(Number(odometer)),
       volume: Number(volume),
       volumeUnit,
       cost: Number(cost),

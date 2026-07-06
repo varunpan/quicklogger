@@ -79,6 +79,10 @@ All notable changes to this project are documented here. Format roughly follows 
   app showed nothing at all — no error, no queued chip, fill-up gone. It now
   shows an explicit "Couldn't save — device storage unavailable. This fill-up
   was NOT saved." error so you know to retry.
+- **A pasted decimal odometer reading is rounded before submit.** The odometer
+  field blocks a typed `.` or `,`, but pasting or autofilling a value like
+  `50123.4` slipped through and was submitted as-is. The submission now rounds
+  to the nearest whole reading, matching what the photo-OCR apply already did.
 
 ### Tests
 
