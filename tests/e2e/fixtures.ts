@@ -18,6 +18,7 @@ export async function mockLubelogger(page: Page) {
         submitted: {
           gallons: body.volume * (body.volumeUnit === 'L' ? 1 / 3.785411784 : 1),
           cost: body.cost * (body.currency === 'CAD' ? 0.73 : 1),
+          currency: 'USD',
           fxRate: body.currency === 'CAD' ? 0.73 : 1,
           fxSource: 'frankfurter',
           fxStale: false
