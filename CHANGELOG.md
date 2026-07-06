@@ -88,6 +88,11 @@ All notable changes to this project are documented here. Format roughly follows 
   which shows the wrong symbol on a cold cache (a fresh install before the
   server info has been fetched). The server response carries the authoritative
   currency for the converted cost — the toast now uses it.
+- **Reopening the camera and cancelling no longer discards the photo queued
+  for attachment.** Tapping a photo pill again used to throw away the retained
+  pump/odometer photo the moment the picker opened — backing out of the picker
+  left nothing to attach and the attach row gone. The retained photo is now
+  replaced only when a new one is actually picked.
 
 ### Tests
 

@@ -71,6 +71,32 @@ test('attach off: submits JSON without image parts', async ({ page }) => {
   await expect.poll(() => ct).toContain('application/json');
 });
 
+test('reopening the camera then cancelling keeps the retained photo attached', async ({ page }) => {
+  await baseMocks(page);
+  let post: string | null = null;
+  await page.route('**/api/fuelup', async (route) => {
+    post = route.request().postData();
+    await route.fulfill({ json: FUELUP_OK });
+  });
+
+  await gotoHomeViaClientRouter(page);
+  await captureAndApplyPump(page);
+  const attachRow = page.getByRole('button', { name: /Attach photo(s)? to this record/i });
+  await expect(attachRow).toBeVisible();
+
+  // Reopen the pump camera (Playwright intercepts the chooser; we never pick)…
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Read pump display from photo' }).click();
+  await chooser;
+  // …and cancel: some browsers fire a change event with an empty file list.
+  await page.setInputFiles('input[type="file"][accept="image/*"] >> nth=0', []);
+
+  // The retained blob must survive the cancel — row still visible, bytes still sent.
+  await expect(attachRow).toBeVisible();
+  await page.getByRole('button', { name: 'Log fillup', exact: true }).click();
+  await expect.poll(() => post).toContain('pumpImage');
+});
+
 test('offline + attach: queues text-only and shows the "photo not attached" toast', async ({ page }) => {
   await baseMocks(page);
   await page.route('**/api/fuelup', (route) => route.abort('failed'));
