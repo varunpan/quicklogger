@@ -73,6 +73,12 @@ All notable changes to this project are documented here. Format roughly follows 
   field but silently kept the value, and the next submit sent it, mis-pricing
   the fillup (the same retention could carry one currency's rate into
   another). Any currency change now discards the typed rate.
+- **A fill-up can no longer vanish silently when both the server and device
+  storage are unavailable.** When a submission hit a server error and the
+  offline save-for-later also failed (Safari private mode, storage quota), the
+  app showed nothing at all — no error, no queued chip, fill-up gone. It now
+  shows an explicit "Couldn't save — device storage unavailable. This fill-up
+  was NOT saved." error so you know to retry.
 
 ### Tests
 

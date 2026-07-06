@@ -199,11 +199,16 @@ rows, that **will** need a version bump and an `upgrade()` migration.
 ### Quota errors
 
 The queue itself doesn't have explicit quota handling — `Queue.enqueue`
-throws on `QuotaExceededError`, which the form's submit path swallows
-via the outer `catch` (the error toast still fires, the entry just
-doesn't land). The synced-row write in `+page.svelte`'s success path
-is wrapped in its own `try/catch` and is fire-and-forget — IDB
-failures don't affect the success toast.
+throws on `QuotaExceededError`. Both of the form's write sites guard it
+with their own `try/catch`:
+
+- The **success-path** synced-row write is fire-and-forget — IDB
+  failures don't affect the success toast.
+- The **offline-fallback** enqueue (the 5xx/network `catch` branch of
+  `submit()`) surfaces an explicit error toast on failure: *"Couldn't
+  save — device storage unavailable. This fill-up was NOT saved."* It
+  was previously unguarded — the rejection escaped the handler with no
+  toast at all, silently losing the fill-up.
 
 For the localStorage cache + IDB read-side fallback used by the
 prefill resolver, see [`docs/technical/offline-odometer-prefill.md`](./offline-odometer-prefill.md).
@@ -211,11 +216,11 @@ prefill resolver, see [`docs/technical/offline-odometer-prefill.md`](./offline-o
 ### Private browsing mode
 
 Safari Private Browsing disables IndexedDB entirely — `openDB` throws.
-The form's submit path catches this in its outer `try/catch` (the queue
-fallback is the `catch` branch of the `submitFuelup` call). On private
-mode + offline, the user sees an error toast and the submission is
-lost. This is documented in the user guide; private browsing isn't a
-supported use mode for the PWA.
+The form's offline-fallback enqueue catches this (see *Quota errors*
+above). On private mode + offline, the user sees the explicit
+"NOT saved" error toast and the submission is lost. This is documented
+in the user guide; private browsing isn't a supported use mode for the
+PWA.
 
 ### Pruning
 

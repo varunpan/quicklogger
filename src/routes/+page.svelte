@@ -633,12 +633,23 @@
       if (status && status >= 400 && status < 500) {
         toast = { kind: 'error', text: `Submission rejected: ${(err as Error).message}` };
       } else {
-        const q = await Queue.open();
-        await q.enqueue(input);   // text-only — no image bytes ever enter IDB (online-only attach)
-        toast = {
-          kind: 'queued',
-          text: wantsAttach ? 'Saved locally — photo not attached.' : 'Saved locally — will sync when online'
-        };
+        try {
+          const q = await Queue.open();
+          await q.enqueue(input);   // text-only — no image bytes ever enter IDB (online-only attach)
+          toast = {
+            kind: 'queued',
+            text: wantsAttach ? 'Saved locally — photo not attached.' : 'Saved locally — will sync when online'
+          };
+        } catch {
+          // IDB unavailable (Safari private mode, quota): the offline fallback
+          // itself failed. Unguarded, this rejection escaped the submit handler
+          // — no toast, and the fill-up silently gone. Say so explicitly so
+          // the user knows to retry (mirrors the guarded success-path enqueue).
+          toast = {
+            kind: 'error',
+            text: "Couldn't save — device storage unavailable. This fill-up was NOT saved."
+          };
+        }
       }
     } finally {
       submitting = false;
