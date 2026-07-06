@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { POST, _resetRateLimitForTests } from './+server';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { POST, _resetRateLimitForTests, _bucketCountForTests } from './+server';
 
 const noopLogger = {
   debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child() { return this; }
@@ -8,7 +8,8 @@ const noopLogger = {
 function makeEvent(
   body: unknown,
   headers: Record<string, string> = {},
-  logger: import('$lib/server/logger').Logger = noopLogger
+  logger: import('$lib/server/logger').Logger = noopLogger,
+  ip = '127.0.0.1'
 ): import('@sveltejs/kit').RequestEvent {
   return {
     request: new Request('http://localhost/api/log', {
@@ -17,7 +18,7 @@ function makeEvent(
       body: JSON.stringify(body)
     }),
     locals: { logger, requestId: 't' },
-    getClientAddress: () => '127.0.0.1',
+    getClientAddress: () => ip,
     url: new URL('http://localhost/api/log'),
     route: { id: '/api/log' }
   } as unknown as import('@sveltejs/kit').RequestEvent;
@@ -112,6 +113,24 @@ describe('POST /api/log', () => {
       source: 'server',
       component: 'OcrPreview'
     });
+  });
+
+  it('evicts expired per-IP buckets on a later request (no unbounded map growth)', async () => {
+    // Buckets are only ever rewritten by their own IP, so entries for IPs
+    // that never return used to live forever.
+    vi.useFakeTimers();
+    try {
+      const record = () => ({ records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }] });
+      await POST(makeEvent(record(), {}, noopLogger, '10.0.0.1'));
+      await POST(makeEvent(record(), {}, noopLogger, '10.0.0.2'));
+      expect(_bucketCountForTests()).toBe(2);
+      vi.advanceTimersByTime(2 * 60_000); // both buckets expire
+      const res = await POST(makeEvent(record(), {}, noopLogger, '10.0.0.3'));
+      expect(res.status).toBe(204);
+      expect(_bucketCountForTests()).toBe(1); // only 10.0.0.3 remains
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rate-limits at 60 req/min per IP', async () => {

@@ -24,6 +24,11 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Rate-limiter memory no longer grows forever.** The per-IP tracking maps
+  behind the OCR and client-log endpoints kept an entry for every IP that ever
+  called them — entries for IPs that never returned were never cleaned up, a
+  slow leak on a long-running server. Both maps now sweep out expired entries
+  opportunistically (at most once per rate window).
 - **Two fillups on the same day no longer show the earlier one as "last
   fillup".** The last-fillup lookup compared records by date only, so with two
   fillups on one date it returned whichever LubeLogger listed first — usually

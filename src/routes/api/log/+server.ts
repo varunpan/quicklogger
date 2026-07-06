@@ -17,13 +17,29 @@ const RATE_PER_MIN = 60;
 
 interface IpBucket { count: number; resetAt: number; }
 const buckets = new Map<string, IpBucket>();
+let lastSweepAt = Date.now();
 
 export function _resetRateLimitForTests() {
   buckets.clear();
+  lastSweepAt = Date.now();
+}
+
+export function _bucketCountForTests(): number {
+  return buckets.size;
 }
 
 function rateLimit(ip: string): boolean {
   const now = Date.now();
+  // Opportunistic eviction: a bucket is only ever rewritten by its own IP, so
+  // an IP that never returns would hold its expired bucket forever — an
+  // unbounded map on a long-lived process. At most once per window, drop
+  // every expired bucket. O(n) over the map, amortized to once a minute.
+  if (now - lastSweepAt >= 60_000) {
+    lastSweepAt = now;
+    for (const [key, bucket] of buckets) {
+      if (bucket.resetAt < now) buckets.delete(key);
+    }
+  }
   let b = buckets.get(ip);
   if (!b || b.resetAt < now) {
     b = { count: 0, resetAt: now + 60_000 };
