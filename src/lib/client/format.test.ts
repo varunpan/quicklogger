@@ -6,7 +6,8 @@ import {
   humanCountdown,
   formatDueDate,
   formatIsoDate,
-  formatCost
+  formatCost,
+  vehicleLabel
 } from './format';
 
 // Helpers ---------------------------------------------------------------
@@ -227,5 +228,22 @@ describe('formatCost', () => {
     expect(formatCost(50.96, 'USD')).toBe(
       new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(50.96)
     );
+  });
+});
+
+// vehicleLabel ----------------------------------------------------------
+
+describe('vehicleLabel', () => {
+  it('joins year, make, model', () => {
+    expect(vehicleLabel({ year: 2019, make: 'Honda', model: 'Civic Si' })).toBe('2019 Honda Civic Si');
+  });
+  it('skips missing parts', () => {
+    expect(vehicleLabel({ make: 'Honda', model: 'Civic' })).toBe('Honda Civic');
+    expect(vehicleLabel({ year: 2019 })).toBe('2019');
+  });
+  it('returns empty for null/undefined/empty vehicle', () => {
+    expect(vehicleLabel(null)).toBe('');
+    expect(vehicleLabel(undefined)).toBe('');
+    expect(vehicleLabel({})).toBe('');
   });
 });

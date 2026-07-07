@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { Reminder, ReminderUrgency } from '$lib/server/lubelogger';
   import { formatOdometer, formatDueDate, humanCountdown } from '$lib/client/format';
+  import VehicleCard from '$lib/client/VehicleCard.svelte';
   import VehicleIdentifiersCard from '$lib/client/VehicleIdentifiersCard.svelte';
-  import VehicleImage from '$lib/client/VehicleImage.svelte';
 
   let { data } = $props();
 
@@ -34,12 +34,6 @@
         if (u !== 0) return u;
         return sortValue(a) - sortValue(b);
       });
-  });
-
-  const vehicleLabel = $derived.by(() => {
-    const v = data.vehicle;
-    if (!v) return '';
-    return [v.year, v.make, v.model].filter(Boolean).join(' ');
   });
 
   function chipClasses(urgency: ReminderUrgency): string {
@@ -95,17 +89,7 @@
   <a href="/vehicles?from=maintenance" class="block text-sm text-blue-400 mt-6">→ Pick vehicle</a>
 {:else}
   {#if data.vehicle}
-    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-    <a href="/vehicles?from=maintenance" class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full">
-      <VehicleImage vehicleId={data.vehicle?.id} class="w-12 h-12" />
-      <div class="text-left flex-1 min-w-0">
-        <div class="field-label">Vehicle</div>
-        <div class="text-base font-semibold truncate text-zinc-100">
-          {vehicleLabel}
-        </div>
-      </div>
-      <span class="text-zinc-500" aria-hidden="true">›</span>
-    </a>
+    <VehicleCard vehicle={data.vehicle} href="/vehicles?from=maintenance" />
   {/if}
 
   {#if data.vehicle}

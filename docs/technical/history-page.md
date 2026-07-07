@@ -51,7 +51,7 @@ Page-local state:
 | `loading` | `boolean` | True until `onMount` finishes. |
 | `error` | `string \| null` | Set if `Queue.open()` or `Queue.list()` throws. |
 | `visible` | `QueueEntry[]` (derived) | `allEntries` filtered by active vehicle + sorted. |
-| `vehicleLabel` | `string` (derived) | Year/make/model joined for the picker card. |
+| (picker card) | — | Rendered by the shared `<VehicleCard>` (`$lib/client/VehicleCard.svelte`), which labels via `vehicleLabel()` from `format.ts`. |
 | `emptyCopy` | `string` (derived) | Picks between two empty-state strings. |
 
 ## Lifecycle / control flow

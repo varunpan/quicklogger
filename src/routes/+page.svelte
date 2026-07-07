@@ -26,7 +26,7 @@
     type LastFuelupForCheck
   } from '$lib/client/smart-checks';
   import OcrPreview from '$lib/client/OcrPreview.svelte';
-  import VehicleImage from '$lib/client/VehicleImage.svelte';
+  import VehicleCard from '$lib/client/VehicleCard.svelte';
   import { readPhotoDate, interpretPhotoDate, formatLocalDate } from '$lib/client/exif';
   import type { Rotation, NormalizedRect } from '$lib/client/image';
 
@@ -732,20 +732,7 @@
       </div>
     </div>
   {/if}
-  <button
-    type="button"
-    class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full"
-    onclick={() => navigateToVehicles()}
-  >
-    <VehicleImage vehicleId={vehicle.id} class="w-12 h-12" />
-    <div class="text-left flex-1 min-w-0">
-      <div class="field-label">Vehicle</div>
-      <div class="text-base font-semibold truncate">
-        {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')}
-      </div>
-    </div>
-    <span class="text-zinc-500" aria-hidden="true">›</span>
-  </button>
+  <VehicleCard {vehicle} onclick={() => navigateToVehicles()} />
 
   {#if pumpModeEnabled() || odoModeEnabled()}
     <div class="flex gap-2 mb-3">

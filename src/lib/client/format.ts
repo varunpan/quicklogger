@@ -15,6 +15,18 @@ export function effectiveCurrencyCode(): string {
   return loadServerInfo()?.lubeloggerCurrency ?? 'USD';
 }
 
+// --- Vehicle label ---
+
+// `2019 Honda Civic Si` — shared display label for a vehicle row/card.
+// Structural type (not the Vehicle interface) so format.ts stays free of
+// $lib/server imports.
+export function vehicleLabel(
+  v: { year?: number; make?: string; model?: string } | null | undefined
+): string {
+  if (!v) return '';
+  return [v.year, v.make, v.model].filter(Boolean).join(' ');
+}
+
 // --- Number formatting ---
 
 export function formatOdometer(s: string): string {
