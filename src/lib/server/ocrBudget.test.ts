@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { BudgetStore, BudgetEntry } from './ocrBudget';
@@ -123,5 +123,38 @@ describe('OcrBudget — concurrency (real file store)', () => {
     const loaded = await store.load();
     expect(loaded?.calls).toBe(N);
     expect(loaded?.costCents).toBeCloseTo(N, 5);
+  });
+});
+
+// T8 — the JsonFileBudgetStore disk-error arms. The corrupt-file self-heal
+// (ocrBudget.ts:115-119) is promised only by a comment; without it a single bad
+// write leaves the tally frozen forever. The non-ENOENT rethrow (106-107) keeps
+// a real disk fault from masquerading as "no budget file yet".
+describe('JsonFileBudgetStore — disk-error handling', () => {
+  let dir: string;
+  let path: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'ocr-budget-disk-'));
+    path = join(dir, 'ocr-budget.json');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('update() self-heals a corrupt/unparseable file (mutator sees null, file rewritten)', async () => {
+    writeFileSync(path, '{ this is not valid json at all');
+    const store = new JsonFileBudgetStore(path);
+    let seen: BudgetEntry | null | undefined;
+    await store.update((cur) => {
+      seen = cur;
+      return { date: '2026-05-11', calls: 1, costCents: 5 };
+    });
+    expect(seen).toBeNull(); // corrupt content is treated as an empty tally
+    expect(await store.load()).toEqual({ date: '2026-05-11', calls: 1, costCents: 5 });
+  });
+
+  it('load() propagates a non-ENOENT read error instead of returning null', async () => {
+    // Reading a directory as a file yields EISDIR (not ENOENT) — must rethrow.
+    const store = new JsonFileBudgetStore(dir);
+    await expect(store.load()).rejects.toMatchObject({ code: 'EISDIR' });
   });
 });
