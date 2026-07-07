@@ -33,7 +33,13 @@ export default [
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_'
-      }]
+      }],
+      // Type-only imports must use `import type` — stops a careless import
+      // from pulling $lib/server modules into client bundles at runtime
+      // (e.g. client/api.ts importing lubelogger types). Inline `import()`
+      // type annotations stay allowed: they're erased at compile time (no
+      // runtime pull-in) and are the established idiom in the test files.
+      '@typescript-eslint/consistent-type-imports': ['error', { disallowTypeAnnotations: false }]
     }
   },
   {
