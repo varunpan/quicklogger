@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { convertSubmission, type FuelInput } from './convert';
-import { CurrencyService } from './currency';
+import type { CurrencyService } from './currency';
 
 function fakeCurrency(rate: number, source: 'frankfurter' | 'manual' = 'frankfurter') {
   return {
