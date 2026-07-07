@@ -19,9 +19,9 @@ test('logs a CAD/L fillup, shows USD/gal in confirmation, and redirects to maint
   await page.goto('/');
 
   await page.locator('#odometer').fill('87432');
-  await page.getByPlaceholder('11.2').fill('50');
+  await page.getByLabel('Volume', { exact: true }).fill('50');
   await page.getByRole('button', { name: 'L', exact: true }).click();
-  await page.getByPlaceholder('42.18').fill('65');
+  await page.getByLabel('Cost', { exact: true }).fill('65');
   // Currency <select> sits next to the cost input; select the one with CAD as an option.
   await page
     .locator('select', { has: page.locator('option', { hasText: 'CAD' }) })

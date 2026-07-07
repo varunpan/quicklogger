@@ -21,6 +21,10 @@ All notable changes to this project are documented here. Format roughly follows 
   2.65.1, so the pin is no longer needed and kit is back on a caret range at the
   current latest. The `css-preload` e2e guard confirms the doubled-path 404s stay
   gone. Dev/build dependency only — no runtime or behaviour change.
+- **Screen readers now announce the Volume and Cost fields by name.** Both amount
+  fields carry an explicit accessible label rather than relying on their
+  placeholder, so assistive tech reads "Volume" / "Cost" instead of the example
+  value.
 
 ### Fixed
 
