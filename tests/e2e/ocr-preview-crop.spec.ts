@@ -48,6 +48,9 @@ test('crop: drag → Done → Send POSTs cropX/Y/W/H form fields', async ({ page
   // isDefault tolerance and well within clampToBounds for any image size.
   const interior = dialog.locator('[data-handle="interior"]');
   await expect(interior).toBeVisible();
+  // Capture the handle's rendered offset so we can positively detect the drag
+  // applying (its `left` mirrors rect.x directly).
+  const beforeLeft = await interior.evaluate((el) => (el as HTMLElement).style.left);
   await interior.evaluate((handle) => {
     const box = handle.getBoundingClientRect();
     const startX = box.left + box.width / 2;
@@ -72,7 +75,12 @@ test('crop: drag → Done → Send POSTs cropX/Y/W/H form fields', async ({ page
     overlay.dispatchEvent(new PointerEvent('pointermove', opts(endX, endY)));
     overlay.dispatchEvent(new PointerEvent('pointerup', opts(endX, endY)));
   });
-  await page.waitForTimeout(50);
+  // Positive signal instead of a fixed 50ms settle: the interior handle
+  // re-rendered at its shifted offset (rect.x moved with the +2px drag), so the
+  // committed rect reflects the drag before we click Done.
+  await expect
+    .poll(() => interior.evaluate((el) => (el as HTMLElement).style.left))
+    .not.toBe(beforeLeft);
 
   // Commit + send
   await dialog.getByRole('button', { name: /^Done$/i }).click();
