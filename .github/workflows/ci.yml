@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Rapid pushes to the same ref used to run duplicate ~10-min jobs to
+# completion; cancel the superseded run instead.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -14,7 +20,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      # --no-audit: the dedicated step below audits explicitly; --no-fund: noise.
+      - run: npm ci --no-audit --no-fund
       # Audit the FULL dependency tree (not --omit=dev): devDependencies like
       # svelte/@sveltejs/kit/devalue get compiled into the build/ bundle, so they
       # ship at runtime even though Trivy's image scan can't see them. Gate on
