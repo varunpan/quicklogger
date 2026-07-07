@@ -224,6 +224,67 @@ describe('CropOverlay', () => {
     expect(oncommit.mock.calls[0][0]).toEqual({ x: 70, y: 50, w: 320, h: 240 });
   });
 
+  // T7 — the four edge handles (CropOverlay.svelte:251-271) moved only one edge
+  // each and had zero coverage; an edge-resize regression currently ships green.
+  // Default mount: image 400×300, rect (40,30,320,240), floorScreenPx = 40.
+  it('top-edge drag moves only the top (x/w unchanged)', async () => {
+    const { container, oncommit } = mountWith();
+    const handle = container.querySelector('[data-handle="edge"][data-edge="t"]') as HTMLElement;
+    await fireEvent(handle, makePointerEvent('pointerdown', 200, 30));
+    await fireEvent(handle, makePointerEvent('pointermove', 200, 80)); // dy = +50
+    await fireEvent.click(container.querySelector('[data-action="done"]') as HTMLElement);
+    expect(oncommit.mock.calls[0][0]).toEqual({ x: 40, y: 80, w: 320, h: 190 });
+  });
+
+  it('bottom-edge drag moves only the bottom (x/y/w unchanged)', async () => {
+    const { container, oncommit } = mountWith();
+    const handle = container.querySelector('[data-handle="edge"][data-edge="b"]') as HTMLElement;
+    await fireEvent(handle, makePointerEvent('pointerdown', 200, 270));
+    await fireEvent(handle, makePointerEvent('pointermove', 200, 230)); // dy = -40
+    await fireEvent.click(container.querySelector('[data-action="done"]') as HTMLElement);
+    expect(oncommit.mock.calls[0][0]).toEqual({ x: 40, y: 30, w: 320, h: 200 });
+  });
+
+  it('left-edge drag moves only the left (y/h unchanged)', async () => {
+    const { container, oncommit } = mountWith();
+    const handle = container.querySelector('[data-handle="edge"][data-edge="l"]') as HTMLElement;
+    await fireEvent(handle, makePointerEvent('pointerdown', 40, 150));
+    await fireEvent(handle, makePointerEvent('pointermove', 100, 150)); // dx = +60
+    await fireEvent.click(container.querySelector('[data-action="done"]') as HTMLElement);
+    expect(oncommit.mock.calls[0][0]).toEqual({ x: 100, y: 30, w: 260, h: 240 });
+  });
+
+  it('right-edge drag moves only the right (x/y/h unchanged)', async () => {
+    const { container, oncommit } = mountWith();
+    const handle = container.querySelector('[data-handle="edge"][data-edge="r"]') as HTMLElement;
+    await fireEvent(handle, makePointerEvent('pointerdown', 360, 150));
+    await fireEvent(handle, makePointerEvent('pointermove', 300, 150)); // dx = -60
+    await fireEvent.click(container.querySelector('[data-action="done"]') as HTMLElement);
+    expect(oncommit.mock.calls[0][0]).toEqual({ x: 40, y: 30, w: 260, h: 240 });
+  });
+
+  it('edge drag floors on the shortest edge (top dragged past the 40px floor)', async () => {
+    const { container, oncommit } = mountWith();
+    const handle = container.querySelector('[data-handle="edge"][data-edge="t"]') as HTMLElement;
+    await fireEvent(handle, makePointerEvent('pointerdown', 200, 30));
+    await fireEvent(handle, makePointerEvent('pointermove', 200, 999)); // huge dy — must floor
+    await fireEvent.click(container.querySelector('[data-action="done"]') as HTMLElement);
+    const rect = oncommit.mock.calls[0][0];
+    expect(rect.h).toBe(40); // y2 (270) - floorScreenPx (40)
+    expect(rect.y).toBe(230);
+  });
+
+  it('edge drag clamps at the image boundary (top dragged above 0)', async () => {
+    const { container, oncommit } = mountWith();
+    const handle = container.querySelector('[data-handle="edge"][data-edge="t"]') as HTMLElement;
+    await fireEvent(handle, makePointerEvent('pointerdown', 200, 30));
+    await fireEvent(handle, makePointerEvent('pointermove', 200, -999)); // huge negative dy
+    await fireEvent.click(container.querySelector('[data-action="done"]') as HTMLElement);
+    const rect = oncommit.mock.calls[0][0];
+    expect(rect.y).toBe(0); // clamped to the top edge
+    expect(rect.h).toBe(270); // grows to y2
+  });
+
   it('keeps every handle fully inside imageDisplayRect when the rect is flush against the image bounds', () => {
     // Rect fills the entire 400×300 image — every handle would straddle a
     // boundary if positions weren't clamped, ending up outside the overlay's
@@ -356,6 +417,31 @@ describe('CropOverlay — zoom/pan', () => {
     expect(zoomText(container)).toBeCloseTo(1.5, 2);
     // No gesture in progress — host hands a new initial (Reset / re-entry).
     await rerender({ initial: { x: 10, y: 20, w: 100, h: 80 }, oncommit: vi.fn() });
+    expect(zoomText(container)).toBeCloseTo(1, 2);
+  });
+
+  // T7 (wheel) — onWheel (CropOverlay.svelte:288-296) zooms about the cursor and
+  // was untested (the other zoom tests use the slider or pinch). deltaY<0 zooms
+  // in, deltaY>0 out; both funnel through applyZoom → clampZoom [1, MAX_ZOOM].
+  it('wheel-up zooms in and clamps at MAX_ZOOM; wheel-down clamps back to 1', async () => {
+    const { container } = mountZoom();
+    const root = container.querySelector('[data-overlay-root]') as HTMLElement;
+    expect(zoomText(container)).toBeCloseTo(1, 2);
+
+    // One notch up about the cursor (200,150) → zoom grows above 1.
+    await fireEvent.wheel(root, { deltaY: -100, clientX: 200, clientY: 150 });
+    expect(zoomText(container)).toBeGreaterThan(1);
+
+    // Many notches up → saturates at MAX_ZOOM (5).
+    for (let i = 0; i < 40; i++) {
+      await fireEvent.wheel(root, { deltaY: -100, clientX: 200, clientY: 150 });
+    }
+    expect(zoomText(container)).toBeCloseTo(MAX_ZOOM, 2);
+
+    // Many notches down → clamps at the fit floor (1).
+    for (let i = 0; i < 60; i++) {
+      await fireEvent.wheel(root, { deltaY: 100, clientX: 200, clientY: 150 });
+    }
     expect(zoomText(container)).toBeCloseTo(1, 2);
   });
 });
