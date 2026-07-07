@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey, type AuditRecord } from './ocrAudit';
@@ -259,4 +259,30 @@ describe('resolveAuditHmacKey', () => {
       )
     ).toBe(true);
   });
+
+  // Residual gap (paired with T8): the test above lands on the READ-failure arm
+  // (ENOTDIR ≠ ENOENT). This isolates the KEY-GENERATION arm (ocrAudit.ts:126-128):
+  // the key file is genuinely missing (read → ENOENT, so we fall through to
+  // generation), but its parent dir is read-only so writeFileSync → EACCES.
+  // Skipped under root, which bypasses the write permission.
+  it.skipIf(process.getuid?.() === 0)(
+    'logs and rethrows on the key-generation arm when the dir is unwritable',
+    () => {
+      const { logger, calls } = captureLogger();
+      const roDir = join(dir, 'readonly');
+      mkdirSync(roDir);
+      chmodSync(roDir, 0o555); // r-x: key read → ENOENT, but write → EACCES
+      const keyPathRo = join(roDir, 'ocr-audit-key.txt');
+      try {
+        expect(() =>
+          resolveAuditHmacKey({ ocrAuditHmacKey: undefined, ocrAuditKeyPath: keyPathRo, logger })
+        ).toThrow();
+        expect(
+          calls.some((c) => c.level === 'error' && c.msg === 'ocr audit key generation failed')
+        ).toBe(true);
+      } finally {
+        chmodSync(roDir, 0o755); // restore so afterEach's rmSync can clean up
+      }
+    }
+  );
 });
