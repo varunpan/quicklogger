@@ -733,23 +733,45 @@
   <VehicleCard {vehicle} onclick={() => navigateToVehicles()} />
 
   {#if pumpModeEnabled() || odoModeEnabled()}
+    <!-- The two camera buttons and the two suggestion cards are structurally
+         identical — one snippet each (review Q6); only labels/handlers vary. -->
+    {#snippet cameraButton(ariaLabel: string, label: string, pending: boolean, onclick: () => void)}
+      <button
+        type="button"
+        class="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-2"
+        aria-label={ariaLabel}
+        {onclick}
+        disabled={pending}
+      >
+        {#if pending}
+          <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
+          <span class="truncate">Reading photo…</span>
+        {:else}
+          <Icon name="camera" />
+          <span class="truncate">{label}</span>
+        {/if}
+      </button>
+    {/snippet}
+
+    {#snippet suggestionCard(bold: string, dim: string | null, onuse: () => void, ondiscard: () => void)}
+      <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
+        <div class="flex items-start gap-2">
+          <Icon name="camera" class="text-blue-300 mt-0.5 shrink-0" />
+          <div class="text-xs text-blue-200 flex-1 leading-relaxed">
+            <span class="text-blue-300/70">Detected:</span>
+            <span class="font-semibold">{bold}</span>{#if dim}<span class="text-blue-300/70"> · {dim}</span>{/if}
+          </div>
+        </div>
+        <div class="flex gap-2 mt-2 ml-6">
+          <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={onuse}>Use</button>
+          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={ondiscard}>Discard</button>
+        </div>
+      </div>
+    {/snippet}
+
     <div class="flex gap-2 mb-3">
       {#if pumpModeEnabled()}
-        <button
-          type="button"
-          class="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-2"
-          aria-label="Read pump display from photo"
-          onclick={openPumpCamera}
-          disabled={pumpOcrPending}
-        >
-          {#if pumpOcrPending}
-            <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
-            <span class="truncate">Reading photo…</span>
-          {:else}
-            <Icon name="camera" />
-            <span class="truncate">Pump display photo</span>
-          {/if}
-        </button>
+        {@render cameraButton('Read pump display from photo', 'Pump display photo', pumpOcrPending, openPumpCamera)}
         <input
           bind:this={pumpCameraInput}
           type="file"
@@ -759,21 +781,7 @@
         />
       {/if}
       {#if odoModeEnabled()}
-        <button
-          type="button"
-          class="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-2"
-          aria-label="Read odometer from photo"
-          onclick={openOdoCamera}
-          disabled={odoOcrPending}
-        >
-          {#if odoOcrPending}
-            <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
-            <span class="truncate">Reading photo…</span>
-          {:else}
-            <Icon name="camera" />
-            <span class="truncate">Odometer photo</span>
-          {/if}
-        </button>
+        {@render cameraButton('Read odometer from photo', 'Odometer photo', odoOcrPending, openOdoCamera)}
         <input
           bind:this={odoCameraInput}
           type="file"
@@ -785,36 +793,21 @@
     </div>
 
     {#if pumpSuggestion}
-      <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
-        <div class="flex items-start gap-2">
-          <Icon name="camera" class="text-blue-300 mt-0.5 shrink-0" />
-          <div class="text-xs text-blue-200 flex-1 leading-relaxed">
-            <span class="text-blue-300/70">Detected:</span>
-            <span class="font-semibold">{pumpSuggestion.volume} {pumpSuggestion.volumeUnit} · {formatCost(pumpSuggestion.cost, null)}</span>
-            <span class="text-blue-300/70"> · {formatCost(pumpSuggestion.pricePerUnit, null)}/{pumpSuggestion.volumeUnit}</span>
-          </div>
-        </div>
-        <div class="flex gap-2 mt-2 ml-6">
-          <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={applyPumpOcr}>Use</button>
-          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={discardPumpOcr}>Discard</button>
-        </div>
-      </div>
+      {@render suggestionCard(
+        `${pumpSuggestion.volume} ${pumpSuggestion.volumeUnit} · ${formatCost(pumpSuggestion.cost, null)}`,
+        `${formatCost(pumpSuggestion.pricePerUnit, null)}/${pumpSuggestion.volumeUnit}`,
+        applyPumpOcr,
+        discardPumpOcr
+      )}
     {/if}
 
     {#if odoSuggestion}
-      <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
-        <div class="flex items-start gap-2">
-          <Icon name="camera" class="text-blue-300 mt-0.5 shrink-0" />
-          <div class="text-xs text-blue-200 flex-1 leading-relaxed">
-            <span class="text-blue-300/70">Detected:</span>
-            <span class="font-semibold">{formatOdometer(String(odoSuggestion.odometer))} mi</span>
-          </div>
-        </div>
-        <div class="flex gap-2 mt-2 ml-6">
-          <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={applyOdoOcr}>Use</button>
-          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={discardOdoOcr}>Discard</button>
-        </div>
-      </div>
+      {@render suggestionCard(
+        `${formatOdometer(String(odoSuggestion.odometer))} mi`,
+        null,
+        applyOdoOcr,
+        discardOdoOcr
+      )}
     {/if}
 
     {#if odoWarning}
