@@ -6,7 +6,9 @@ import {
   getFx,
   lastFuelup,
   getOcrStatus,
-  listReminders
+  listReminders,
+  ApiError,
+  OcrError
 } from './api';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
@@ -54,6 +56,13 @@ describe('submitFuelupWithPhotos', () => {
     await expect(
       submitFuelupWithPhotos(input, { pump: null, odometer: null }, f as unknown as typeof fetch)
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('throws ApiError instances so consumers can instanceof-narrow', async () => {
+    const f = vi.fn(async () => new Response('nope', { status: 400 }));
+    await expect(
+      submitFuelupWithPhotos(input, { pump: null, odometer: null }, f as unknown as typeof fetch)
+    ).rejects.toBeInstanceOf(ApiError);
   });
 });
 
@@ -157,6 +166,13 @@ describe('postOcr', () => {
     await expect(
       postOcr(image, 'pump', 0, null, undefined, undefined, undefined, f as unknown as typeof fetch)
     ).rejects.toMatchObject({ status: 0 });
+  });
+
+  it('throws OcrError instances (which are also ApiErrors)', async () => {
+    const f = vi.fn(async () => new Response('boom', { status: 502 }));
+    await expect(
+      postOcr(image, 'pump', 0, null, undefined, undefined, undefined, f as unknown as typeof fetch)
+    ).rejects.toBeInstanceOf(OcrError);
   });
 });
 
