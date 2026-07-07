@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { savePrefs } from '$lib/client/prefs';
+  import { vehicleLabel } from '$lib/client/format';
   import VehicleImage from '$lib/client/VehicleImage.svelte';
 
   let { data } = $props();
@@ -60,7 +61,7 @@
         <VehicleImage vehicleId={v.id} class="w-14 h-14" svgSize={24} />
         <div class="flex-1 min-w-0">
           <div class="text-base font-semibold truncate">
-            {[v.year, v.make, v.model].filter(Boolean).join(' ')}
+            {vehicleLabel(v)}
           </div>
           <div class="text-xs text-zinc-400">id {v.id}</div>
         </div>

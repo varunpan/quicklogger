@@ -3,7 +3,7 @@
   import { Queue, type QueueEntry } from '$lib/client/idb';
   import { formatIsoDate, formatOdometer, formatCost, effectiveCurrencyCode } from '$lib/client/format';
   import { unitPriceDisplay } from '$lib/client/unit-price';
-  import VehicleImage from '$lib/client/VehicleImage.svelte';
+  import VehicleCard from '$lib/client/VehicleCard.svelte';
 
   let { data } = $props();
 
@@ -15,12 +15,6 @@
   let allEntries: QueueEntry[] = $state([]);
   let loading: boolean = $state(true);
   let error: string | null = $state(null);
-
-  const vehicleLabel = $derived.by(() => {
-    const v = data.vehicle;
-    if (!v) return '';
-    return [v.year, v.make, v.model].filter(Boolean).join(' ');
-  });
 
   // 'YYYY-MM-DD' → epoch ms. UTC keeps the comparison stable across
   // timezones — we only care about ordering, not absolute display.
@@ -80,17 +74,7 @@
 </header>
 
 {#if data.vehicle}
-  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/vehicles?from=history" class="bg-zinc-800 rounded-xl px-3 py-3 mb-3 flex items-center gap-3 w-full">
-    <VehicleImage vehicleId={data.vehicle?.id} class="w-12 h-12" />
-    <div class="text-left flex-1 min-w-0">
-      <div class="field-label">Vehicle</div>
-      <div class="text-base font-semibold truncate text-zinc-100">
-        {vehicleLabel}
-      </div>
-    </div>
-    <span class="text-zinc-500" aria-hidden="true">›</span>
-  </a>
+  <VehicleCard vehicle={data.vehicle} href="/vehicles?from=history" />
 {/if}
 
 {#if loading}

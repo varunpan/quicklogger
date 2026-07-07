@@ -11,9 +11,10 @@ Replaces the generic car SVG in every vehicle-row surface — the home Log Fuel 
 - [`src/lib/server/vehicleCache.ts`](../../src/lib/server/vehicleCache.ts) — the shared 5-minute normalized-vehicle cache. Both this endpoint and `/api/vehicles` go through `getCachedVehicles(client)`, so a cold load that fires both makes one upstream `listVehicles()` call, not two (review #36).
 - [`src/service-worker.ts`](../../src/service-worker.ts) — adds the fixed-name `IMG_CACHE` constant, a `staleWhileRevalidate` helper, a fetch-handler branch for `/api/vehicle/image` placed *before* the generic `/api/` network-first branch, and a tweak to the activate handler so `IMG_CACHE` survives shell upgrades.
 - [`src/lib/client/VehicleImage.svelte`](../../src/lib/client/VehicleImage.svelte) — shared icon-slot component. Encapsulates the `vehicleImageOk = $state(true)` flag, the `$effect` keyed on `vehicleId` that resets the flag on vehicle switch, and the `<img>` / SVG-fallback render branch. Accepts `vehicleId`, `class` (passed through to the outer wrapper so callers control sizing), and `svgSize` (defaults to 22; the picker passes 24).
-- [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — vehicle button consumes the shared `<VehicleImage>` component instead of inlining the pattern.
-- [`src/routes/history/+page.svelte`](../../src/routes/history/+page.svelte) — vehicle card consumes `<VehicleImage>` instead of the static SVG slot.
-- [`src/routes/maintenance/+page.svelte`](../../src/routes/maintenance/+page.svelte) — vehicle card consumes `<VehicleImage>` instead of the static SVG slot.
+- [`src/lib/client/VehicleCard.svelte`](../../src/lib/client/VehicleCard.svelte) — the tappable "current vehicle" card shared by `/`, `/history`, `/maintenance`, and `/stats`. Wraps `<VehicleImage class="w-12 h-12">` plus the `vehicleLabel()` line; renders as `<a href>` (picker round-trip pages) or `<button onclick>` (home, which carries form state onto the picker URL).
+- [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — vehicle button is the shared `<VehicleCard>` (which consumes `<VehicleImage>`).
+- [`src/routes/history/+page.svelte`](../../src/routes/history/+page.svelte) — vehicle card is the shared `<VehicleCard>`.
+- [`src/routes/maintenance/+page.svelte`](../../src/routes/maintenance/+page.svelte) — vehicle card is the shared `<VehicleCard>`.
 - [`src/routes/vehicles/+page.svelte`](../../src/routes/vehicles/+page.svelte) — each list row in the picker renders its own `<VehicleImage>` instance with `class="w-14 h-14"` and `svgSize={24}`. Per-row instances each own their own `vehicleImageOk` flag — no shared bookkeeping.
 
 ## Data model
