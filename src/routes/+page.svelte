@@ -5,6 +5,7 @@
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
   import { Queue } from '$lib/client/idb';
   import { toGallons } from '$lib/shared/units';
+  import { SUPPORTED_CURRENCIES } from '$lib/shared/currencies';
   import { submitFuelup, submitFuelupWithPhotos, getFx, postOcr, ApiError, OcrError } from '$lib/client/api';
   import { resizeForOcr } from '$lib/client/image';
   import { bufferPickedPhoto, type BufferedPhoto } from '$lib/client/photo-buffer';
@@ -910,11 +911,9 @@
           bind:value={currency}
           aria-label="Currency"
         >
-          <option>USD</option>
-          <option>CAD</option>
-          <option>EUR</option>
-          <option>GBP</option>
-          <option>MXN</option>
+          {#each SUPPORTED_CURRENCIES as code (code)}
+            <option>{code}</option>
+          {/each}
         </select>
       </div>
     </div>
