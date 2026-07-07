@@ -7,7 +7,8 @@ import {
   formatDueDate,
   formatIsoDate,
   formatCost,
-  vehicleLabel
+  vehicleLabel,
+  parseIsoLocal
 } from './format';
 
 // Helpers ---------------------------------------------------------------
@@ -245,5 +246,29 @@ describe('vehicleLabel', () => {
     expect(vehicleLabel(null)).toBe('');
     expect(vehicleLabel(undefined)).toBe('');
     expect(vehicleLabel({})).toBe('');
+  });
+});
+
+// parseIsoLocal ---------------------------------------------------------
+
+describe('parseIsoLocal', () => {
+  it('parses YYYY-MM-DD to a local-midnight Date', () => {
+    const d = parseIsoLocal('2026-05-10');
+    expect(d).not.toBeNull();
+    expect(d!.getFullYear()).toBe(2026);
+    expect(d!.getMonth()).toBe(4);
+    expect(d!.getDate()).toBe(10);
+    expect(d!.getHours()).toBe(0);
+  });
+  it('returns null on empty input', () => {
+    expect(parseIsoLocal('')).toBeNull();
+  });
+  it('returns null when not three segments', () => {
+    expect(parseIsoLocal('2026-05')).toBeNull();
+    expect(parseIsoLocal('2026-05-10-01')).toBeNull();
+  });
+  it('returns null on non-numeric segments', () => {
+    expect(parseIsoLocal('2026-foo-10')).toBeNull();
+    expect(parseIsoLocal('not a date')).toBeNull();
   });
 });

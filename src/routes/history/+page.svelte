@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Queue, type QueueEntry } from '$lib/client/idb';
-  import { formatIsoDate, formatOdometer, formatCost, effectiveCurrencyCode } from '$lib/client/format';
+  import { formatIsoDate, formatOdometer, formatCost, effectiveCurrencyCode, parseIsoLocal } from '$lib/client/format';
   import { unitPriceDisplay } from '$lib/client/unit-price';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
 
@@ -16,14 +16,11 @@
   let loading: boolean = $state(true);
   let error: string | null = $state(null);
 
-  // 'YYYY-MM-DD' → epoch ms. UTC keeps the comparison stable across
-  // timezones — we only care about ordering, not absolute display.
+  // 'YYYY-MM-DD' → epoch ms via the shared parser. Local-midnight ms order
+  // calendar dates identically to UTC ms — we only care about ordering, not
+  // absolute display. Garbage collapses to 0 (sorts oldest).
   function dateKey(iso: string): number {
-    const [y, m, d] = iso.split('-').map(Number);
-    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
-      return 0;
-    }
-    return Date.UTC(y, m - 1, d);
+    return parseIsoLocal(iso)?.getTime() ?? 0;
   }
 
   const visible = $derived.by(() => {
