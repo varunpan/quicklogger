@@ -14,8 +14,11 @@ test.use({ serviceWorkers: 'block' });
 
 test('first load: no doubled-path asset 404s or CSS-preload rejections', async ({ page }) => {
   const notFound: string[] = [];
+  const cssAssets: string[] = [];
   page.on('response', (r) => {
-    if (r.status() === 404) notFound.push(r.url());
+    const url = r.url();
+    if (r.status() === 404) notFound.push(url);
+    if (r.ok() && /\/_app\/immutable\/assets\/.*\.css$/.test(url)) cssAssets.push(url);
   });
 
   await page.addInitScript(() => {
@@ -30,7 +33,11 @@ test('first load: no doubled-path asset 404s or CSS-preload rejections', async (
 
   await page.goto('/');
   await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(500);
+  // Positive signal instead of a fixed 500ms settle: the first-load CSS assets
+  // actually resolved (200), so the absence assertions below can't pass
+  // vacuously on a page whose preloads never fired. networkidle already lets the
+  // hydration-time doubled-path request settle into `notFound`.
+  await expect.poll(() => cssAssets.length, { timeout: 10_000 }).toBeGreaterThan(0);
 
   const doubled = notFound.filter((u) => u.includes('/_app/immutable/entry/_app/immutable/'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
