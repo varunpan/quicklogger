@@ -74,6 +74,15 @@ describe('GET /api/vehicle/reminders', () => {
     expect(await res.json()).toEqual({ error: 'invalid vehicleId' });
   });
 
+  // The GET proxies share parseVehicleId() with the same positive-integer
+  // rule as /api/fuelup — a `3.5` or `-2` used to be interpolated into the
+  // authenticated upstream URL (review Q1's bundled consistency fix).
+  it.each(['3.5', '-2', '0'])('returns 400 when vehicleId is %s', async (raw) => {
+    const res = await GET(eventFor(raw));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vehicleId' });
+  });
+
   it('returns 502 when upstream throws LubeLoggerError', async () => {
     upstream.use(
       http.get(

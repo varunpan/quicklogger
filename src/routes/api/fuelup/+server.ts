@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadEnv } from '$lib/server/env';
-import { LubeLoggerClient, LubeLoggerError } from '$lib/server/lubelogger';
+import { lubeloggerFromEnv } from '$lib/server/lubeloggerProxy';
+import { LubeLoggerError } from '$lib/server/lubelogger';
 import type { UploadedFile } from '$lib/server/lubelogger';
 import { sniffImageType } from '$lib/server/ocr';
 import { CurrencyService, JsonFileStore, realFetcher, FxUnavailableError } from '$lib/server/currency';
@@ -206,7 +207,7 @@ async function submitToLubeLogger(
   logger: import('$lib/server/logger').Logger
 ): Promise<SubmitResult> {
   try {
-    const env = loadEnv();
+    const { client, env } = lubeloggerFromEnv(logger);
     const conv = await convertSubmission(
       {
         volume: input.volume,
@@ -222,11 +223,6 @@ async function submitToLubeLogger(
       }
     );
 
-    const client = new LubeLoggerClient({
-      baseUrl: env.lubeloggerUrl,
-      apiKey: env.lubeloggerApiKey,
-      logger
-    });
     const payload = {
       date: input.date,                          // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant
       odometer: String(input.odometer),

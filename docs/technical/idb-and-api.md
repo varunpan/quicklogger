@@ -135,7 +135,7 @@ Source: `src/routes/api/vehicle/image/+server.ts`. Proxies the LubeLogger `/imag
 
 | Field | Value |
 |---|---|
-| Request | Query: `vehicleId` (required, finite number). |
+| Request | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()` in `$lib/server/lubeloggerProxy.ts`, same rule as `/api/fuelup`). |
 | Cache | In-memory `TtlCache<Vehicle[]>` keyed on `'vehicles'`, 5-minute TTL (separate from `/api/vehicles`'s cache — see below). |
 | Response 200 | Streamed image bytes with the upstream `content-type` (`image/jpeg` or `image/png`) and `cache-control: no-store`. |
 | Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
@@ -155,7 +155,7 @@ Source: `src/routes/api/vehicle/last-fuelup/+server.ts`.
 
 | Field | Value |
 |---|---|
-| Request | Query: `vehicleId` (required, finite number). |
+| Request | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()` in `$lib/server/lubeloggerProxy.ts`, same rule as `/api/fuelup`). |
 | Cache | None — every request hits LubeLogger. |
 | Response 200 | `GasRecord` (the latest by `parseDate(record.date)`; same-day ties broken by higher odometer — day-resolution dates can't order two fillups on one date, and the later fillup always has the larger reading — then by later array position) or `null` (if no records). |
 | Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
@@ -173,7 +173,7 @@ Source: `src/routes/api/vehicle/reminders/+server.ts`.
 
 | Field | Value |
 |---|---|
-| Request | Query: `vehicleId` (required, finite number). |
+| Request | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()` in `$lib/server/lubeloggerProxy.ts`, same rule as `/api/fuelup`). |
 | Cache | None — every request hits LubeLogger. |
 | Response 200 | `Reminder[]` from LubeLogger's `/api/vehicle/reminders`. |
 | Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
@@ -213,7 +213,7 @@ see [`stats-page.md`](./stats-page.md).
 
 | Field | Value |
 |---|---|
-| Request | Query: `vehicleId` (required, finite number). |
+| Request | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()` in `$lib/server/lubeloggerProxy.ts`, same rule as `/api/fuelup`). |
 | Cache | None — every request hits LubeLogger (matches `reminders` / `last-fuelup`). |
 | Response 200 | `VehicleInfo` — the **unwrapped** object (LubeLogger returns a 1-element array; the client unwraps `[0]`). |
 | Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`. |
