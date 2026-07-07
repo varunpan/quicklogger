@@ -1062,7 +1062,10 @@
   {/if}
 
   {#if toast}
-    <div class="mt-4 rounded-xl px-4 py-3 text-sm"
+    <!-- role makes screen readers announce the submit outcome — the only
+         transient panel that lacked one (review Q5). Errors are assertive. -->
+    <div role={toast.kind === 'error' ? 'alert' : 'status'}
+         class="mt-4 rounded-xl px-4 py-3 text-sm"
          class:bg-emerald-600={toast.kind === 'success'}
          class:bg-amber-600={toast.kind === 'queued' || toast.kind === 'warning'}
          class:bg-rose-600={toast.kind === 'error'}>
