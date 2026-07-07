@@ -25,6 +25,7 @@
     type SmartCheckIssue,
     type LastFuelupForCheck
   } from '$lib/client/smart-checks';
+  import Icon from '$lib/client/Icon.svelte';
   import OcrPreview from '$lib/client/OcrPreview.svelte';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
   import { readPhotoDate, interpretPhotoDate, formatLocalDate } from '$lib/client/exif';
@@ -675,9 +676,7 @@
 
 {#if !online}
   <div role="status" data-testid="offline-banner" class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-start gap-2">
-    <svg class="text-amber-300 mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-    </svg>
+    <Icon name="warning" size={15} class="text-amber-300 mt-0.5 shrink-0" />
     <span class="text-sm text-amber-200 leading-relaxed">You're offline — this fill-up will be saved and synced when you reconnect.</span>
   </div>
 {/if}
@@ -690,9 +689,7 @@
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
         <a href={appReleaseUrl} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300" data-testid="banner-release-notes">
           Release notes
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M7 17L17 7" /><path d="M8 7h9v9" />
-          </svg>
+          <Icon name="external" size={11} />
         </a>
       {/if}
     </div>
@@ -714,7 +711,7 @@
       <div class="flex items-center gap-2">
         <span>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {formatLastFillupDate(data.lastFuelup.date)}</span>
         {#if data.lastFuelupSource === 'offline'}
-          <span class="text-[10px] uppercase tracking-wider font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded px-1.5 py-0.5">
+          <span class="badge text-amber-300 bg-amber-500/15 border border-amber-500/30">
             offline copy
           </span>
         {/if}
@@ -748,10 +745,7 @@
             <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
             <span class="truncate">Reading photo…</span>
           {:else}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-              <circle cx="12" cy="13" r="3.5"/>
-            </svg>
+            <Icon name="camera" />
             <span class="truncate">Pump display photo</span>
           {/if}
         </button>
@@ -775,10 +769,7 @@
             <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
             <span class="truncate">Reading photo…</span>
           {:else}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-              <circle cx="12" cy="13" r="3.5"/>
-            </svg>
+            <Icon name="camera" />
             <span class="truncate">Odometer photo</span>
           {/if}
         </button>
@@ -795,10 +786,7 @@
     {#if pumpSuggestion}
       <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
         <div class="flex items-start gap-2">
-          <svg class="text-blue-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-            <circle cx="12" cy="13" r="3.5"/>
-          </svg>
+          <Icon name="camera" class="text-blue-300 mt-0.5 shrink-0" />
           <div class="text-xs text-blue-200 flex-1 leading-relaxed">
             <span class="text-blue-300/70">Detected:</span>
             <span class="font-semibold">{pumpSuggestion.volume} {pumpSuggestion.volumeUnit} · {formatCost(pumpSuggestion.cost, null)}</span>
@@ -815,10 +803,7 @@
     {#if odoSuggestion}
       <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
         <div class="flex items-start gap-2">
-          <svg class="text-blue-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-            <circle cx="12" cy="13" r="3.5"/>
-          </svg>
+          <Icon name="camera" class="text-blue-300 mt-0.5 shrink-0" />
           <div class="text-xs text-blue-200 flex-1 leading-relaxed">
             <span class="text-blue-300/70">Detected:</span>
             <span class="font-semibold">{formatOdometer(String(odoSuggestion.odometer))} mi</span>
@@ -834,9 +819,7 @@
     {#if odoWarning}
       <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 mb-2" role="alert">
         <div class="flex items-start gap-2">
-          <svg class="text-amber-300 mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
-          </svg>
+          <Icon name="warning" class="text-amber-300 mt-0.5 shrink-0" />
           <div class="text-xs text-amber-300 flex-1 leading-relaxed">
             <span class="font-semibold">Detected: {formatOdometer(String(odoWarning.detected))} mi</span> —
             lower than last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
@@ -862,7 +845,7 @@
                class:text-zinc-400={!odometerEdited && odometer !== ''}
                placeholder={placeholderOdometer()} />
         {#if !odometerEdited && odometer !== ''}
-          <span class="absolute top-1.5 right-2 text-[10px] uppercase tracking-wider font-semibold text-zinc-500 bg-zinc-700/60 px-1.5 py-0.5 rounded">
+          <span class="badge absolute top-1.5 right-2 text-zinc-500 bg-zinc-700/60">
             prefilled
           </span>
         {/if}
@@ -879,17 +862,12 @@
              oninput={() => { clearSmartCheckIssues(); photoDateCue = null; }} />
       {#if photoDateCue === 'set'}
         <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status" data-testid="photo-date-cue">
-          <svg class="text-blue-300 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M14.5 4l1.5 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z"/>
-            <circle cx="12" cy="13" r="3.5"/>
-          </svg>
+          <Icon name="camera" size={12} class="text-blue-300 shrink-0" />
           <span class="text-[11px] font-semibold text-blue-200">set from photo</span>
         </div>
       {:else if photoDateCue === 'missing'}
         <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status" data-testid="photo-date-cue">
-          <svg class="text-amber-300 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
-          </svg>
+          <Icon name="warning" size={12} class="text-amber-300 shrink-0" />
           <span class="text-[11px] font-semibold text-amber-300">no date in photo</span>
         </div>
       {/if}

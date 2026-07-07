@@ -42,6 +42,11 @@ button, [role="button"] {
     min-width: 0;
     max-width: 100%;
   }
+  .badge {
+    /* Tiny uppercase status chip (Queued / Failed / prefilled / urgency / …).
+       Color, border, and layout tweaks stay at the call site. */
+    @apply text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5;
+  }
   .toggle-pill {
     @apply rounded-lg px-2 py-1.5 text-xs font-semibold;
   }

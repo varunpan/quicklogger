@@ -117,7 +117,7 @@
           <span class="text-base font-semibold text-zinc-100 leading-tight">
             {r.description}
           </span>
-          <span class="text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5 border shrink-0 mt-0.5 {chipClasses(r.urgency)}">
+          <span class="badge border shrink-0 mt-0.5 {chipClasses(r.urgency)}">
             {chipLabel(r.urgency)}
           </span>
         </div>

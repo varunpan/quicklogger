@@ -96,7 +96,7 @@
         <div class="flex-1 min-w-0 text-left">
           <div class="flex items-center gap-2">
             {#if reminders.pastDue > 0}
-              <span class="text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5 border text-rose-300 bg-rose-500/15 border-rose-500/30">{reminders.pastDue} Past Due</span>
+              <span class="badge border text-rose-300 bg-rose-500/15 border-rose-500/30">{reminders.pastDue} Past Due</span>
             {/if}
             {#if reminders.upcoming > 0}
               <span class="text-xs text-zinc-500">{reminders.upcoming} upcoming</span>
