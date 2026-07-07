@@ -452,6 +452,54 @@ describe('readPhotoDate — read cap', () => {
   });
 });
 
+// --- T9: hostile-input contract (return null, never throw) ------------------
+
+// Wrap arbitrary APP1 payload bytes in a minimal SOI + APP1 + EOI JPEG.
+function jpegWithApp1(payload: number[]): Uint8Array {
+  const len = payload.length + 2; // APP1 length field includes itself
+  return new Uint8Array([
+    0xff, 0xd8, // SOI
+    0xff, 0xe1, (len >> 8) & 0xff, len & 0xff, // APP1 marker + length
+    ...payload,
+    0xff, 0xd9 // EOI
+  ]);
+}
+const EXIF_PREFIX = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // "Exif\0\0"
+
+describe('readPhotoDate — hostile input (T9: null, never throws)', () => {
+  const cases: Array<[string, () => Uint8Array]> = [
+    // Truncated right after the APP1 marker — no room for the length field.
+    ['truncated after the APP1 marker', () => new Uint8Array([0xff, 0xd8, 0xff, 0xe1])],
+    // Declared segment length overruns the buffer.
+    ['APP1 length overruns the buffer', () => new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0xff, 0x45, 0x78])],
+    // Well-formed APP1 whose payload is NOT "Exif\0\0" (e.g. an XMP packet).
+    ['APP1 without the Exif\\0\\0 prefix', () => jpegWithApp1([0x58, 0x4d, 0x50, 0x00, 1, 2, 3, 4, 5, 6])],
+    // Valid Exif header, but the TIFF byte-order marker is neither II nor MM.
+    ['TIFF with a bad byte-order marker', () => jpegWithApp1([...EXIF_PREFIX, 0x00, 0x00, 0x00, 0x2a, 0, 0, 0, 8, 0, 0, 0, 0])],
+    // Valid Exif header + II, but the TIFF magic is not 0x002A.
+    ['TIFF with a bad magic number', () => jpegWithApp1([...EXIF_PREFIX, 0x49, 0x49, 0xff, 0xff, 0, 0, 0, 8, 0, 0, 0, 0])],
+    // DateTimeOriginal that is 19 chars but fails the YYYY:MM:DD regex (dashes).
+    ['DateTimeOriginal failing the format regex', () => buildExifJpeg({ dateTimeOriginal: '2026-05-12 14:33:00' })]
+  ];
+
+  it.each(cases)('returns null without throwing: %s', async (_label, make) => {
+    // .resolves guarantees no rejection; readPhotoDate must swallow everything.
+    await expect(readPhotoDate(buildBlob(make()))).resolves.toBeNull();
+  });
+
+  it('does not throw on a month-13 date — normalizes rather than rejecting', async () => {
+    // The review listed "month 13 → null", but that is stale against the code:
+    // the numeric Date constructor rolls month 13 into January of the next year,
+    // so a valid (non-null) Date comes back. The invariant the parser actually
+    // guarantees on hostile input is "never throws" — asserted here either way.
+    const date = await readPhotoDate(buildBlob(buildExifJpeg({ dateTimeOriginal: '2026:13:01 00:00:00' })));
+    expect(date).not.toBeNull();
+    expect(date!.getFullYear()).toBe(2027);
+    expect(date!.getMonth()).toBe(0); // January, rolled over from month 13
+    expect(date!.getDate()).toBe(1);
+  });
+});
+
 // --- interpretPhotoDate tests -----------------------------------------------
 
 describe('interpretPhotoDate', () => {
