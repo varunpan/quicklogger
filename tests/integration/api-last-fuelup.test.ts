@@ -104,4 +104,20 @@ describe('GET /api/vehicle/last-fuelup', () => {
     const res = await GET(eventFor());
     expect(res.status).toBe(400);
   });
+
+  // T6 — the entire 502 (LubeLoggerError) arm was untested. Mirror of
+  // api-fuelup's "no upstream details leak" test: an upstream 5xx becomes a
+  // generic 502, and the upstream body never reaches the client.
+  it('maps an upstream 5xx to 502 with a generic message — no upstream detail leak', async () => {
+    upstream.use(
+      http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
+        new HttpResponse('secret internal detail', { status: 503 })
+      )
+    );
+    const res = await GET(eventFor('1'));
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toMatch(/LubeLogger/);
+    expect(JSON.stringify(body)).not.toContain('secret internal detail');
+  });
 });
