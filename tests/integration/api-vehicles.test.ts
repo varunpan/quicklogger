@@ -61,6 +61,25 @@ describe('GET /api/vehicles', () => {
     expect(res.status).toBe(502);
   });
 
+  // Residual gap (paired with T6/T10): the generic 500 fallback (+server.ts:24-25)
+  // was untested. A non-LubeLoggerError throw — here loadEnv() failing because
+  // LUBELOGGER_URL is unset — must surface as a generic 500, not the env text.
+  it('maps a non-LubeLoggerError throw to 500 without leaking the exception text', async () => {
+    _resetCache();
+    const saved = process.env.LUBELOGGER_URL;
+    delete process.env.LUBELOGGER_URL;
+    try {
+      const res = await GET(eventFor());
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('unexpected server error');
+      expect(JSON.stringify(body)).not.toMatch(/LUBELOGGER_URL/);
+    } finally {
+      process.env.LUBELOGGER_URL = saved;
+      _resetCache();
+    }
+  });
+
   it('hoists VIN from extraFields into a top-level vin field', async () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicles', () =>

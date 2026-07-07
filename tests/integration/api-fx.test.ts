@@ -76,4 +76,32 @@ describe('GET /api/fx', () => {
     const body = await res.json();
     expect(body.available).toBe(false);
   });
+
+  // T10 — the two remaining error arms of the route.
+  it('returns 400 when from or to is missing', async () => {
+    for (const [from, to] of [['', 'USD'], ['USD', '']]) {
+      const res = await GET(eventFor(from, to));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/required/);
+    }
+  });
+
+  it('maps a non-FxUnavailableError throw to 500 without leaking the exception text', async () => {
+    // getRate() only ever throws FxUnavailableError; force a different throw by
+    // making service()'s loadEnv() fail (LUBELOGGER_URL unset). The route's
+    // catch-all must return a generic 500, not the env-error text.
+    _resetForTests();
+    const saved = process.env.LUBELOGGER_URL;
+    delete process.env.LUBELOGGER_URL;
+    try {
+      const res = await GET(eventFor('USD', 'CAD'));
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('unexpected server error');
+      expect(JSON.stringify(body)).not.toMatch(/LUBELOGGER_URL/);
+    } finally {
+      process.env.LUBELOGGER_URL = saved;
+      _resetForTests();
+    }
+  });
 });
