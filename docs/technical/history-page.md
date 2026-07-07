@@ -16,7 +16,7 @@ call to populate the picker. All card content comes from
 
 ## Files touched
 
-- `src/routes/history/+page.ts` — vehicle resolution chain (URL → prefs → vehicles[0]).
+- `src/routes/history/+page.ts` — vehicle resolution via the shared `resolveSelectedVehicle()` (`$lib/client/vehicle-resolve.ts`, URL → prefs → vehicles[0]).
 - `src/routes/history/+page.svelte` — single-file page: state, derivation, render.
 - `src/lib/client/format.ts` — `formatIsoDate(iso)` helper used for the card date line.
 - `src/routes/vehicles/+page.svelte` — `RETURN_TO` allowlist entry so the picker round-trips back.
@@ -57,8 +57,9 @@ Page-local state:
 ## Lifecycle / control flow
 
 1. **Loader (`+page.ts`)** runs SSR and CSR. Resolves
-   `vehicle` via the URL→prefs→`vehicles[0]` chain (same shape as
-   `/maintenance`).
+   `vehicle` via the shared `resolveSelectedVehicle()` helper
+   (URL→prefs→`vehicles[0]` chain, same helper as `/maintenance`
+   and `/stats`).
 2. **Component mount.** `onMount` opens IDB, reads the full store
    into `allEntries`, flips `loading` to `false`. Errors during
    open or list set `error` and the page renders the rose notice.

@@ -35,7 +35,7 @@ No new persistence — no IndexedDB store, no localStorage key, no service-worke
 ## Lifecycle / control flow
 
 1. Reached from the drawer (`Stats`) or via the picker round-trip (`/vehicles?from=stats`).
-2. Loader resolves the active vehicle via `URL ?vehicleId= → prefs.lastVehicleId → vehicles[0]` (identical to maintenance).
+2. Loader resolves the active vehicle via the shared `resolveSelectedVehicle()` helper (`$lib/client/vehicle-resolve.ts`): `URL ?vehicleId= → prefs.lastVehicleId → vehicles[0]` (identical to maintenance and history).
 3. With a vehicle, the loader calls `getVehicleInfo(id)`; success → `{ vehicle, info, error: null }`, failure → `{ vehicle, info: null, error: message }`. No vehicle → `error: 'no-vehicle'`.
 4. The page is a pure render of the loader result. `formatCost(x, null)` resolves the instance currency through `format.ts`; `$derived` values come from `stats.ts`.
 

@@ -12,8 +12,9 @@ The page is reached three ways:
 
 1. **From the drawer.** The user taps `Maintenance` in the
    hamburger menu. The loader resolves the active vehicle via the
-   fallback chain `URL ?vehicleId= → prefs.lastVehicleId →
-   vehicles[0].id`.
+   shared `resolveSelectedVehicle()` helper
+   (`$lib/client/vehicle-resolve.ts`): fallback chain
+   `URL ?vehicleId= → prefs.lastVehicleId → vehicles[0].id`.
 2. **As a post-submit redirect.** After a successful fuel
    submission on `/`, the submit handler calls
    `goto('/maintenance?vehicleId=' + vehicle.id)`. The URL always
