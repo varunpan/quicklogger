@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockLubelogger } from './fixtures';
+import { mockQuickloggerApi } from './fixtures';
 
 // iOS Safari auto-zooms when a focused input's computed font-size is < 16px,
 // and it does NOT zoom back out on blur. So every text-entry field on the log
@@ -14,7 +14,7 @@ import { mockLubelogger } from './fixtures';
 test.use({ serviceWorkers: 'block' });
 
 test('every form input renders at >= 16px (no iOS focus-zoom)', async ({ page }) => {
-  await mockLubelogger(page);
+  await mockQuickloggerApi(page);
   await page.goto('/');
 
   const inputs = page.locator('input.field-input');

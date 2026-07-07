@@ -1,6 +1,18 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function mockLubelogger(page: Page) {
+/**
+ * Mock **quicklogger's own** HTTP API — `/api/vehicles`, `/api/vehicle/last-fuelup`,
+ * `/api/fx`, and `/api/fuelup` — at the browser network layer. (It does NOT talk to
+ * LubeLogger; the real server-side proxy + conversion never runs in these e2e tests.)
+ *
+ * ⚠️ The `/api/fuelup` handler REIMPLEMENTS the L→gal and CAD→USD conversion so the
+ * confirmation UI has input-consistent numbers to render. Those `submitted` values are
+ * a fixture-side plausibility stub, NOT the app's real conversion — asserting exact
+ * gallons/cost off this mock only tests this arithmetic. The real server conversion is
+ * covered by `tests/integration/api-fuelup.test.ts`; keep number assertions there and
+ * use this mock only to drive the UI flow (redirect, toast presence, snapshot write).
+ */
+export async function mockQuickloggerApi(page: Page) {
   await page.route('**/api/vehicles', (route) =>
     route.fulfill({ json: [{ id: 1, year: 2019, make: 'Honda', model: 'Civic Si' }] })
   );
@@ -15,6 +27,7 @@ export async function mockLubelogger(page: Page) {
     return route.fulfill({
       json: {
         ok: true,
+        // Stub confirmation values only — see the ⚠️ note above. Do NOT assert these.
         submitted: {
           gallons: body.volume * (body.volumeUnit === 'L' ? 1 / 3.785411784 : 1),
           cost: body.cost * (body.currency === 'CAD' ? 0.73 : 1),
