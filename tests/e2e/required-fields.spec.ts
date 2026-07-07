@@ -23,8 +23,8 @@ test.describe('submit gate — required fields', () => {
     await page.goto('/');
 
     await page.locator('#odometer').fill('87432');
-    await page.getByPlaceholder('11.2').fill('11.2');
-    await page.getByPlaceholder('42.18').fill('42.18');
+    await page.getByLabel('Volume', { exact: true }).fill('11.2');
+    await page.getByLabel('Cost', { exact: true }).fill('42.18');
 
     const button = page.getByRole('button', { name: /^log fillup$/i });
     await expect(button).toBeEnabled();
@@ -40,8 +40,8 @@ test.describe('submit gate — required fields', () => {
 
     // Date prefills to today, so we just need the three numeric fields.
     await page.locator('#odometer').fill('87432');
-    await page.getByPlaceholder('11.2').fill('11.2');
-    await page.getByPlaceholder('42.18').fill('42.18');
+    await page.getByLabel('Volume', { exact: true }).fill('11.2');
+    await page.getByLabel('Cost', { exact: true }).fill('42.18');
 
     const button = page.getByRole('button', { name: /^log fillup$/i });
     await expect(button).toBeEnabled();
@@ -67,8 +67,8 @@ test.describe('submit gate — required fields', () => {
     await page.goto('/');
 
     await page.locator('#odometer').fill('50123.4');
-    await page.getByPlaceholder('11.2').fill('11.2');
-    await page.getByPlaceholder('42.18').fill('42.18');
+    await page.getByLabel('Volume', { exact: true }).fill('11.2');
+    await page.getByLabel('Cost', { exact: true }).fill('42.18');
     await page.getByRole('button', { name: /^log fillup$/i }).click();
 
     await expect.poll(() => posted).not.toBeNull();
@@ -80,8 +80,8 @@ test.describe('submit gate — required fields', () => {
     await page.goto('/');
 
     await page.locator('#odometer').fill('87432');
-    await page.getByPlaceholder('11.2').fill('0');
-    await page.getByPlaceholder('42.18').fill('42.18');
+    await page.getByLabel('Volume', { exact: true }).fill('0');
+    await page.getByLabel('Cost', { exact: true }).fill('42.18');
 
     const button = page.getByRole('button', { name: /^log fillup$/i });
     await expect(button).toBeDisabled();

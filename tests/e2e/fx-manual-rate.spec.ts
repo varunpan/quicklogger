@@ -37,8 +37,8 @@ test('switching currency back to the target clears a typed manual FX rate', asyn
   await page.goto('/');
 
   await page.locator('#odometer').fill('87432');
-  await page.getByPlaceholder('11.2').fill('11.2');
-  await page.getByPlaceholder('42.18').fill('42.18');
+  await page.getByLabel('Volume', { exact: true }).fill('11.2');
+  await page.getByLabel('Cost', { exact: true }).fill('42.18');
 
   const currencySelect = page.locator('select', {
     has: page.locator('option', { hasText: 'CAD' })

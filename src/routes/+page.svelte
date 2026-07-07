@@ -924,7 +924,7 @@
     <span class="field-label">Volume</span>
     <div class="flex gap-2">
       <input class="field-input min-w-0 flex-1" type="number" inputmode="decimal" step="0.01"
-             bind:value={volume} oninput={clearSmartCheckIssues} placeholder="11.2" />
+             aria-label="Volume" bind:value={volume} oninput={clearSmartCheckIssues} placeholder="11.2" />
       <div class="flex bg-zinc-800 rounded-xl p-1 w-20 shrink-0">
         <button type="button" class="toggle-pill flex-1" class:active={volumeUnit === 'gal'} class:inactive={volumeUnit !== 'gal'}
                 onclick={() => (volumeUnit = 'gal')}>Gal</button>
@@ -938,7 +938,7 @@
     <span class="field-label">Cost</span>
     <div class="flex gap-2">
       <input class="field-input min-w-0 flex-1" type="number" inputmode="decimal" step="0.01"
-             bind:value={cost} placeholder="42.18" />
+             aria-label="Cost" bind:value={cost} placeholder="42.18" />
       <div class="flex bg-zinc-800 rounded-xl p-1 w-20 shrink-0">
         <select
           class="bg-transparent rounded-lg text-xs font-semibold text-zinc-100 outline-none cursor-pointer w-full appearance-none text-center [text-align-last:center]"

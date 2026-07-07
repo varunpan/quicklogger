@@ -48,8 +48,8 @@ test('changing vehicle preserves entered values and resets the odometer (#50)', 
   await expect(page.locator('#odometer')).toHaveValue('87234');
 
   // Enter pump values, a custom date, and a note.
-  await page.getByPlaceholder('11.2').fill('9.42');
-  await page.getByPlaceholder('42.18').fill('33.17');
+  await page.getByLabel('Volume', { exact: true }).fill('9.42');
+  await page.getByLabel('Cost', { exact: true }).fill('33.17');
   await page.locator('input[type="date"]').fill('2026-05-20');
   await page.getByPlaceholder('Costco Pump 4, regular grade').fill('Shell premium');
 
@@ -60,8 +60,8 @@ test('changing vehicle preserves entered values and resets the odometer (#50)', 
   await expect(page).toHaveURL(/vehicleId=2/);
 
   // The entered values survived the round-trip.
-  await expect(page.getByPlaceholder('11.2')).toHaveValue('9.42');
-  await expect(page.getByPlaceholder('42.18')).toHaveValue('33.17');
+  await expect(page.getByLabel('Volume', { exact: true })).toHaveValue('9.42');
+  await expect(page.getByLabel('Cost', { exact: true })).toHaveValue('33.17');
   await expect(page.locator('input[type="date"]')).toHaveValue('2026-05-20');
   await expect(page.getByPlaceholder('Costco Pump 4, regular grade')).toHaveValue('Shell premium');
 

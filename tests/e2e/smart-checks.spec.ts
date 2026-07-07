@@ -43,8 +43,8 @@ test('clean submit: valid values, no chip, posts immediately', async ({ page }) 
 
   // Fill the required fields with valid values.
   await page.locator('#odometer').fill('87500');
-  await page.getByPlaceholder('11.2').fill('11.2');
-  await page.getByPlaceholder('42.18').fill('42.50');
+  await page.getByLabel('Volume', { exact: true }).fill('11.2');
+  await page.getByLabel('Cost', { exact: true }).fill('42.50');
 
   // Tap Submit — no chip, navigates to /maintenance.
   await page.getByRole('button', { name: /^Log fillup$/ }).click();
@@ -59,8 +59,8 @@ test('single-issue chip: low odometer triggers, Submit disabled, override posts'
 
   // Odometer lower than last (87234), today's date, decent volume + cost.
   await page.locator('#odometer').fill('1000');
-  await page.getByPlaceholder('11.2').fill('11.2');
-  await page.getByPlaceholder('42.18').fill('42.50');
+  await page.getByLabel('Volume', { exact: true }).fill('11.2');
+  await page.getByLabel('Cost', { exact: true }).fill('42.50');
 
   await page.getByRole('button', { name: /^Log fillup$/ }).click();
 
@@ -86,8 +86,8 @@ test('multi-issue chip: low odo + future date + tiny volume → 3 lines, one ove
   await page.locator('#odometer').fill('1000');
   // Future date — type directly into the date input (it's bound).
   await page.locator('input[type="date"]').fill('2099-01-01');
-  await page.getByPlaceholder('11.2').fill('0.1');
-  await page.getByPlaceholder('42.18').fill('42.50');
+  await page.getByLabel('Volume', { exact: true }).fill('0.1');
+  await page.getByLabel('Cost', { exact: true }).fill('42.50');
 
   await page.getByRole('button', { name: /^Log fillup$/ }).click();
 
@@ -108,8 +108,8 @@ test('field-edit clears chip and re-enables Submit', async ({ page }) => {
   await gotoHomeViaClientRouter(page);
 
   await page.locator('#odometer').fill('1000');
-  await page.getByPlaceholder('11.2').fill('11.2');
-  await page.getByPlaceholder('42.18').fill('42.50');
+  await page.getByLabel('Volume', { exact: true }).fill('11.2');
+  await page.getByLabel('Cost', { exact: true }).fill('42.50');
   await page.getByRole('button', { name: /^Log fillup$/ }).click();
 
   const chip = page.locator('[data-testid="smart-check-chip"]');
@@ -143,8 +143,8 @@ test('master toggle off: bad combination posts without a chip', async ({ page })
   // Same bad combo as the multi-issue test.
   await page.locator('#odometer').fill('1000');
   await page.locator('input[type="date"]').fill('2099-01-01');
-  await page.getByPlaceholder('11.2').fill('0.1');
-  await page.getByPlaceholder('42.18').fill('42.50');
+  await page.getByLabel('Volume', { exact: true }).fill('0.1');
+  await page.getByLabel('Cost', { exact: true }).fill('42.50');
 
   await page.getByRole('button', { name: /^Log fillup$/ }).click();
 

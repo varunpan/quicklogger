@@ -130,8 +130,8 @@ test('odometer: detected > last + 2000 → no OCR-confirm advisory; flagged once
   await expect(page.locator('input#odometer')).toHaveValue('92500');
 
   // The jump surfaces exactly once: smart-check E's chip at submit time.
-  await page.getByPlaceholder('11.2').fill('11.2');
-  await page.getByPlaceholder('42.18').fill('42.50');
+  await page.getByLabel('Volume', { exact: true }).fill('11.2');
+  await page.getByLabel('Cost', { exact: true }).fill('42.50');
   await page.getByRole('button', { name: /^Log fillup$/ }).click();
   const chip = page.locator('[data-testid="smart-check-chip"]');
   await expect(chip).toBeVisible();
