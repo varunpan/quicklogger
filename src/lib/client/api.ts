@@ -8,6 +8,26 @@ import type {
 import type { Vehicle, GasRecord, Reminder, VehicleInfo } from '$lib/server/lubelogger';
 import type { Rotation, NormalizedRect } from './image';
 
+/** Error thrown for a non-ok response from quicklogger's own API. `status`
+ *  carries the HTTP status; it is undefined only for pre-response failures
+ *  (network error without a timeout — see OcrError). */
+export class ApiError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+/** Shared non-ok → ApiError mapping: read the body text (best-effort) and
+ *  throw `<label> <status>: <text>` with `.status` attached. */
+async function throwIfNotOk(res: Response, label: string): Promise<void> {
+  if (res.ok) return;
+  const text = await res.text().catch(() => '');
+  throw new ApiError(`${label} ${res.status}${text ? `: ${text}` : ''}`, res.status);
+}
+
 export async function listVehicles(fetchImpl = fetch): Promise<Vehicle[]> {
   const res = await fetchImpl('/api/vehicles');
   if (!res.ok) throw new Error(`vehicles ${res.status}`);
@@ -41,12 +61,7 @@ export async function submitFuelup(input: FuelSubmissionInput, fetchImpl = fetch
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input)
   });
-  if (!res.ok) {
-    const text = await res.text();
-    const err = new Error(`fuelup ${res.status}: ${text}`);
-    (err as Error & { status?: number }).status = res.status;
-    throw err;
-  }
+  await throwIfNotOk(res, 'fuelup');
   return res.json();
 }
 
@@ -77,34 +92,19 @@ export async function submitFuelupWithPhotos(
   if (photos.odometer) fd.set('odometerImage', photos.odometer, 'odometer.jpg');
 
   const res = await fetchImpl('/api/fuelup', { method: 'POST', body: fd });
-  if (!res.ok) {
-    const text = await res.text();
-    const err = new Error(`fuelup ${res.status}: ${text}`);
-    (err as Error & { status?: number }).status = res.status;
-    throw err;
-  }
+  await throwIfNotOk(res, 'fuelup');
   return res.json();
 }
 
 export async function listReminders(vehicleId: number, fetchImpl = fetch): Promise<Reminder[]> {
   const res = await fetchImpl(`/api/vehicle/reminders?vehicleId=${vehicleId}`);
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    const err = new Error(`reminders ${res.status}${text ? `: ${text}` : ''}`);
-    (err as Error & { status?: number }).status = res.status;
-    throw err;
-  }
+  await throwIfNotOk(res, 'reminders');
   return res.json();
 }
 
 export async function getVehicleInfo(vehicleId: number, fetchImpl = fetch): Promise<VehicleInfo> {
   const res = await fetchImpl(`/api/vehicle/info?vehicleId=${vehicleId}`);
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    const err = new Error(`vehicle-info ${res.status}${text ? `: ${text}` : ''}`);
-    (err as Error & { status?: number }).status = res.status;
-    throw err;
-  }
+  await throwIfNotOk(res, 'vehicle-info');
   return res.json();
 }
 
@@ -114,8 +114,9 @@ export async function getOcrStatus(fetchImpl = fetch): Promise<OcrStatus> {
   return res.json();
 }
 
-export interface OcrError extends Error {
-  status?: number;
+export class OcrError extends ApiError {
+  // `status` is inherited: HTTP status on a non-ok response, 0 for a client
+  // timeout, undefined for other network failures.
   retryAfter?: number;
   // Server's `error` string from a 400 response body. Used by the client
   // toast to surface the specific rejection reason (e.g., "empty image",
@@ -174,14 +175,13 @@ export async function postOcr(
       signal: AbortSignal.timeout(finalTimeoutMs)
     });
   } catch (err) {
-    const e: OcrError = new Error(`ocr network: ${(err as Error).message}`);
+    const e = new OcrError(`ocr network: ${(err as Error).message}`);
     if ((err as { name?: string }).name === 'TimeoutError') e.status = 0;
     throw e;
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    const err: OcrError = new Error(`ocr ${res.status}: ${text}`);
-    err.status = res.status;
+    const err = new OcrError(`ocr ${res.status}: ${text}`, res.status);
     if (res.status === 400) {
       try {
         const body = JSON.parse(text);

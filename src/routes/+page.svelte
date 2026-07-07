@@ -5,7 +5,7 @@
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
   import { Queue } from '$lib/client/idb';
   import { toGallons } from '$lib/shared/units';
-  import { submitFuelup, submitFuelupWithPhotos, getFx, postOcr } from '$lib/client/api';
+  import { submitFuelup, submitFuelupWithPhotos, getFx, postOcr, ApiError, OcrError } from '$lib/client/api';
   import { resizeForOcr } from '$lib/client/image';
   import { bufferPickedPhoto, type BufferedPhoto } from '$lib/client/photo-buffer';
   import type { Vehicle } from '$lib/server/lubelogger';
@@ -201,15 +201,15 @@
   }
 
   function ocrErrorToast(err: unknown): { kind: 'error'; text: string } {
-    const e = err as Error & { status?: number; retryAfter?: number; serverError?: string };
-    const s = e.status;
+    const e = err instanceof OcrError ? err : null;
+    const s = e?.status;
     if (s === 0) return { kind: 'error', text: 'OCR took too long — please type values' };
     if (s === 429) {
-      const ra = e.retryAfter ?? 60;
+      const ra = e?.retryAfter ?? 60;
       return { kind: 'error', text: `OCR rate limit reached, try again in ${ra}s` };
     }
     if (s === 400) {
-      return { kind: 'error', text: e.serverError ? `OCR rejected photo: ${e.serverError}` : 'OCR rejected photo' };
+      return { kind: 'error', text: e?.serverError ? `OCR rejected photo: ${e.serverError}` : 'OCR rejected photo' };
     }
     if (s === 402) return { kind: 'error', text: 'OCR budget for today reached' };
     if (s === 413) return { kind: 'error', text: 'Photo too large — try again' };
@@ -640,7 +640,7 @@
       // eslint-disable-next-line svelte/no-navigation-without-resolve
       void goto(`/maintenance?vehicleId=${vehicle.id}`).catch(() => {});
     } catch (err) {
-      const status = (err as Error & { status?: number }).status;
+      const status = err instanceof ApiError ? err.status : undefined;
       if (status && status >= 400 && status < 500) {
         toast = { kind: 'error', text: `Submission rejected: ${(err as Error).message}` };
       } else {

@@ -723,10 +723,11 @@ one generation are discarded, not shipped elsewhere; that's acceptable for a
 homelab single-user tool, and remains the extension point if retention is
 ever justified.
 
-**No `OcrError` type in `$lib/shared/types`.** The client `postOcr` adds
-an `OcrError` interface only on the client side (it carries DOM-only
-data like `retryAfter` from a header). Keeps `shared/types.ts` free of
-client-only ergonomics.
+**No `OcrError` type in `$lib/shared/types`.** The client `postOcr` throws
+an `OcrError` class defined only on the client side (it carries DOM-only
+data like `retryAfter` from a header; it extends the client `ApiError`,
+which carries `.status`). Keeps `shared/types.ts` free of client-only
+ergonomics.
 
 **Rotation lives in the same canvas pass as resize, not a second pass.**
 The preview screen rotates visually via CSS `transform: rotate(deg)` on
