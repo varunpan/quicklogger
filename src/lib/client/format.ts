@@ -38,15 +38,24 @@ export function formatOdometer(s: string): string {
 
 // --- Date formatting (ISO YYYY-MM-DD only) ---
 
+/** Parse a strict `YYYY-MM-DD` string to a local-midnight Date, or null on
+ *  anything else (empty, wrong segment count, non-numeric parts). The shared
+ *  preamble of every date formatter below — callers fall back to the raw
+ *  input on null so UI never renders "Invalid Date". */
+export function parseIsoLocal(s: string): Date | null {
+  if (!s) return null;
+  const parts = s.split('-');
+  if (parts.length !== 3) return null;
+  const [y, m, d] = parts.map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  const then = new Date(y, m - 1, d);
+  return Number.isNaN(then.getTime()) ? null : then;
+}
+
 // Returns relative phrase using local-calendar day arithmetic.
 export function daysAgo(s: string): string {
-  if (!s) return s;
-  const parts = s.split('-');
-  if (parts.length !== 3) return s;
-  const [y, m, d] = parts.map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
-  const then = new Date(y, m - 1, d);
-  if (Number.isNaN(then.getTime())) return s;
+  const then = parseIsoLocal(s);
+  if (!then) return s;
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.round((todayStart.getTime() - then.getTime()) / (24 * 60 * 60 * 1000));
@@ -57,13 +66,8 @@ export function daysAgo(s: string): string {
 
 // `Mon D, YYYY (N days ago)` for the home strip. Locale-driven absolute date.
 export function formatLastFillupDate(s: string): string {
-  if (!s) return s;
-  const parts = s.split('-');
-  if (parts.length !== 3) return s;
-  const [y, m, d] = parts.map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
-  const then = new Date(y, m - 1, d);
-  if (Number.isNaN(then.getTime())) return s;
+  const then = parseIsoLocal(s);
+  if (!then) return s;
   const abs = then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
   return `${abs} (${daysAgo(s)})`;
 }
@@ -84,25 +88,15 @@ export function humanCountdown(value: number | string, unit: 'days' | 'mi'): str
 
 // `Mon D, YYYY` for maintenance reminders.
 export function formatDueDate(s: string): string {
-  if (!s) return s;
-  const parts = s.split('-');
-  if (parts.length !== 3) return s;
-  const [y, m, d] = parts.map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
-  const then = new Date(y, m - 1, d);
-  if (Number.isNaN(then.getTime())) return s;
+  const then = parseIsoLocal(s);
+  if (!then) return s;
   return then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 // `Mon D, YYYY · N days ago` for /history cards.
 export function formatIsoDate(s: string): string {
-  if (!s) return s;
-  const parts = s.split('-');
-  if (parts.length !== 3) return s;
-  const [y, m, d] = parts.map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return s;
-  const then = new Date(y, m - 1, d);
-  if (Number.isNaN(then.getTime())) return s;
+  const then = parseIsoLocal(s);
+  if (!then) return s;
   const abs = then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
   return `${abs} · ${daysAgo(s)}`;
 }

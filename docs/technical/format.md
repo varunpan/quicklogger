@@ -23,6 +23,8 @@ LubeLogger's locale matches the browser's. Locale source-of-truth:
 | `formatDueDate(iso)` | ISO date | `Mon D, YYYY` | `effectiveLocale()` |
 | `formatIsoDate(iso)` | ISO date | `Mon D, YYYY · relative` | `effectiveLocale()` |
 | `formatCost(n, code \| null)` | number, ISO 4217 code or null | locale-currency format | `effectiveLocale()` + (code ?? `effectiveCurrencyCode()`) |
+| `parseIsoLocal(iso)` | ISO date | local-midnight `Date` or `null` | none — shared strict-parse preamble of every date helper above; also keys `/history` card sorting |
+| `vehicleLabel(v)` | `{ year?, make?, model? }` | `2019 Honda Civic Si` (missing parts skipped) | none |
 
 ## Resolution rules
 
