@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockLubelogger, seedPrefs } from './fixtures';
+import { mockQuickloggerApi, seedPrefs } from './fixtures';
 
 // Block the SvelteKit service worker so Playwright's page.route() interceptors
 // see the API requests (the SW intercepts /api/* GETs by default).
@@ -11,7 +11,7 @@ test.use({ serviceWorkers: 'block' });
 
 test.describe('submit gate — required fields', () => {
   test('button is disabled with empty form', async ({ page }) => {
-    await mockLubelogger(page);
+    await mockQuickloggerApi(page);
     await page.goto('/');
 
     const button = page.getByRole('button', { name: /^log fillup$/i });
@@ -19,7 +19,7 @@ test.describe('submit gate — required fields', () => {
   });
 
   test('button stays disabled when date is cleared even if other fields are valid', async ({ page }) => {
-    await mockLubelogger(page);
+    await mockQuickloggerApi(page);
     await page.goto('/');
 
     await page.locator('#odometer').fill('87432');
@@ -35,7 +35,7 @@ test.describe('submit gate — required fields', () => {
   });
 
   test('button enables when all four fields are valid', async ({ page }) => {
-    await mockLubelogger(page);
+    await mockQuickloggerApi(page);
     await page.goto('/');
 
     // Date prefills to today, so we just need the three numeric fields.
@@ -51,10 +51,10 @@ test.describe('submit gate — required fields', () => {
     // Typing '.' is blocked at the keydown level, but paste/autofill bypasses
     // it — the submit path must round whatever landed in the field.
     await seedPrefs(page, { smartChecksEnabled: false });
-    await mockLubelogger(page);
+    await mockQuickloggerApi(page);
     await page.route('**/api/vehicle/reminders**', (route) => route.fulfill({ json: [] }));
     let posted: Record<string, unknown> | null = null;
-    // Registered after mockLubelogger so it takes precedence for /api/fuelup.
+    // Registered after mockQuickloggerApi so it takes precedence for /api/fuelup.
     await page.route('**/api/fuelup', async (route) => {
       posted = JSON.parse(route.request().postData() ?? '{}');
       await route.fulfill({
@@ -76,7 +76,7 @@ test.describe('submit gate — required fields', () => {
   });
 
   test('button stays disabled when volume is 0', async ({ page }) => {
-    await mockLubelogger(page);
+    await mockQuickloggerApi(page);
     await page.goto('/');
 
     await page.locator('#odometer').fill('87432');

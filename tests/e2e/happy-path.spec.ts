@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockLubelogger, seedPrefs } from './fixtures';
+import { mockQuickloggerApi, seedPrefs } from './fixtures';
 
 // Block the SvelteKit service worker so Playwright's page.route() interceptors
 // see the API requests (the SW intercepts /api/* GETs by default).
@@ -12,7 +12,7 @@ test('logs a CAD/L fillup, shows USD/gal in confirmation, and redirects to maint
   // submit is robust to whatever the real LubeLogger most-recent fillup
   // happens to be.
   await seedPrefs(page, { smartChecksEnabled: false });
-  await mockLubelogger(page);
+  await mockQuickloggerApi(page);
   // Maintenance endpoint must respond — the post-submit redirect navigates here.
   await page.route('**/api/vehicle/reminders**', (route) => route.fulfill({ json: [] }));
 
