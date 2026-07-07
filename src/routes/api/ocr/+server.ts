@@ -145,8 +145,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
   // dropped, so an adversarial / malformed wire field can't poison the
   // prompt or the audit log. Wire-additive — old clients omit the field
   // entirely.
-  const lastOdometerMi = parseLastOdometerMi(form);
-  const lastPricePerUnit = parseLastPricePerUnit(form);
+  const lastOdometerMi = parsePositiveField(form, 'lastOdometerMi');
+  const lastPricePerUnit = parsePositiveField(form, 'lastPricePerUnit');
 
   const file = form.get('image');
   if (!(file instanceof File)) return json({ error: 'image required' }, { status: 400 });
@@ -251,25 +251,14 @@ function parseCropFields(form: FormData): { x: number; y: number; w: number; h: 
   return { x: xn, y: yn, w: wn, h: hn };
 }
 
-// Defensive parse of the optional `lastOdometerMi` multipart field. Returns
-// the numeric value only when it parses to a finite positive number;
-// anything else (missing, empty, non-numeric, NaN, infinite, zero,
-// negative) collapses to `undefined` so the prompt builder skips the hint
-// and the audit row omits the field.
-function parseLastOdometerMi(form: FormData): number | undefined {
-  const raw = form.get('lastOdometerMi');
-  if (typeof raw !== 'string' || raw === '') return undefined;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return undefined;
-  return n;
-}
-
-// Defensive parse of the optional `lastPricePerUnit` multipart field —
-// same shape as `parseLastOdometerMi`. Pump-mode-meaningful soft hint
-// (e.g., 3.679 for a $3.679/gal prior fillup). Currency-agnostic on
-// purpose; the prompt embeds the magnitude alone.
-function parseLastPricePerUnit(form: FormData): number | undefined {
-  const raw = form.get('lastPricePerUnit');
+// Defensive parse of an optional positive-number multipart field
+// (`lastOdometerMi` — odometer-mode hint; `lastPricePerUnit` — pump-mode
+// hint, currency-agnostic on purpose). Returns the numeric value only when
+// it parses to a finite positive number; anything else (missing, empty,
+// non-numeric, NaN, infinite, zero, negative) collapses to `undefined` so
+// the prompt builder skips the hint and the audit row omits the field.
+function parsePositiveField(form: FormData, name: string): number | undefined {
+  const raw = form.get(name);
   if (typeof raw !== 'string' || raw === '') return undefined;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return undefined;
