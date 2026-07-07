@@ -340,7 +340,7 @@
       <div class="text-sm font-semibold text-zinc-300 flex items-center gap-2">
         <span>Preview · <span class="text-zinc-500">{modeLabel}</span></span>
         {#if crop}
-          <span class="text-[10px] uppercase tracking-wider font-semibold text-blue-300 bg-blue-500/15 border border-blue-500/30 rounded px-1.5 py-0.5">Cropped</span>
+          <span class="badge text-blue-300 bg-blue-500/15 border border-blue-500/30">Cropped</span>
         {/if}
       </div>
     {:else}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '$lib/client/Icon.svelte';
   import { loadPrefs, savePrefs, DEFAULT_PREFS } from '$lib/client/prefs';
   import { loadServerInfo } from '$lib/client/server-info';
   import type { ServerInfo, VolumeUnit } from '$lib/shared/types';
@@ -201,7 +202,7 @@
       {#if serverInfo.updateAvailable}
         <div class="flex items-center gap-2 text-xs text-zinc-400" data-testid="update-available">
           <span
-            class="text-[10px] uppercase tracking-wider font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded px-1.5 py-0.5"
+            class="badge text-amber-300 bg-amber-500/15 border border-amber-500/30"
             >Update available</span
           >
           <span class="tabular-nums">v{serverInfo.currentVersion} → v{serverInfo.latestVersion}</span>
@@ -247,9 +248,7 @@
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
         <a href={serverInfo.appReleaseUrl} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 self-start" data-testid="app-release-notes">
           Release notes
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M7 17L17 7" /><path d="M8 7h9v9" />
-          </svg>
+          <Icon name="external" size={11} />
         </a>
       {/if}
       <p class="text-xs text-zinc-500 leading-relaxed">

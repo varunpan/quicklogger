@@ -95,11 +95,11 @@
     <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-2" data-testid="fillup-card">
       <div class="flex items-center gap-2">
         {#if entry.status === 'queued'}
-          <span class="text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5 border shrink-0 text-amber-300 bg-amber-500/15 border-amber-500/30">
+          <span class="badge border shrink-0 text-amber-300 bg-amber-500/15 border-amber-500/30">
             Queued
           </span>
         {:else if entry.status === 'failed'}
-          <span class="text-[10px] uppercase tracking-wider font-semibold rounded px-1.5 py-0.5 border shrink-0 text-rose-300 bg-rose-500/15 border-rose-500/30">
+          <span class="badge border shrink-0 text-rose-300 bg-rose-500/15 border-rose-500/30">
             Failed
           </span>
         {/if}
