@@ -3,6 +3,7 @@
   import { loadPrefs, savePrefs, DEFAULT_PREFS } from '$lib/client/prefs';
   import { loadServerInfo } from '$lib/client/server-info';
   import type { ServerInfo, VolumeUnit } from '$lib/shared/types';
+  import { SUPPORTED_CURRENCIES } from '$lib/shared/currencies';
 
   let prefs = $state(loadPrefs());
 
@@ -87,11 +88,9 @@
       bind:value={prefs.defaultCurrency}
       onchange={() => updateCurrency(prefs.defaultCurrency)}
     >
-      <option>USD</option>
-      <option>CAD</option>
-      <option>EUR</option>
-      <option>GBP</option>
-      <option>MXN</option>
+      {#each SUPPORTED_CURRENCIES as code (code)}
+        <option>{code}</option>
+      {/each}
     </select>
   </label>
 
