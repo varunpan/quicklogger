@@ -105,5 +105,9 @@ test('offline + attach: queues text-only and shows the "photo not attached" toas
   await captureAndApplyPump(page);
   await page.getByRole('button', { name: 'Log fillup', exact: true }).click();
 
-  await expect(page.getByText('Saved locally — photo not attached.')).toBeVisible();
+  // Locate by ARIA role: the queued toast must be announced to screen
+  // readers (role="status" — review Q5), not just painted.
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Saved locally — photo not attached.' })
+  ).toBeVisible();
 });

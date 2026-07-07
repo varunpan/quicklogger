@@ -45,7 +45,11 @@ test('server 500 with IndexedDB unavailable shows the explicit NOT-saved toast',
   await page.getByLabel('Cost', { exact: true }).fill('42.18');
   await page.getByRole('button', { name: /^log fillup$/i }).click();
 
+  // Locate by ARIA role: the toast must be announced to screen readers
+  // (role="alert" for the error kind — review Q5), not just painted.
   await expect(
-    page.getByText("Couldn't save — device storage unavailable. This fill-up was NOT saved.")
+    page.getByRole('alert').filter({
+      hasText: "Couldn't save — device storage unavailable. This fill-up was NOT saved."
+    })
   ).toBeVisible();
 });

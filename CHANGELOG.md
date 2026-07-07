@@ -28,6 +28,10 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Screen readers now announce the submit outcome.** The logged / saved-offline /
+  failed toast after submitting a fill-up was invisible to assistive tech; it now
+  carries a live-region role (`status`, or `alert` for errors) like every other
+  transient panel in the app.
 - **Failed-but-billed OCR calls now count against the daily budget.** When a
   paid vision provider returned a response that then failed validation (bad
   JSON, out-of-range reading), the spend was never recorded — the money was
