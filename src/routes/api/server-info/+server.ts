@@ -1,8 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { loadEnv } from '$lib/server/env';
+import { lubeloggerFromEnv } from '$lib/server/lubeloggerProxy';
 import {
-  LubeLoggerClient,
   LubeLoggerError,
   type LubeLoggerInfo,
   type LubeLoggerVersion
@@ -103,12 +102,7 @@ export function _buildServerInfo(
 // data-serving routes, which propagate upstream errors as non-2xx.
 export const GET: RequestHandler = async ({ locals }) => {
   try {
-    const env = loadEnv();
-    const client = new LubeLoggerClient({
-      baseUrl: env.lubeloggerUrl,
-      apiKey: env.lubeloggerApiKey,
-      logger: locals.logger
-    });
+    const { client, env } = lubeloggerFromEnv(locals.logger);
     const [infoR, versionR, releaseR] = await Promise.allSettled([
       client.getInfo(),
       client.getVersion(),

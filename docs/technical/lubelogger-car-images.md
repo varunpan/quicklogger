@@ -36,7 +36,7 @@ In-memory caches:
    - Kick off a network fetch in parallel; on a 2xx response, `cache.put(req, res.clone())`.
    - If there was a cache hit, return it immediately and let the network refresh complete in the background. If not, await the network fetch and return whatever it produces (or a `504` if the fetch threw).
 4. The server endpoint runs only when the SW lets the request through:
-   - Validate `vehicleId` (`Number.isFinite`).
+   - Validate `vehicleId` (shared `parseVehicleId()` — positive integer, same rule as `/api/fuelup`).
    - `getCachedVehicles(client)` — the shared 5-min vehicles cache.
    - Find the vehicle. If missing → 404. Read `imageLocation`. If empty / not a string / doesn't start with `/images/` → 404.
    - `client.fetchImage(path)` returns a raw `Response`. Re-emit the body stream with the upstream `content-type` and `cache-control: no-store`.
