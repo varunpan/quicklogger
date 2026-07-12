@@ -53,10 +53,18 @@ export async function syncQueue(dbName?: string, historyKeepPerVehicle?: number)
       }
       await q.incrementAttempts(entry.id);
       try {
+        // `queueReplay` marks EVERY replayed POST — not just attempts ≥ 1.
+        // A queued entry's original foreground POST may have landed upstream
+        // with the response lost in transit (the enqueue happens in the form's
+        // network-error catch), so even a first-drain replay is potentially a
+        // re-send. The server checks LubeLogger for an already-landed record
+        // before writing (day-later dedupe — the in-memory idempotency window
+        // is 60 s and wiped on restart). Added at POST time only; the stored
+        // entry keeps the unmodified user payload.
         const res = await fetch('/api/fuelup', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(entry.input satisfies FuelSubmissionInput)
+          body: JSON.stringify({ ...entry.input, queueReplay: true } satisfies FuelSubmissionInput)
         });
         if (res.ok) {
           // Save the converted snapshot from the response body so the

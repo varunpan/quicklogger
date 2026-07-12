@@ -155,7 +155,9 @@ For every entry returned by `Queue.list()`:
    POST itself crashes the SW mid-flight, the persisted bump still
    advances the counter (crash-loop protection).
 4. `POST /api/fuelup` with `application/json` body = the stored
-   `FuelSubmissionInput`.
+   `FuelSubmissionInput` **plus `queueReplay: true`** (added at POST time
+   only — the stored entry keeps the unmodified user payload). See
+   [Replay dedupe](#replay-dedupe) below.
 5. Branching on the response:
    - `res.ok` (2xx) → `Queue.markSynced(entry.id, snapshot)`, where `snapshot`
      is `{ cost, currency }` — `cost` from `submitted.cost` in the response body,
@@ -178,6 +180,53 @@ For every entry returned by `Queue.list()`:
 
 There is no exponential backoff between retries. Each `sync-queue`
 message walks the whole queue once.
+
+### Replay dedupe
+
+Replay is **at-least-once**, and two paths can re-POST a submission whose
+earlier POST already landed:
+
+1. **SW dies mid-replay** — the POST lands upstream but the SW is killed
+   before `markSynced`; the entry stays `'queued'` and the next drain
+   (typically the next app open, hours/days later) re-POSTs it.
+2. **Foreground lost response** — the form's POST lands but the response is
+   lost in transit; the form's network-error catch enqueues the entry with
+   `attempts: 0`, and the later replay re-POSTs it.
+
+The server's in-memory `clientSubmissionId` idempotency window
+(`IDEMPOTENCY_WINDOW_MS = 60_000` in `src/routes/api/fuelup/+server.ts`,
+wiped on restart) was sized for double-taps and catches neither. So every
+replayed POST carries **`queueReplay: true`** — not just retries, because of
+path 2 — and the server, before writing a flagged submission, GETs the
+vehicle's gas records from LubeLogger and skips the write if a record with
+the same **`date` + `odometer` + `fuelConsumed`** (± 0.0005 gal on the
+converted volume) already exists. The record store is the source of truth,
+so the dedupe survives server restarts with no new persistent state.
+
+Key details (rationale in
+`docs/superpowers/specs/2026-07-11-offline-replay-dedupe-design.md`):
+
+- **`fuelConsumed` is in the match key** because offline odometer-prefill
+  can put the same odometer into two same-day fill-ups — volume keeps them
+  distinguishable; a false match would silently drop a real fill-up.
+- **`cost` is NOT in the key** — it rides on the FX rate, which can drift
+  between the original attempt and a day-later replay; a true replay must
+  keep matching.
+- **A match returns a normal 200** with `deduped: true` and a `submitted`
+  snapshot mirroring the matched record, so the replay loop marks the entry
+  `'synced'` with the cost that's actually upstream. No client-side special
+  case.
+- **A failed pre-check GET returns 503** — never write on uncertainty. The
+  entry stays `'queued'` and retries on a later drain; the 5-attempt cap
+  dead-letters it if upstream stays broken.
+- **Accepted gaps:** a record hand-edited or deleted in LubeLogger before
+  the replay lands is re-created as a duplicate (rare; status quo), and a
+  server crash *during* the upstream write remains at-least-once — the next
+  replay's pre-check catches it.
+
+The foreground form never sets the flag, and the server honors only literal
+boolean `true` (anything else is normalized to absent), so Shortcuts/API
+consumers can't accidentally bolt the extra upstream GET onto their submits.
 
 ## Schema versioning
 

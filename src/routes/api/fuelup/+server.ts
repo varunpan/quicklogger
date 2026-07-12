@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { loadEnv } from '$lib/server/env';
 import { lubeloggerFromEnv } from '$lib/server/lubeloggerProxy';
 import { LubeLoggerError } from '$lib/server/lubelogger';
-import type { UploadedFile } from '$lib/server/lubelogger';
+import type { GasRecord, UploadedFile } from '$lib/server/lubelogger';
 import { sniffImageType } from '$lib/server/ocr';
 import { CurrencyService, JsonFileStore, realFetcher, FxUnavailableError } from '$lib/server/currency';
 import { convertSubmission } from '$lib/server/convert';
@@ -161,6 +161,12 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
   if (typeof b.clientSubmissionId !== 'string' || b.clientSubmissionId.trim() === '') {
     invalid.push('clientSubmissionId');
   }
+  // queueReplay is the SW replay-loop marker (replay dedupe — see
+  // docs/technical/offline-queue.md). Only literal boolean `true` is honored:
+  // the JSON path delivers whatever the client sent, and a truthy string or
+  // number from a Shortcuts/API consumer must not bolt an upstream GET onto
+  // every one of their submits. Anything else is normalized to absent.
+  if (b.queueReplay !== true) delete b.queueReplay;
   // manualFxRate is optional, but when present it must be a positive finite
   // number — otherwise `cost = cost * fxRate` (convert.ts) writes NaN/0/negative
   // straight to the LubeLogger record. This is the only gate: the form's
@@ -222,6 +228,67 @@ async function submitToLubeLogger(
         currencyService: currency()
       }
     );
+
+    // Day-later replay dedupe (D1): a flagged replay may be a re-send of a
+    // POST that already landed — SW killed between the 200 and markSynced, or
+    // the foreground response lost in transit. The in-memory idempotency map
+    // can't catch those (60 s window, wiped on restart), so the record store
+    // itself is consulted before writing. Placed after convertSubmission
+    // because the match key needs `conv.gallons`.
+    if (input.queueReplay === true) {
+      let existing: GasRecord[];
+      try {
+        existing = await client.listGasRecords(input.vehicleId);
+      } catch (err) {
+        // Never write on uncertainty: 503 keeps the entry 'queued' so it
+        // retries on a later drain; the 5-attempt cap dead-letters it if
+        // upstream stays broken.
+        logger.warn('replay dedupe pre-check failed', { err });
+        return {
+          status: 503,
+          body: JSON.stringify({ error: 'could not verify replay against LubeLogger — retry later' })
+        };
+      }
+      // Match key: date + odometer + fuelConsumed. fuelConsumed is included
+      // because offline odometer-prefill can put the SAME odometer into two
+      // same-day fill-ups — volume is what keeps them distinguishable, and a
+      // false match here would silently drop a real fill-up. cost is excluded
+      // because it rides on the FX rate, which can drift between the original
+      // attempt and a day-later replay — a true replay must keep matching.
+      const gallons = Number(conv.gallons.toFixed(3));
+      const match = existing.find(
+        (r) =>
+          r.date === input.date &&
+          r.odometer === input.odometer &&
+          Math.abs(r.fuelConsumed - gallons) < 0.0005
+      );
+      if (match) {
+        logger.info('replay dedupe: record already upstream, skipping write', {
+          vehicleId: input.vehicleId,
+          recordId: match.id,
+          clientSubmissionId: input.clientSubmissionId
+        });
+        // The snapshot mirrors the MATCHED RECORD (its fuelConsumed/cost) so
+        // the client's synced row reflects what's actually in LubeLogger; the
+        // fx* fields describe this request's (unused) conversion, kept for
+        // response-shape parity with the normal success path.
+        return {
+          status: 200,
+          body: JSON.stringify({
+            ok: true,
+            deduped: true,
+            submitted: {
+              gallons: match.fuelConsumed,
+              cost: match.cost,
+              currency: env.lubeloggerCurrency,
+              fxRate: conv.fxRate,
+              fxSource: conv.fxSource,
+              fxStale: conv.fxStale
+            }
+          })
+        };
+      }
+    }
 
     const payload = {
       date: input.date,                          // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant

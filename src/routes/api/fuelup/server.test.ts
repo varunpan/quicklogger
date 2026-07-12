@@ -327,3 +327,102 @@ describe('POST /api/fuelup — manualFxRate validation', () => {
     expect((await res.json()).error).toContain('manualFxRate');
   });
 });
+
+describe('POST /api/fuelup — replay dedupe against LubeLogger (queueReplay flag, D1)', () => {
+  // A flagged replay may be a re-send of a POST that already landed (SW killed
+  // between the 200 and markSynced, or the foreground response lost in
+  // transit). The in-memory idempotency map can't catch those — 60 s window,
+  // wiped on restart — so the server consults the record store itself before
+  // writing. Match key: date + odometer + fuelConsumed (NOT cost — FX drift).
+
+  /** One existing upstream gas record, shaped like the live-verified GasRecord. */
+  function gasRecord(over: Record<string, unknown> = {}) {
+    return {
+      id: 105, vehicleId: 1, date: '2026-05-28', odometer: 87500,
+      fuelConsumed: 11.2, cost: 40.55, fuelEconomy: 0,
+      isFillToFull: true, missedFuelUp: false, notes: null, tags: '',
+      extraFields: [], files: [],
+      ...over
+    };
+  }
+
+  /** Replay-shaped submission: USD/gal so conversion is identity (gallons = volume). */
+  function replayInput(over: Record<string, unknown> = {}) {
+    return {
+      vehicleId: 1, date: '2026-05-28', odometer: 87500, volume: 11.2,
+      volumeUnit: 'gal', cost: 42.18, currency: 'USD',
+      isFillToFull: true, missedFuelup: false,
+      clientSubmissionId: 'replay-0001', queueReplay: true,
+      ...over
+    };
+  }
+
+  /** Wire both upstream endpoints, counting calls to each. */
+  function wireUpstream(records: unknown[] | 'error') {
+    const calls = { get: 0, add: 0 };
+    upstream.use(
+      http.get('http://lubelog:8080/api/vehicle/gasrecords', () => {
+        calls.get++;
+        if (records === 'error') return new HttpResponse('boom', { status: 500 });
+        return HttpResponse.json(records);
+      }),
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => {
+        calls.add++;
+        return HttpResponse.json({ success: true });
+      })
+    );
+    return calls;
+  }
+
+  it('skips the write and returns 200 + deduped when a matching record already exists', async () => {
+    const calls = wireUpstream([gasRecord()]);
+    const res = await POST(event(replayInput()));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.deduped).toBe(true);
+    // Snapshot comes from the MATCHED RECORD (cost 40.55, not the replay's
+    // 42.18) so the client's synced row mirrors what's actually upstream.
+    expect(body.submitted.gallons).toBe(11.2);
+    expect(body.submitted.cost).toBe(40.55);
+    expect(body.submitted.currency).toBe('USD');
+    expect(calls.get).toBe(1);
+    expect(calls.add).toBe(0);
+  });
+
+  it('writes normally when date+odometer match but fuelConsumed differs (prefilled-odometer second fill-up)', async () => {
+    // Two same-day fill-ups can share a prefilled odometer; volume is what
+    // keeps them distinguishable. A dedupe here would be silent data loss.
+    const calls = wireUpstream([gasRecord({ fuelConsumed: 9.51 })]);
+    const res = await POST(event(replayInput({ clientSubmissionId: 'replay-0002' })));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deduped).toBeUndefined();
+    expect(calls.add).toBe(1);
+  });
+
+  it('returns 503 and never writes when the pre-check GET fails (entry stays queued client-side)', async () => {
+    const calls = wireUpstream('error');
+    const res = await POST(event(replayInput({ clientSubmissionId: 'replay-0003' })));
+    expect(res.status).toBe(503);
+    expect(calls.add).toBe(0);
+  });
+
+  it('never queries gas records for an unflagged submit (foreground path untouched)', async () => {
+    const calls = wireUpstream([gasRecord()]);
+    const res = await POST(event(replayInput({ clientSubmissionId: 'replay-0004', queueReplay: undefined })));
+    expect(res.status).toBe(200);
+    expect(calls.get).toBe(0);
+    expect(calls.add).toBe(1);
+  });
+
+  it('treats a non-boolean queueReplay (string "true") as absent', async () => {
+    const calls = wireUpstream([gasRecord()]);
+    const res = await POST(event(replayInput({ clientSubmissionId: 'replay-0005', queueReplay: 'true' })));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deduped).toBeUndefined();
+    expect(calls.get).toBe(0);
+    expect(calls.add).toBe(1);
+  });
+});

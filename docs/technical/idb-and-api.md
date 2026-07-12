@@ -72,6 +72,7 @@ Source: `src/lib/shared/types.ts`.
 | `tags` | `string` | Optional, comma-separated on the LubeLogger side. |
 | `manualFxRate` | `number` | Optional; bypasses the FX chain when set. Must be a finite number `> 0` — a zero, negative, or non-numeric value is rejected with a 400 (`invalid fields … manualFxRate`) before any upstream write. |
 | `clientSubmissionId` | `string` | UUID for the server's idempotency cache (60 s window). |
+| `queueReplay` | `boolean` | Optional. Set (literal `true`) by the SW replay loop on every queued-entry POST — triggers the server's replay dedupe against LubeLogger before writing. Foreground submits never set it; any non-`true` value is treated as absent. See [`offline-queue.md`](./offline-queue.md#replay-dedupe). |
 
 ### Public surface
 
@@ -280,6 +281,7 @@ IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-
 | Required fields | `vehicleId`, `date`, `odometer`, `volume`, `volumeUnit`, `cost`, `currency`, `clientSubmissionId`. |
 | Numeric guard | `vehicleId` must coerce to a positive integer (coerced onto the body before use — the JSON path would otherwise pass a raw string into the authenticated upstream URL). `odometer`, `volume`, `cost` must be finite and `> 0`, and are coerced onto the body (JSON numeric strings are accepted). `volumeUnit` must be exactly `'gal'` or `'L'`. `currency` must be a 3-letter ISO-4217 code (normalized to uppercase). `date` must be a non-empty string. `clientSubmissionId` must be a non-empty, non-whitespace string — it keys the idempotency window, so an empty value would collide unrelated submissions onto one shared key (the second would get the first's cached 200 and never reach upstream). |
 | Idempotency | 60-second in-memory window keyed on `clientSubmissionId`. Repeat POSTs in the window return the original cached response. **Only successes are cached** — a failed submit evicts its marker on completion so a genuine retry reaches upstream (the offline-queue replay depends on this after a 502). Entries past the window are swept on the next POST — but only **settled** entries: an entry whose submission is still in flight is never evicted however old, so a late duplicate dedups against it instead of re-submitting concurrently. |
+| Replay dedupe | When the body carries `queueReplay: true` (SW replay loop only), the server GETs the vehicle's gas records from LubeLogger before writing and skips the write if a record with the same `date` + `odometer` + `fuelConsumed` (± 0.0005 gal) already exists — returning a normal 200 with `deduped: true` and a `submitted` snapshot mirroring the **matched record**. A failed pre-check GET returns 503 (never write on uncertainty). Covers day-later replays the 60 s window can't. Full rationale: [`offline-queue.md`](./offline-queue.md#replay-dedupe). |
 
 #### Success response (200)
 
@@ -304,6 +306,11 @@ from otherwise (see [`fillup-unit-price.md`](./fillup-unit-price.md), issue #57)
 
 `photoWarning?: string` — present iff attach was requested but ≥1 image did not attach (the record
 was still created).
+
+`deduped?: boolean` — present (literal `true`) iff a `queueReplay`-flagged submit matched a record
+already in LubeLogger. No new write happened; `submitted.gallons`/`submitted.cost` mirror the
+matched record (what's actually upstream), while the `fx*` fields describe this request's unused
+conversion (kept for response-shape parity).
 
 #### Error responses
 
