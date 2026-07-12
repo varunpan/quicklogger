@@ -245,4 +245,64 @@ describe('syncQueue', () => {
     expect(entry.status).toBe('synced');
     expect(entry.converted).toBeUndefined();
   });
+
+  // --- Replay dedupe flag (D1) ---------------------------------------------
+  // Every replayed POST must carry `queueReplay: true` — not just retries.
+  // A queued entry's ORIGINAL foreground POST may have landed upstream with
+  // the response lost in transit, so even a first-drain replay is potentially
+  // a re-send. The server uses the flag to check LubeLogger for an
+  // already-landed record before writing (see docs/technical/offline-queue.md).
+
+  function sentBody(fetchMock: ReturnType<typeof vi.fn>, call: number) {
+    const init = fetchMock.mock.calls[call][1] as RequestInit;
+    return JSON.parse(init.body as string);
+  }
+
+  it('marks every replayed POST with queueReplay: true, leaving the stored input intact', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const body = sentBody(fetchMock, 0);
+    expect(body.queueReplay).toBe(true);
+    expect(body.clientSubmissionId).toBe(baseInput.clientSubmissionId);
+    expect(body.odometer).toBe(baseInput.odometer);
+    // The flag is added at POST time only — the stored entry keeps the
+    // unmodified user payload.
+    const [entry] = await q.list();
+    expect(entry.input.queueReplay).toBeUndefined();
+  });
+
+  it('SW-dies-mid-replay: a 200 that never reached markSynced re-POSTs the same id with the flag on the next drain', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    // First drain: the POST lands upstream (200), but the SW dies before the
+    // persist step — simulated by markSynced rejecting once. The entry must
+    // stay 'queued' (this IS the at-least-once window D1 is about).
+    const spy = vi
+      .spyOn(Queue.prototype, 'markSynced')
+      .mockRejectedValueOnce(new Error('SW killed before persist'));
+    await syncQueue(dbName);
+    const [afterFirst] = await q.list();
+    expect(afterFirst.status).toBe('queued');
+
+    // Next drain (hours/days later in production): the same clientSubmissionId
+    // is re-POSTed, and it MUST carry the replay flag so the server can dedupe
+    // against the record store.
+    await syncQueue(dbName);
+    spy.mockRestore();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondBody = sentBody(fetchMock, 1);
+    expect(secondBody.queueReplay).toBe(true);
+    expect(secondBody.clientSubmissionId).toBe(baseInput.clientSubmissionId);
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+  });
 });

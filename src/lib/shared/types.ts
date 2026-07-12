@@ -14,6 +14,12 @@ export interface FuelSubmissionInput {
   tags?: string;
   manualFxRate?: number;
   clientSubmissionId: string;
+  /** Set (literal `true`) by the SW replay loop on every queued-entry POST —
+   *  the server then checks LubeLogger for an already-landed record before
+   *  writing (day-later replay dedupe; see docs/technical/offline-queue.md).
+   *  Foreground submits never set it. Any non-`true` value is treated as
+   *  absent server-side. */
+  queueReplay?: boolean;
 }
 
 export interface FuelSubmissionResult {
@@ -32,6 +38,10 @@ export interface FuelSubmissionResult {
   /** Present iff the submit requested photo attachment but ≥1 image did not
    *  attach. The record was still created (record-first policy). */
   photoWarning?: string;
+  /** Present (literal `true`) iff a `queueReplay`-flagged submit matched a
+   *  record already in LubeLogger — no new write happened; `submitted` mirrors
+   *  the matched record (its `fuelConsumed`/`cost`), not a fresh conversion. */
+  deduped?: boolean;
 }
 
 // --- Photo OCR (v0.2.0+) ---

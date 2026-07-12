@@ -32,6 +32,15 @@ All notable changes to this project are documented here. Format roughly follows 
   failed toast after submitting a fill-up was invisible to assistive tech; it now
   carries a live-region role (`status`, or `alert` for errors) like every other
   transient panel in the app.
+- **Offline fill-ups replayed hours or days later can no longer create duplicate
+  records in LubeLogger.** If a submission's POST landed upstream but the app
+  never learned it (the service worker was killed before marking the entry
+  synced, or the response was lost in transit), the queued entry would be
+  re-sent on the next app open — past the server's 60-second dedupe window —
+  and a second identical gas record appeared in LubeLogger. Replayed
+  submissions are now flagged, and the server checks LubeLogger for an
+  already-landed record (same date + odometer + fuel volume) before writing,
+  so a re-send finds the original instead of duplicating it.
 - **Failed-but-billed OCR calls now count against the daily budget.** When a
   paid vision provider returned a response that then failed validation (bad
   JSON, out-of-range reading), the spend was never recorded — the money was
