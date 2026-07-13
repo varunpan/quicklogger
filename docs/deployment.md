@@ -109,10 +109,11 @@ host-side log read works the same as the `node build` UAT path.
 `.github/workflows/ci.yml` runs on every push and pull request:
 
 1. Lint (`npm run lint` — ESLint flat config)
-2. Type-check (`npm run check` — svelte-check)
-3. Unit + integration tests (`npm test` — Vitest)
-4. Build (`npm run build`)
-5. E2E (`npm run test:e2e` — Playwright on mobile-Safari profile) — gated; runs only when `tests/e2e/*.spec.ts` files exist (Task 25 introduces them)
+2. Format check (`npm run format:check` — Prettier, config in `.prettierrc`)
+3. Type-check (`npm run check` — svelte-check)
+4. Unit + integration tests (`npm test` — Vitest)
+5. Build (`npm run build`)
+6. E2E (`npm run test:e2e` — Playwright on mobile-Safari profile) — gated; runs only when `tests/e2e/*.spec.ts` files exist (Task 25 introduces them)
 
 Node 24 with npm cache. ~3-minute pipeline. CI must be green for the
 release workflow (Task 29) to publish a multi-arch image.
