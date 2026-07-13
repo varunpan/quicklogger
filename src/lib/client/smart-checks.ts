@@ -1,8 +1,8 @@
 import type { Prefs } from './prefs';
 
-// Threshold for the "too high" odometer jump in check E and the OCR-side
-// relative-range warning in the main form. Single source of truth; both
-// call sites import from here.
+// Threshold for the "too high" odometer jump in check E (and asserted by the
+// unit tests). The main form no longer imports it directly (#20b) — check E
+// here is the single consumer.
 export const ODOMETER_MAX_DELTA_MI = 2000;
 
 export type SmartCheckCode = 'A' | 'B' | 'C' | 'D' | 'E' | 'G';
