@@ -4,9 +4,15 @@ import { syncQueue } from './sync-queue';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 const baseInput: FuelSubmissionInput = {
-  vehicleId: 1, date: '2026-05-07', odometer: 87432, volume: 50,
-  volumeUnit: 'L', cost: 65, currency: 'CAD',
-  isFillToFull: true, missedFuelup: false,
+  vehicleId: 1,
+  date: '2026-05-07',
+  odometer: 87432,
+  volume: 50,
+  volumeUnit: 'L',
+  cost: 65,
+  currency: 'CAD',
+  isFillToFull: true,
+  missedFuelup: false,
   clientSubmissionId: '00000000-0000-0000-0000-000000000001'
 };
 
@@ -219,10 +225,10 @@ describe('syncQueue', () => {
     // than guessing the currency.
     globalThis.fetch = vi.fn(
       async () =>
-        new Response(
-          JSON.stringify({ ok: true, submitted: { gallons: 11.2, cost: 47.92 } }),
-          { status: 200, headers: { 'content-type': 'application/json' } }
-        )
+        new Response(JSON.stringify({ ok: true, submitted: { gallons: 11.2, cost: 47.92 } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
     ) as unknown as typeof globalThis.fetch;
 
     await syncQueue(dbName);

@@ -15,9 +15,16 @@ import {
 
 function seedServerInfo(overrides: Record<string, unknown> = {}) {
   const base = {
-    reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.6.5',
-    updateAvailable: false, locale: 'en-US', currencySymbol: '$',
-    decimalSeparator: '.', dateFormat: 'M/d/yyyy', lubeloggerCurrency: 'USD'
+    reachable: true,
+    status: 'ok',
+    currentVersion: '1.6.5',
+    latestVersion: '1.6.5',
+    updateAvailable: false,
+    locale: 'en-US',
+    currencySymbol: '$',
+    decimalSeparator: '.',
+    dateFormat: 'M/d/yyyy',
+    lubeloggerCurrency: 'USD'
   };
   localStorage.setItem('quicklogger-server-info', JSON.stringify({ ...base, ...overrides }));
 }
@@ -92,7 +99,9 @@ describe('formatLastFillupDate', () => {
     const got = formatLastFillupDate('2026-01-02');
     // en-GB short month is "2 Jan 2026"; suffix unchanged.
     const expectedAbs = new Date(2026, 0, 2).toLocaleDateString('en-GB', {
-      month: 'short', day: 'numeric', year: 'numeric'
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
     });
     expect(got).toBe(`${expectedAbs} (128 days ago)`);
   });
@@ -157,7 +166,9 @@ describe('formatDueDate', () => {
   it('uses cached locale', () => {
     seedServerInfo({ locale: 'en-GB' });
     const expected = new Date(2026, 3, 12).toLocaleDateString('en-GB', {
-      month: 'short', day: 'numeric', year: 'numeric'
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
     });
     expect(formatDueDate('2026-04-12')).toBe(expected);
   });
@@ -236,7 +247,9 @@ describe('formatCost', () => {
 
 describe('vehicleLabel', () => {
   it('joins year, make, model', () => {
-    expect(vehicleLabel({ year: 2019, make: 'Honda', model: 'Civic Si' })).toBe('2019 Honda Civic Si');
+    expect(vehicleLabel({ year: 2019, make: 'Honda', model: 'Civic Si' })).toBe(
+      '2019 Honda Civic Si'
+    );
   });
   it('skips missing parts', () => {
     expect(vehicleLabel({ make: 'Honda', model: 'Civic' })).toBe('Honda Civic');

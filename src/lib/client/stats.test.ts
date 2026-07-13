@@ -11,14 +11,21 @@ import type { VehicleInfo } from '$lib/server/lubelogger';
 function makeInfo(overrides: Partial<VehicleInfo> = {}): VehicleInfo {
   return {
     vehicleData: { id: 1, year: 2014, make: 'Honda', model: 'Accord' },
-    gasRecordCount: 22, gasRecordCost: 707.39,
-    serviceRecordCount: 44, serviceRecordCost: 4164.2,
-    repairRecordCount: 9, repairRecordCost: 1018.24,
-    upgradeRecordCount: 1, upgradeRecordCost: 595,
-    taxRecordCount: 0, taxRecordCost: 0,
+    gasRecordCount: 22,
+    gasRecordCost: 707.39,
+    serviceRecordCount: 44,
+    serviceRecordCost: 4164.2,
+    repairRecordCount: 9,
+    repairRecordCost: 1018.24,
+    upgradeRecordCount: 1,
+    upgradeRecordCost: 595,
+    taxRecordCount: 0,
+    taxRecordCost: 0,
     lastReportedOdometer: 111180,
-    pastDueReminderCount: 2, veryUrgentReminderCount: 0,
-    urgentReminderCount: 0, notUrgentReminderCount: 7,
+    pastDueReminderCount: 2,
+    veryUrgentReminderCount: 0,
+    urgentReminderCount: 0,
+    notUrgentReminderCount: 7,
     nextReminder: null,
     ...overrides
   };
@@ -31,7 +38,13 @@ describe('totalCostOfOwnership', () => {
   it('is 0 when every category cost is 0', () => {
     expect(
       totalCostOfOwnership(
-        makeInfo({ gasRecordCost: 0, serviceRecordCost: 0, repairRecordCost: 0, upgradeRecordCost: 0, taxRecordCost: 0 })
+        makeInfo({
+          gasRecordCost: 0,
+          serviceRecordCost: 0,
+          repairRecordCost: 0,
+          upgradeRecordCost: 0,
+          taxRecordCost: 0
+        })
       )
     ).toBe(0);
   });
@@ -44,7 +57,13 @@ describe('totalRecordCount', () => {
   it('is 0 when every category count is 0', () => {
     expect(
       totalRecordCount(
-        makeInfo({ gasRecordCount: 0, serviceRecordCount: 0, repairRecordCount: 0, upgradeRecordCount: 0, taxRecordCount: 0 })
+        makeInfo({
+          gasRecordCount: 0,
+          serviceRecordCount: 0,
+          repairRecordCount: 0,
+          upgradeRecordCount: 0,
+          taxRecordCount: 0
+        })
       )
     ).toBe(0);
   });
@@ -75,10 +94,18 @@ describe('reminderSummary', () => {
         urgentReminderCount: 3,
         notUrgentReminderCount: 7,
         nextReminder: {
-          vehicleId: 1, id: 12, description: 'Engine Oil change',
-          urgency: 'NotUrgent', metric: 'Both', userMetric: 'Both',
-          notes: null, dueDate: '2026-11-30',
-          dueOdometer: 116124, dueDays: 166, dueDistance: 4944, tags: ''
+          vehicleId: 1,
+          id: 12,
+          description: 'Engine Oil change',
+          urgency: 'NotUrgent',
+          metric: 'Both',
+          userMetric: 'Both',
+          notes: null,
+          dueDate: '2026-11-30',
+          dueOdometer: 116124,
+          dueDays: 166,
+          dueDistance: 4944,
+          tags: ''
         }
       })
     );
@@ -88,7 +115,13 @@ describe('reminderSummary', () => {
   it('returns null when there are no reminders at all', () => {
     expect(
       reminderSummary(
-        makeInfo({ pastDueReminderCount: 0, veryUrgentReminderCount: 0, urgentReminderCount: 0, notUrgentReminderCount: 0, nextReminder: null })
+        makeInfo({
+          pastDueReminderCount: 0,
+          veryUrgentReminderCount: 0,
+          urgentReminderCount: 0,
+          notUrgentReminderCount: 0,
+          nextReminder: null
+        })
       )
     ).toBeNull();
   });
@@ -96,11 +129,23 @@ describe('reminderSummary', () => {
     expect(
       reminderSummary(
         makeInfo({
-          pastDueReminderCount: 0, veryUrgentReminderCount: 0, urgentReminderCount: 0, notUrgentReminderCount: 0,
+          pastDueReminderCount: 0,
+          veryUrgentReminderCount: 0,
+          urgentReminderCount: 0,
+          notUrgentReminderCount: 0,
           nextReminder: {
-            vehicleId: 1, id: 1, description: 'Tire Rotation',
-            urgency: 'NotUrgent', metric: 'Odometer', userMetric: 'Odometer',
-            notes: null, dueDate: '2026-10-03', dueOdometer: 112552, dueDays: 0, dueDistance: 3000, tags: ''
+            vehicleId: 1,
+            id: 1,
+            description: 'Tire Rotation',
+            urgency: 'NotUrgent',
+            metric: 'Odometer',
+            userMetric: 'Odometer',
+            notes: null,
+            dueDate: '2026-10-03',
+            dueOdometer: 112552,
+            dueDays: 0,
+            dueDistance: 3000,
+            tags: ''
           }
         })
       )

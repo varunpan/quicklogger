@@ -9,14 +9,8 @@ export function resolveSelectedVehicle(vehicles: Vehicle[], url: URL): Vehicle |
   const urlVid = Number(url.searchParams.get('vehicleId'));
   const prefsVid = loadPrefs().lastVehicleId;
   const candidate =
-    Number.isFinite(urlVid) && urlVid > 0
-      ? urlVid
-      : typeof prefsVid === 'number'
-        ? prefsVid
-        : null;
+    Number.isFinite(urlVid) && urlVid > 0 ? urlVid : typeof prefsVid === 'number' ? prefsVid : null;
   return (
-    (candidate !== null ? vehicles.find((v) => v.id === candidate) : null) ??
-    vehicles[0] ??
-    null
+    (candidate !== null ? vehicles.find((v) => v.id === candidate) : null) ?? vehicles[0] ?? null
   );
 }

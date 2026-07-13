@@ -13,13 +13,13 @@ inputs side-by-side:
 - A numeric cost input (`type="number"`, decimal step).
 - A currency selector with these five options:
 
-  | Code | |
-  | --- | --- |
-  | `USD` | US dollar |
+  | Code  |                 |
+  | ----- | --------------- |
+  | `USD` | US dollar       |
   | `CAD` | Canadian dollar |
-  | `EUR` | Euro |
-  | `GBP` | Pound sterling |
-  | `MXN` | Mexican peso |
+  | `EUR` | Euro            |
+  | `GBP` | Pound sterling  |
+  | `MXN` | Mexican peso    |
 
 The currency defaults to whatever you set in
 [Settings → Default currency](app-pages.md#settings-settings). On the
@@ -66,7 +66,7 @@ an expiry boundary):
   (network down, all providers rate-limited, etc.) and the cache has a
   rate younger than 7 days, the server falls back to the cached rate and
   flags `stale: true` on the response. The UI surfaces this as
-  *"FX rate is stale"* in amber on the preview line.
+  _"FX rate is stale"_ in amber on the preview line.
 - **Older than 7 days** — the rate is no longer used. The endpoint
   returns `503 { "available": false }` and the form prompts you for a
   manual rate (see below).

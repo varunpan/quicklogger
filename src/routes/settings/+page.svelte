@@ -106,15 +106,15 @@
           class="toggle-pill flex-1"
           class:active={prefs.odometerPrefillEnabled}
           class:inactive={!prefs.odometerPrefillEnabled}
-          onclick={() => updatePrefillEnabled(true)}
-        >On</button>
+          onclick={() => updatePrefillEnabled(true)}>On</button
+        >
         <button
           type="button"
           class="toggle-pill flex-1"
           class:active={!prefs.odometerPrefillEnabled}
           class:inactive={prefs.odometerPrefillEnabled}
-          onclick={() => updatePrefillEnabled(false)}
-        >Off</button>
+          onclick={() => updatePrefillEnabled(false)}>Off</button
+        >
       </div>
     </div>
 
@@ -130,7 +130,8 @@
         onchange={(e) => updateIncrement((e.currentTarget as HTMLInputElement).value)}
       />
       <span class="text-xs text-zinc-500 mt-2 leading-relaxed">
-        Adds this many miles when you tap the chip below the odometer field. Set to 0 to hide the chip.
+        Adds this many miles when you tap the chip below the odometer field. Set to 0 to hide the
+        chip.
       </span>
     </label>
   </div>
@@ -140,8 +141,8 @@
       <div class="min-w-0">
         <div class="field-label">Smart checks</div>
         <div class="text-xs text-zinc-500 mt-1 leading-relaxed">
-          Warn before submitting fillups that look off — lower odometer
-          than last, future date, tiny volume, etc.
+          Warn before submitting fillups that look off — lower odometer than last, future date, tiny
+          volume, etc.
         </div>
       </div>
       <div class="flex bg-zinc-800 rounded-xl p-1 shrink-0" style="width: 96px;">
@@ -150,15 +151,15 @@
           class="toggle-pill flex-1"
           class:active={prefs.smartChecksEnabled}
           class:inactive={!prefs.smartChecksEnabled}
-          onclick={() => updateSmartChecks(true)}
-        >On</button>
+          onclick={() => updateSmartChecks(true)}>On</button
+        >
         <button
           type="button"
           class="toggle-pill flex-1"
           class:active={!prefs.smartChecksEnabled}
           class:inactive={prefs.smartChecksEnabled}
-          onclick={() => updateSmartChecks(false)}
-        >Off</button>
+          onclick={() => updateSmartChecks(false)}>Off</button
+        >
       </div>
     </div>
   </div>
@@ -176,8 +177,8 @@
         onchange={(e) => updateHistoryKeep((e.currentTarget as HTMLInputElement).value)}
       />
       <span class="text-xs text-zinc-500 mt-2 leading-relaxed">
-        History shows at most this many synced fill-ups per vehicle; older ones
-        are pruned from this device. Queued and failed fill-ups are always kept.
+        History shows at most this many synced fill-ups per vehicle; older ones are pruned from this
+        device. Queued and failed fill-ups are always kept.
       </span>
     </label>
   </div>
@@ -200,11 +201,12 @@
       </div>
       {#if serverInfo.updateAvailable}
         <div class="flex items-center gap-2 text-xs text-zinc-400" data-testid="update-available">
-          <span
-            class="badge text-amber-300 bg-amber-500/15 border border-amber-500/30"
+          <span class="badge text-amber-300 bg-amber-500/15 border border-amber-500/30"
             >Update available</span
           >
-          <span class="tabular-nums">v{serverInfo.currentVersion} → v{serverInfo.latestVersion}</span>
+          <span class="tabular-nums"
+            >v{serverInfo.currentVersion} → v{serverInfo.latestVersion}</span
+          >
         </div>
       {/if}
     {:else if serverInfo?.status === 'unauthorized'}
@@ -244,11 +246,18 @@
         >
       </div>
       {#if serverInfo.appReleaseUrl}
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href={serverInfo.appReleaseUrl} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 self-start" data-testid="app-release-notes">
+        <!-- eslint-disable svelte/no-navigation-without-resolve -->
+        <a
+          href={serverInfo.appReleaseUrl}
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 self-start"
+          data-testid="app-release-notes"
+        >
           Release notes
           <Icon name="external" size={11} />
         </a>
+        <!-- eslint-enable svelte/no-navigation-without-resolve -->
       {/if}
       <p class="text-xs text-zinc-500 leading-relaxed">
         Pull the new image when you're ready —
@@ -268,7 +277,7 @@
   </div>
 
   <p class="text-xs text-zinc-500">
-    Server converts to the LubeLogger-configured target unit and currency before
-    posting. These prefs only affect form defaults.
+    Server converts to the LubeLogger-configured target unit and currency before posting. These
+    prefs only affect form defaults.
   </p>
 </div>

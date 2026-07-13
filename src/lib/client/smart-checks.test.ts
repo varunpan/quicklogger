@@ -77,12 +77,7 @@ describe('check A — submitted date ≥ last AND odometer lower', () => {
   });
 
   it('skips silently when lastFuelup is null', () => {
-    const r = evaluateSmartChecks(
-      sub({ odometer: 100 }),
-      null,
-      PREFS_ON,
-      FIXED_NOW
-    );
+    const r = evaluateSmartChecks(sub({ odometer: 100 }), null, PREFS_ON, FIXED_NOW);
     expect(r.issues.find((i) => i.code === 'A')).toBeUndefined();
   });
 });
@@ -191,12 +186,7 @@ describe('check D — future date', () => {
   });
 
   it('fires regardless of lastFuelup being null', () => {
-    const r = evaluateSmartChecks(
-      sub({ date: '2099-01-01' }),
-      null,
-      PREFS_ON,
-      FIXED_NOW
-    );
+    const r = evaluateSmartChecks(sub({ date: '2099-01-01' }), null, PREFS_ON, FIXED_NOW);
     expect(r.issues.find((i) => i.code === 'D')).toBeDefined();
   });
 
@@ -282,12 +272,7 @@ describe('check G — tiny volume', () => {
   });
 
   it('does not fire at exactly 2 L (strict <)', () => {
-    const r = evaluateSmartChecks(
-      sub({ volume: 2, volumeUnit: 'L' }),
-      last(),
-      PREFS_ON,
-      FIXED_NOW
-    );
+    const r = evaluateSmartChecks(sub({ volume: 2, volumeUnit: 'L' }), last(), PREFS_ON, FIXED_NOW);
     expect(r.issues.find((i) => i.code === 'G')).toBeUndefined();
   });
 
@@ -358,7 +343,10 @@ describe('localIsoDate — the form default-date seed', () => {
     for (let h = 0; h < 24; h++) {
       const now = new Date(2026, 5, 11, h, 30);
       const r = evaluateSmartChecks(sub({ date: localIsoDate(now) }), null, PREFS_ON, now);
-      expect(r.issues.find((i) => i.code === 'D'), `hour ${h}`).toBeUndefined();
+      expect(
+        r.issues.find((i) => i.code === 'D'),
+        `hour ${h}`
+      ).toBeUndefined();
     }
   });
 

@@ -42,13 +42,17 @@
 
   {#if data.vehicle}
     <VehicleIdentifiersCard
-      licensePlate={typeof data.vehicle.licensePlate === 'string' ? data.vehicle.licensePlate : undefined}
+      licensePlate={typeof data.vehicle.licensePlate === 'string'
+        ? data.vehicle.licensePlate
+        : undefined}
       vin={typeof data.vehicle.vin === 'string' ? data.vehicle.vin : undefined}
     />
   {/if}
 
   {#if data.error}
-    <div class="rounded-xl px-3 py-2 text-sm text-amber-300 bg-amber-500/15 border border-amber-500/30 flex items-center gap-2 mb-3">
+    <div
+      class="rounded-xl px-3 py-2 text-sm text-amber-300 bg-amber-500/15 border border-amber-500/30 flex items-center gap-2 mb-3"
+    >
       <span aria-hidden="true">⚠</span>
       <span>Couldn't reach LubeLogger right now.</span>
     </div>
@@ -68,9 +72,13 @@
         <div class="flex items-center justify-between py-3">
           <div class="flex items-baseline gap-2">
             <span class="text-base text-zinc-100">{row.label}</span>
-            <span class="text-xs text-zinc-500">{row.count} {row.noun}{row.count === 1 ? '' : 's'}</span>
+            <span class="text-xs text-zinc-500"
+              >{row.count} {row.noun}{row.count === 1 ? '' : 's'}</span
+            >
           </div>
-          <span class="text-base font-semibold text-zinc-100 tabular-nums">{formatCost(row.cost, null)}</span>
+          <span class="text-base font-semibold text-zinc-100 tabular-nums"
+            >{formatCost(row.cost, null)}</span
+          >
         </div>
       {/each}
     </div>
@@ -79,24 +87,33 @@
     {#if purchase !== null}
       <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-3 flex items-center justify-between">
         <span class="field-label">Purchase price</span>
-        <span class="text-base font-semibold text-zinc-100 tabular-nums">{formatCost(purchase, null)}</span>
+        <span class="text-base font-semibold text-zinc-100 tabular-nums"
+          >{formatCost(purchase, null)}</span
+        >
       </div>
     {/if}
 
     <!-- Last reported odometer -->
     <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-3 flex items-center justify-between">
       <span class="field-label">Last reported odometer</span>
-      <span class="text-base font-semibold text-zinc-100 tabular-nums">{formatOdometer(String(info.lastReportedOdometer))} mi</span>
+      <span class="text-base font-semibold text-zinc-100 tabular-nums"
+        >{formatOdometer(String(info.lastReportedOdometer))} mi</span
+      >
     </div>
 
     <!-- Reminder status → maintenance -->
     {#if reminders}
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a href={`/maintenance?vehicleId=${data.vehicle?.id}`} class="bg-zinc-800 rounded-xl px-4 py-3 mb-3 flex items-center gap-3 w-full">
+      <!-- eslint-disable svelte/no-navigation-without-resolve -->
+      <a
+        href={`/maintenance?vehicleId=${data.vehicle?.id}`}
+        class="bg-zinc-800 rounded-xl px-4 py-3 mb-3 flex items-center gap-3 w-full"
+      >
         <div class="flex-1 min-w-0 text-left">
           <div class="flex items-center gap-2">
             {#if reminders.pastDue > 0}
-              <span class="badge border text-rose-300 bg-rose-500/15 border-rose-500/30">{reminders.pastDue} Past Due</span>
+              <span class="badge border text-rose-300 bg-rose-500/15 border-rose-500/30"
+                >{reminders.pastDue} Past Due</span
+              >
             {/if}
             {#if reminders.upcoming > 0}
               <span class="text-xs text-zinc-500">{reminders.upcoming} upcoming</span>
@@ -106,6 +123,7 @@
         </div>
         <span class="text-zinc-500" aria-hidden="true">›</span>
       </a>
+      <!-- eslint-enable svelte/no-navigation-without-resolve -->
     {/if}
   {/if}
 

@@ -2,14 +2,19 @@ export type FxProviderName = 'frankfurter' | 'erapi' | 'fawazahmed';
 export type OcrSlotName = 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible';
 
 const KNOWN_FX_PROVIDERS: ReadonlySet<FxProviderName> = new Set([
-  'frankfurter', 'erapi', 'fawazahmed'
+  'frankfurter',
+  'erapi',
+  'fawazahmed'
 ]);
 
 // Validation set only — the OCR dispatcher's default fallback order
 // is defined in src/lib/server/ocr.ts (DEFAULT_SLOT_ORDER), not derived
 // from this set's declaration order.
 const KNOWN_OCR_SLOTS: ReadonlySet<OcrSlotName> = new Set([
-  'ollama-local', 'ollama-cloud', 'openrouter', 'openai-compatible'
+  'ollama-local',
+  'ollama-cloud',
+  'openrouter',
+  'openai-compatible'
 ]);
 
 // Default OCR image-size policy, in MiB. This is the single source of truth
@@ -134,7 +139,10 @@ function parseBoundedInt(
 function parseOcrProviderChain(): OcrSlotName[] | undefined {
   const raw = process.env.OCR_PROVIDER_CHAIN;
   if (raw === undefined || raw.trim() === '') return undefined;
-  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const parts = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const seen = new Set<OcrSlotName>();
   for (const p of parts) {
     if (!KNOWN_OCR_SLOTS.has(p as OcrSlotName)) {

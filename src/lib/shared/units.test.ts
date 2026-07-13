@@ -8,7 +8,7 @@ describe('units', () => {
 
   it('converts liters to US gallons', () => {
     expect(toGallons(3.785411784, 'L')).toBeCloseTo(1, 9);
-    expect(toGallons(50, 'L')).toBeCloseTo(13.20860, 4);
+    expect(toGallons(50, 'L')).toBeCloseTo(13.2086, 4);
   });
 
   it('passes US gallons through unchanged', () => {

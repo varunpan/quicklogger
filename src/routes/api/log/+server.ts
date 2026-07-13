@@ -15,7 +15,10 @@ const MAX_BATCH_BYTES = 100 * 1024;
 const MAX_RECORD_BYTES = 8 * 1024;
 const RATE_PER_MIN = 60;
 
-interface IpBucket { count: number; resetAt: number; }
+interface IpBucket {
+  count: number;
+  resetAt: number;
+}
 const buckets = new Map<string, IpBucket>();
 let lastSweepAt = Date.now();
 
@@ -84,12 +87,18 @@ export const POST: RequestHandler = async ({ request, locals, getClientAddress }
   const referer = request.headers.get('referer');
   let refererRoute: string | null = null;
   if (referer) {
-    try { refererRoute = new URL(referer).pathname; } catch { /* ignore */ }
+    try {
+      refererRoute = new URL(referer).pathname;
+    } catch {
+      /* ignore */
+    }
   }
 
   for (const r of body.records) {
-    if (!r || typeof r !== 'object') return json({ error: 'record must be object' }, { status: 400 });
-    if (typeof r.msg !== 'string' || r.msg.length === 0) return json({ error: 'msg required' }, { status: 400 });
+    if (!r || typeof r !== 'object')
+      return json({ error: 'record must be object' }, { status: 400 });
+    if (typeof r.msg !== 'string' || r.msg.length === 0)
+      return json({ error: 'msg required' }, { status: 400 });
     if (!VALID_LEVELS.has(r.level)) return json({ error: 'invalid level' }, { status: 400 });
     if (JSON.stringify(r).length > MAX_RECORD_BYTES) continue;
     locals.logger[r.level](r.msg, {

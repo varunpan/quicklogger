@@ -8,7 +8,9 @@ test.use({ serviceWorkers: 'block' });
 // round-trip that unmounts the form; the entered values must now ride through
 // the picker on the URL and re-seed on return. The odometer is the one field
 // that SHOULD reset — to the newly-picked vehicle's last fillup.
-test('changing vehicle preserves entered values and resets the odometer (#50)', async ({ page }) => {
+test('changing vehicle preserves entered values and resets the odometer (#50)', async ({
+  page
+}) => {
   // Two vehicles with distinct last-fuelup odometers so we can prove the
   // odometer re-prefills from the *newly picked* vehicle, not the old one.
   await page.route('**/api/vehicles', (route) =>
@@ -34,7 +36,9 @@ test('changing vehicle preserves entered values and resets the odometer (#50)', 
     });
   });
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
 
   // Enter the home form via the client router so the route mocks apply

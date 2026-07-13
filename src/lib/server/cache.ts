@@ -1,4 +1,7 @@
-interface Entry<T> { promise: Promise<T>; expiresAt: number; }
+interface Entry<T> {
+  promise: Promise<T>;
+  expiresAt: number;
+}
 
 export class TtlCache<T> {
   private readonly entries = new Map<string, Entry<T>>();
@@ -26,6 +29,10 @@ export class TtlCache<T> {
     return promise;
   }
 
-  invalidate(key: string) { this.entries.delete(key); }
-  clear() { this.entries.clear(); }
+  invalidate(key: string) {
+    this.entries.delete(key);
+  }
+  clear() {
+    this.entries.clear();
+  }
 }

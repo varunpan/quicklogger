@@ -62,7 +62,10 @@ function safeStringify(rec: Record<string, unknown>): string {
 
 function prettyFormat(rec: Record<string, unknown>): string {
   const { ts, level, msg, ...rest } = rec as {
-    ts: string; level: string; msg: string; [k: string]: unknown;
+    ts: string;
+    level: string;
+    msg: string;
+    [k: string]: unknown;
   };
   const tsShort = String(ts).slice(11, 23); // HH:MM:SS.mmm
   const levelUp = level.toUpperCase();

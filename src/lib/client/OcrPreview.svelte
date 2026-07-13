@@ -53,8 +53,9 @@
   async function getBitmap(): Promise<ImageBitmap> {
     if (bitmapCache) return bitmapCache;
     if (!bitmapPromise) {
-      bitmapPromise = createImageBitmap(file, { imageOrientation: 'from-image' })
-        .catch(() => createImageBitmap(file));  // Safari fallback, same as image.ts
+      bitmapPromise = createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() =>
+        createImageBitmap(file)
+      ); // Safari fallback, same as image.ts
     }
     bitmapCache = await bitmapPromise;
     return bitmapCache;
@@ -151,7 +152,12 @@
   // flow back into the overlay and reset the crop the user is editing (#37b).
   // Freezing it for the session is the fix; the overlay's own mid-drag guard is
   // a secondary safeguard for standalone use.
-  let cropInitial = $state<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 0, h: 0 });
+  let cropInitial = $state<{ x: number; y: number; w: number; h: number }>({
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0
+  });
 
   function snapshotCropInitial(): { x: number; y: number; w: number; h: number } {
     return crop ? sourceToDisplay(crop, imgRendered, rotation) : defaultDisplayRect();
@@ -268,7 +274,7 @@
         canvas.height = transpose ? baseW : baseH;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        ctx.setTransform(1, 0, 0, 1, 0, 0);  // reset between re-renders
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // reset between re-renders
         switch (r) {
           case 0:
             break;
@@ -308,7 +314,7 @@
     if (!el) return;
     if (el.complete && el.naturalWidth > 0) {
       // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-      previewMode;  // re-run when the template swaps img back in
+      previewMode; // re-run when the template swaps img back in
       measureImg();
     }
   });
@@ -331,7 +337,16 @@
         aria-label="Cancel"
         onclick={oncancel}
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
           <line x1="6" y1="6" x2="18" y2="18" />
           <line x1="6" y1="18" x2="18" y2="6" />
         </svg>
@@ -350,7 +365,16 @@
         aria-label="Cancel crop"
         onclick={cancelCrop}
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
           <line x1="6" y1="6" x2="18" y2="18" />
           <line x1="6" y1="18" x2="18" y2="6" />
         </svg>
@@ -404,8 +428,12 @@
           is a SIBLING of the zoompan wrapper (screen space), so the box/handles
           stay fixed while the photo moves.
         -->
-          <!-- 1.01 (not 1) is a small hysteresis so a near-1× pinch doesn't flicker the clip/badge on and off. -->
-        <div class="relative inline-block {previewMode === 'crop' && cropZoom > 1.01 ? 'overflow-hidden' : ''}">
+        <!-- 1.01 (not 1) is a small hysteresis so a near-1× pinch doesn't flicker the clip/badge on and off. -->
+        <div
+          class="relative inline-block {previewMode === 'crop' && cropZoom > 1.01
+            ? 'overflow-hidden'
+            : ''}"
+        >
           <div
             class="origin-top-left"
             style={previewMode === 'crop'
@@ -434,7 +462,7 @@
             <CropOverlay
               bind:this={overlayRef}
               imageDisplayRect={{ x: 0, y: 0, w: imgRendered.w, h: imgRendered.h }}
-              sourceSize={sourceSize}
+              {sourceSize}
               initial={cropInitial}
               floorSourcePx={200}
               showOwnCancel={false}
@@ -473,7 +501,9 @@
         </button>
         <button
           type="button"
-          class="flex-1 inline-flex items-center justify-center gap-1 {crop ? 'text-blue-300 ring-1 ring-blue-500/40 bg-zinc-800' : 'text-zinc-300 bg-zinc-800'} rounded-xl px-2 py-2.5 text-xs font-semibold"
+          class="flex-1 inline-flex items-center justify-center gap-1 {crop
+            ? 'text-blue-300 ring-1 ring-blue-500/40 bg-zinc-800'
+            : 'text-zinc-300 bg-zinc-800'} rounded-xl px-2 py-2.5 text-xs font-semibold"
           aria-label="Crop image"
           onclick={enterCropMode}
         >

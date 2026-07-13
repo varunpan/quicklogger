@@ -18,7 +18,9 @@ test.describe('submit gate — required fields', () => {
     await expect(button).toBeDisabled();
   });
 
-  test('button stays disabled when date is cleared even if other fields are valid', async ({ page }) => {
+  test('button stays disabled when date is cleared even if other fields are valid', async ({
+    page
+  }) => {
     await mockQuickloggerApi(page);
     await page.goto('/');
 
@@ -60,7 +62,14 @@ test.describe('submit gate — required fields', () => {
       await route.fulfill({
         json: {
           ok: true,
-          submitted: { gallons: 11.2, cost: 42.18, currency: 'USD', fxRate: 1, fxSource: 'identity', fxStale: false }
+          submitted: {
+            gallons: 11.2,
+            cost: 42.18,
+            currency: 'USD',
+            fxRate: 1,
+            fxSource: 'identity',
+            fxStale: false
+          }
         }
       });
     });

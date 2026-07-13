@@ -34,33 +34,33 @@ export interface Logger {
 
 Log record shape (one JSON object per line):
 
-| Field | Type | Source |
-|---|---|---|
-| `ts` | ISO 8601 string | Logger, set at emit time |
-| `level` | `LogLevel` | Method that fired |
-| `msg` | string | First arg to the method |
-| `request_id` | string | `hooks.server.ts` child binding |
-| `route` | `string \| null` | `hooks.server.ts` child binding (`event.route?.id`) |
-| `method`, `path`, `status`, `duration_ms` | — | Access-log record at request end |
-| `err.message`, `err.stack`, `err.name` | — | Set when `ctx.err` is an `Error` (unpacked by the redactor) |
-| arbitrary | unknown | Per-call `ctx` keys merged in; sensitive keys (`api_key`, `token`, `secret`, `password`, `authorization`) replaced with `***` |
+| Field                                     | Type             | Source                                                                                                                        |
+| ----------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `ts`                                      | ISO 8601 string  | Logger, set at emit time                                                                                                      |
+| `level`                                   | `LogLevel`       | Method that fired                                                                                                             |
+| `msg`                                     | string           | First arg to the method                                                                                                       |
+| `request_id`                              | string           | `hooks.server.ts` child binding                                                                                               |
+| `route`                                   | `string \| null` | `hooks.server.ts` child binding (`event.route?.id`)                                                                           |
+| `method`, `path`, `status`, `duration_ms` | —                | Access-log record at request end                                                                                              |
+| `err.message`, `err.stack`, `err.name`    | —                | Set when `ctx.err` is an `Error` (unpacked by the redactor)                                                                   |
+| arbitrary                                 | unknown          | Per-call `ctx` keys merged in; sensitive keys (`api_key`, `token`, `secret`, `password`, `authorization`) replaced with `***` |
 
 Env fields on `Env` (`src/lib/server/env.ts`):
 
-| Field | Default | Notes |
-|---|---|---|
-| `logLevel` | `'info'` | Invalid values fall back + emit one `envWarnings` line |
-| `logPretty` | `NODE_ENV !== 'production'` | `LOG_PRETTY=1` / `=0` override |
-| `logFilePath` | `undefined` | Opt-in rotating file |
-| `logFileMaxSizeMb` | `5` | Bounded `1..100`; invalid → fallback + warn |
-| `logFileMaxFiles` | `5` | Bounded `1..20`; invalid → fallback + warn |
-| `envWarnings` | `[]` | Accumulator; `bootLogger` flushes each entry as one `warn` record |
+| Field              | Default                     | Notes                                                             |
+| ------------------ | --------------------------- | ----------------------------------------------------------------- |
+| `logLevel`         | `'info'`                    | Invalid values fall back + emit one `envWarnings` line            |
+| `logPretty`        | `NODE_ENV !== 'production'` | `LOG_PRETTY=1` / `=0` override                                    |
+| `logFilePath`      | `undefined`                 | Opt-in rotating file                                              |
+| `logFileMaxSizeMb` | `5`                         | Bounded `1..100`; invalid → fallback + warn                       |
+| `logFileMaxFiles`  | `5`                         | Bounded `1..20`; invalid → fallback + warn                        |
+| `envWarnings`      | `[]`                        | Accumulator; `bootLogger` flushes each entry as one `warn` record |
 
 ## Lifecycle / control flow
 
 **Server boot:**
 
-1. `loadEnv()` parses `LOG_*` vars. Invalid values are coerced to defaults and a string is pushed onto `envWarnings`. Required vars throwing here happens *before* the logger exists — that's intentional and unchanged.
+1. `loadEnv()` parses `LOG_*` vars. Invalid values are coerced to defaults and a string is pushed onto `envWarnings`. Required vars throwing here happens _before_ the logger exists — that's intentional and unchanged.
 2. First request triggers `ensureBoot()` in `src/hooks.server.ts`. `bootLogger(env)` opens the optional file sink (lazy `createRequire('rotating-file-stream')`), emits one `logger ready` info record, flushes `envWarnings`, registers `uncaughtException` / `unhandledRejection` handlers, and stashes the singleton.
 3. The next line emits `server start` with version, host, configured OCR / FX providers, and `log_file_enabled`.
 4. `ensureBoot` then calls `selectProvider(env, getLogger())` to warm the OCR provider chain. If two or more slots survive env validation, this emits a single `ocr chain effective` line listing the effective fallback order. The same call populates the process-level chain memo so subsequent per-request `selectProvider` calls stay silent for the same composition — the chain is fixed by env at boot and never changes inside one process, so logging it per request would be constant noise.
@@ -79,21 +79,21 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 
 ## Edge cases & invariants
 
-| Scenario | Behaviour | Why |
-|---|---|---|
-| Mutating request with a present, mismatched `Origin` | `csrf origin mismatch` warn + 403 before `resolve()` | Defense-in-depth CSRF (review #17); also makes the common "phone URL ≠ `ORIGIN`" UAT 403 visible in logs, where SvelteKit's built-in check rejects it silently |
-| 404 on a missing static asset | Access-log fires at `info`, not `warn` | Carved out in `levelFromStatus` — 404s on `/foo.png` aren't actionable |
-| `building === true` (prerender pass of `/offline` during `vite build`) | `handle` returns `resolve(event)` immediately — no `ensureBoot`, no access-log line | Prerendering has no runtime env; `loadEnv()` would throw `LUBELOGGER_URL not set` and fail the Docker/CI build. `/offline` is `ssr=false` with no server load, so `resolve()` only emits the static shell |
-| Module imported before `bootLogger` runs (tests, top-level imports) | `getLogger()` returns a no-op-style stdout fallback (`level: info`, `pretty: false`) | Keeps tests that import server modules in arbitrary order working without enforcing boot order |
-| Deeply-nested `ctx` payload | Redactor stops at depth 5 and emits `'[truncated]'` | Bounds work per record so a pathological prefs blob can't stall a request |
-| `rotating-file-stream` not installed in some bundle path | `defaultOpenFileSink` lazy-requires via `createRequire` — only crashes when `LOG_FILE_PATH` is set | Bare ESM `import` would pull the dep into the client bundle |
-| Downstream handler already set `X-Request-ID` on the response | Hook leaves the existing header alone | Lets a future SSE / proxy handler own the header without the hook stomping it |
-| Client buffer exceeds 20 records | Oldest record dropped on each push | `error` listeners can fire faster than the server drains; bound memory before bounding behaviour |
-| 10-record size flush | Deferred via `queueMicrotask` | Avoids a sync flush from the inside of a handler (would re-enter the wrapped `fetch`) |
-| `OcrAudit.append` write fails | Logger emits `warn`; promise no longer rejects | Append is best-effort; the audit log going stale must not fail a real OCR request |
-| `OcrAudit` rotation rename throws | Same — `warn`, swallow | Same reasoning as the append branch |
-| Cyclic / function / symbol / bigint in `ctx` | Redactor handles each: cycle → `'[cycle]'`, function / symbol → dropped, bigint → stringified | `JSON.stringify` would throw otherwise |
-| Two requests in flight on the same Node process | Each has its own `request_id`; child loggers are independent | `child({ … })` returns a fresh closure over `baseCtx`; no shared mutable state |
+| Scenario                                                                                 | Behaviour                                                                                                                                                                                                     | Why                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mutating request with a present, mismatched `Origin`                                     | `csrf origin mismatch` warn + 403 before `resolve()`                                                                                                                                                          | Defense-in-depth CSRF (review #17); also makes the common "phone URL ≠ `ORIGIN`" UAT 403 visible in logs, where SvelteKit's built-in check rejects it silently                                                                                                                                  |
+| 404 on a missing static asset                                                            | Access-log fires at `info`, not `warn`                                                                                                                                                                        | Carved out in `levelFromStatus` — 404s on `/foo.png` aren't actionable                                                                                                                                                                                                                          |
+| `building === true` (prerender pass of `/offline` during `vite build`)                   | `handle` returns `resolve(event)` immediately — no `ensureBoot`, no access-log line                                                                                                                           | Prerendering has no runtime env; `loadEnv()` would throw `LUBELOGGER_URL not set` and fail the Docker/CI build. `/offline` is `ssr=false` with no server load, so `resolve()` only emits the static shell                                                                                       |
+| Module imported before `bootLogger` runs (tests, top-level imports)                      | `getLogger()` returns a no-op-style stdout fallback (`level: info`, `pretty: false`)                                                                                                                          | Keeps tests that import server modules in arbitrary order working without enforcing boot order                                                                                                                                                                                                  |
+| Deeply-nested `ctx` payload                                                              | Redactor stops at depth 5 and emits `'[truncated]'`                                                                                                                                                           | Bounds work per record so a pathological prefs blob can't stall a request                                                                                                                                                                                                                       |
+| `rotating-file-stream` not installed in some bundle path                                 | `defaultOpenFileSink` lazy-requires via `createRequire` — only crashes when `LOG_FILE_PATH` is set                                                                                                            | Bare ESM `import` would pull the dep into the client bundle                                                                                                                                                                                                                                     |
+| Downstream handler already set `X-Request-ID` on the response                            | Hook leaves the existing header alone                                                                                                                                                                         | Lets a future SSE / proxy handler own the header without the hook stomping it                                                                                                                                                                                                                   |
+| Client buffer exceeds 20 records                                                         | Oldest record dropped on each push                                                                                                                                                                            | `error` listeners can fire faster than the server drains; bound memory before bounding behaviour                                                                                                                                                                                                |
+| 10-record size flush                                                                     | Deferred via `queueMicrotask`                                                                                                                                                                                 | Avoids a sync flush from the inside of a handler (would re-enter the wrapped `fetch`)                                                                                                                                                                                                           |
+| `OcrAudit.append` write fails                                                            | Logger emits `warn`; promise no longer rejects                                                                                                                                                                | Append is best-effort; the audit log going stale must not fail a real OCR request                                                                                                                                                                                                               |
+| `OcrAudit` rotation rename throws                                                        | Same — `warn`, swallow                                                                                                                                                                                        | Same reasoning as the append branch                                                                                                                                                                                                                                                             |
+| Cyclic / function / symbol / bigint in `ctx`                                             | Redactor handles each: cycle → `'[cycle]'`, function / symbol → dropped, bigint → stringified                                                                                                                 | `JSON.stringify` would throw otherwise                                                                                                                                                                                                                                                          |
+| Two requests in flight on the same Node process                                          | Each has its own `request_id`; child loggers are independent                                                                                                                                                  | `child({ … })` returns a fresh closure over `baseCtx`; no shared mutable state                                                                                                                                                                                                                  |
 | `selectProvider` called repeatedly with the same env (every page load, every OCR submit) | Emits `ocr chain effective` only once per distinct chain composition via a process-level memo. `ensureBoot` warms it at startup, so the line lands next to `server start` and per-request callers stay silent | The chain is fixed by env at boot; logging it on every request was constant noise (~one line per page navigation). Memoizing on the comma-joined provider names re-fires only if the composition would actually differ — defensive cover for a hypothetical hot-reload that doesn't exist today |
 
 ## Non-obvious decisions
@@ -105,7 +105,7 @@ Env fields on `Env` (`src/lib/server/env.ts`):
 **Untrusted client ctx is quarantined; canonical fields are authoritative.**
 Two layers stop a `POST /api/log` client from forging persisted log fields
 (review #32). (1) In the logger, the canonical `ts`/`level`/`msg` are written
-*after* the spread of `ctx`, so a `ctx.ts`/`ctx.level`/`ctx.msg` can't rewrite
+_after_ the spread of `ctx`, so a `ctx.ts`/`ctx.level`/`ctx.msg` can't rewrite
 them. (2) At the `/api/log` boundary the client's `ctx` is nested under one
 `client_ctx` key rather than spread flat, so a client-supplied
 `request_id`/`route`/`source` lands under `client_ctx.*` and can't collide with
@@ -120,7 +120,7 @@ before. Net effect: client-forwarded records carry their keys under
 lazy singletons behind `/api/fuelup`, `/api/fx`, and `/api/ocr`
 (`CurrencyService`, `OcrBudget`, `OcrAudit`, `OcrRateLimiter`) live for the life
 of the process, but their factories used to capture `locals.logger` — the
-per-request child carrying the *first* request's `request_id`/`route`. Every
+per-request child carrying the _first_ request's `request_id`/`route`. Every
 later `fx provider failed` / `ocr audit append failed` line was then stamped
 with a long-dead request's id, undermining the structured-logging design. They
 now construct with `getLogger()` (the root binding, no `request_id`), which is

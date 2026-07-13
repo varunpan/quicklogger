@@ -9,10 +9,7 @@
 
   type PixelRect = { x: number; y: number; w: number; h: number };
 
-  let {
-    initial,
-    oncommit
-  }: { initial: PixelRect; oncommit: (rect: PixelRect) => void } = $props();
+  let { initial, oncommit }: { initial: PixelRect; oncommit: (rect: PixelRect) => void } = $props();
 
   let live = $state<PixelRect>(untrack(() => ({ ...initial })));
   let zoom = $state(1);
@@ -46,4 +43,8 @@
   oninput={(e) => overlayRef?.setZoom(e.currentTarget.valueAsNumber)}
 />
 <span data-testid="zoom">{zoom.toFixed(2)}</span>
-<button type="button" data-action="host-done" onclick={() => oncommit(viewportToBase({ ...live }, zoom, pan))}>Done</button>
+<button
+  type="button"
+  data-action="host-done"
+  onclick={() => oncommit(viewportToBase({ ...live }, zoom, pan))}>Done</button
+>

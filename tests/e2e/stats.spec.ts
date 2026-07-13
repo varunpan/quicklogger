@@ -6,19 +6,34 @@ const VEHICLE = { id: 1, year: 2014, make: 'Honda', model: 'Accord' };
 
 const INFO = {
   vehicleData: VEHICLE,
-  gasRecordCount: 22, gasRecordCost: 707.39,
-  serviceRecordCount: 44, serviceRecordCost: 4164.2,
-  repairRecordCount: 9, repairRecordCost: 1018.24,
-  upgradeRecordCount: 1, upgradeRecordCost: 595,
-  taxRecordCount: 0, taxRecordCost: 0,
+  gasRecordCount: 22,
+  gasRecordCost: 707.39,
+  serviceRecordCount: 44,
+  serviceRecordCost: 4164.2,
+  repairRecordCount: 9,
+  repairRecordCost: 1018.24,
+  upgradeRecordCount: 1,
+  upgradeRecordCost: 595,
+  taxRecordCount: 0,
+  taxRecordCost: 0,
   lastReportedOdometer: 111180,
-  pastDueReminderCount: 2, veryUrgentReminderCount: 0,
-  urgentReminderCount: 0, notUrgentReminderCount: 7,
+  pastDueReminderCount: 2,
+  veryUrgentReminderCount: 0,
+  urgentReminderCount: 0,
+  notUrgentReminderCount: 7,
   nextReminder: {
-    vehicleId: 1, id: 12, description: 'Engine Oil change',
-    urgency: 'NotUrgent', metric: 'Both', userMetric: 'Both',
-    notes: null, dueDate: '2026-11-30',
-    dueOdometer: 116124, dueDays: 166, dueDistance: 4944, tags: ''
+    vehicleId: 1,
+    id: 12,
+    description: 'Engine Oil change',
+    urgency: 'NotUrgent',
+    metric: 'Both',
+    userMetric: 'Both',
+    notes: null,
+    dueDate: '2026-11-30',
+    dueOdometer: 116124,
+    dueDays: 166,
+    dueDistance: 4944,
+    tags: ''
   }
 };
 
@@ -84,12 +99,19 @@ test('shows the no-records empty state when every category count is 0', async ({
     route.fulfill({
       json: {
         ...INFO,
-        gasRecordCount: 0, gasRecordCost: 0,
-        serviceRecordCount: 0, serviceRecordCost: 0,
-        repairRecordCount: 0, repairRecordCost: 0,
-        upgradeRecordCount: 0, upgradeRecordCost: 0,
-        taxRecordCount: 0, taxRecordCost: 0,
-        pastDueReminderCount: 0, notUrgentReminderCount: 0, nextReminder: null
+        gasRecordCount: 0,
+        gasRecordCost: 0,
+        serviceRecordCount: 0,
+        serviceRecordCost: 0,
+        repairRecordCount: 0,
+        repairRecordCost: 0,
+        upgradeRecordCount: 0,
+        upgradeRecordCost: 0,
+        taxRecordCount: 0,
+        taxRecordCost: 0,
+        pastDueReminderCount: 0,
+        notUrgentReminderCount: 0,
+        nextReminder: null
       }
     })
   );

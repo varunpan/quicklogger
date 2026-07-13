@@ -5,8 +5,14 @@ interface CanvasCall {
   width: number;
   height: number;
   drawImage: {
-    sx: number; sy: number; sw: number; sh: number;
-    dx: number; dy: number; dw: number; dh: number;
+    sx: number;
+    sy: number;
+    sw: number;
+    sh: number;
+    dx: number;
+    dy: number;
+    dw: number;
+    dh: number;
   } | null;
   drawImageCalls: number;
   transformCalls: Array<{ kind: 'translate' | 'rotate'; args: number[] }>;
@@ -27,13 +33,25 @@ class FakeCtx {
     this.call.drawImageCalls += 1;
     if (args.length === 4) {
       this.call.drawImage = {
-        sx: 0, sy: 0, sw: 0, sh: 0,
-        dx: args[0], dy: args[1], dw: args[2], dh: args[3]
+        sx: 0,
+        sy: 0,
+        sw: 0,
+        sh: 0,
+        dx: args[0],
+        dy: args[1],
+        dw: args[2],
+        dh: args[3]
       };
     } else if (args.length === 8) {
       this.call.drawImage = {
-        sx: args[0], sy: args[1], sw: args[2], sh: args[3],
-        dx: args[4], dy: args[5], dw: args[6], dh: args[7]
+        sx: args[0],
+        sy: args[1],
+        sw: args[2],
+        sh: args[3],
+        dx: args[4],
+        dy: args[5],
+        dw: args[6],
+        dh: args[7]
       };
     } else {
       throw new Error(`unexpected drawImage arity: ${args.length}`);
@@ -139,7 +157,10 @@ describe('resizeForOcr', () => {
   });
 
   it('crop centered: produces a canvas sized to the cropped region (no resize when under 1024 long edge)', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1500))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { crop: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } });
     // Cropped region = 1000×750. Long edge ≤ 1024 → no resize. Canvas = 1000×750.
@@ -147,13 +168,22 @@ describe('resizeForOcr', () => {
     expect(canvasCalls[0].width).toBe(1000);
     expect(canvasCalls[0].height).toBe(750);
     expect(canvasCalls[0].drawImage).toEqual({
-      sx: 500, sy: 375, sw: 1000, sh: 750,
-      dx: 0, dy: 0, dw: 1000, dh: 750
+      sx: 500,
+      sy: 375,
+      sw: 1000,
+      sh: 750,
+      dx: 0,
+      dy: 0,
+      dw: 1000,
+      dh: 750
     });
   });
 
   it('crop combined with rotation 90: canvas transposes around the cropped region', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1500))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { rotation: 90, crop: { x: 0, y: 0, w: 1, h: 0.5 } });
     // Cropped region = 2000×750 (full width, top half). Long edge 2000 → scale 0.512
@@ -169,7 +199,10 @@ describe('resizeForOcr', () => {
   });
 
   it('crop = null behaves identically to no crop key', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1000)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1000))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { crop: null });
     expect(canvasCalls[0].width).toBe(1024);
@@ -182,7 +215,10 @@ describe('resizeForOcr', () => {
   });
 
   it('defensive: crop overshooting the far edge is clamped to it, not discarded', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1500))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { crop: { x: 0.6, y: 0.1, w: 0.5, h: 0.2 } });
     // w clamps 0.5 → 0.4 (source 800 px from x=1200); h fits and is untouched.
@@ -193,33 +229,45 @@ describe('resizeForOcr', () => {
   });
 
   it('flush-to-edge crop with a float-ulp overshoot is kept (regression: was silently discarded)', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1500))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     // x + w = 1 + one ulp — the viewport→base→source math can produce exactly
     // this for a crop dragged flush against the right edge. The old strict
     // `x + w > 1` reject collapsed it to the full image.
     await resizeForOcr(file, { crop: { x: 0.5, y: 0.25, w: 0.5 * (1 + Number.EPSILON), h: 0.5 } });
     expect(canvasCalls[0].drawImage?.sx).toBe(1000);
-    expect(canvasCalls[0].drawImage?.sw).toBe(1000);  // clamped to the edge, crop kept
+    expect(canvasCalls[0].drawImage?.sw).toBe(1000); // clamped to the edge, crop kept
     expect(canvasCalls[0].drawImage?.sh).toBe(750);
   });
 
   it('defensive: crop with its origin past the far edge falls back to full image', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1500))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { crop: { x: 1.2, y: 0.1, w: 0.3, h: 0.2 } });
     expect(canvasCalls[0].drawImage?.sw).toBe(2000);
   });
 
   it('defensive: crop with zero width falls back to full image', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1500))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { crop: { x: 0.1, y: 0.1, w: 0, h: 0.5 } });
     expect(canvasCalls[0].drawImage?.sw).toBe(2000);
   });
 
   it('single canvas pass: drawImage called exactly once even with crop + rotation', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => fakeBitmap(2000, 1500)));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => fakeBitmap(2000, 1500))
+    );
     const file = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
     await resizeForOcr(file, { rotation: 270, crop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } });
     expect(canvasCalls[0].drawImageCalls).toBe(1);
@@ -246,7 +294,9 @@ describe('resizeForOcr — zero-byte OffscreenCanvas fallback', () => {
 
   function stubOffscreenCanvasReturning(blob: Blob) {
     class ZeroByteOffscreenCanvas extends FakeOffscreenCanvas {
-      async convertToBlob() { return blob; }
+      async convertToBlob() {
+        return blob;
+      }
     }
     vi.stubGlobal('OffscreenCanvas', ZeroByteOffscreenCanvas);
   }
@@ -256,7 +306,13 @@ describe('resizeForOcr — zero-byte OffscreenCanvas fallback', () => {
     const realCreate = Document.prototype.createElement.bind(document);
     vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
       if (tag !== 'canvas') return realCreate(tag as 'div');
-      const call: CanvasCall = { width: 0, height: 0, drawImage: null, drawImageCalls: 0, transformCalls: [] };
+      const call: CanvasCall = {
+        width: 0,
+        height: 0,
+        drawImage: null,
+        drawImageCalls: 0,
+        transformCalls: []
+      };
       htmlCanvasCalls.push(call);
       const fake = {
         getContext(kind: string) {
@@ -268,12 +324,20 @@ describe('resizeForOcr — zero-byte OffscreenCanvas fallback', () => {
         }
       };
       Object.defineProperty(fake, 'width', {
-        set(v: number) { call.width = v; },
-        get() { return call.width; }
+        set(v: number) {
+          call.width = v;
+        },
+        get() {
+          return call.width;
+        }
       });
       Object.defineProperty(fake, 'height', {
-        set(v: number) { call.height = v; },
-        get() { return call.height; }
+        set(v: number) {
+          call.height = v;
+        },
+        get() {
+          return call.height;
+        }
       });
       return fake as unknown as HTMLCanvasElement;
     }) as typeof document.createElement);

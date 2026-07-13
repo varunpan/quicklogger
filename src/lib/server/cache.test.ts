@@ -14,7 +14,11 @@ describe('TtlCache', () => {
   it('returns the cached value within TTL', async () => {
     const cache = new TtlCache<string>(5_000);
     let calls = 0;
-    const get = () => cache.get('k', async () => { calls++; return 'v'; });
+    const get = () =>
+      cache.get('k', async () => {
+        calls++;
+        return 'v';
+      });
     expect(await get()).toBe('v');
     expect(await get()).toBe('v');
     expect(calls).toBe(1);
@@ -23,7 +27,11 @@ describe('TtlCache', () => {
   it('refetches after TTL expires', async () => {
     const cache = new TtlCache<string>(5_000);
     let calls = 0;
-    const get = () => cache.get('k', async () => { calls++; return `v${calls}`; });
+    const get = () =>
+      cache.get('k', async () => {
+        calls++;
+        return `v${calls}`;
+      });
     expect(await get()).toBe('v1');
     vi.advanceTimersByTime(6_000);
     expect(await get()).toBe('v2');

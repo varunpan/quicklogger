@@ -23,7 +23,9 @@ function captureLogger(): { logger: Logger; calls: LogCall[] } {
     info: log('info'),
     warn: log('warn'),
     error: log('error'),
-    child() { return this; }
+    child() {
+      return this;
+    }
   } as unknown as Logger;
   return { logger, calls };
 }
@@ -31,8 +33,12 @@ function captureLogger(): { logger: Logger; calls: LogCall[] } {
 function inMemoryStore(initial?: Record<string, FxCacheEntry>): FxStore {
   let data: Record<string, FxCacheEntry> = { ...(initial ?? {}) };
   return {
-    async load() { return data; },
-    async update(mutator) { data = mutator({ ...data }); }
+    async load() {
+      return data;
+    },
+    async update(mutator) {
+      data = mutator({ ...data });
+    }
   };
 }
 
@@ -54,7 +60,11 @@ describe('CurrencyService', () => {
     const svc = new CurrencyService({ providers: ['frankfurter', 'erapi'], fetcher, store });
     const result = await svc.getRate('USD', 'CAD');
     expect(result).toEqual({
-      rate: 1.36, source: 'frankfurter', fetchedAt: now - 2 * HOUR, stale: false, ageHours: 2
+      rate: 1.36,
+      source: 'frankfurter',
+      fetchedAt: now - 2 * HOUR,
+      stale: false,
+      ageHours: 2
     });
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -65,7 +75,11 @@ describe('CurrencyService', () => {
       if (provider === 'erapi') return { rate: 1.37 };
       throw new Error('should not reach fawazahmed');
     });
-    const svc = new CurrencyService({ providers: ['frankfurter', 'erapi', 'fawazahmed'], fetcher, store: inMemoryStore() });
+    const svc = new CurrencyService({
+      providers: ['frankfurter', 'erapi', 'fawazahmed'],
+      fetcher,
+      store: inMemoryStore()
+    });
     const result = await svc.getRate('USD', 'CAD');
     expect(result.rate).toBe(1.37);
     expect(result.source).toBe('erapi');
@@ -75,9 +89,17 @@ describe('CurrencyService', () => {
 
   it('returns stale cache when all providers fail', async () => {
     const cachedAt = now - 10 * HOUR;
-    const store = inMemoryStore({ 'USD:CAD': { rate: 1.34, fetchedAt: cachedAt, source: 'frankfurter' } });
-    const fetcher: FxFetcher = vi.fn(async () => { throw new Error('down'); });
-    const svc = new CurrencyService({ providers: ['frankfurter', 'erapi', 'fawazahmed'], fetcher, store });
+    const store = inMemoryStore({
+      'USD:CAD': { rate: 1.34, fetchedAt: cachedAt, source: 'frankfurter' }
+    });
+    const fetcher: FxFetcher = vi.fn(async () => {
+      throw new Error('down');
+    });
+    const svc = new CurrencyService({
+      providers: ['frankfurter', 'erapi', 'fawazahmed'],
+      fetcher,
+      store
+    });
     vi.setSystemTime(now + 25 * HOUR);
     const result = await svc.getRate('USD', 'CAD');
     expect(result.rate).toBe(1.34);
@@ -87,22 +109,36 @@ describe('CurrencyService', () => {
   });
 
   it('signals unavailable when all providers fail and no cache', async () => {
-    const fetcher: FxFetcher = vi.fn(async () => { throw new Error('down'); });
-    const svc = new CurrencyService({ providers: ['frankfurter', 'erapi'], fetcher, store: inMemoryStore() });
+    const fetcher: FxFetcher = vi.fn(async () => {
+      throw new Error('down');
+    });
+    const svc = new CurrencyService({
+      providers: ['frankfurter', 'erapi'],
+      fetcher,
+      store: inMemoryStore()
+    });
     await expect(svc.getRate('USD', 'CAD')).rejects.toMatchObject({ name: 'FxUnavailableError' });
   });
 
   it('treats cache older than 7 days as unavailable', async () => {
     const eightDays = 8 * 24 * HOUR;
-    const store = inMemoryStore({ 'USD:CAD': { rate: 1.30, fetchedAt: now - eightDays, source: 'frankfurter' } });
-    const fetcher: FxFetcher = vi.fn(async () => { throw new Error('down'); });
+    const store = inMemoryStore({
+      'USD:CAD': { rate: 1.3, fetchedAt: now - eightDays, source: 'frankfurter' }
+    });
+    const fetcher: FxFetcher = vi.fn(async () => {
+      throw new Error('down');
+    });
     const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store });
     await expect(svc.getRate('USD', 'CAD')).rejects.toMatchObject({ name: 'FxUnavailableError' });
   });
 
   it('passes through identity when from === to', async () => {
     const fetcher: FxFetcher = vi.fn();
-    const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store: inMemoryStore() });
+    const svc = new CurrencyService({
+      providers: ['frankfurter'],
+      fetcher,
+      store: inMemoryStore()
+    });
     const result = await svc.getRate('USD', 'USD');
     expect(result.rate).toBe(1);
     expect(result.source).toBe('identity');
@@ -152,39 +188,39 @@ describe('CurrencyService', () => {
     });
     const r = await svc.getRate('USD', 'EUR');
     expect(r.rate).toBe(1.07);
-    expect(
-      calls.some((c) => c.level === 'warn' && c.msg === 'fx provider failed')
-    ).toBe(true);
+    expect(calls.some((c) => c.level === 'warn' && c.msg === 'fx provider failed')).toBe(true);
   });
 
   it('logs a warn when FX cache read fails and falls back to a fresh fetch', async () => {
     const { logger, calls } = captureLogger();
     const store: FxStore = {
-      async load() { throw new Error('disk gone'); },
+      async load() {
+        throw new Error('disk gone');
+      },
       async update() {}
     };
     const fetcher: FxFetcher = vi.fn(async () => ({ rate: 1.42 }));
     const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store, logger });
     const r = await svc.getRate('USD', 'CAD');
     expect(r.rate).toBe(1.42);
-    expect(
-      calls.some((c) => c.level === 'warn' && c.msg === 'fx cache read failed')
-    ).toBe(true);
+    expect(calls.some((c) => c.level === 'warn' && c.msg === 'fx cache read failed')).toBe(true);
   });
 
   it('logs a warn when FX cache write fails but still returns the fresh rate', async () => {
     const { logger, calls } = captureLogger();
     const store: FxStore = {
-      async load() { return {}; },
-      async update() { throw new Error('disk full'); }
+      async load() {
+        return {};
+      },
+      async update() {
+        throw new Error('disk full');
+      }
     };
     const fetcher: FxFetcher = vi.fn(async () => ({ rate: 1.42 }));
     const svc = new CurrencyService({ providers: ['frankfurter'], fetcher, store, logger });
     const r = await svc.getRate('USD', 'CAD');
     expect(r.rate).toBe(1.42);
-    expect(
-      calls.some((c) => c.level === 'warn' && c.msg === 'fx cache write failed')
-    ).toBe(true);
+    expect(calls.some((c) => c.level === 'warn' && c.msg === 'fx cache write failed')).toBe(true);
   });
 });
 
@@ -212,13 +248,16 @@ describe('CurrencyService — concurrency (real file store)', () => {
 });
 
 describe('realFetcher — rate validation', () => {
-  afterEach(() => { vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   function stubFetchJson(payload: unknown) {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } })
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } })
       )
     );
   }

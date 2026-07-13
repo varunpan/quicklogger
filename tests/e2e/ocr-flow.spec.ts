@@ -16,11 +16,11 @@ async function commonRoutes(page: Page, lastFuelup: object | null = null) {
   await page.route('**/api/vehicles', (route) =>
     route.fulfill({ json: [{ id: 1, year: 2019, make: 'Honda', model: 'Civic Si' }] })
   );
-  await page.route('**/api/vehicle/last-fuelup**', (route) =>
-    route.fulfill({ json: lastFuelup })
-  );
+  await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: lastFuelup }));
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
 }
 
@@ -104,13 +104,19 @@ test('odometer: chip appears + Use populates Odometer', async ({ page }) => {
   await expect(page.locator('input#odometer')).toHaveValue('87612');
 });
 
-test('odometer: detected > last + 2000 → no OCR-confirm advisory; flagged once at submit (smart-check E)', async ({ page }) => {
+test('odometer: detected > last + 2000 → no OCR-confirm advisory; flagged once at submit (smart-check E)', async ({
+  page
+}) => {
   // #20b: the > 2000 mi jump no longer warns at OCR-confirm (that was a
   // redundant double-warning) — it's caught once, at submit, by check E.
   // Clock pinned so the seeded form date can't trip check D into the chip.
   await pinClock(page, '2026-05-14T12:00:00');
   await commonRoutes(page, {
-    date: '2026-05-08', odometer: 87432, fuelConsumed: 11.2, cost: 42.18, notes: ''
+    date: '2026-05-08',
+    odometer: 87432,
+    fuelConsumed: 11.2,
+    cost: 42.18,
+    notes: ''
   });
   await page.route('**/api/ocr', (route) => {
     if (route.request().method() === 'GET') {
@@ -141,7 +147,11 @@ test('odometer: detected > last + 2000 → no OCR-confirm advisory; flagged once
 
 test('odometer: detected < last → amber advisory, [Use anyway] populates', async ({ page }) => {
   await commonRoutes(page, {
-    date: '2026-05-08', odometer: 87432, fuelConsumed: 11.2, cost: 42.18, notes: ''
+    date: '2026-05-08',
+    odometer: 87432,
+    fuelConsumed: 11.2,
+    cost: 42.18,
+    notes: ''
   });
   await page.route('**/api/ocr', (route) => {
     if (route.request().method() === 'GET') {

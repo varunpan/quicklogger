@@ -19,6 +19,7 @@ marks the container `unhealthy` if LubeLogger is unreachable for two
 consecutive checks (~1 minute).
 
 **Local dev build:**
+
 ```sh
 docker build -t quicklogger:dev .
 docker run --rm -p 3000:3000 \
@@ -33,11 +34,11 @@ docker run --rm -p 3000:3000 \
 test the exact artifact that ships — not a `node build` host preview. It differs
 from `compose.example.yml` (the self-host path) in one key way:
 
-| | `compose.example.yml` | `compose.dev.yml` |
-|---|---|---|
-| Image | `image: ghcr.io/varunpan/quicklogger:latest` (pull) | `build: .` (build from source) |
-| For | self-hosters running a release | contributors / dev UAT |
-| Traefik | none | env-driven labels + network, inert by default |
+|         | `compose.example.yml`                               | `compose.dev.yml`                             |
+| ------- | --------------------------------------------------- | --------------------------------------------- |
+| Image   | `image: ghcr.io/varunpan/quicklogger:latest` (pull) | `build: .` (build from source)                |
+| For     | self-hosters running a release                      | contributors / dev UAT                        |
+| Traefik | none                                                | env-driven labels + network, inert by default |
 
 ### Layer 1 — localhost (default)
 
@@ -87,16 +88,16 @@ docker compose -f compose.dev.yml up --build
 
 ### Env knobs
 
-| Var | Default | Effect |
-|---|---|---|
-| `HOST_PORT` | `3000` | Host port published → container `:3000` |
-| `ORIGIN` | `http://localhost:3000` | CSRF origin; must match the URL the browser hits |
-| `TRAEFIK_ENABLE` | `false` | `true` to expose via Traefik (layer 2) |
-| `TRAEFIK_HOST` | `quickloggerdev.localhost` | Router host rule |
-| `TRAEFIK_ENTRYPOINT` | `websecure` | Traefik HTTPS entrypoint |
-| `TRAEFIK_CERTRESOLVER` | _(empty)_ | Traefik cert resolver name |
-| `TRAEFIK_NETWORK` | `quicklogger_dev_net` | Proxy network name |
-| `TRAEFIK_NETWORK_EXTERNAL` | `false` | `true` to join an existing external network |
+| Var                        | Default                    | Effect                                           |
+| -------------------------- | -------------------------- | ------------------------------------------------ |
+| `HOST_PORT`                | `3000`                     | Host port published → container `:3000`          |
+| `ORIGIN`                   | `http://localhost:3000`    | CSRF origin; must match the URL the browser hits |
+| `TRAEFIK_ENABLE`           | `false`                    | `true` to expose via Traefik (layer 2)           |
+| `TRAEFIK_HOST`             | `quickloggerdev.localhost` | Router host rule                                 |
+| `TRAEFIK_ENTRYPOINT`       | `websecure`                | Traefik HTTPS entrypoint                         |
+| `TRAEFIK_CERTRESOLVER`     | _(empty)_                  | Traefik cert resolver name                       |
+| `TRAEFIK_NETWORK`          | `quicklogger_dev_net`      | Proxy network name                               |
+| `TRAEFIK_NETWORK_EXTERNAL` | `false`                    | `true` to join an existing external network      |
 
 App env (`LUBELOGGER_URL`, `LUBELOGGER_API_KEY`, `FX_*`, `OCR_*`, `LOG_*`) reads
 from `.env` exactly like the other compose files; see `.env.example`. Logs land
@@ -119,6 +120,7 @@ release workflow (Task 29) to publish a multi-arch image.
 ## Release workflow (multi-arch GHCR)
 
 `.github/workflows/build.yml` runs on:
+
 - semver tag pushes (`v0.1.0`) — produces `:0.1.0`, `:0.1`, `:latest`,
   `:sha-<short>`
 - manual `workflow_dispatch` trigger
@@ -130,12 +132,13 @@ Builds via `docker/build-push-action` with
 `platforms: linux/amd64,linux/arm64`. QEMU handles cross-arch
 emulation. Cache uses GitHub Actions native cache (`type=gha`). The
 image is scanned for vulnerabilities **before** the push — see
-§ *Vulnerability scanning* below.
+§ _Vulnerability scanning_ below.
 
 Image is pushed to `ghcr.io/varunpan/quicklogger`. The package is
 public — no auth needed to pull.
 
 To cut a release:
+
 1. Bump version in `package.json` (optional)
 2. `git tag v0.1.0 && git push origin v0.1.0`
 3. Watch the build job in Actions — once green, the new tag is
@@ -158,12 +161,12 @@ reported, never gated.
 
 **Where scanning happens:**
 
-| Stage | Mechanism | Blocking? |
-|-------|-----------|-----------|
-| Release build (`build.yml`, on tag push) | `aquasecurity/trivy-action` scans the amd64 image *before* the multi-arch push; SARIF goes to **Security → Code scanning** | **Yes** — fixable CRITICAL/HIGH fail the build, so a vulnerable image is never published |
-| `release-cut` (start of a cycle) | `scripts/scan.sh ghcr.io/varunpan/quicklogger:latest` previews what the currently-deployed image carries | No — informational, so fixes can be planned for the cycle |
-| `release-ship` (final sweep) | `scripts/scan.sh` builds and scans the about-to-ship image | **Yes** — stops the ship if fixable CRITICAL/HIGH remain, before the tag triggers CI |
-| Anytime, locally | `bash scripts/scan.sh` (build + scan) or `scripts/scan.sh <image-ref>` | Exits non-zero on fixable CRITICAL/HIGH |
+| Stage                                    | Mechanism                                                                                                                  | Blocking?                                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Release build (`build.yml`, on tag push) | `aquasecurity/trivy-action` scans the amd64 image _before_ the multi-arch push; SARIF goes to **Security → Code scanning** | **Yes** — fixable CRITICAL/HIGH fail the build, so a vulnerable image is never published |
+| `release-cut` (start of a cycle)         | `scripts/scan.sh ghcr.io/varunpan/quicklogger:latest` previews what the currently-deployed image carries                   | No — informational, so fixes can be planned for the cycle                                |
+| `release-ship` (final sweep)             | `scripts/scan.sh` builds and scans the about-to-ship image                                                                 | **Yes** — stops the ship if fixable CRITICAL/HIGH remain, before the tag triggers CI     |
+| Anytime, locally                         | `bash scripts/scan.sh` (build + scan) or `scripts/scan.sh <image-ref>`                                                     | Exits non-zero on fixable CRITICAL/HIGH                                                  |
 
 `scripts/scan.sh` and the CI gate apply the same policy and run Trivy via
 the `aquasec/trivy` container, so no local Trivy install is needed — just
@@ -177,18 +180,18 @@ friends can ship with already-fixed CVEs. The runtime stage runs
 Alpine patch, and Dependabot's `docker` ecosystem opens a PR when a newer
 base is available. It also removes the base image's bundled **npm/npx** —
 the production container only runs `node build` and never invokes npm, so
-dropping it clears CVEs carried in npm's *own* bundled dependencies (a
+dropping it clears CVEs carried in npm's _own_ bundled dependencies (a
 `picomatch` ReDoS surfaced this way in #31's scan) and trims attack
 surface. The app itself bundles all its npm deps into the build artifact
 and ships **zero** runtime `dependencies`, so the remaining npm attack
 surface inside the image is minimal.
 
 **Source-tree dependencies (`npm audit`).** Image scanning only sees what
-ships *in the image* — it's blind to `devDependencies` that get compiled
+ships _in the image_ — it's blind to `devDependencies` that get compiled
 into the `build/` bundle (Svelte's SSR runtime, `@sveltejs/kit`,
 `devalue`). To cover that layer, `ci.yml` runs `npm audit` over the
 **full** dependency tree on every PR and fails on **high/critical**
-advisories. It deliberately does *not* use `--omit=dev` — that would
+advisories. It deliberately does _not_ use `--omit=dev` — that would
 re-open the blind spot, since those compiled-in packages are
 devDependencies. A high-severity `devalue` DoS is fixed by pinning it to
 the patched `5.8.1` via an npm `override` in `package.json` (it's a
@@ -211,7 +214,7 @@ ship in the runtime image, so they're CI-gated only and don't need a release.
 `npm` and `docker` PRs are merged **manually**: npm `devDependencies` mix pure
 tooling with compiled-in `svelte` / `@sveltejs/kit` / `@tailwindcss` that ship
 in the bundle, and `docker` is the runtime base image — both warrant a human and
-ride a tagged release. GitHub's Dependabot *security* updates and secret
+ride a tagged release. GitHub's Dependabot _security_ updates and secret
 scanning + push protection are enabled at the repo level (Settings → Code
 security and analysis).
 
@@ -220,6 +223,7 @@ security and analysis).
 The repository is `varunpan/quicklogger`, public, MIT-licensed.
 
 **Branch protection on `main`:**
+
 - PR required (no direct pushes)
 - Linear history (squash or rebase only, no merge commits)
 - `lint-and-test` CI status check must pass
@@ -263,11 +267,11 @@ restarts.
 The build workflow tags every release multiple ways on GHCR. Pick
 the one that matches your tolerance for surprise:
 
-| Tag | Behaviour | When to use |
-|-----|-----------|-------------|
-| `:0.1.2` (exact) | Frozen until you edit compose. | Production where you want bit-for-bit reproducibility. |
-| `:0.1` (minor) | Auto-picks up patches in 0.1.x on `pull`. Won't jump to 0.2.x. | Most fork users — patches land automatically, breaking changes are gated. |
-| `:latest` | Tracks main HEAD. Updates whenever any merge to main happens (after CI). | Solo-dev with full ownership of the repo and CI as the gate. The upstream homelab uses this. |
+| Tag              | Behaviour                                                                | When to use                                                                                  |
+| ---------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `:0.1.2` (exact) | Frozen until you edit compose.                                           | Production where you want bit-for-bit reproducibility.                                       |
+| `:0.1` (minor)   | Auto-picks up patches in 0.1.x on `pull`. Won't jump to 0.2.x.           | Most fork users — patches land automatically, breaking changes are gated.                    |
+| `:latest`        | Tracks main HEAD. Updates whenever any merge to main happens (after CI). | Solo-dev with full ownership of the repo and CI as the gate. The upstream homelab uses this. |
 
 `docker compose pull && docker compose up -d` is the release ritual
 either way — Dockhand's auto-update is off globally, so you opt in
@@ -288,17 +292,17 @@ quicklogger:
   container_name: quicklogger
   restart: unless-stopped
   environment:
-    - LUBELOGGER_URL=http://<lubelog-service-name>:8080  # the LubeLogger service's name on this network
-    - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY}           # in the stack's .env
-    - ORIGIN=https://quicklog.example.com                # the URL you'll serve from
+    - LUBELOGGER_URL=http://<lubelog-service-name>:8080 # the LubeLogger service's name on this network
+    - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY} # in the stack's .env
+    - ORIGIN=https://quicklog.example.com # the URL you'll serve from
     - PORT=3000
   volumes:
-    - /srv/quicklogger/data:/data                        # bind-mount for the FX cache
+    - /srv/quicklogger/data:/data # bind-mount for the FX cache
   read_only: true
   tmpfs:
     - /tmp:rw,size=16m,mode=1777
   cap_drop: [ALL]
-  security_opt: ["no-new-privileges:true"]
+  security_opt: ['no-new-privileges:true']
   pids_limit: 100
   mem_limit: 256m
   labels:
@@ -317,14 +321,14 @@ The base image (`node:24-alpine`) already runs as the unprivileged
 `node` user (UID 1000). The compose-side directives below take that
 further by removing privileges the runtime never needs.
 
-| Directive | What it does | Why it's safe for quicklogger |
-|-----------|--------------|--------------------------------|
-| `read_only: true` | Mounts the root filesystem read-only. | The app only writes to `/data` (FX cache). Nothing else needs to change at runtime. |
-| `tmpfs: [/tmp:rw,size=16m,mode=1777]` | Backs `/tmp` with 16 MB of in-memory storage. | Node's `os.tmpdir()` and any transient socket files have a writable home, but contents are wiped on restart and bounded in size. |
-| `cap_drop: [ALL]` | Drops every Linux capability the kernel would normally grant. | An HTTP server needs zero capabilities — no raw sockets, no chown, no mount, no ptrace. |
-| `security_opt: [no-new-privileges:true]` | Forbids any process from gaining new privileges (e.g., via setuid binaries). | Defense-in-depth in case a future dependency ships a setuid file. |
-| `pids_limit: 100` | Caps the number of processes/threads the container can spawn. | Node + V8's worker pool sits around 10–20. 100 is plenty of headroom and bounds fork-bomb risk. |
-| `mem_limit: 256m` | Hard memory ceiling; container is OOM-killed before exhausting the host. | Idle is ~50 MB; FX-chain heavy moments rarely top 100 MB. 256 MB is comfortable. |
+| Directive                                | What it does                                                                 | Why it's safe for quicklogger                                                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `read_only: true`                        | Mounts the root filesystem read-only.                                        | The app only writes to `/data` (FX cache). Nothing else needs to change at runtime.                                              |
+| `tmpfs: [/tmp:rw,size=16m,mode=1777]`    | Backs `/tmp` with 16 MB of in-memory storage.                                | Node's `os.tmpdir()` and any transient socket files have a writable home, but contents are wiped on restart and bounded in size. |
+| `cap_drop: [ALL]`                        | Drops every Linux capability the kernel would normally grant.                | An HTTP server needs zero capabilities — no raw sockets, no chown, no mount, no ptrace.                                          |
+| `security_opt: [no-new-privileges:true]` | Forbids any process from gaining new privileges (e.g., via setuid binaries). | Defense-in-depth in case a future dependency ships a setuid file.                                                                |
+| `pids_limit: 100`                        | Caps the number of processes/threads the container can spawn.                | Node + V8's worker pool sits around 10–20. 100 is plenty of headroom and bounds fork-bomb risk.                                  |
+| `mem_limit: 256m`                        | Hard memory ceiling; container is OOM-killed before exhausting the host.     | Idle is ~50 MB; FX-chain heavy moments rarely top 100 MB. 256 MB is comfortable.                                                 |
 
 **Verify the directives took effect after `docker compose up -d`:**
 
@@ -345,7 +349,7 @@ Expected: `ReadOnly=true`, `CapDrop=[ALL]`, `NoNewPriv=[no-new-privileges:true]`
 - `docker exec quicklogger sh` still works (the `node:24-alpine` runtime ships `sh`), but anything you try to write outside `/data` or `/tmp` will fail with EROFS — that's the protection working.
 - If a future feature genuinely needs to write somewhere else, add a targeted `tmpfs:` or `volumes:` entry rather than removing `read_only`.
 
-**What this does *not* protect against:**
+**What this does _not_ protect against:**
 
 - Compromise of the LubeLogger upstream (we have full write access via the API key).
 - Compromise of the homelab host itself (the container only constrains what it can do; it can't outweigh full host root).

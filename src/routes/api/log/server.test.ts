@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { POST, _resetRateLimitForTests, _bucketCountForTests } from './+server';
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as import('$lib/server/logger').Logger;
 
 function makeEvent(
@@ -28,9 +34,11 @@ describe('POST /api/log', () => {
   beforeEach(() => _resetRateLimitForTests());
 
   it('returns 204 on happy path', async () => {
-    const res = await POST(makeEvent({
-      records: [{ level: 'info', msg: 'hi', ts: new Date().toISOString() }]
-    }));
+    const res = await POST(
+      makeEvent({
+        records: [{ level: 'info', msg: 'hi', ts: new Date().toISOString() }]
+      })
+    );
     expect(res.status).toBe(204);
   });
 
@@ -42,16 +50,20 @@ describe('POST /api/log', () => {
   it('rejects an oversized Content-Length with 413 before buffering the body', async () => {
     // 200 KiB advertised > the 100 KiB batch cap. The body itself is tiny —
     // the guard must fire from the header alone, before request.text().
-    const res = await POST(makeEvent(
-      { records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }] },
-      { 'content-length': String(200 * 1024) }
-    ));
+    const res = await POST(
+      makeEvent(
+        { records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }] },
+        { 'content-length': String(200 * 1024) }
+      )
+    );
     expect(res.status).toBe(413);
   });
 
   it('rejects > 20 records per batch', async () => {
     const records = Array.from({ length: 21 }, () => ({
-      level: 'info', msg: 'x', ts: new Date().toISOString()
+      level: 'info',
+      msg: 'x',
+      ts: new Date().toISOString()
     }));
     const res = await POST(makeEvent({ records }));
     expect(res.status).toBe(413);
@@ -59,16 +71,20 @@ describe('POST /api/log', () => {
 
   it('drops individual records > 8kb but still 204s the batch', async () => {
     const big = 'x'.repeat(9000);
-    const res = await POST(makeEvent({
-      records: [{ level: 'info', msg: big, ts: new Date().toISOString() }]
-    }));
+    const res = await POST(
+      makeEvent({
+        records: [{ level: 'info', msg: big, ts: new Date().toISOString() }]
+      })
+    );
     expect(res.status).toBe(204);
   });
 
   it('rejects records with invalid level', async () => {
-    const res = await POST(makeEvent({
-      records: [{ level: 'verbose', msg: 'x', ts: new Date().toISOString() }]
-    }));
+    const res = await POST(
+      makeEvent({
+        records: [{ level: 'verbose', msg: 'x', ts: new Date().toISOString() }]
+      })
+    );
     expect(res.status).toBe(400);
   });
 
@@ -77,27 +93,36 @@ describe('POST /api/log', () => {
     const mk = (level: string) => (msg: string, ctx?: Record<string, unknown>) =>
       void calls.push({ level, msg, ctx: ctx ?? {} });
     const capturing = {
-      debug: mk('debug'), info: mk('info'), warn: mk('warn'), error: mk('error'),
-      child() { return this; }
+      debug: mk('debug'),
+      info: mk('info'),
+      warn: mk('warn'),
+      error: mk('error'),
+      child() {
+        return this;
+      }
     } as unknown as import('$lib/server/logger').Logger;
 
-    const res = await POST(makeEvent(
-      {
-        records: [{
-          level: 'info',
-          msg: 'real',
-          ts: '2026-01-01T00:00:00.000Z',
-          ctx: {
-            request_id: 'forged',
-            route: '/admin',
-            source: 'server',
-            component: 'OcrPreview'
-          }
-        }]
-      },
-      {},
-      capturing
-    ));
+    const res = await POST(
+      makeEvent(
+        {
+          records: [
+            {
+              level: 'info',
+              msg: 'real',
+              ts: '2026-01-01T00:00:00.000Z',
+              ctx: {
+                request_id: 'forged',
+                route: '/admin',
+                source: 'server',
+                component: 'OcrPreview'
+              }
+            }
+          ]
+        },
+        {},
+        capturing
+      )
+    );
     expect(res.status).toBe(204);
     expect(calls).toHaveLength(1);
     const { ctx } = calls[0];
@@ -120,7 +145,9 @@ describe('POST /api/log', () => {
     // that never return used to live forever.
     vi.useFakeTimers();
     try {
-      const record = () => ({ records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }] });
+      const record = () => ({
+        records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }]
+      });
       await POST(makeEvent(record(), {}, noopLogger, '10.0.0.1'));
       await POST(makeEvent(record(), {}, noopLogger, '10.0.0.2'));
       expect(_bucketCountForTests()).toBe(2);
@@ -135,14 +162,18 @@ describe('POST /api/log', () => {
 
   it('rate-limits at 60 req/min per IP', async () => {
     for (let i = 0; i < 60; i++) {
-      const res = await POST(makeEvent({
-        records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }]
-      }));
+      const res = await POST(
+        makeEvent({
+          records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }]
+        })
+      );
       expect(res.status).toBe(204);
     }
-    const limited = await POST(makeEvent({
-      records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }]
-    }));
+    const limited = await POST(
+      makeEvent({
+        records: [{ level: 'info', msg: 'x', ts: new Date().toISOString() }]
+      })
+    );
     expect(limited.status).toBe(429);
   });
 });

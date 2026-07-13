@@ -30,8 +30,8 @@ sits in the bigger picture: see the `/` page section in
 `Prefs` gains two fields, both with safe defaults:
 
 ```ts
-odometerPrefillEnabled: boolean;  // default true
-odometerIncrementMi: number;      // default 300
+odometerPrefillEnabled: boolean; // default true
+odometerIncrementMi: number; // default 300
 ```
 
 No backend, no schema, no explicit migration. `loadPrefs()` returns
@@ -65,17 +65,17 @@ of `docs/architecture.md` — they apply equally to the field prefill.
 
 ## Edge cases & invariants
 
-| Scenario | Behaviour | Why |
-|---|---|---|
-| `odometerIncrementMi === 0` | Chip hidden, prefill still applies | `0`-as-disable matches the user-guide contract; hides the chip without affecting prefill |
-| No last fillup (`data.lastFuelup` null) | Strip + chip hidden, field empty | Nothing to prefill from, nothing meaningful to bump |
-| `odometerPrefillEnabled === false` | Strip still shows (independent), field empty, chip hidden | Strip is informational and orthogonal to the prefill toggle |
-| Empty field + chip tap | Field becomes the increment value | `Number('' \|\| 0) = 0`; `0 + 300 = 300`. Edge but harmless |
-| Multi-tap chip | Each tap stacks (`+300, +600, +900, …`) | Operates on the *current* field value, not on a one-shot baseline |
-| Manual edit then chip | Chip adds to the typed value | Same code path; the chip never re-reads the snapshot |
-| Submit with prefill, then look | Field re-prefills, helper line briefly shows `0 mi this tank` until next interaction | See "Future considerations" |
-| Non-finite parse (`Number('abc')`) | `formatOdometer` returns the raw string | Better than rendering `NaN` |
-| `daysAgo` against today | Returns `'today'`; `1` → `'yesterday'`; otherwise `N days ago` | Diff is local-calendar-day, not UTC |
+| Scenario                                | Behaviour                                                                            | Why                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `odometerIncrementMi === 0`             | Chip hidden, prefill still applies                                                   | `0`-as-disable matches the user-guide contract; hides the chip without affecting prefill |
+| No last fillup (`data.lastFuelup` null) | Strip + chip hidden, field empty                                                     | Nothing to prefill from, nothing meaningful to bump                                      |
+| `odometerPrefillEnabled === false`      | Strip still shows (independent), field empty, chip hidden                            | Strip is informational and orthogonal to the prefill toggle                              |
+| Empty field + chip tap                  | Field becomes the increment value                                                    | `Number('' \|\| 0) = 0`; `0 + 300 = 300`. Edge but harmless                              |
+| Multi-tap chip                          | Each tap stacks (`+300, +600, +900, …`)                                              | Operates on the _current_ field value, not on a one-shot baseline                        |
+| Manual edit then chip                   | Chip adds to the typed value                                                         | Same code path; the chip never re-reads the snapshot                                     |
+| Submit with prefill, then look          | Field re-prefills, helper line briefly shows `0 mi this tank` until next interaction | See "Future considerations"                                                              |
+| Non-finite parse (`Number('abc')`)      | `formatOdometer` returns the raw string                                              | Better than rendering `NaN`                                                              |
+| `daysAgo` against today                 | Returns `'today'`; `1` → `'yesterday'`; otherwise `N days ago`                       | Diff is local-calendar-day, not UTC                                                      |
 
 ## Non-obvious decisions
 
@@ -93,14 +93,14 @@ escape hatch for the long-trip case (where they'd have to subtract back
 out). Field starts at the truth (the last reading); the user opts into
 the bump. Locked decision 2.
 
-**Helper text only after edit.** Pre-edit, the field *is* the prefill;
+**Helper text only after edit.** Pre-edit, the field _is_ the prefill;
 showing "0 mi this tank" would be noise. Post-edit, the delta is
 informative. Same affordance the form already uses for the live MPG
 preview — only renders when there's something to say.
 
 **No optimistic update of the strip post-submit.** `data.lastFuelup`
 stays as the page-load snapshot for the lifetime of the session.
-Submitting then immediately glancing at the strip shows the *previous*
+Submitting then immediately glancing at the strip shows the _previous_
 fillup, not the just-submitted one. The PWA's home-screen launch reloads
 the page on next session, which is when fresh data arrives. Saving a
 round-trip post-submit isn't worth the staleness risk during the same
@@ -108,7 +108,7 @@ session, and the at-pump flow doesn't need it.
 
 **Odometer cell is a `<div>`, not a `<label>`.** Other form cells wrap
 their input in `<label class="field">`, but the odometer cell now
-contains an input *plus* the chip button *plus* a helper line. Wrapping
+contains an input _plus_ the chip button _plus_ a helper line. Wrapping
 all three in a `<label>` would route taps on the chip into focus on the
 input. The cell switches to `<div>` and label-tap-to-focus is preserved
 explicitly via `<label for="odometer">` + `<input id="odometer">`.
@@ -129,8 +129,8 @@ number) until v0.1.3 UAT caught it. Mocks at `tests/e2e/fixtures.ts`,
 must mirror the real shape so the test suite actually catches contract
 drift. The asymmetric write path (`AddGasRecordPayload` stays lowercase
 because LubeLogger's POST is case-insensitive on form-data) is documented
-in [`docs/technical/idb-and-api.md`](./idb-and-api.md) § *LubeLogger
-upstream calls*.
+in [`docs/technical/idb-and-api.md`](./idb-and-api.md) § _LubeLogger
+upstream calls_.
 
 **Strip date locale is pinned to `en-US`.** `formatLastFillupDate` calls
 `toLocaleDateString('en-US', { month: 'short', day: 'numeric', year:

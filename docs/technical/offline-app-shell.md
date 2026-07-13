@@ -16,16 +16,16 @@ network fails.
 
 ## Files touched
 
-| File | Role |
-|---|---|
-| `src/routes/offline/+page.ts` | `prerender=true; ssr=false` — emits the route-agnostic shell at build time. |
-| `src/routes/offline/+page.svelte` | Minimal carrier copy; shown only on a direct `/offline` visit. |
-| `src/hooks.server.ts` | `building` guard short-circuits `handle` during prerender (no env, no boot). |
-| `svelte.config.js` | `paths.relative = false` — absolute `/_app/…` asset URLs. |
-| `src/service-worker.ts` | Precaches `...prerendered`; navigation + `/api/vehicles` branches; `API_CACHE` whitelist. |
-| `src/lib/client/sw-cache.ts` | Pure, unit-tested `navigationFallback` + `vehiclesNetworkFirst`. |
-| `src/lib/client/cache-warm.ts` | Post-`ready` one-shot `GET /api/vehicles` so SSR'd page loads still warm `API_CACHE`. |
-| `src/routes/+page.svelte` | Reactive `online` flag → offline banner + `Save offline` button label. |
+| File                              | Role                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `src/routes/offline/+page.ts`     | `prerender=true; ssr=false` — emits the route-agnostic shell at build time.               |
+| `src/routes/offline/+page.svelte` | Minimal carrier copy; shown only on a direct `/offline` visit.                            |
+| `src/hooks.server.ts`             | `building` guard short-circuits `handle` during prerender (no env, no boot).              |
+| `svelte.config.js`                | `paths.relative = false` — absolute `/_app/…` asset URLs.                                 |
+| `src/service-worker.ts`           | Precaches `...prerendered`; navigation + `/api/vehicles` branches; `API_CACHE` whitelist. |
+| `src/lib/client/sw-cache.ts`      | Pure, unit-tested `navigationFallback` + `vehiclesNetworkFirst`.                          |
+| `src/lib/client/cache-warm.ts`    | Post-`ready` one-shot `GET /api/vehicles` so SSR'd page loads still warm `API_CACHE`.     |
+| `src/routes/+page.svelte`         | Reactive `online` flag → offline banner + `Save offline` button label.                    |
 
 ## Data model
 
@@ -86,7 +86,7 @@ resolves and the SSR'd page is returned unchanged.
   precached assets keep being served cache-first).
 - **Non-ok responses are not cached:** `vehiclesNetworkFirst` only `cache.put`s
   on `res.ok`, so a 500/502 from upstream never poisons `API_CACHE`. The
-  reverse also holds: with a warm cache, a non-ok response is *masked* by the
+  reverse also holds: with a warm cache, a non-ok response is _masked_ by the
   cached last-good list (the form stays usable while LubeLogger is down); the
   error only reaches the loader when the cache is cold.
 - **Banner is connectivity-driven:** `online` tracks the live `online`/`offline`

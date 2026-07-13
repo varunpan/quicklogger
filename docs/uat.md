@@ -137,7 +137,7 @@ Run on a vehicle that has at least one previous fillup in LubeLogger.
       the exact shipped artifact (not a `node build` preview). On `localhost` the
       service worker registers, so PWA/offline is testable in a desktop browser;
       for phone testing over HTTPS set the `TRAEFIK_*` + `ORIGIN` vars in `.env` —
-      see [`deployment.md`](deployment.md) § *Dev prod-mirror compose*.
+      see [`deployment.md`](deployment.md) § _Dev prod-mirror compose_.
 - [ ] Open `http://<LAN-IP>:5173` on iPhone Safari. Set `ORIGIN` in `.env` to this
       exact URL first (or use the container path above, which sets `ORIGIN` for you) —
       otherwise SvelteKit's CSRF guard 403s submits.
@@ -229,9 +229,9 @@ device while online (so the local cache is populated).
 
 For 5+ real pump fillups + 5+ real odometer reads, record:
 
-| Station / vehicle | Mode | Provider | Actual / detected | Drift | Notes |
-| --- | --- | --- | --- | --- | --- |
-| ... | pump / odometer | ollama / openrouter | ... | ... | ... |
+| Station / vehicle | Mode            | Provider            | Actual / detected | Drift | Notes |
+| ----------------- | --------------- | ------------------- | ----------------- | ----- | ----- |
+| ...               | pump / odometer | ollama / openrouter | ...               | ...   | ...   |
 
 Use mismatches to refine the system prompt in `ocrModes.ts` via patch
 releases (v0.2.x).
@@ -274,14 +274,14 @@ releases (v0.2.x).
 `/history` shows only fillups logged through this PWA on this device, so test
 against fillups logged here. The unit-price line sits beneath each card's
 volume·cost line (`data-testid="unit-price"`), with the converted half dimmed
-after a ` · ` separator.
+after a `·` separator.
 
 - [ ] Open `/history`. Every fillup card shows a unit-price line in the **logged**
       currency + unit (e.g. `CA$1.45/L`, `$3.15/gal`). Actual price is
       `cost ÷ volume` — eyeball one against the card's volume·cost line.
 - [ ] **Instance basis (no conversion).** A fillup in gallons + your instance
       currency (e.g. USD·gal on a USD instance) shows a **single** value —
-      actual only, no ` · ` second half.
+      actual only, no `·` second half.
 - [ ] **Unit-only difference.** A fillup in litres with the instance currency
       (USD·L on USD) shows `$x/L · $y/gal` — converted half present but with
       **no** `≈` (exact arithmetic, no FX).

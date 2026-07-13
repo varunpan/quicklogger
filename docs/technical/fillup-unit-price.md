@@ -23,7 +23,10 @@ One optional field on the existing `pendingSubmissions` row — no IDB version b
 (IndexedDB is schemaless on values):
 
 ```ts
-interface ConvertedSnapshot { cost: number; currency: string }
+interface ConvertedSnapshot {
+  cost: number;
+  currency: string;
+}
 // QueueEntry.converted?: ConvertedSnapshot
 ```
 
@@ -49,14 +52,14 @@ interface ConvertedSnapshot { cost: number; currency: string }
 
 ## Edge cases & invariants
 
-| Case | Behaviour |
-|---|---|
-| Logged in instance basis (e.g. USD·gal on a USD instance) | Actual only; single `$x/gal`. |
-| Currency matches, unit differs (USD·L on USD) | Converted half from pure math; **no** `≈`. |
-| Currency differs, snapshot present (CAD·L on USD) | `CA$x/L · ≈ $y/gal`. |
-| Currency differs, snapshot absent (queued, pre-sync) | Actual only; converted half appears once synced. |
-| `submitted.cost`/`currency` missing/invalid in replay body | Row still `'synced'`; converted half stays absent (no throw — both fields required). |
-| `volume <= 0` | `formatCost` returns `''` (finite guard); unit price reads as `/unit`. Not reachable from the form (volume > 0 enforced). |
+| Case                                                       | Behaviour                                                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Logged in instance basis (e.g. USD·gal on a USD instance)  | Actual only; single `$x/gal`.                                                                                             |
+| Currency matches, unit differs (USD·L on USD)              | Converted half from pure math; **no** `≈`.                                                                                |
+| Currency differs, snapshot present (CAD·L on USD)          | `CA$x/L · ≈ $y/gal`.                                                                                                      |
+| Currency differs, snapshot absent (queued, pre-sync)       | Actual only; converted half appears once synced.                                                                          |
+| `submitted.cost`/`currency` missing/invalid in replay body | Row still `'synced'`; converted half stays absent (no throw — both fields required).                                      |
+| `volume <= 0`                                              | `formatCost` returns `''` (finite guard); unit price reads as `/unit`. Not reachable from the form (volume > 0 enforced). |
 
 ## Non-obvious decisions
 

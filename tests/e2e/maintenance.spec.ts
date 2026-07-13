@@ -156,7 +156,9 @@ test('shows the empty state when no items are not-OK', async ({ page }) => {
   await expect(page.getByText('Tire Rotation')).not.toBeVisible();
 });
 
-test('vehicle picker card switches the active vehicle and returns to /maintenance', async ({ page }) => {
+test('vehicle picker card switches the active vehicle and returns to /maintenance', async ({
+  page
+}) => {
   // Two vehicles so picking actually has somewhere to go.
   await page.route('**/api/vehicles', (route) =>
     route.fulfill({

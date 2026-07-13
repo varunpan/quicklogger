@@ -5,7 +5,12 @@ import { lubeloggerFromEnv } from '$lib/server/lubeloggerProxy';
 import { LubeLoggerError } from '$lib/server/lubelogger';
 import type { GasRecord, UploadedFile } from '$lib/server/lubelogger';
 import { sniffImageType } from '$lib/server/ocr';
-import { CurrencyService, JsonFileStore, realFetcher, FxUnavailableError } from '$lib/server/currency';
+import {
+  CurrencyService,
+  JsonFileStore,
+  realFetcher,
+  FxUnavailableError
+} from '$lib/server/currency';
 import { convertSubmission } from '$lib/server/convert';
 import { getLogger } from '$lib/server/logger';
 import type { FuelSubmissionInput } from '$lib/shared/types';
@@ -111,7 +116,16 @@ function coerceParams(src: URLSearchParams | FormData): Partial<FuelSubmissionIn
 
 function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionInput {
   const missing: string[] = [];
-  for (const k of ['vehicleId', 'date', 'odometer', 'volume', 'volumeUnit', 'cost', 'currency', 'clientSubmissionId'] as const) {
+  for (const k of [
+    'vehicleId',
+    'date',
+    'odometer',
+    'volume',
+    'volumeUnit',
+    'cost',
+    'currency',
+    'clientSubmissionId'
+  ] as const) {
     if (b[k] === undefined || b[k] === null) missing.push(k);
   }
   if (missing.length) throw new Error(`missing fields: ${missing.join(', ')}`);
@@ -174,7 +188,8 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
   if (b.manualFxRate !== undefined && (!Number.isFinite(b.manualFxRate) || b.manualFxRate <= 0)) {
     invalid.push('manualFxRate');
   }
-  if (invalid.length) throw new Error(`invalid fields (must be > 0 / non-empty): ${invalid.join(', ')}`);
+  if (invalid.length)
+    throw new Error(`invalid fields (must be > 0 / non-empty): ${invalid.join(', ')}`);
 }
 
 function jsonResponse(r: SubmitResult): Response {
@@ -190,7 +205,10 @@ function jsonResponse(r: SubmitResult): Response {
 function dedupeFilenames(items: Array<{ name: string }>): void {
   const seen = new Set<string>();
   for (const it of items) {
-    if (!seen.has(it.name)) { seen.add(it.name); continue; }
+    if (!seen.has(it.name)) {
+      seen.add(it.name);
+      continue;
+    }
     const dot = it.name.lastIndexOf('.');
     const base = dot === -1 ? it.name : it.name.slice(0, dot);
     const ext = dot === -1 ? '' : it.name.slice(dot);
@@ -246,7 +264,9 @@ async function submitToLubeLogger(
         logger.warn('replay dedupe pre-check failed', { err });
         return {
           status: 503,
-          body: JSON.stringify({ error: 'could not verify replay against LubeLogger — retry later' })
+          body: JSON.stringify({
+            error: 'could not verify replay against LubeLogger — retry later'
+          })
         };
       }
       // Match key: date + odometer + fuelConsumed. fuelConsumed is included
@@ -291,7 +311,7 @@ async function submitToLubeLogger(
     }
 
     const payload = {
-      date: input.date,                          // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant
+      date: input.date, // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant
       odometer: String(input.odometer),
       fuelconsumed: conv.gallons.toFixed(3),
       isfilltofull: input.isFillToFull ? 'true' : 'false',
@@ -310,7 +330,8 @@ async function submitToLubeLogger(
     let photoWarning: string | undefined;
     const toUpload: Array<{ file: File; name: string }> = [];
     if (images.pump) toUpload.push({ file: images.pump, name: `pump-${input.odometer}mi.jpg` });
-    if (images.odometer) toUpload.push({ file: images.odometer, name: `odometer-${input.odometer}mi.jpg` });
+    if (images.odometer)
+      toUpload.push({ file: images.odometer, name: `odometer-${input.odometer}mi.jpg` });
     dedupeFilenames(toUpload);
     for (const u of toUpload) {
       const bytes = new Uint8Array(await u.file.arrayBuffer());
@@ -370,7 +391,9 @@ async function submitToLubeLogger(
       // a queued offline replay stays 'queued' and retries on a later sync.
       return {
         status: 503,
-        body: JSON.stringify({ error: 'exchange rate unavailable — retry later or enter a manual rate' })
+        body: JSON.stringify({
+          error: 'exchange rate unavailable — retry later or enter a manual rate'
+        })
       };
     }
     logger.error('fuelup submit failed', { err });
@@ -405,7 +428,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   } catch {
     // env unavailable — skip the guard; the submit path reports its own 500.
   }
-  if (bodyCapBytes !== null && _contentLengthExceeds(request.headers.get('content-length'), bodyCapBytes)) {
+  if (
+    bodyCapBytes !== null &&
+    _contentLengthExceeds(request.headers.get('content-length'), bodyCapBytes)
+  ) {
     return json({ error: `request body must be <= ${bodyCapBytes} bytes` }, { status: 413 });
   }
 

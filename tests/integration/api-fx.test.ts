@@ -26,13 +26,20 @@ beforeEach(async () => {
 });
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-  child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as unknown as import('../../src/lib/server/logger').Logger;
 
 function eventFor(from: string, to: string) {
   const u = new URL(`http://localhost/api/fx?from=${from}&to=${to}`);
-  return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<typeof GET>[0];
+  return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<
+    typeof GET
+  >[0];
 }
 
 describe('GET /api/fx', () => {
@@ -44,7 +51,12 @@ describe('GET /api/fx', () => {
   });
 
   it('rejects malformed currency codes with 400 (no provider call)', async () => {
-    for (const [from, to] of [['EUR/../../pkg', 'USD'], ['US', 'CAD'], ['USD', 'USDX'], ['U:D', 'CAD']]) {
+    for (const [from, to] of [
+      ['EUR/../../pkg', 'USD'],
+      ['US', 'CAD'],
+      ['USD', 'USDX'],
+      ['U:D', 'CAD']
+    ]) {
       const res = await GET(eventFor(from, to));
       expect(res.status).toBe(400);
       expect((await res.json()).error).toMatch(/3-letter/);
@@ -53,8 +65,13 @@ describe('GET /api/fx', () => {
 
   it('walks chain — provider 1 fails, provider 2 succeeds', async () => {
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => new HttpResponse(null, { status: 503 })),
-      http.get('https://open.er-api.com/v6/latest/:from', () => HttpResponse.json({ rates: { CAD: 1.37 } }))
+      http.get(
+        'https://api.frankfurter.dev/v1/latest',
+        () => new HttpResponse(null, { status: 503 })
+      ),
+      http.get('https://open.er-api.com/v6/latest/:from', () =>
+        HttpResponse.json({ rates: { CAD: 1.37 } })
+      )
     );
     const res = await GET(eventFor('USD', 'CAD'));
     const body = await res.json();
@@ -65,10 +82,17 @@ describe('GET /api/fx', () => {
 
   it('returns 503 with available=false when chain is dry and no cache', async () => {
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => new HttpResponse(null, { status: 503 })),
-      http.get('https://open.er-api.com/v6/latest/:from', () => new HttpResponse(null, { status: 503 })),
-      http.get('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/:base', () =>
-        new HttpResponse(null, { status: 503 })
+      http.get(
+        'https://api.frankfurter.dev/v1/latest',
+        () => new HttpResponse(null, { status: 503 })
+      ),
+      http.get(
+        'https://open.er-api.com/v6/latest/:from',
+        () => new HttpResponse(null, { status: 503 })
+      ),
+      http.get(
+        'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/:base',
+        () => new HttpResponse(null, { status: 503 })
       )
     );
     const res = await GET(eventFor('USD', 'CAD'));
@@ -79,7 +103,10 @@ describe('GET /api/fx', () => {
 
   // T10 — the two remaining error arms of the route.
   it('returns 400 when from or to is missing', async () => {
-    for (const [from, to] of [['', 'USD'], ['USD', '']]) {
+    for (const [from, to] of [
+      ['', 'USD'],
+      ['USD', '']
+    ]) {
       const res = await GET(eventFor(from, to));
       expect(res.status).toBe(400);
       expect((await res.json()).error).toMatch(/required/);

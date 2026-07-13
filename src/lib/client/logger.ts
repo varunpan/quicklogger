@@ -1,5 +1,10 @@
 type Level = 'debug' | 'info' | 'warn' | 'error';
-interface Record_ { level: Level; msg: string; ts: string; ctx?: Record<string, unknown>; }
+interface Record_ {
+  level: Level;
+  msg: string;
+  ts: string;
+  ctx?: Record<string, unknown>;
+}
 
 const SECRET_KEY_RE = /(api[_-]?key|token|secret|password|authorization)/i;
 const MAX_BUFFER = 20;
@@ -49,7 +54,10 @@ function push(level: Level, msg: string, ctx?: Record<string, unknown>) {
 
 function scheduleFlush() {
   if (timer || buffer.length === 0) return;
-  timer = setTimeout(() => { timer = null; void flush(); }, backoffMs);
+  timer = setTimeout(() => {
+    timer = null;
+    void flush();
+  }, backoffMs);
 }
 
 async function flush(): Promise<void> {
@@ -81,10 +89,18 @@ function captureRequestId(res: Response) {
 }
 
 export const clientLogger = {
-  debug(msg: string, ctx?: Record<string, unknown>) { push('debug', msg, ctx); },
-  info(msg: string, ctx?: Record<string, unknown>) { push('info', msg, ctx); },
-  warn(msg: string, ctx?: Record<string, unknown>) { push('warn', msg, ctx); },
-  error(msg: string, ctx?: Record<string, unknown>) { push('error', msg, ctx); }
+  debug(msg: string, ctx?: Record<string, unknown>) {
+    push('debug', msg, ctx);
+  },
+  info(msg: string, ctx?: Record<string, unknown>) {
+    push('info', msg, ctx);
+  },
+  warn(msg: string, ctx?: Record<string, unknown>) {
+    push('warn', msg, ctx);
+  },
+  error(msg: string, ctx?: Record<string, unknown>) {
+    push('error', msg, ctx);
+  }
 };
 
 export function installClientLogger() {
@@ -98,13 +114,17 @@ export function installClientLogger() {
   };
   window.addEventListener('error', (e) => {
     clientLogger.error('window error', {
-      message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno
+      message: e.message,
+      filename: e.filename,
+      lineno: e.lineno,
+      colno: e.colno
     });
   });
   window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
-    const reason = e.reason instanceof Error
-      ? { message: e.reason.message, name: e.reason.name }
-      : { reason: String(e.reason) };
+    const reason =
+      e.reason instanceof Error
+        ? { message: e.reason.message, name: e.reason.name }
+        : { reason: String(e.reason) };
     clientLogger.error('unhandled rejection', reason);
   });
   window.addEventListener('beforeunload', () => {
@@ -113,7 +133,9 @@ export function installClientLogger() {
       const records = buffer.splice(0, buffer.length);
       const blob = new Blob([JSON.stringify({ records })], { type: 'application/json' });
       navigator.sendBeacon('/api/log', blob);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   });
 }
 

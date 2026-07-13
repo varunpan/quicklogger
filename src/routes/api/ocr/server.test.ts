@@ -14,7 +14,10 @@ import { _resetChainMemoForTests } from '$lib/server/ocr';
 
 const ollamaServer = setupServer();
 beforeAll(() => ollamaServer.listen({ onUnhandledRequest: 'bypass' }));
-afterEach(() => { ollamaServer.resetHandlers(); _resetForTests(); });
+afterEach(() => {
+  ollamaServer.resetHandlers();
+  _resetForTests();
+});
 afterAll(() => ollamaServer.close());
 
 const ORIGINAL = { ...process.env };
@@ -50,8 +53,13 @@ afterEach(() => {
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-  child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as unknown as import('$lib/server/logger').Logger;
 
 function makeRequest(form: FormData, ip = '127.0.0.1'): Parameters<typeof POST>[0] {
@@ -72,8 +80,13 @@ function spyLogger() {
   const calls: Array<{ level: string; msg: string }> = [];
   const mk = (level: string) => (msg: string) => void calls.push({ level, msg });
   const logger = {
-    debug: mk('debug'), info: mk('info'), warn: mk('warn'), error: mk('error'),
-    child() { return this; }
+    debug: mk('debug'),
+    info: mk('info'),
+    warn: mk('warn'),
+    error: mk('error'),
+    child() {
+      return this;
+    }
   } as unknown as import('$lib/server/logger').Logger;
   return { logger, calls };
 }
@@ -171,7 +184,6 @@ describe('GET /api/ocr', () => {
     expect(chain).toBeDefined();
     expect(chain?.ctx?.providers).toEqual(['ollama-local', 'ollama-cloud']);
   });
-
 });
 
 describe('POST /api/ocr', () => {
@@ -203,7 +215,10 @@ describe('POST /api/ocr', () => {
   it('415 on non-image bytes', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
     const fd = new FormData();
-    fd.set('image', new File([Buffer.from('plain text not an image')], 'p.txt', { type: 'text/plain' }));
+    fd.set(
+      'image',
+      new File([Buffer.from('plain text not an image')], 'p.txt', { type: 'text/plain' })
+    );
     fd.set('mode', 'pump');
     const res = await POST(makeRequest(fd));
     expect(res.status).toBe(415);
@@ -212,7 +227,10 @@ describe('POST /api/ocr', () => {
   it('records imageType "unknown" (not a fabricated jpeg) on an unsupported-image 415', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
     const fd = new FormData();
-    fd.set('image', new File([Buffer.from('plain text not an image')], 'p.txt', { type: 'text/plain' }));
+    fd.set(
+      'image',
+      new File([Buffer.from('plain text not an image')], 'p.txt', { type: 'text/plain' })
+    );
     fd.set('mode', 'pump');
     const res = await POST(makeRequest(fd));
     expect(res.status).toBe(415);
@@ -227,7 +245,10 @@ describe('POST /api/ocr', () => {
   it('413 on image > 5 MiB', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
     const big = Buffer.alloc(5 * 1024 * 1024 + 10, 0);
-    big[0] = 0xff; big[1] = 0xd8; big[2] = 0xff; big[3] = 0xe0;
+    big[0] = 0xff;
+    big[1] = 0xd8;
+    big[2] = 0xff;
+    big[3] = 0xe0;
     const fd = new FormData();
     fd.set('image', new File([big], 'big.jpg', { type: 'image/jpeg' }));
     fd.set('mode', 'pump');
@@ -238,7 +259,10 @@ describe('POST /api/ocr', () => {
   it('413 honours a lowered OCR_MAX_IMAGE_MB (env is the sole size gate)', async () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434', OCR_MAX_IMAGE_MB: '1' });
     const big = Buffer.alloc(1 * 1024 * 1024 + 10, 0); // just over the 1 MiB limit
-    big[0] = 0xff; big[1] = 0xd8; big[2] = 0xff; big[3] = 0xe0;
+    big[0] = 0xff;
+    big[1] = 0xd8;
+    big[2] = 0xff;
+    big[3] = 0xe0;
     const fd = new FormData();
     fd.set('image', new File([big], 'big.jpg', { type: 'image/jpeg' }));
     fd.set('mode', 'pump');
@@ -250,8 +274,13 @@ describe('POST /api/ocr', () => {
     setEnv({ OLLAMA_VISION_URL: 'http://ollama:11434' });
     const warn = vi.fn();
     const spyLogger = {
-      debug: () => {}, info: () => {}, warn, error: () => {},
-      child() { return this; }
+      debug: () => {},
+      info: () => {},
+      warn,
+      error: () => {},
+      child() {
+        return this;
+      }
     } as unknown as import('$lib/server/logger').Logger;
     const event = {
       request: new Request('http://localhost/api/ocr', {
@@ -276,7 +305,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -294,7 +325,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -319,7 +352,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -343,7 +378,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -352,7 +389,7 @@ describe('POST /api/ocr', () => {
     fd.set('mode', 'pump');
     fd.set('cropX', '0.8');
     fd.set('cropY', '0.1');
-    fd.set('cropW', '0.5');  // 0.8 + 0.5 = 1.3 — invalid
+    fd.set('cropW', '0.5'); // 0.8 + 0.5 = 1.3 — invalid
     fd.set('cropH', '0.2');
     const res = await POST(makeRequest(fd));
     expect(res.status).toBe(200);
@@ -366,7 +403,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -429,7 +468,10 @@ describe('POST /api/ocr', () => {
       fd.set('lastOdometerMi', bad);
       const res = await POST(makeRequest(fd));
       expect(res.status).toBe(200);
-      const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+      const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8')
+        .trim()
+        .split('\n')
+        .pop()!;
       const row = JSON.parse(auditLine);
       expect(row.lastOdometerMi).toBeUndefined();
     }
@@ -457,7 +499,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -477,7 +521,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -488,7 +534,10 @@ describe('POST /api/ocr', () => {
       fd.set('lastPricePerUnit', bad);
       const res = await POST(makeRequest(fd));
       expect(res.status).toBe(200);
-      const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8').trim().split('\n').pop()!;
+      const auditLine = readFileSync(process.env.OCR_AUDIT_PATH!, 'utf-8')
+        .trim()
+        .split('\n')
+        .pop()!;
       const row = JSON.parse(auditLine);
       expect(row.lastPricePerUnit).toBeUndefined();
     }
@@ -499,7 +548,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -513,7 +564,7 @@ describe('POST /api/ocr', () => {
     expect(row.lastPricePerUnit).toBeUndefined();
   });
 
-  it('singletons log via the root logger, not the first request\'s captured child (#28)', async () => {
+  it("singletons log via the root logger, not the first request's captured child (#28)", async () => {
     // Unwritable audit path → every audit.append fails and logs
     // 'ocr audit append failed' through whatever logger the singleton holds.
     setEnv({
@@ -570,9 +621,7 @@ describe('POST /api/ocr', () => {
   it('records no spend when the paid provider fails at the network layer', async () => {
     setEnv({ OPENROUTER_API_KEY: 'sk-or-test' });
     ollamaServer.use(
-      http.post('https://openrouter.ai/api/v1/chat/completions', () =>
-        HttpResponse.error()
-      )
+      http.post('https://openrouter.ai/api/v1/chat/completions', () => HttpResponse.error())
     );
     const fd = new FormData();
     fd.set('image', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
@@ -594,7 +643,9 @@ describe('POST /api/ocr', () => {
     ollamaServer.use(
       http.post('http://ollama:11434/api/chat', () =>
         HttpResponse.json({
-          message: { content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}' }
+          message: {
+            content: '{"volume":11.2,"volumeUnit":"gal","cost":42.18,"pricePerUnit":3.78}'
+          }
         })
       )
     );
@@ -613,8 +664,8 @@ describe('POST /api/ocr', () => {
 });
 
 describe('contentLengthExceeds (early body-size guard)', () => {
-  const MAX = 5 * 1024 * 1024;          // 5 MiB image policy
-  const OVERHEAD = 64 * 1024;           // matches MULTIPART_OVERHEAD_BYTES
+  const MAX = 5 * 1024 * 1024; // 5 MiB image policy
+  const OVERHEAD = 64 * 1024; // matches MULTIPART_OVERHEAD_BYTES
 
   it('returns false for a missing header (fall through to post-parse check)', () => {
     expect(_contentLengthExceeds(null, MAX)).toBe(false);

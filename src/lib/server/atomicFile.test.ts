@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  existsSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { atomicWriteFile, withPathLock } from './atomicFile';
@@ -94,7 +102,11 @@ describe('withPathLock', () => {
 
   it('does not poison the chain when a section rejects', async () => {
     const p = join(dir, 'a');
-    await expect(withPathLock(p, async () => { throw new Error('boom'); })).rejects.toThrow('boom');
+    await expect(
+      withPathLock(p, async () => {
+        throw new Error('boom');
+      })
+    ).rejects.toThrow('boom');
     // A later acquirer on the same path must still run.
     await expect(withPathLock(p, async () => 'ok')).resolves.toBe('ok');
   });

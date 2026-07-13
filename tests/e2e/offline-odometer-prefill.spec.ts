@@ -1,10 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import {
-  pinClock,
-  gotoHomeViaClientRouter,
-  seedQueueEntry,
-  seedLastFuelupCache
-} from './fixtures';
+import { pinClock, gotoHomeViaClientRouter, seedQueueEntry, seedLastFuelupCache } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
 
@@ -13,7 +8,9 @@ async function mockVehiclesAndFx(page: Page) {
     route.fulfill({ json: [{ id: 1, year: 2014, make: 'Honda', model: 'Accord' }] })
   );
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
 }
 

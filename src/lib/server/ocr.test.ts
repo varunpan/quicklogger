@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  sniffImageType, selectProvider, runOcrPipeline,
-  _resetChainMemoForTests, type PipelineOutcome
+  sniffImageType,
+  selectProvider,
+  runOcrPipeline,
+  _resetChainMemoForTests,
+  type PipelineOutcome
 } from './ocr';
 import { ChainOcrProvider, OcrProviderError, type OcrProvider } from './ocrProviders';
 import type { Env } from './env';
@@ -10,11 +13,11 @@ import type { Logger } from './logger';
 const JPEG_HEAD = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG_HEAD = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 const WEBP_HEAD = Buffer.concat([
-  Buffer.from('RIFF'), Buffer.from([0, 0, 0, 0]), Buffer.from('WEBP')
+  Buffer.from('RIFF'),
+  Buffer.from([0, 0, 0, 0]),
+  Buffer.from('WEBP')
 ]);
-const HEIC_HEAD = Buffer.concat([
-  Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic')
-]);
+const HEIC_HEAD = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic')]);
 const NOT_AN_IMAGE = Buffer.from('this is plain text bytes...');
 
 describe('sniffImageType', () => {
@@ -23,18 +26,26 @@ describe('sniffImageType', () => {
   it('detects WebP by RIFF/WEBP', () => expect(sniffImageType(WEBP_HEAD)).toBe('webp'));
   it('detects HEIC by ftyp box', () => expect(sniffImageType(HEIC_HEAD)).toBe('heic'));
   it('returns null for non-image bytes', () => expect(sniffImageType(NOT_AN_IMAGE)).toBeNull());
-  it('returns null for too-short buffers', () => expect(sniffImageType(Buffer.from([0xff]))).toBeNull());
+  it('returns null for too-short buffers', () =>
+    expect(sniffImageType(Buffer.from([0xff]))).toBeNull());
 });
 
 function envOverrides(o: Partial<Env>): Env {
   return {
-    lubeloggerUrl: 'http://lubelog', lubeloggerApiKey: 'k',
-    lubeloggerVolumeUnit: 'gallons_us', lubeloggerCurrency: 'USD',
+    lubeloggerUrl: 'http://lubelog',
+    lubeloggerApiKey: 'k',
+    lubeloggerVolumeUnit: 'gallons_us',
+    lubeloggerCurrency: 'USD',
     fxProviders: ['frankfurter'],
-    fxCachePath: '/tmp/fx', port: 3000, origin: undefined,
-    ollamaVisionUrl: undefined, ollamaVisionModel: 'qwen2.5vl:7b',
-    ollamaVisionTimeoutMs: 60_000, ollamaKeepAlive: '30m',
-    openrouterApiKey: undefined, openrouterVisionModel: 'google/gemini-2.5-flash-lite',
+    fxCachePath: '/tmp/fx',
+    port: 3000,
+    origin: undefined,
+    ollamaVisionUrl: undefined,
+    ollamaVisionModel: 'qwen2.5vl:7b',
+    ollamaVisionTimeoutMs: 60_000,
+    ollamaKeepAlive: '30m',
+    openrouterApiKey: undefined,
+    openrouterVisionModel: 'google/gemini-2.5-flash-lite',
     openrouterVisionTimeoutMs: 30_000,
     ollamaCloudApiKey: undefined,
     ollamaCloudUrl: 'https://ollama.com',
@@ -45,14 +56,23 @@ function envOverrides(o: Partial<Env>): Env {
     openaiCompatibleModel: undefined,
     openaiCompatibleTimeoutMs: 30_000,
     ocrProviderChain: undefined,
-    ocrDailyBudgetUsd: 1, ocrRateLimitPerHour: 20,
-    ocrBudgetPath: '/tmp/b.json', ocrAuditPath: '/tmp/a.jsonl',
-    ocrAuditKeyPath: '/tmp/k.txt', ocrAuditHmacKey: undefined,
-    ocrPumpVolumeMax: 200, ocrPumpCostMax: 500, ocrPumpPricePerUnitMax: 20,
+    ocrDailyBudgetUsd: 1,
+    ocrRateLimitPerHour: 20,
+    ocrBudgetPath: '/tmp/b.json',
+    ocrAuditPath: '/tmp/a.jsonl',
+    ocrAuditKeyPath: '/tmp/k.txt',
+    ocrAuditHmacKey: undefined,
+    ocrPumpVolumeMax: 200,
+    ocrPumpCostMax: 500,
+    ocrPumpPricePerUnitMax: 20,
     ocrOdometerMaxMi: 1_000_000,
     ocrMaxImageBytes: 5 * 1024 * 1024,
-    logLevel: 'info', logPretty: false, logFilePath: undefined,
-    logFileMaxSizeMb: 5, logFileMaxFiles: 5, envWarnings: [],
+    logLevel: 'info',
+    logPretty: false,
+    logFilePath: undefined,
+    logFileMaxSizeMb: 5,
+    logFileMaxFiles: 5,
+    envWarnings: [],
     ...o
   };
 }
@@ -81,31 +101,39 @@ describe('selectProvider', () => {
   });
 
   it('defaults to back-compat order [ollama-local, openrouter, ollama-cloud, openai-compatible] when OCR_PROVIDER_CHAIN is unset', () => {
-    const r = selectProvider(envOverrides({
-      ollamaVisionUrl: 'http://o',
-      openrouterApiKey: 'sk',
-      ollamaCloudApiKey: 'sk-c'
-    }));
+    const r = selectProvider(
+      envOverrides({
+        ollamaVisionUrl: 'http://o',
+        openrouterApiKey: 'sk',
+        ollamaCloudApiKey: 'sk-c'
+      })
+    );
     expect(r.provider).toBeInstanceOf(ChainOcrProvider);
     if (r.provider instanceof ChainOcrProvider) {
       expect(r.provider.chain.map((p) => p.name)).toEqual([
-        'ollama-local', 'openrouter', 'ollama-cloud'
+        'ollama-local',
+        'openrouter',
+        'ollama-cloud'
       ]);
     }
     expect(r.chainTimeoutMs).toBe(60_000 + 30_000 + 30_000);
   });
 
   it('respects explicit OCR_PROVIDER_CHAIN order', () => {
-    const r = selectProvider(envOverrides({
-      ollamaVisionUrl: 'http://o',
-      openrouterApiKey: 'sk',
-      ollamaCloudApiKey: 'sk-c',
-      ocrProviderChain: ['ollama-cloud', 'ollama-local', 'openrouter']
-    }));
+    const r = selectProvider(
+      envOverrides({
+        ollamaVisionUrl: 'http://o',
+        openrouterApiKey: 'sk',
+        ollamaCloudApiKey: 'sk-c',
+        ocrProviderChain: ['ollama-cloud', 'ollama-local', 'openrouter']
+      })
+    );
     expect(r.provider).toBeInstanceOf(ChainOcrProvider);
     if (r.provider instanceof ChainOcrProvider) {
       expect(r.provider.chain.map((p) => p.name)).toEqual([
-        'ollama-cloud', 'ollama-local', 'openrouter'
+        'ollama-cloud',
+        'ollama-local',
+        'openrouter'
       ]);
     }
   });
@@ -116,10 +144,13 @@ describe('selectProvider', () => {
       warn: (msg: string, ctx?: Record<string, unknown>) => warnings.push({ msg, ctx }),
       info: () => {}
     };
-    const r = selectProvider(envOverrides({
-      ollamaVisionUrl: 'http://o',
-      ocrProviderChain: ['ollama-local', 'openai-compatible']
-    }), logger);
+    const r = selectProvider(
+      envOverrides({
+        ollamaVisionUrl: 'http://o',
+        ocrProviderChain: ['ollama-local', 'openai-compatible']
+      }),
+      logger
+    );
     expect(r.provider?.name).toBe('ollama-local');
     const skip = warnings.find((w) => w.msg === 'ocr chain slot skipped');
     expect(skip).toBeDefined();
@@ -133,10 +164,13 @@ describe('selectProvider', () => {
       warn: (msg: string, ctx?: Record<string, unknown>) => warnings.push({ msg, ctx }),
       info: () => {}
     };
-    const r = selectProvider(envOverrides({
-      ollamaVisionUrl: 'http://o'
-      // no openrouter, no cloud, no oai-compat — but no explicit chain either
-    }), logger);
+    const r = selectProvider(
+      envOverrides({
+        ollamaVisionUrl: 'http://o'
+        // no openrouter, no cloud, no oai-compat — but no explicit chain either
+      }),
+      logger
+    );
     expect(r.provider?.name).toBe('ollama-local');
     expect(warnings).toHaveLength(0);
   });
@@ -147,10 +181,13 @@ describe('selectProvider', () => {
       warn: () => {},
       info: (msg: string, ctx?: Record<string, unknown>) => infos.push({ msg, ctx })
     };
-    selectProvider(envOverrides({
-      ollamaVisionUrl: 'http://o',
-      openrouterApiKey: 'sk'
-    }), logger);
+    selectProvider(
+      envOverrides({
+        ollamaVisionUrl: 'http://o',
+        openrouterApiKey: 'sk'
+      }),
+      logger
+    );
     const chain = infos.find((m) => m.msg === 'ocr chain effective');
     expect(chain).toBeDefined();
     expect(chain?.ctx?.providers).toEqual(['ollama-local', 'openrouter']);
@@ -187,14 +224,20 @@ describe('selectProvider', () => {
       warn: () => {},
       info: (msg: string, ctx?: Record<string, unknown>) => infos.push({ msg, ctx })
     };
-    selectProvider(envOverrides({
-      ollamaVisionUrl: 'http://o',
-      openrouterApiKey: 'sk'
-    }), logger);
-    selectProvider(envOverrides({
-      ollamaVisionUrl: 'http://o',
-      ollamaCloudApiKey: 'sk-c'
-    }), logger);
+    selectProvider(
+      envOverrides({
+        ollamaVisionUrl: 'http://o',
+        openrouterApiKey: 'sk'
+      }),
+      logger
+    );
+    selectProvider(
+      envOverrides({
+        ollamaVisionUrl: 'http://o',
+        ollamaCloudApiKey: 'sk-c'
+      }),
+      logger
+    );
     const chainLogs = infos.filter((m) => m.msg === 'ocr chain effective');
     expect(chainLogs).toHaveLength(2);
     expect(chainLogs[0].ctx?.providers).toEqual(['ollama-local', 'openrouter']);
@@ -278,10 +321,14 @@ describe('runOcrPipeline', () => {
     const broken: OcrProvider = {
       name: 'ollama-local',
       estimateCostCents: () => 0,
-      extract: async () => { throw new Error('boom'); }
+      extract: async () => {
+        throw new Error('boom');
+      }
     };
     const r = await runOcrPipeline({
-      bytes: JPEG, mode: 'pump', provider: broken,
+      bytes: JPEG,
+      mode: 'pump',
+      provider: broken,
       env: envOverrides({ ollamaVisionUrl: 'x' })
     });
     expect(r.ok).toBe(false);
@@ -480,7 +527,9 @@ describe('runOcrPipeline — billed-but-failed cost accounting', () => {
     return {
       name: 'openrouter',
       estimateCostCents: () => PAID_COST,
-      extract: async () => { throw err; }
+      extract: async () => {
+        throw err;
+      }
     };
   }
 
@@ -553,7 +602,9 @@ describe('runOcrPipeline — billed-but-failed cost accounting', () => {
     const free: OcrProvider = {
       name: 'ollama-local',
       estimateCostCents: () => 0,
-      extract: async () => { throw new OcrProviderError('NETWORK', 'down'); }
+      extract: async () => {
+        throw new OcrProviderError('NETWORK', 'down');
+      }
     };
     const r = await runOcrPipeline({
       bytes: JPEG,
@@ -583,15 +634,21 @@ describe('runOcrPipeline — billed-but-failed cost accounting', () => {
   });
 });
 
-interface CapturedRec { level: string; msg: string; ctx: Record<string, unknown>; }
+interface CapturedRec {
+  level: string;
+  msg: string;
+  ctx: Record<string, unknown>;
+}
 function captureLogger(): { logger: Logger; recs: CapturedRec[] } {
   const recs: CapturedRec[] = [];
   function mk(): Logger {
     const log = (level: string) => (msg: string, ctx?: Record<string, unknown>) =>
       void recs.push({ level, msg, ctx: ctx ?? {} });
     return {
-      debug: log('debug') as Logger['debug'], info: log('info') as Logger['info'],
-      warn: log('warn') as Logger['warn'], error: log('error') as Logger['error'],
+      debug: log('debug') as Logger['debug'],
+      info: log('info') as Logger['info'],
+      warn: log('warn') as Logger['warn'],
+      error: log('error') as Logger['error'],
       child: () => mk()
     };
   }
@@ -600,9 +657,13 @@ function captureLogger(): { logger: Logger; recs: CapturedRec[] } {
 
 class FakeProvider implements OcrProvider {
   readonly name = 'ollama-local';
-  estimateCostCents() { return 0; }
+  estimateCostCents() {
+    return 0;
+  }
   constructor(private readonly impl: () => Promise<unknown>) {}
-  async extract(): Promise<unknown> { return await this.impl(); }
+  async extract(): Promise<unknown> {
+    return await this.impl();
+  }
 }
 
 describe('runOcrPipeline — branch logging', () => {
@@ -613,7 +674,11 @@ describe('runOcrPipeline — branch logging', () => {
     const provider = new FakeProvider(async () => ({ odometer: 12345 }));
     const { logger, recs } = captureLogger();
     await runOcrPipeline({
-      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+      bytes: JPEG_HEAD,
+      mode: 'odometer',
+      provider,
+      env: envOverrides({}),
+      logger
     });
     expect(recs.find((r) => r.msg === 'ocr pipeline start')?.level).toBe('debug');
   });
@@ -622,7 +687,11 @@ describe('runOcrPipeline — branch logging', () => {
     const provider = new FakeProvider(async () => ({ odometer: 1 }));
     const { logger, recs } = captureLogger();
     await runOcrPipeline({
-      bytes: NOT_AN_IMAGE, mode: 'odometer', provider, env: envOverrides({}), logger
+      bytes: NOT_AN_IMAGE,
+      mode: 'odometer',
+      provider,
+      env: envOverrides({}),
+      logger
     });
     const w = recs.find((r) => r.msg === 'ocr unsupported image type');
     expect(w?.level).toBe('warn');
@@ -632,16 +701,26 @@ describe('runOcrPipeline — branch logging', () => {
     const provider = new FakeProvider(async () => ({}));
     const { logger, recs } = captureLogger();
     await runOcrPipeline({
-      bytes: JPEG_HEAD, mode: 'bogus' as never, provider, env: envOverrides({}), logger
+      bytes: JPEG_HEAD,
+      mode: 'bogus' as never,
+      provider,
+      env: envOverrides({}),
+      logger
     });
     expect(recs.find((r) => r.msg === 'ocr unknown mode')?.level).toBe('warn');
   });
 
   it('emits "ocr provider failed" at error when extract throws', async () => {
-    const provider = new FakeProvider(async () => { throw new Error('boom'); });
+    const provider = new FakeProvider(async () => {
+      throw new Error('boom');
+    });
     const { logger, recs } = captureLogger();
     await runOcrPipeline({
-      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+      bytes: JPEG_HEAD,
+      mode: 'odometer',
+      provider,
+      env: envOverrides({}),
+      logger
     });
     const e = recs.find((r) => r.msg === 'ocr provider failed');
     expect(e?.level).toBe('error');
@@ -653,7 +732,11 @@ describe('runOcrPipeline — branch logging', () => {
     const provider = new FakeProvider(async () => garbage);
     const { logger, recs } = captureLogger();
     await runOcrPipeline({
-      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+      bytes: JPEG_HEAD,
+      mode: 'odometer',
+      provider,
+      env: envOverrides({}),
+      logger
     });
     const w = recs.find((r) => r.msg === 'ocr schema invalid');
     expect(w?.level).toBe('warn');
@@ -665,7 +748,11 @@ describe('runOcrPipeline — branch logging', () => {
     const provider = new FakeProvider(async () => oversized);
     const { logger, recs } = captureLogger();
     await runOcrPipeline({
-      bytes: JPEG_HEAD, mode: 'pump', provider, env: envOverrides({}), logger
+      bytes: JPEG_HEAD,
+      mode: 'pump',
+      provider,
+      env: envOverrides({}),
+      logger
     });
     const w = recs.find((r) => r.msg === 'ocr range validation failed');
     expect(w?.level).toBe('warn');
@@ -676,7 +763,11 @@ describe('runOcrPipeline — branch logging', () => {
     const provider = new FakeProvider(async () => ({ odometer: 12345 }));
     const { logger, recs } = captureLogger();
     await runOcrPipeline({
-      bytes: JPEG_HEAD, mode: 'odometer', provider, env: envOverrides({}), logger
+      bytes: JPEG_HEAD,
+      mode: 'odometer',
+      provider,
+      env: envOverrides({}),
+      logger
     });
     expect(recs.find((r) => r.msg === 'ocr success')?.level).toBe('info');
   });

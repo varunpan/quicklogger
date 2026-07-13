@@ -8,7 +8,14 @@ const FIXTURE = path.resolve('tests/e2e/sample.jpg');
 
 const FUELUP_OK = {
   ok: true,
-  submitted: { gallons: 11.2, cost: 42.18, currency: 'USD', fxRate: 1, fxSource: 'identity', fxStale: false }
+  submitted: {
+    gallons: 11.2,
+    cost: 42.18,
+    currency: 'USD',
+    fxRate: 1,
+    fxSource: 'identity',
+    fxStale: false
+  }
 };
 
 async function baseMocks(page: Page) {
@@ -16,16 +23,22 @@ async function baseMocks(page: Page) {
     route.fulfill({ json: [{ id: 1, year: 2019, make: 'Honda', model: 'Civic Si' }] })
   );
   await page.route('**/api/vehicle/last-fuelup**', (route) =>
-    route.fulfill({ json: { date: '2026-05-08', odometer: 87000, fuelConsumed: 11.2, cost: 42.18, notes: '' } })
+    route.fulfill({
+      json: { date: '2026-05-08', odometer: 87000, fuelConsumed: 11.2, cost: 42.18, notes: '' }
+    })
   );
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
   await page.route('**/api/ocr', (route) => {
     if (route.request().method() === 'GET') {
       return route.fulfill({ json: { enabled: true, modes: ['pump', 'odometer'] } });
     }
-    return route.fulfill({ json: { mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 } });
+    return route.fulfill({
+      json: { mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78 }
+    });
   });
 }
 
@@ -48,7 +61,9 @@ test('attach on (default): submits multipart with a pumpImage part', async ({ pa
 
   await gotoHomeViaClientRouter(page);
   await captureAndApplyPump(page);
-  await expect(page.getByRole('button', { name: /Attach photo(s)? to this record/i })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Attach photo(s)? to this record/i })
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Log fillup', exact: true }).click();
 
   await expect.poll(() => ct).toContain('multipart/form-data');
@@ -97,7 +112,9 @@ test('reopening the camera then cancelling keeps the retained photo attached', a
   await expect.poll(() => post).toContain('pumpImage');
 });
 
-test('offline + attach: queues text-only and shows the "photo not attached" toast', async ({ page }) => {
+test('offline + attach: queues text-only and shows the "photo not attached" toast', async ({
+  page
+}) => {
   await baseMocks(page);
   await page.route('**/api/fuelup', (route) => route.abort('failed'));
 

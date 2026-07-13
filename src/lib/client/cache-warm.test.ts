@@ -19,8 +19,6 @@ describe('warmVehiclesCache', () => {
     const fetcher = vi.fn(async () => {
       throw new TypeError('Failed to fetch');
     });
-    await expect(
-      warmVehiclesCache({ ready: Promise.resolve() }, fetcher)
-    ).resolves.toBeUndefined();
+    await expect(warmVehiclesCache({ ready: Promise.resolve() }, fetcher)).resolves.toBeUndefined();
   });
 });

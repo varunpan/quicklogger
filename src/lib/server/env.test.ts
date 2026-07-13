@@ -66,8 +66,12 @@ describe('loadEnv — OCR fields', () => {
     process.env.LUBELOGGER_URL = 'http://lubelog:8080';
     process.env.LUBELOGGER_API_KEY = 'k';
     for (const k of Object.keys(process.env)) {
-      if (k.startsWith('OLLAMA_') || k.startsWith('OPENROUTER_') ||
-          k.startsWith('OCR_') || k.startsWith('OPENAI_COMPATIBLE_')) {
+      if (
+        k.startsWith('OLLAMA_') ||
+        k.startsWith('OPENROUTER_') ||
+        k.startsWith('OCR_') ||
+        k.startsWith('OPENAI_COMPATIBLE_')
+      ) {
         delete process.env[k];
       }
     }
@@ -136,11 +140,11 @@ describe('loadEnv — OCR fields', () => {
   });
 
   it('OCR_MAX_IMAGE_MB out of bounds / non-numeric falls back to the 5 MiB default', () => {
-    process.env.OCR_MAX_IMAGE_MB = '999';   // above the 50 MB ceiling
+    process.env.OCR_MAX_IMAGE_MB = '999'; // above the 50 MB ceiling
     expect(loadEnv().ocrMaxImageBytes).toBe(5 * 1024 * 1024);
     process.env.OCR_MAX_IMAGE_MB = 'abc';
     expect(loadEnv().ocrMaxImageBytes).toBe(5 * 1024 * 1024);
-    process.env.OCR_MAX_IMAGE_MB = '0';     // below the 1 MB floor
+    process.env.OCR_MAX_IMAGE_MB = '0'; // below the 1 MB floor
     expect(loadEnv().ocrMaxImageBytes).toBe(5 * 1024 * 1024);
   });
 
@@ -164,8 +168,12 @@ describe('loadEnv — OCR_PROVIDER_CHAIN parsing', () => {
     process.env.LUBELOGGER_URL = 'http://lubelog:8080';
     process.env.LUBELOGGER_API_KEY = 'k';
     for (const k of Object.keys(process.env)) {
-      if (k.startsWith('OLLAMA_') || k.startsWith('OPENROUTER_') ||
-          k.startsWith('OCR_') || k.startsWith('OPENAI_COMPATIBLE_')) {
+      if (
+        k.startsWith('OLLAMA_') ||
+        k.startsWith('OPENROUTER_') ||
+        k.startsWith('OCR_') ||
+        k.startsWith('OPENAI_COMPATIBLE_')
+      ) {
         delete process.env[k];
       }
     }
@@ -186,7 +194,10 @@ describe('loadEnv — OCR_PROVIDER_CHAIN parsing', () => {
     process.env.OCR_PROVIDER_CHAIN = 'ollama-cloud,ollama-local,openrouter,openai-compatible';
     const env = loadEnv();
     expect(env.ocrProviderChain).toEqual([
-      'ollama-cloud', 'ollama-local', 'openrouter', 'openai-compatible'
+      'ollama-cloud',
+      'ollama-local',
+      'openrouter',
+      'openai-compatible'
     ]);
   });
 
@@ -216,8 +227,12 @@ describe('loadEnv — new OCR slot defaults', () => {
     process.env.LUBELOGGER_URL = 'http://lubelog:8080';
     process.env.LUBELOGGER_API_KEY = 'k';
     for (const k of Object.keys(process.env)) {
-      if (k.startsWith('OLLAMA_') || k.startsWith('OPENROUTER_') ||
-          k.startsWith('OCR_') || k.startsWith('OPENAI_COMPATIBLE_')) {
+      if (
+        k.startsWith('OLLAMA_') ||
+        k.startsWith('OPENROUTER_') ||
+        k.startsWith('OCR_') ||
+        k.startsWith('OPENAI_COMPATIBLE_')
+      ) {
         delete process.env[k];
       }
     }

@@ -6,9 +6,7 @@ test.use({ serviceWorkers: 'block' });
 const VEHICLE = { id: 1, year: 2014, make: 'Honda', model: 'Accord' };
 
 async function mockVehiclesOnly(page: Page, vehicles = [VEHICLE]) {
-  await page.route('**/api/vehicles', (route) =>
-    route.fulfill({ json: vehicles })
-  );
+  await page.route('**/api/vehicles', (route) => route.fulfill({ json: vehicles }));
   // The new /history doesn't call /api/vehicle/last-fuelup or /api/fx
   // anymore, but we still mock vehicles because the loader uses it.
 }
@@ -37,7 +35,9 @@ test('empty IDB shows "No fillups logged on this device yet"', async ({ page }) 
   await expect(page.getByText(/Only fillups logged through this PWA/)).toBeVisible();
 });
 
-test('rows for other vehicles only → "No fillups logged for this vehicle yet"', async ({ page }) => {
+test('rows for other vehicles only → "No fillups logged for this vehicle yet"', async ({
+  page
+}) => {
   await mockVehiclesOnly(page);
   await seedQueueEntry(page, {
     input: {
@@ -229,10 +229,7 @@ test('same-date tie-breaker: higher enqueuedAt renders first', async ({ page }) 
 
 test('vehicle picker filters and round-trips through /vehicles', async ({ page }) => {
   await pinClock(page, '2026-05-13T10:00:00');
-  await mockVehiclesOnly(page, [
-    VEHICLE,
-    { id: 2, year: 2021, make: 'Toyota', model: 'Sienna' }
-  ]);
+  await mockVehiclesOnly(page, [VEHICLE, { id: 2, year: 2021, make: 'Toyota', model: 'Sienna' }]);
   await seedQueueEntry(page, {
     input: {
       vehicleId: 1,
@@ -287,9 +284,16 @@ test('USD/gal card shows a single $/gal unit price, no converted half', async ({
   await mockVehiclesOnly(page);
   await seedQueueEntry(page, {
     input: {
-      vehicleId: 1, date: '2026-03-01', odometer: 9740,
-      volume: 11.544, volumeUnit: 'gal', cost: 36.35, currency: 'USD',
-      isFillToFull: true, missedFuelup: false, clientSubmissionId: 'up-usd'
+      vehicleId: 1,
+      date: '2026-03-01',
+      odometer: 9740,
+      volume: 11.544,
+      volumeUnit: 'gal',
+      cost: 36.35,
+      currency: 'USD',
+      isFillToFull: true,
+      missedFuelup: false,
+      clientSubmissionId: 'up-usd'
     },
     status: 'synced'
   });
@@ -305,9 +309,16 @@ test('CAD/L card shows actual + converted halves with the ≈ marker', async ({ 
   await mockVehiclesOnly(page);
   await seedQueueEntry(page, {
     input: {
-      vehicleId: 1, date: '2026-06-18', odometer: 10140,
-      volume: 40.0, volumeUnit: 'L', cost: 60.0, currency: 'CAD',
-      isFillToFull: true, missedFuelup: false, clientSubmissionId: 'up-cad'
+      vehicleId: 1,
+      date: '2026-06-18',
+      odometer: 10140,
+      volume: 40.0,
+      volumeUnit: 'L',
+      cost: 60.0,
+      currency: 'CAD',
+      isFillToFull: true,
+      missedFuelup: false,
+      clientSubmissionId: 'up-cad'
     },
     status: 'synced',
     converted: { cost: 42.3, currency: 'USD' }

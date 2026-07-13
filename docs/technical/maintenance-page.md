@@ -77,14 +77,14 @@ loader returns { vehicle, reminders, error }
 
 ## Error handling
 
-| Case | What the user sees |
-|---|---|
-| LubeLogger returned 5xx (timeout, down) | Page renders the header. Amber banner: `Couldn't reach LubeLogger right now.` Empty reminder area below. |
-| LubeLogger returned 4xx (e.g. bad vehicle id) | Same amber banner. The 4xx is collapsed to a 502 server-side (matching `last-fuelup`), so the client-side message reads the same as the 5xx case. |
-| `vehicleId` couldn't be resolved (no prefs, no vehicles) | Red banner: `Pick a vehicle first.` Link to `/vehicles`. |
-| Active vehicle has zero not-OK reminders | Muted line: `Looks good — no upcoming maintenance for this vehicle.` |
-| Network entirely offline (page reached via drawer while disconnected) | Same as 5xx case — the fetch fails, banner explains. No local cache. |
-| Post-submit redirect when offline | Doesn't happen. The submit path is `queued` (amber), not green, so `goto` never fires. |
+| Case                                                                  | What the user sees                                                                                                                                |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LubeLogger returned 5xx (timeout, down)                               | Page renders the header. Amber banner: `Couldn't reach LubeLogger right now.` Empty reminder area below.                                          |
+| LubeLogger returned 4xx (e.g. bad vehicle id)                         | Same amber banner. The 4xx is collapsed to a 502 server-side (matching `last-fuelup`), so the client-side message reads the same as the 5xx case. |
+| `vehicleId` couldn't be resolved (no prefs, no vehicles)              | Red banner: `Pick a vehicle first.` Link to `/vehicles`.                                                                                          |
+| Active vehicle has zero not-OK reminders                              | Muted line: `Looks good — no upcoming maintenance for this vehicle.`                                                                              |
+| Network entirely offline (page reached via drawer while disconnected) | Same as 5xx case — the fetch fails, banner explains. No local cache.                                                                              |
+| Post-submit redirect when offline                                     | Doesn't happen. The submit path is `queued` (amber), not green, so `goto` never fires.                                                            |
 
 Server-side mapping in `+server.ts` matches the pattern used by
 `last-fuelup/+server.ts`: any `LubeLoggerError` (4xx or 5xx) becomes

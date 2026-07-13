@@ -8,7 +8,9 @@ const NOOP_LOGGER: Logger = {
   info: () => {},
   warn: () => {},
   error: () => {},
-  child() { return this; }
+  child() {
+    return this;
+  }
 };
 
 export interface FxCacheEntry {
@@ -154,9 +156,7 @@ export class JsonFileStore implements FxStore {
       throw err;
     }
   }
-  async update(
-    mutator: (cur: Record<string, FxCacheEntry>) => Record<string, FxCacheEntry>
-  ) {
+  async update(mutator: (cur: Record<string, FxCacheEntry>) => Record<string, FxCacheEntry>) {
     await withPathLock(this.path, async () => {
       let cur: Record<string, FxCacheEntry>;
       try {

@@ -14,14 +14,21 @@ beforeAll(() => {
 });
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-  child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as unknown as import('../../src/lib/server/logger').Logger;
 
 function eventFor(vehicleId?: string) {
   const u = new URL('http://localhost/api/vehicle/reminders');
   if (vehicleId !== undefined) u.searchParams.set('vehicleId', vehicleId);
-  return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<typeof GET>[0];
+  return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<
+    typeof GET
+  >[0];
 }
 
 const sampleReminder = {

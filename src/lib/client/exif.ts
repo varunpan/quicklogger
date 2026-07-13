@@ -41,10 +41,7 @@ export interface InterpretResult {
  * `todayIso` MUST be the caller's current local-time YYYY-MM-DD (use the same
  * local-component formatting — see `formatLocalDate` below).
  */
-export function interpretPhotoDate(
-  photoDate: Date | null,
-  todayIso: string
-): InterpretResult {
+export function interpretPhotoDate(photoDate: Date | null, todayIso: string): InterpretResult {
   if (photoDate === null) return { cue: 'missing' };
   const iso = formatLocalDate(photoDate);
   if (iso === todayIso) return { cue: null };
@@ -68,17 +65,14 @@ const MAX_READ_BYTES = 128 * 1024;
 
 function sniffFormat(b: Uint8Array): 'jpeg' | 'heic' | 'unknown' {
   // JPEG: starts with FF D8 FF
-  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff)
-    return 'jpeg';
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
   // HEIC: ISO BMFF with major brand at bytes 8..11. Major brand may be heic,
   // heix, mif1, msf1, hevc, hevx — accept the common iOS / Android set.
   if (b.length >= 12) {
-    const isFtyp =
-      b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70; // 'ftyp'
+    const isFtyp = b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70; // 'ftyp'
     if (isFtyp) {
       const brand = String.fromCharCode(b[8], b[9], b[10], b[11]);
-      if (['heic', 'heix', 'mif1', 'msf1', 'hevc', 'hevx'].includes(brand))
-        return 'heic';
+      if (['heic', 'heix', 'mif1', 'msf1', 'hevc', 'hevx'].includes(brand)) return 'heic';
     }
   }
   return 'unknown';
@@ -168,8 +162,7 @@ function walkBoxes(b: Uint8Array, start: number, end: number): BoxRef[] {
   const out: BoxRef[] = [];
   let i = start;
   while (i + 8 <= end) {
-    const size =
-      (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
+    const size = (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
     const type = String.fromCharCode(b[i + 4], b[i + 5], b[i + 6], b[i + 7]);
     const bodyStart = i + 8;
     let bodyEnd: number;
@@ -192,11 +185,7 @@ function walkBoxes(b: Uint8Array, start: number, end: number): BoxRef[] {
   return out;
 }
 
-function findExifItemId(
-  b: Uint8Array,
-  start: number,
-  end: number
-): number | null {
+function findExifItemId(b: Uint8Array, start: number, end: number): number | null {
   // iinf is a "full box": version(1) + flags(3) + entry_count.
   if (end - start < 4) return null;
   const version = b[start];
@@ -211,8 +200,7 @@ function findExifItemId(
   }
   // Walk the infe sub-boxes.
   while (i + 8 <= end) {
-    const size =
-      (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
+    const size = (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
     const type = String.fromCharCode(b[i + 4], b[i + 5], b[i + 6], b[i + 7]);
     if (size < 8 || i + size > end) return null;
     if (type === 'infe') {
@@ -225,11 +213,7 @@ function findExifItemId(
 }
 
 // Inside one infe box body, return the item_ID iff the item_type is "Exif".
-function readInfeItemIdIfExif(
-  b: Uint8Array,
-  start: number,
-  end: number
-): number | null {
+function readInfeItemIdIfExif(b: Uint8Array, start: number, end: number): number | null {
   if (end - start < 4) return null;
   const version = b[start];
   // version(1) + flags(3) consumed.
@@ -242,8 +226,7 @@ function readInfeItemIdIfExif(
     i += 2;
   } else if (version === 3) {
     if (i + 4 > end) return null;
-    itemId =
-      (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
+    itemId = (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
     i += 4;
   } else {
     return null;
@@ -282,8 +265,7 @@ function findExtentForItem(
   let itemCount: number;
   if (version === 2) {
     if (i + 4 > end) return null;
-    itemCount =
-      (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
+    itemCount = (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
     i += 4;
   } else {
     if (i + 2 > end) return null;
@@ -350,7 +332,12 @@ function findExtentForItem(
 // local time. Return null on any structural or parse failure.
 function readDateTimeOriginal(tiff: Uint8Array): Date | null {
   if (tiff.length < 8) return null;
-  const bo = tiff[0] === 0x49 && tiff[1] === 0x49 ? 'II' : tiff[0] === 0x4d && tiff[1] === 0x4d ? 'MM' : null;
+  const bo =
+    tiff[0] === 0x49 && tiff[1] === 0x49
+      ? 'II'
+      : tiff[0] === 0x4d && tiff[1] === 0x4d
+        ? 'MM'
+        : null;
   if (!bo) return null;
   const u16 = (off: number) =>
     bo === 'II' ? tiff[off] | (tiff[off + 1] << 8) : (tiff[off] << 8) | tiff[off + 1];

@@ -1,13 +1,13 @@
 import type { OcrSlotName } from './env';
 
 export class OcrProviderError extends Error {
-	constructor(
-		public readonly code: string,
-		message: string
-	) {
-		super(message);
-		this.name = 'OcrProviderError';
-	}
+  constructor(
+    public readonly code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = 'OcrProviderError';
+  }
 }
 
 // Anchors on first `{` and last `}`. Idempotent on clean JSON. Strips
@@ -18,98 +18,101 @@ export class OcrProviderError extends Error {
 // "Sanity check: ..." paragraph; OpenRouter is strict-parsed because
 // `response_format: json_schema` is contractually enforced there.
 export function parseLenientJson(raw: string): unknown {
-	const start = raw.indexOf('{');
-	const end = raw.lastIndexOf('}');
-	if (start < 0 || end < 0 || end <= start) {
-		throw new OcrProviderError('PARSE', `no JSON object in: ${raw.slice(0, 100)}`);
-	}
-	try {
-		return JSON.parse(raw.slice(start, end + 1));
-	} catch {
-		throw new OcrProviderError('PARSE', `content is not JSON: ${raw.slice(0, 100)}`);
-	}
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start < 0 || end < 0 || end <= start) {
+    throw new OcrProviderError('PARSE', `no JSON object in: ${raw.slice(0, 100)}`);
+  }
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    throw new OcrProviderError('PARSE', `content is not JSON: ${raw.slice(0, 100)}`);
+  }
 }
 
 export interface OcrProvider {
-	readonly name: OcrSlotName;
-	estimateCostCents(): number;
-	extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown>;
+  readonly name: OcrSlotName;
+  estimateCostCents(): number;
+  extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown>;
 }
 
 interface OllamaOptions {
-	url: string;
-	model: string;
-	timeoutMs: number;
-	keepAlive: string;
-	apiKey?: string;
-	slotName: 'ollama-local' | 'ollama-cloud';
-	fetchImpl?: typeof fetch;
+  url: string;
+  model: string;
+  timeoutMs: number;
+  keepAlive: string;
+  apiKey?: string;
+  slotName: 'ollama-local' | 'ollama-cloud';
+  fetchImpl?: typeof fetch;
 }
 
 export class OllamaOcrProvider implements OcrProvider {
-	readonly name: 'ollama-local' | 'ollama-cloud';
-	private readonly fetchImpl: typeof fetch;
-	constructor(private readonly opts: OllamaOptions) {
-		this.name = opts.slotName;
-		this.fetchImpl = opts.fetchImpl ?? fetch;
-	}
+  readonly name: 'ollama-local' | 'ollama-cloud';
+  private readonly fetchImpl: typeof fetch;
+  constructor(private readonly opts: OllamaOptions) {
+    this.name = opts.slotName;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
 
-	estimateCostCents(): number {
-		return 0;
-	}
+  estimateCostCents(): number {
+    return 0;
+  }
 
-	async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
-		const body = {
-			model: this.opts.model,
-			stream: false,
-			keep_alive: this.opts.keepAlive,
-			options: { temperature: 0 },
-			messages: [
-				{
-					role: 'user',
-					content: prompt,
-					images: [Buffer.from(bytes).toString('base64')]
-				}
-			],
-			format: schema
-		};
+  async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
+    const body = {
+      model: this.opts.model,
+      stream: false,
+      keep_alive: this.opts.keepAlive,
+      options: { temperature: 0 },
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+          images: [Buffer.from(bytes).toString('base64')]
+        }
+      ],
+      format: schema
+    };
 
-		const headers: Record<string, string> = { 'content-type': 'application/json' };
-		if (this.opts.apiKey) {
-			headers.authorization = `Bearer ${this.opts.apiKey}`;
-		}
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (this.opts.apiKey) {
+      headers.authorization = `Bearer ${this.opts.apiKey}`;
+    }
 
-		let res: Response;
-		try {
-			res = await this.fetchImpl(`${this.opts.url}/api/chat`, {
-				method: 'POST',
-				headers,
-				body: JSON.stringify(body),
-				signal: AbortSignal.timeout(this.opts.timeoutMs)
-			});
-		} catch (err) {
-			throw new OcrProviderError('NETWORK', `${this.name} request failed: ${(err as Error).message}`);
-		}
-		if (!res.ok) {
-			const txt = await res.text().catch(() => '');
-			throw new OcrProviderError('HTTP', `${this.name} ${res.status}: ${txt.slice(0, 200)}`);
-		}
-		const wire = (await res.json().catch(() => null)) as { message?: { content?: string } } | null;
-		const content = wire?.message?.content;
-		if (typeof content !== 'string') {
-			throw new OcrProviderError('NO_CONTENT', `${this.name} response missing message.content`);
-		}
-		return parseLenientJson(content);
-	}
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.opts.url}/api/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(this.opts.timeoutMs)
+      });
+    } catch (err) {
+      throw new OcrProviderError(
+        'NETWORK',
+        `${this.name} request failed: ${(err as Error).message}`
+      );
+    }
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new OcrProviderError('HTTP', `${this.name} ${res.status}: ${txt.slice(0, 200)}`);
+    }
+    const wire = (await res.json().catch(() => null)) as { message?: { content?: string } } | null;
+    const content = wire?.message?.content;
+    if (typeof content !== 'string') {
+      throw new OcrProviderError('NO_CONTENT', `${this.name} response missing message.content`);
+    }
+    return parseLenientJson(content);
+  }
 }
 
 interface OpenRouterOptions {
-	url?: string;
-	apiKey: string;
-	model: string;
-	timeoutMs: number;
-	slotName: 'openrouter' | 'openai-compatible';
-	fetchImpl?: typeof fetch;
+  url?: string;
+  apiKey: string;
+  model: string;
+  timeoutMs: number;
+  slotName: 'openrouter' | 'openai-compatible';
+  fetchImpl?: typeof fetch;
 }
 
 const DEFAULT_OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -128,83 +131,83 @@ const OPENROUTER_COST_CENTS = 0.006;
 const OPENROUTER_MAX_TOKENS = 256;
 
 export class OpenRouterOcrProvider implements OcrProvider {
-	readonly name: 'openrouter' | 'openai-compatible';
-	private readonly url: string;
-	private readonly fetchImpl: typeof fetch;
-	constructor(private readonly opts: OpenRouterOptions) {
-		this.name = opts.slotName;
-		this.url = opts.url ?? DEFAULT_OPENROUTER_URL;
-		this.fetchImpl = opts.fetchImpl ?? fetch;
-	}
+  readonly name: 'openrouter' | 'openai-compatible';
+  private readonly url: string;
+  private readonly fetchImpl: typeof fetch;
+  constructor(private readonly opts: OpenRouterOptions) {
+    this.name = opts.slotName;
+    this.url = opts.url ?? DEFAULT_OPENROUTER_URL;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
 
-	estimateCostCents(): number {
-		return OPENROUTER_COST_CENTS;
-	}
+  estimateCostCents(): number {
+    return OPENROUTER_COST_CENTS;
+  }
 
-	async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
-		const dataUrl = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
-		const body = {
-			model: this.opts.model,
-			messages: [
-				{
-					role: 'user',
-					content: [
-						{ type: 'text', text: prompt },
-						{ type: 'image_url', image_url: { url: dataUrl } }
-					]
-				}
-			],
-			max_tokens: OPENROUTER_MAX_TOKENS,
-			response_format: {
-				type: 'json_schema',
-				json_schema: {
-					name: 'OcrReading',
-					strict: true,
-					schema
-				}
-			}
-		};
+  async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
+    const dataUrl = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
+    const body = {
+      model: this.opts.model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } }
+          ]
+        }
+      ],
+      max_tokens: OPENROUTER_MAX_TOKENS,
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'OcrReading',
+          strict: true,
+          schema
+        }
+      }
+    };
 
-		let res: Response;
-		try {
-			res = await this.fetchImpl(this.url, {
-				method: 'POST',
-				headers: {
-					authorization: `Bearer ${this.opts.apiKey}`,
-					'content-type': 'application/json'
-				},
-				body: JSON.stringify(body),
-				signal: AbortSignal.timeout(this.opts.timeoutMs)
-			});
-		} catch (err) {
-			throw new OcrProviderError(
-				'NETWORK',
-				`${this.name} request failed: ${(err as Error).message}`
-			);
-		}
-		if (!res.ok) {
-			const txt = await res.text().catch(() => '');
-			throw new OcrProviderError('HTTP', `${this.name} ${res.status}: ${txt.slice(0, 200)}`);
-		}
-		const wire = (await res.json().catch(() => null)) as {
-			choices?: { message?: { content?: string } }[];
-		} | null;
-		const content = wire?.choices?.[0]?.message?.content;
-		if (typeof content !== 'string') {
-			throw new OcrProviderError(
-				'NO_CONTENT',
-				`${this.name} response missing choices[0].message.content`
-			);
-		}
-		try {
-			return JSON.parse(content);
-		} catch {
-			throw new OcrProviderError(
-				'PARSE',
-				`${this.name} content is not JSON: ${content.slice(0, 100)}`
-			);
-		}
-	}
+    let res: Response;
+    try {
+      res = await this.fetchImpl(this.url, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.opts.apiKey}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(this.opts.timeoutMs)
+      });
+    } catch (err) {
+      throw new OcrProviderError(
+        'NETWORK',
+        `${this.name} request failed: ${(err as Error).message}`
+      );
+    }
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new OcrProviderError('HTTP', `${this.name} ${res.status}: ${txt.slice(0, 200)}`);
+    }
+    const wire = (await res.json().catch(() => null)) as {
+      choices?: { message?: { content?: string } }[];
+    } | null;
+    const content = wire?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') {
+      throw new OcrProviderError(
+        'NO_CONTENT',
+        `${this.name} response missing choices[0].message.content`
+      );
+    }
+    try {
+      return JSON.parse(content);
+    } catch {
+      throw new OcrProviderError(
+        'PARSE',
+        `${this.name} content is not JSON: ${content.slice(0, 100)}`
+      );
+    }
+  }
 }
 
 // Chain wrapper: tries providers in order, returns first success.
@@ -213,67 +216,67 @@ export class OpenRouterOcrProvider implements OcrProvider {
 // the 2-link audit semantics of the v0.2.x feature for chains of any
 // length — full breadcrumb is YAGNI for personal use).
 export class ChainOcrProvider implements OcrProvider {
-	private _activeProvider: OcrProvider | null = null;
-	private _lastFellbackFrom: OcrSlotName | null = null;
-	private _lastFailedCostCents = 0;
+  private _activeProvider: OcrProvider | null = null;
+  private _lastFellbackFrom: OcrSlotName | null = null;
+  private _lastFailedCostCents = 0;
 
-	constructor(private readonly _chain: OcrProvider[]) {
-		if (_chain.length === 0) throw new Error('ChainOcrProvider requires at least one provider');
-	}
+  constructor(private readonly _chain: OcrProvider[]) {
+    if (_chain.length === 0) throw new Error('ChainOcrProvider requires at least one provider');
+  }
 
-	get chain(): readonly OcrProvider[] {
-		return this._chain;
-	}
-	get activeProvider(): OcrProvider | null {
-		return this._activeProvider;
-	}
-	get lastFellbackFrom(): OcrSlotName | null {
-		return this._lastFellbackFrom;
-	}
-	/** Accumulated estimated cost (cents) of this extract()'s *failed* attempts
-	 *  whose provider actually returned a response — HTTP error body, missing
-	 *  content, unparseable content. Those calls billed tokens even though they
-	 *  threw; only NETWORK failures (timeout, DNS, refused) are known-free.
-	 *  Reset at the start of each extract(). The pipeline folds this into the
-	 *  outcome's costCents so paid-but-failed attempts hit the daily budget. */
-	get lastFailedCostCents(): number {
-		return this._lastFailedCostCents;
-	}
+  get chain(): readonly OcrProvider[] {
+    return this._chain;
+  }
+  get activeProvider(): OcrProvider | null {
+    return this._activeProvider;
+  }
+  get lastFellbackFrom(): OcrSlotName | null {
+    return this._lastFellbackFrom;
+  }
+  /** Accumulated estimated cost (cents) of this extract()'s *failed* attempts
+   *  whose provider actually returned a response — HTTP error body, missing
+   *  content, unparseable content. Those calls billed tokens even though they
+   *  threw; only NETWORK failures (timeout, DNS, refused) are known-free.
+   *  Reset at the start of each extract(). The pipeline folds this into the
+   *  outcome's costCents so paid-but-failed attempts hit the daily budget. */
+  get lastFailedCostCents(): number {
+    return this._lastFailedCostCents;
+  }
 
-	// Reflects the active provider's slot when one has served a call;
-	// otherwise the first chain link's slot (default identity, used by
-	// audit fallback-path code before any extract has run).
-	get name(): OcrSlotName {
-		return this._activeProvider?.name ?? this._chain[0].name;
-	}
+  // Reflects the active provider's slot when one has served a call;
+  // otherwise the first chain link's slot (default identity, used by
+  // audit fallback-path code before any extract has run).
+  get name(): OcrSlotName {
+    return this._activeProvider?.name ?? this._chain[0].name;
+  }
 
-	estimateCostCents(): number {
-		return this._activeProvider?.estimateCostCents() ?? this._chain[0].estimateCostCents();
-	}
+  estimateCostCents(): number {
+    return this._activeProvider?.estimateCostCents() ?? this._chain[0].estimateCostCents();
+  }
 
-	async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
-		let lastErr: Error | undefined;
-		this._lastFellbackFrom = null;
-		this._lastFailedCostCents = 0;
-		for (let i = 0; i < this._chain.length; i++) {
-			const p = this._chain[i];
-			try {
-				const result = await p.extract(bytes, prompt, schema);
-				this._activeProvider = p;
-				if (i > 0) this._lastFellbackFrom = this._chain[0].name;
-				return result;
-			} catch (err) {
-				lastErr = err as Error;
-				// A response was received unless the failure was NETWORK — the
-				// upstream billed the call even though it's useless to us. Count
-				// non-OcrProviderError throws too (conservative: an unexpected
-				// throw happens after the request went out).
-				if (!(err instanceof OcrProviderError) || err.code !== 'NETWORK') {
-					this._lastFailedCostCents += p.estimateCostCents();
-				}
-			}
-		}
-		this._activeProvider = null;
-		throw lastErr ?? new OcrProviderError('NO_PROVIDERS', 'no providers succeeded');
-	}
+  async extract(bytes: Uint8Array, prompt: string, schema: object): Promise<unknown> {
+    let lastErr: Error | undefined;
+    this._lastFellbackFrom = null;
+    this._lastFailedCostCents = 0;
+    for (let i = 0; i < this._chain.length; i++) {
+      const p = this._chain[i];
+      try {
+        const result = await p.extract(bytes, prompt, schema);
+        this._activeProvider = p;
+        if (i > 0) this._lastFellbackFrom = this._chain[0].name;
+        return result;
+      } catch (err) {
+        lastErr = err as Error;
+        // A response was received unless the failure was NETWORK — the
+        // upstream billed the call even though it's useless to us. Count
+        // non-OcrProviderError throws too (conservative: an unexpected
+        // throw happens after the request went out).
+        if (!(err instanceof OcrProviderError) || err.code !== 'NETWORK') {
+          this._lastFailedCostCents += p.estimateCostCents();
+        }
+      }
+    }
+    this._activeProvider = null;
+    throw lastErr ?? new OcrProviderError('NO_PROVIDERS', 'no providers succeeded');
+  }
 }

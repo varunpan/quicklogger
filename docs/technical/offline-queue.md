@@ -17,25 +17,25 @@ Synced-row semantics (v0.1.3 addition):
 
 Source: `src/lib/client/idb.ts`.
 
-| Property | Value |
-|---|---|
-| Database name | `quicklogger` (default; `Queue.open(name)` accepts an override for tests) |
-| Database version | `1` |
-| Object store | `pendingSubmissions` |
-| `keyPath` | `id` |
-| `autoIncrement` | `true` |
-| Indexes | `byStatus` on the `status` field |
+| Property         | Value                                                                     |
+| ---------------- | ------------------------------------------------------------------------- |
+| Database name    | `quicklogger` (default; `Queue.open(name)` accepts an override for tests) |
+| Database version | `1`                                                                       |
+| Object store     | `pendingSubmissions`                                                      |
+| `keyPath`        | `id`                                                                      |
+| `autoIncrement`  | `true`                                                                    |
+| Indexes          | `byStatus` on the `status` field                                          |
 
 ### Row shape (`QueueEntry`)
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `number` | Auto-assigned by IndexedDB on insert. |
-| `input` | `FuelSubmissionInput` | The unmodified user payload (see `src/lib/shared/types.ts`). |
-| `status` | `'queued' \| 'failed' \| 'synced'` | See state machine below. |
-| `attempts` | `number` | Counts replay attempts that reached a server. Bumped before each fetch, reverted on a network error. Hard cap of `5`. |
-| `enqueuedAt` | `number` (ms epoch) | Set by `enqueue()` via `Date.now()`. |
-| `lastError` | `string` (optional) | Populated by `markFailed` with the response status. |
+| Field        | Type                               | Notes                                                                                                                 |
+| ------------ | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `id`         | `number`                           | Auto-assigned by IndexedDB on insert.                                                                                 |
+| `input`      | `FuelSubmissionInput`              | The unmodified user payload (see `src/lib/shared/types.ts`).                                                          |
+| `status`     | `'queued' \| 'failed' \| 'synced'` | See state machine below.                                                                                              |
+| `attempts`   | `number`                           | Counts replay attempts that reached a server. Bumped before each fetch, reverted on a network error. Hard cap of `5`. |
+| `enqueuedAt` | `number` (ms epoch)                | Set by `enqueue()` via `Date.now()`.                                                                                  |
+| `lastError`  | `string` (optional)                | Populated by `markFailed` with the response status.                                                                   |
 
 The `QueueStatus` union is exported from `idb.ts`:
 
@@ -222,7 +222,7 @@ Key details (rationale in
   dead-letters it if upstream stays broken.
 - **Accepted gaps:** a record hand-edited or deleted in LubeLogger before
   the replay lands is re-created as a duplicate (rare; status quo), and a
-  server crash *during* the upstream write remains at-least-once — the next
+  server crash _during_ the upstream write remains at-least-once — the next
   replay's pre-check catches it.
 
 The foreground form never sets the flag, and the server honors only literal
@@ -256,8 +256,8 @@ with their own `try/catch`:
 - The **success-path** synced-row write is fire-and-forget — IDB
   failures don't affect the success toast.
 - The **offline-fallback** enqueue (the 5xx/network `catch` branch of
-  `submit()`) surfaces an explicit error toast on failure: *"Couldn't
-  save — device storage unavailable. This fill-up was NOT saved."* It
+  `submit()`) surfaces an explicit error toast on failure: _"Couldn't
+  save — device storage unavailable. This fill-up was NOT saved."_ It
   was previously unguarded — the rejection escaped the handler with no
   toast at all, silently losing the fill-up.
 
@@ -267,7 +267,7 @@ prefill resolver, see [`docs/technical/offline-odometer-prefill.md`](./offline-o
 ### Private browsing mode
 
 Safari Private Browsing disables IndexedDB entirely — `openDB` throws.
-The form's offline-fallback enqueue catches this (see *Quota errors*
+The form's offline-fallback enqueue catches this (see _Quota errors_
 above). On private mode + offline, the user sees the explicit
 "NOT saved" error toast and the submission is lost. This is documented
 in the user guide; private browsing isn't a supported use mode for the

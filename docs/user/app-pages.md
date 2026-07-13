@@ -32,20 +32,20 @@ means here.
 
 ### Form fields
 
-| Field | What it does |
-| --- | --- |
-| **Vehicle** | Button-style row showing the vehicle's LubeLogger photo (when set) and year/make/model. Tap it to jump to the Vehicles page and pick a different one. The generic car icon shows as a fallback for vehicles without a photo or when the image isn't reachable. |
-| **Odometer** | Number input, pre-filled with the previous reading when prefill is on. A `prefilled` tag sits in the input until you interact. |
-| **`+N mi` chip** | One-tap increment below the odometer field. The number (`N`) reflects your **Quick increment** setting; the chip is hidden if you set it to 0 or disable prefill. |
-| **Date** | Native date picker, defaults to today. |
-| **Volume** | Decimal input + `Gal`/`L` toggle pill on the right. |
-| **Cost** | Decimal input + currency dropdown (USD/CAD/EUR/GBP/MXN). |
-| **FX rate** | Only appears when the FX provider chain is unreachable. See [`currency-fx.md`](currency-fx.md). |
-| **Fill to full** | Toggle button. Blue when on (default on). |
-| **Missed fillup** | Toggle button. Blue when on. Marks the entry as one where a previous fillup was missed (so MPG calcs handle the gap). |
-| **Note · station · grade** | Free-form text. Plain string, sent to LubeLogger's `notes` field. |
-| **Will log** preview | Blue summary line appearing when both volume and cost are valid. Shows converted gallons + USD cost, plus MPG-since-last-fill when computable. |
-| **Log fillup** | The submit button. Disabled until odometer, volume, cost, and date are all valid (>0 / non-empty). |
+| Field                      | What it does                                                                                                                                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vehicle**                | Button-style row showing the vehicle's LubeLogger photo (when set) and year/make/model. Tap it to jump to the Vehicles page and pick a different one. The generic car icon shows as a fallback for vehicles without a photo or when the image isn't reachable. |
+| **Odometer**               | Number input, pre-filled with the previous reading when prefill is on. A `prefilled` tag sits in the input until you interact.                                                                                                                                 |
+| **`+N mi` chip**           | One-tap increment below the odometer field. The number (`N`) reflects your **Quick increment** setting; the chip is hidden if you set it to 0 or disable prefill.                                                                                              |
+| **Date**                   | Native date picker, defaults to today.                                                                                                                                                                                                                         |
+| **Volume**                 | Decimal input + `Gal`/`L` toggle pill on the right.                                                                                                                                                                                                            |
+| **Cost**                   | Decimal input + currency dropdown (USD/CAD/EUR/GBP/MXN).                                                                                                                                                                                                       |
+| **FX rate**                | Only appears when the FX provider chain is unreachable. See [`currency-fx.md`](currency-fx.md).                                                                                                                                                                |
+| **Fill to full**           | Toggle button. Blue when on (default on).                                                                                                                                                                                                                      |
+| **Missed fillup**          | Toggle button. Blue when on. Marks the entry as one where a previous fillup was missed (so MPG calcs handle the gap).                                                                                                                                          |
+| **Note · station · grade** | Free-form text. Plain string, sent to LubeLogger's `notes` field.                                                                                                                                                                                              |
+| **Will log** preview       | Blue summary line appearing when both volume and cost are valid. Shows converted gallons + USD cost, plus MPG-since-last-fill when computable.                                                                                                                 |
+| **Log fillup**             | The submit button. Disabled until odometer, volume, cost, and date are all valid (>0 / non-empty).                                                                                                                                                             |
 
 ### What happens on submit
 
@@ -95,13 +95,13 @@ touch LubeLogger and do not sync between devices.
 If you're looking for the deploy-wide knobs (LubeLogger URL, target
 currency, FX provider chain), see [`configuration.md`](configuration.md).
 
-| Label | What it does | localStorage field |
-| --- | --- | --- |
-| **Default volume unit** | `Gallons` / `Liters` toggle. New form opens with this unit pre-selected. Server still converts to whatever LubeLogger expects. | `defaultVolumeUnit` (`gal` or `L`) |
-| **Default currency** | Dropdown of the same five currencies the form accepts. New form opens with this currency pre-selected. | `defaultCurrency` (ISO 4217 code) |
-| **Odometer prefill** | `On` / `Off` toggle. Off = form opens with an empty odometer field; the `+N mi` chip is also hidden. | `odometerPrefillEnabled` (bool, default `true`) |
-| **Quick increment (mi)** | Number input. The `+N mi` chip below the odometer field adds this many miles per tap. Set to `0` to hide the chip while keeping the prefilled value. | `odometerIncrementMi` (int, default `300`) |
-| **Smart checks** | `On` / `Off` toggle. On = advisory chip appears at submit time when the form looks off (lower odometer than last, future date, tiny volume, etc.); the chip has a `[Submit anyway]` override. Off = no chip, no extra friction. | `smartChecksEnabled` (bool, default `true`) |
+| Label                    | What it does                                                                                                                                                                                                                    | localStorage field                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| **Default volume unit**  | `Gallons` / `Liters` toggle. New form opens with this unit pre-selected. Server still converts to whatever LubeLogger expects.                                                                                                  | `defaultVolumeUnit` (`gal` or `L`)              |
+| **Default currency**     | Dropdown of the same five currencies the form accepts. New form opens with this currency pre-selected.                                                                                                                          | `defaultCurrency` (ISO 4217 code)               |
+| **Odometer prefill**     | `On` / `Off` toggle. Off = form opens with an empty odometer field; the `+N mi` chip is also hidden.                                                                                                                            | `odometerPrefillEnabled` (bool, default `true`) |
+| **Quick increment (mi)** | Number input. The `+N mi` chip below the odometer field adds this many miles per tap. Set to `0` to hide the chip while keeping the prefilled value.                                                                            | `odometerIncrementMi` (int, default `300`)      |
+| **Smart checks**         | `On` / `Off` toggle. On = advisory chip appears at submit time when the form looks off (lower odometer than last, future date, tiny volume, etc.); the chip has a `[Submit anyway]` override. Off = no chip, no extra friction. | `smartChecksEnabled` (bool, default `true`)     |
 
 One field is also persisted but has no UI on this page: `lastVehicleId`,
 set automatically when you pick a vehicle on `/vehicles` or submit a
@@ -234,7 +234,7 @@ The page shows:
   `Past Due` and how many are upcoming (e.g. **2 Past Due**, **7 upcoming**).
   Tap it to jump to the full Maintenance list for the same vehicle, which
   names each one. (It deliberately doesn't name a single reminder here —
-  LubeLogger's "next" reminder is the next *upcoming* one, so showing it
+  LubeLogger's "next" reminder is the next _upcoming_ one, so showing it
   beside the Past Due badge made an upcoming item look overdue.)
 
 Like Maintenance and History, a **vehicle card** at the top switches

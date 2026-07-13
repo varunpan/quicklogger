@@ -16,8 +16,12 @@ beforeEach(() => {
   revokeObjectURL.mockClear();
   // jsdom doesn't implement pointer capture APIs that CropOverlay uses
   // when it's embedded inside OcrPreview's crop sub-mode.
-  (HTMLElement.prototype as unknown as { setPointerCapture: (id: number) => void }).setPointerCapture = vi.fn();
-  (HTMLElement.prototype as unknown as { releasePointerCapture: (id: number) => void }).releasePointerCapture = vi.fn();
+  (
+    HTMLElement.prototype as unknown as { setPointerCapture: (id: number) => void }
+  ).setPointerCapture = vi.fn();
+  (
+    HTMLElement.prototype as unknown as { releasePointerCapture: (id: number) => void }
+  ).releasePointerCapture = vi.fn();
   // jsdom doesn't implement createImageBitmap. The post-crop canvas $effect
   // calls it; without a stub the promise rejects (swallowed by the effect's
   // try/catch), which is fine for structural assertions — the canvas
@@ -189,7 +193,17 @@ describe('OcrPreview — crop mode', () => {
       Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
       Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
       img.getBoundingClientRect = () =>
-        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+        ({
+          width: 400,
+          height: 300,
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 400,
+          bottom: 300,
+          toJSON: () => ({})
+        }) as DOMRect;
       await fireEvent.load(img);
     }
 
@@ -197,7 +211,9 @@ describe('OcrPreview — crop mode', () => {
 
     // Drag a corner so the rect isn't the default — needed because Done with
     // the default rect commits as crop:null per spec.
-    const tlCorner = container.querySelector('[data-handle="corner"][data-corner="tl"]') as HTMLElement | null;
+    const tlCorner = container.querySelector(
+      '[data-handle="corner"][data-corner="tl"]'
+    ) as HTMLElement | null;
     if (tlCorner) {
       const down = new Event('pointerdown', { bubbles: true }) as Event & {
         clientX: number;
@@ -260,23 +276,43 @@ describe('OcrPreview — crop mode', () => {
       Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
       Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
       img.getBoundingClientRect = () =>
-        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+        ({
+          width: 400,
+          height: 300,
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 400,
+          bottom: 300,
+          toJSON: () => ({})
+        }) as DOMRect;
       await fireEvent.load(img);
     }
 
     await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
 
     // Drag a corner so we exit the default-rect detection on Done.
-    const tlCorner = container.querySelector('[data-handle="corner"][data-corner="tl"]') as HTMLElement | null;
+    const tlCorner = container.querySelector(
+      '[data-handle="corner"][data-corner="tl"]'
+    ) as HTMLElement | null;
     if (tlCorner) {
       const down = new Event('pointerdown', { bubbles: true }) as Event & {
-        clientX: number; clientY: number; pointerId: number;
+        clientX: number;
+        clientY: number;
+        pointerId: number;
       };
-      down.clientX = 40; down.clientY = 30; down.pointerId = 1;
+      down.clientX = 40;
+      down.clientY = 30;
+      down.pointerId = 1;
       const move = new Event('pointermove', { bubbles: true }) as Event & {
-        clientX: number; clientY: number; pointerId: number;
+        clientX: number;
+        clientY: number;
+        pointerId: number;
       };
-      move.clientX = 80; move.clientY = 60; move.pointerId = 1;
+      move.clientX = 80;
+      move.clientY = 60;
+      move.pointerId = 1;
       await fireEvent(tlCorner, down);
       await fireEvent(tlCorner, move);
     }
@@ -301,7 +337,17 @@ describe('OcrPreview — crop mode', () => {
       Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
       Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
       img.getBoundingClientRect = () =>
-        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+        ({
+          width: 400,
+          height: 300,
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 400,
+          bottom: 300,
+          toJSON: () => ({})
+        }) as DOMRect;
       await fireEvent.load(img);
     }
     await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
@@ -326,7 +372,13 @@ describe('OcrPreview — crop mode', () => {
     unmount();
     const onsubmit2 = vi.fn();
     render(OcrPreview, {
-      props: { file: makeFile(), mode: 'pump', onsubmit: onsubmit2, oncancel: vi.fn(), onretake: vi.fn() }
+      props: {
+        file: makeFile(),
+        mode: 'pump',
+        onsubmit: onsubmit2,
+        oncancel: vi.fn(),
+        onretake: vi.fn()
+      }
     });
     await fireEvent.click(screen.getByRole('button', { name: /Send for OCR/i }));
     expect(onsubmit2).toHaveBeenCalledWith({ rotation: 0, crop: null });
@@ -345,9 +397,13 @@ describe('OcrPreview — crop mode', () => {
     });
     const mk = (type: string, x: number, y: number) => {
       const ev = new Event(type, { bubbles: true }) as Event & {
-        clientX: number; clientY: number; pointerId: number;
+        clientX: number;
+        clientY: number;
+        pointerId: number;
       };
-      ev.clientX = x; ev.clientY = y; ev.pointerId = 1;
+      ev.clientX = x;
+      ev.clientY = y;
+      ev.pointerId = 1;
       return ev;
     };
     const img = container.querySelector('img');
@@ -355,7 +411,17 @@ describe('OcrPreview — crop mode', () => {
       Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
       Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
       img.getBoundingClientRect = () =>
-        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+        ({
+          width: 400,
+          height: 300,
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 400,
+          bottom: 300,
+          toJSON: () => ({})
+        }) as DOMRect;
       await fireEvent.load(img);
     }
     await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));
@@ -369,7 +435,17 @@ describe('OcrPreview — crop mode', () => {
     // Device rotation / resize: the image re-measures to a new size.
     if (img) {
       img.getBoundingClientRect = () =>
-        ({ width: 300, height: 400, x: 0, y: 0, top: 0, left: 0, right: 300, bottom: 400, toJSON: () => ({}) }) as DOMRect;
+        ({
+          width: 300,
+          height: 400,
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 300,
+          bottom: 400,
+          toJSON: () => ({})
+        }) as DOMRect;
     }
     await fireEvent(window, new Event('resize'));
 
@@ -392,7 +468,17 @@ describe('OcrPreview — crop mode', () => {
       Object.defineProperty(img, 'naturalWidth', { value: 2000, configurable: true });
       Object.defineProperty(img, 'naturalHeight', { value: 1500, configurable: true });
       img.getBoundingClientRect = () =>
-        ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+        ({
+          width: 400,
+          height: 300,
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 400,
+          bottom: 300,
+          toJSON: () => ({})
+        }) as DOMRect;
       await fireEvent.load(img);
     }
     await fireEvent.click(screen.getByRole('button', { name: /Crop image/i }));

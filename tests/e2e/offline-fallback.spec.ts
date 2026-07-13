@@ -10,7 +10,9 @@ test.use({ serviceWorkers: 'block' });
 // quota), that enqueue must NOT fail silently — the regression was an
 // unguarded `Queue.open()` whose rejection escaped the handler: no toast,
 // fill-up gone. The fix wraps it and surfaces an explicit "NOT saved" toast.
-test('server 500 with IndexedDB unavailable shows the explicit NOT-saved toast', async ({ page }) => {
+test('server 500 with IndexedDB unavailable shows the explicit NOT-saved toast', async ({
+  page
+}) => {
   await seedPrefs(page, { smartChecksEnabled: false });
   // Simulate Safari private mode: any indexedDB access throws. Must be set
   // before page scripts run. The last-fuelup mock below must return a real
@@ -31,7 +33,9 @@ test('server 500 with IndexedDB unavailable shows the explicit NOT-saved toast',
     })
   );
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
   // Upstream down: 5xx routes submit() into the offline-fallback branch.
   await page.route('**/api/fuelup', (route) =>

@@ -7,11 +7,13 @@ const NOOP_LOGGER: Logger = {
   info: () => {},
   warn: () => {},
   error: () => {},
-  child() { return this; }
+  child() {
+    return this;
+  }
 };
 
 export interface BudgetEntry {
-  date: string;        // YYYY-MM-DD (UTC)
+  date: string; // YYYY-MM-DD (UTC)
   calls: number;
   costCents: number;
 }

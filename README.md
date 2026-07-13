@@ -87,20 +87,20 @@ services:
     container_name: quicklogger
     restart: unless-stopped
     environment:
-      - LUBELOGGER_URL=http://<lubelog-service>:8080  # whatever your LubeLogger service is named on this network
-      - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY}   # in your stack's .env
+      - LUBELOGGER_URL=http://<lubelog-service>:8080 # whatever your LubeLogger service is named on this network
+      - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY} # in your stack's .env
       - LUBELOGGER_VOLUME_UNIT=gallons_us
       - LUBELOGGER_CURRENCY=USD
-      - ORIGIN=https://quicklog.example.com        # your public/internal URL
+      - ORIGIN=https://quicklog.example.com # your public/internal URL
       - PORT=3000
     volumes:
-      - /srv/quicklogger/data:/data                # bind-mount for the FX cache
+      - /srv/quicklogger/data:/data # bind-mount for the FX cache
     # Runtime hardening — see docs/deployment.md § "Hardening the runtime"
     read_only: true
     tmpfs:
       - /tmp:rw,size=16m,mode=1777
     cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    security_opt: ['no-new-privileges:true']
     pids_limit: 100
     mem_limit: 256m
     networks:
@@ -135,13 +135,13 @@ For Caddy, nginx, or Cloudflare Tunnel: same idea — proxy `https://quicklog.ex
 
 ## Security posture
 
-Defaults intended to be reasonable for a single-user homelab tool. The deeper write-up lives in [`docs/deployment.md`](docs/deployment.md) § *Hardening the runtime* — short version:
+Defaults intended to be reasonable for a single-user homelab tool. The deeper write-up lives in [`docs/deployment.md`](docs/deployment.md) § _Hardening the runtime_ — short version:
 
 - **No app-side auth.** quicklogger has no login screen. Front it with HTTPS and either keep it on a private network (Tailscale, LAN, an internal-only hostname) or put it behind a forward-auth middleware (Authentik, Cloudflare Access, etc.).
 - **CSRF / origin check.** Mutating API requests (`/api/fuelup`, `/api/ocr`, `/api/log`) are rejected with a 403 if they arrive with a browser `Origin` that doesn't match your configured `ORIGIN` — defense-in-depth beyond SvelteKit's form-only default, so a cross-site `application/json` POST is covered too. Requests with no `Origin` (Apple Shortcuts, server-to-server) are unaffected.
 - **Container runs as `node` (UID 1000)**, not root.
 - **Image is multi-stage** — runtime layer has only the built `build/` output, prod-only `node_modules`, and `package.json`. No build tools, no source.
-- **Image is vulnerability-scanned** — every release build is scanned with Trivy and fails on fixable critical/high CVEs before it's published. The base image's OS packages are upgraded and its unused npm is stripped at build time. See [`docs/deployment.md`](docs/deployment.md) § *Vulnerability scanning*.
+- **Image is vulnerability-scanned** — every release build is scanned with Trivy and fails on fixable critical/high CVEs before it's published. The base image's OS packages are upgraded and its unused npm is stripped at build time. See [`docs/deployment.md`](docs/deployment.md) § _Vulnerability scanning_.
 - **Recommended compose hardening** (in both compose patterns above): `read_only: true`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`, plus a 16 MB tmpfs for `/tmp`. Verified per-release.
 - **Secrets surface**: `LUBELOGGER_API_KEY` (Editor-scope on your LubeLogger). Sits in `.env`, never logged. If it leaks, rotate it in LubeLogger.
 - **What's still your responsibility**: rate-limiting / WAF in front (CrowdSec, Traefik middlewares); TLS cert management; network segmentation; LubeLogger's own threat model.
@@ -150,13 +150,13 @@ Defaults intended to be reasonable for a single-user homelab tool. The deeper wr
 
 Minimum vars to run:
 
-| Var | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `LUBELOGGER_URL` | yes | — | URL of your LubeLogger (use container DNS if same network) |
-| `LUBELOGGER_API_KEY` | yes | — | Editor-scope API key from LubeLogger |
-| `LUBELOGGER_CURRENCY` | no | `USD` | Target currency for storage |
-| `ORIGIN` | no | — | SvelteKit CSRF origin (set to your public URL) |
-| `PORT` | no | `3000` | App listen port |
+| Var                   | Required | Default | Purpose                                                    |
+| --------------------- | -------- | ------- | ---------------------------------------------------------- |
+| `LUBELOGGER_URL`      | yes      | —       | URL of your LubeLogger (use container DNS if same network) |
+| `LUBELOGGER_API_KEY`  | yes      | —       | Editor-scope API key from LubeLogger                       |
+| `LUBELOGGER_CURRENCY` | no       | `USD`   | Target currency for storage                                |
+| `ORIGIN`              | no       | —       | SvelteKit CSRF origin (set to your public URL)             |
+| `PORT`                | no       | `3000`  | App listen port                                            |
 
 For the full reference (every var, type, default, override scenarios), see [`docs/user/configuration.md`](docs/user/configuration.md).
 
@@ -179,27 +179,27 @@ Structured JSON to stdout by default. Set `LOG_FILE_PATH` to also write a rotati
 
 The app has zero runtime npm `dependencies` — everything is `devDependencies` and gets bundled into the production artifact at build time. Exact versions live in [`package.json`](package.json); the categories below are the load-bearing pieces.
 
-| Layer | Package | Purpose |
-| --- | --- | --- |
-| **Framework** | [`@sveltejs/kit`](https://kit.svelte.dev) ^2.57 | Full-stack framework (file-based routing, SSR, server endpoints) |
-| | [`svelte`](https://svelte.dev) ^5.56 | UI framework (runes-mode component model) |
-| | [`@sveltejs/adapter-node`](https://kit.svelte.dev/docs/adapter-node) ^5.5 | Production adapter — emits a `node build` entrypoint |
-| **Build** | [`vite`](https://vite.dev) ^8.0 | Dev server + production bundler |
-| | [`typescript`](https://www.typescriptlang.org) ^6.0 | Type system |
-| | [`svelte-check`](https://github.com/sveltejs/language-tools/tree/master/packages/svelte-check) ^4.4 | Svelte/TS type-checker |
-| **Styling** | [`tailwindcss`](https://tailwindcss.com) ^4.2 + [`@tailwindcss/vite`](https://tailwindcss.com/docs/installation/using-vite) | Utility-first CSS via Vite plugin |
-| **Client state** | [`idb`](https://github.com/jakearchibald/idb) ^8.0 | Promise-based IndexedDB wrapper for the offline submission queue |
-| **Unit / integration tests** | [`vitest`](https://vitest.dev) ^4.1 + [`@vitest/coverage-v8`](https://vitest.dev/guide/coverage) | Test runner + coverage |
-| | [`@testing-library/svelte`](https://testing-library.com/docs/svelte-testing-library/intro/) ^5.3 + [`@testing-library/jest-dom`](https://github.com/testing-library/jest-dom) ^6.9 | Component testing + DOM matchers |
-| | [`msw`](https://mswjs.io) ^2.14 | Mock LubeLogger upstream in route-handler tests |
-| | [`jsdom`](https://github.com/jsdom/jsdom) ^29.1 | Browser DOM shim for Node-side unit tests |
-| | [`fake-indexeddb`](https://github.com/dumbmatter/fakeIndexedDB) ^6.2 | IndexedDB shim for tests of the offline queue |
-| **E2E tests** | [`@playwright/test`](https://playwright.dev) ^1.59 | Mobile-Safari profile against the production build |
-| **Lint / format** | [`eslint`](https://eslint.org) ^10.3 + [`@eslint/js`](https://eslint.org/docs/latest/use/configure/configuration-files) ^10.0 | Linter (flat config) |
-| | [`eslint-plugin-svelte`](https://sveltejs.github.io/eslint-plugin-svelte/) ^3.17 + [`svelte-eslint-parser`](https://github.com/sveltejs/svelte-eslint-parser) ^1.6 | Svelte ESLint integration |
-| | [`typescript-eslint`](https://typescript-eslint.io) ^8.59 | TypeScript-aware ESLint rules |
-| | [`prettier`](https://prettier.io) ^3.8 + [`prettier-plugin-svelte`](https://github.com/sveltejs/prettier-plugin-svelte) ^3.5 | Code formatter |
-| **Runtime** | `node:24-alpine` (Docker) | Runs as the unprivileged `node` user (UID 1000) |
+| Layer                        | Package                                                                                                                                                                            | Purpose                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Framework**                | [`@sveltejs/kit`](https://kit.svelte.dev) ^2.57                                                                                                                                    | Full-stack framework (file-based routing, SSR, server endpoints) |
+|                              | [`svelte`](https://svelte.dev) ^5.56                                                                                                                                               | UI framework (runes-mode component model)                        |
+|                              | [`@sveltejs/adapter-node`](https://kit.svelte.dev/docs/adapter-node) ^5.5                                                                                                          | Production adapter — emits a `node build` entrypoint             |
+| **Build**                    | [`vite`](https://vite.dev) ^8.0                                                                                                                                                    | Dev server + production bundler                                  |
+|                              | [`typescript`](https://www.typescriptlang.org) ^6.0                                                                                                                                | Type system                                                      |
+|                              | [`svelte-check`](https://github.com/sveltejs/language-tools/tree/master/packages/svelte-check) ^4.4                                                                                | Svelte/TS type-checker                                           |
+| **Styling**                  | [`tailwindcss`](https://tailwindcss.com) ^4.2 + [`@tailwindcss/vite`](https://tailwindcss.com/docs/installation/using-vite)                                                        | Utility-first CSS via Vite plugin                                |
+| **Client state**             | [`idb`](https://github.com/jakearchibald/idb) ^8.0                                                                                                                                 | Promise-based IndexedDB wrapper for the offline submission queue |
+| **Unit / integration tests** | [`vitest`](https://vitest.dev) ^4.1 + [`@vitest/coverage-v8`](https://vitest.dev/guide/coverage)                                                                                   | Test runner + coverage                                           |
+|                              | [`@testing-library/svelte`](https://testing-library.com/docs/svelte-testing-library/intro/) ^5.3 + [`@testing-library/jest-dom`](https://github.com/testing-library/jest-dom) ^6.9 | Component testing + DOM matchers                                 |
+|                              | [`msw`](https://mswjs.io) ^2.14                                                                                                                                                    | Mock LubeLogger upstream in route-handler tests                  |
+|                              | [`jsdom`](https://github.com/jsdom/jsdom) ^29.1                                                                                                                                    | Browser DOM shim for Node-side unit tests                        |
+|                              | [`fake-indexeddb`](https://github.com/dumbmatter/fakeIndexedDB) ^6.2                                                                                                               | IndexedDB shim for tests of the offline queue                    |
+| **E2E tests**                | [`@playwright/test`](https://playwright.dev) ^1.59                                                                                                                                 | Mobile-Safari profile against the production build               |
+| **Lint / format**            | [`eslint`](https://eslint.org) ^10.3 + [`@eslint/js`](https://eslint.org/docs/latest/use/configure/configuration-files) ^10.0                                                      | Linter (flat config)                                             |
+|                              | [`eslint-plugin-svelte`](https://sveltejs.github.io/eslint-plugin-svelte/) ^3.17 + [`svelte-eslint-parser`](https://github.com/sveltejs/svelte-eslint-parser) ^1.6                 | Svelte ESLint integration                                        |
+|                              | [`typescript-eslint`](https://typescript-eslint.io) ^8.59                                                                                                                          | TypeScript-aware ESLint rules                                    |
+|                              | [`prettier`](https://prettier.io) ^3.8 + [`prettier-plugin-svelte`](https://github.com/sveltejs/prettier-plugin-svelte) ^3.5                                                       | Code formatter                                                   |
+| **Runtime**                  | `node:24-alpine` (Docker)                                                                                                                                                          | Runs as the unprivileged `node` user (UID 1000)                  |
 
 ### Setup
 
@@ -216,20 +216,20 @@ npm run dev   # http://localhost:5173
 
 ### Scripts
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Vite dev server with hot reload (localhost only) |
-| `npm run dev:lan` | Same, exposed on the LAN — for testing on a real phone |
-| `npm run build` | Production build (adapter-node → `build/`) |
-| `npm run preview` | Run the production build locally |
-| `npm run preview:lan` | Same, exposed on the LAN — for testing the production bundle on a real phone |
-| `npm run uat:docker` | Build + run the real production image locally (`compose.dev.yml`) — prod-mirror UAT with the service worker live on `localhost` |
-| `npm test` | Vitest — unit + route handler tests |
-| `npm run test:watch` | Vitest watch mode |
-| `npm run test:e2e` | Playwright (mobile-Safari profile) |
-| `npm run lint` | ESLint flat config |
-| `npm run check` | `svelte-kit sync` + svelte-check |
-| `npm run format` | Prettier across the tree |
+| Command               | Purpose                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`         | Vite dev server with hot reload (localhost only)                                                                                |
+| `npm run dev:lan`     | Same, exposed on the LAN — for testing on a real phone                                                                          |
+| `npm run build`       | Production build (adapter-node → `build/`)                                                                                      |
+| `npm run preview`     | Run the production build locally                                                                                                |
+| `npm run preview:lan` | Same, exposed on the LAN — for testing the production bundle on a real phone                                                    |
+| `npm run uat:docker`  | Build + run the real production image locally (`compose.dev.yml`) — prod-mirror UAT with the service worker live on `localhost` |
+| `npm test`            | Vitest — unit + route handler tests                                                                                             |
+| `npm run test:watch`  | Vitest watch mode                                                                                                               |
+| `npm run test:e2e`    | Playwright (mobile-Safari profile)                                                                                              |
+| `npm run lint`        | ESLint flat config                                                                                                              |
+| `npm run check`       | `svelte-kit sync` + svelte-check                                                                                                |
+| `npm run format`      | Prettier across the tree                                                                                                        |
 
 ### Testing layers
 
@@ -275,8 +275,8 @@ docker compose -f compose.dev.yml up --build
 On `http://localhost:3000` the service worker registers (localhost is a secure
 context), so offline/PWA behaviour is testable in a desktop browser with no
 deploy. For on-device phone testing over HTTPS, set the `TRAEFIK_*` + `ORIGIN`
-vars in `.env` — see [`docs/deployment.md`](docs/deployment.md) § *Dev prod-mirror
-compose*.
+vars in `.env` — see [`docs/deployment.md`](docs/deployment.md) § _Dev prod-mirror
+compose_.
 
 ### Architecture pointers
 

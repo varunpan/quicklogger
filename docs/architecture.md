@@ -77,7 +77,7 @@ Multi-provider FX resolver with a 24-hour fresh cache, a 7-day stale fallback, a
 
 ### LubeLogger client (`src/lib/server/lubelogger.ts`)
 
-Single integration point with LubeLogger — every upstream call flows through `LubeLoggerClient`. The client is reachable via container DNS on the same Docker network (preferred for security) or over a public URL; `LUBELOGGER_URL` is the switch. Auth is `x-api-key` from `LUBELOGGER_API_KEY` (Editor scope on the LubeLogger side). Default request timeout is 5s via `AbortSignal.timeout()`; `/healthz` constructs its own client with a 2s override so the probe fails fast. Non-2xx responses throw `LubeLoggerError` (status + body); `/api/fuelup` maps 5xx to 502 and passes 4xx through unchanged. Per-method/per-field reference: [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md) § *LubeLogger upstream calls*.
+Single integration point with LubeLogger — every upstream call flows through `LubeLoggerClient`. The client is reachable via container DNS on the same Docker network (preferred for security) or over a public URL; `LUBELOGGER_URL` is the switch. Auth is `x-api-key` from `LUBELOGGER_API_KEY` (Editor scope on the LubeLogger side). Default request timeout is 5s via `AbortSignal.timeout()`; `/healthz` constructs its own client with a 2s override so the probe fails fast. Non-2xx responses throw `LubeLoggerError` (status + body); `/api/fuelup` maps 5xx to 502 and passes 4xx through unchanged. Per-method/per-field reference: [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md) § _LubeLogger upstream calls_.
 
 ### Conversion orchestrator (`src/lib/server/convert.ts`)
 
@@ -153,7 +153,7 @@ sits well inside that band).
 
 **Odometer contract** — schema-validates `{ odometer }`. Range-validates
 against `OCR_ODOMETER_MAX_MI`. No cross-field check (single field). The
-*relative-range* check vs the previous fillup happens client-side
+_relative-range_ check vs the previous fillup happens client-side
 ([`+page.svelte`](#---main-form)) — the server has no access to prior
 fillup history, and the failure mode is user-recoverable.
 
@@ -206,11 +206,11 @@ client `postOcr` request timeout (`chainTimeoutMs + 10_000`).
 
 Every server request gets a short `request_id` from `src/hooks.server.ts`, attached to a child logger on `event.locals.logger` and exposed as `X-Request-ID` on the response. Each request emits one access-log JSON record at request end; modules along the way (`LubeLoggerClient`, `runOcrPipeline`, `CurrencyService`, `OcrBudget`, `OcrAudit`) log at the level that matches the event — debug for normal flow, warn for handled degradation, error for failed requests. The client + service worker forward `window error` / `unhandledrejection` records to `/api/log`, which routes them through the same logger so phone-side failures land in the same stream as server activity. See [`docs/technical/logging.md`](./technical/logging.md) for the level taxonomy and env-var reference.
 
-| Surviving slots | `selectProvider` returns |
-|---|---|
-| 0 | `{ provider: null, chainTimeoutMs: 0 }` → `/api/ocr` returns 503 |
-| 1 | `{ provider: <bare>, chainTimeoutMs: <slot> }` |
-| 2+ | `{ provider: ChainOcrProvider([...]), chainTimeoutMs: <sum> }` |
+| Surviving slots | `selectProvider` returns                                         |
+| --------------- | ---------------------------------------------------------------- |
+| 0               | `{ provider: null, chainTimeoutMs: 0 }` → `/api/ocr` returns 503 |
+| 1               | `{ provider: <bare>, chainTimeoutMs: <slot> }`                   |
+| 2+              | `{ provider: ChainOcrProvider([...]), chainTimeoutMs: <sum> }`   |
 
 `runOcrPipeline(input)` orchestrates one request: magic-byte sniff →
 `MODES[mode]` lookup → provider call → `validateSchema` →
@@ -236,11 +236,11 @@ Six pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`
 
 ### `/` — main form
 
-The single most-used page. `+page.ts` loads the vehicle list and last-fuelup snapshot (with the offline resolver as fallback when upstream is unreachable). URL query params on the route drive Apple Shortcuts deep-link pre-fill (Path 1 of the Shortcuts integration). The form fields seed **once** from those params at mount (`$state(untrack(…))`); because the vehicle picker is a separate route (`/vehicles`), changing the vehicle is a navigation round-trip that unmounts the form. To stop that round-trip from wiping an in-progress entry (#50), the form hands its entered values (`volume`, `volumeUnit`, `cost`, `currency`, `fillToFull`, `date`, `notes`) to the picker on the URL and the picker forwards them onto its return URL, where the form re-seeds from the same prefill channel. The **odometer is deliberately not carried** — it re-prefills from the newly-picked vehicle's last fillup. An in-memory OCR photo *attachment* can't ride a URL, so it does reset on a vehicle change. A `$effect` block fetches the FX rate from `/api/fx` whenever the currency selector changes; if the chain is exhausted, `needsManualFx` reveals a manual-rate field. Submit is gated client-side by a `canSubmit` derived (all four required fields present; the three numerics — odometer/volume/cost — are > 0 and the date is set); the same contract is enforced server-side in `/api/fuelup`'s `validate()`, so non-form callers (Shortcuts, direct curl) get a 400 with the failing field names.
+The single most-used page. `+page.ts` loads the vehicle list and last-fuelup snapshot (with the offline resolver as fallback when upstream is unreachable). URL query params on the route drive Apple Shortcuts deep-link pre-fill (Path 1 of the Shortcuts integration). The form fields seed **once** from those params at mount (`$state(untrack(…))`); because the vehicle picker is a separate route (`/vehicles`), changing the vehicle is a navigation round-trip that unmounts the form. To stop that round-trip from wiping an in-progress entry (#50), the form hands its entered values (`volume`, `volumeUnit`, `cost`, `currency`, `fillToFull`, `date`, `notes`) to the picker on the URL and the picker forwards them onto its return URL, where the form re-seeds from the same prefill channel. The **odometer is deliberately not carried** — it re-prefills from the newly-picked vehicle's last fillup. An in-memory OCR photo _attachment_ can't ride a URL, so it does reset on a vehicle change. A `$effect` block fetches the FX rate from `/api/fx` whenever the currency selector changes; if the chain is exhausted, `needsManualFx` reveals a manual-rate field. Submit is gated client-side by a `canSubmit` derived (all four required fields present; the three numerics — odometer/volume/cost — are > 0 and the date is set); the same contract is enforced server-side in `/api/fuelup`'s `validate()`, so non-form callers (Shortcuts, direct curl) get a 400 with the failing field names.
 
 Cross-links for the detail this section deliberately doesn't repeat:
 
-- User view of the form + per-page tour: [`docs/user/app-pages.md`](./user/app-pages.md) § *Log Fuel*.
+- User view of the form + per-page tour: [`docs/user/app-pages.md`](./user/app-pages.md) § _Log Fuel_.
 - Prefill / `+N mi` chip / per-tank delta UX: [`docs/user/odometer-prefill.md`](./user/odometer-prefill.md).
 - Offline submit behavior + queue mechanics: [`docs/technical/offline-queue.md`](./technical/offline-queue.md).
 - Offline last-fillup resolver (cache + queue): [`docs/technical/offline-odometer-prefill.md`](./technical/offline-odometer-prefill.md).
@@ -279,8 +279,8 @@ End-to-end walkthrough of a fillup submission — the most useful "data flow" le
 2. **User selects vehicle, enters odometer / volume / cost.** The client-side `canSubmit` derived gates the submit button until all four required fields are satisfied (the three numerics — odometer/volume/cost — are > 0 and the date is set). The odometer opens pre-filled when `prefs.odometerPrefillEnabled` is true and a last-fuelup is available.
 3. **FX preview.** A `$effect` in the page calls `/api/fx?from=<currency>&to=USD` whenever the currency selector changes; the server consults the FX chain (cache → providers → stale fallback) and returns a rate. If the chain is fully exhausted, the page reveals the manual-rate field.
 4. **User taps "Log fillup".** The page POSTs `FuelSubmissionInput` (with a fresh client-side UUID) to `/api/fuelup`.
-5. **Server-side processing.** `/api/fuelup` validates required fields, calls `convertSubmission()` (units + FX), then `LubeLoggerClient.addGasRecord()` which POSTs form-data to LubeLogger's `POST /api/vehicle/gasrecords/add`. The in-process idempotency map drops duplicate `clientSubmissionId` POSTs: a pending marker is registered *before* the upstream write, so two concurrent in-flight duplicates (a double-tap, or the SW queue replay racing this submit) share one write rather than both creating a record; a completed success is then cached for 60s to absorb a later resubmit. When both containers are co-located in one compose stack, this hop stays on the internal Docker network.
+5. **Server-side processing.** `/api/fuelup` validates required fields, calls `convertSubmission()` (units + FX), then `LubeLoggerClient.addGasRecord()` which POSTs form-data to LubeLogger's `POST /api/vehicle/gasrecords/add`. The in-process idempotency map drops duplicate `clientSubmissionId` POSTs: a pending marker is registered _before_ the upstream write, so two concurrent in-flight duplicates (a double-tap, or the SW queue replay racing this submit) share one write rather than both creating a record; a completed success is then cached for 60s to absorb a later resubmit. When both containers are co-located in one compose stack, this hop stays on the internal Docker network.
 6. **Response.** 200 with `{ ok: true, submitted: { gallons, cost, fxRate, fxSource, fxStale } }`. The page shows a success toast and appends a `'synced'` row to the IndexedDB queue — a permanent local trail used by the offline resolver on future loads.
-7. **If `/api/fuelup` fails.** A 4xx is a terminal rejection (the page shows a rejection toast and does *not* queue — won't fix itself). Any other failure (network, 5xx) enqueues the submission to IndexedDB with status `'queued'` and shows "Saved locally — will sync". The service worker drains the queue on next app focus, visibility change, or `onMount`, marking each entry `'synced'` on success or `'failed'` on a 4xx replay response.
+7. **If `/api/fuelup` fails.** A 4xx is a terminal rejection (the page shows a rejection toast and does _not_ queue — won't fix itself). Any other failure (network, 5xx) enqueues the submission to IndexedDB with status `'queued'` and shows "Saved locally — will sync". The service worker drains the queue on next app focus, visibility change, or `onMount`, marking each entry `'synced'` on success or `'failed'` on a 4xx replay response.
 
 Cross-cutting details — per-endpoint shapes in [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md); offline queue mechanics in [`docs/technical/offline-queue.md`](./technical/offline-queue.md).

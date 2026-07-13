@@ -20,9 +20,7 @@ describe('extractVin', () => {
   });
 
   it('trims whitespace around the value', () => {
-    const vin = extractVin(
-      v({ extraFields: [{ name: 'VIN', value: '  1HGCR2F80EA00735  ' }] })
-    );
+    const vin = extractVin(v({ extraFields: [{ name: 'VIN', value: '  1HGCR2F80EA00735  ' }] }));
     expect(vin).toBe('1HGCR2F80EA00735');
   });
 
@@ -42,9 +40,7 @@ describe('extractVin', () => {
   });
 
   it('returns undefined when no VIN row exists', () => {
-    expect(
-      extractVin(v({ extraFields: [{ name: 'Trim', value: 'EX-L' }] }))
-    ).toBeUndefined();
+    expect(extractVin(v({ extraFields: [{ name: 'Trim', value: 'EX-L' }] }))).toBeUndefined();
   });
 
   it('returns undefined when extraFields is missing', () => {
@@ -85,9 +81,7 @@ describe('extractVin', () => {
 
   it('skips rows with non-string value', () => {
     expect(
-      extractVin(
-        v({ extraFields: [{ name: 'VIN', value: 12345 as unknown as string }] })
-      )
+      extractVin(v({ extraFields: [{ name: 'VIN', value: 12345 as unknown as string }] }))
     ).toBeUndefined();
   });
 

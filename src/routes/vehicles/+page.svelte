@@ -55,9 +55,11 @@
 {:else}
   <div class="flex flex-col gap-2">
     {#each data.vehicles as v (v.id)}
-      <button type="button"
-              class="bg-zinc-800 rounded-xl px-3 py-3 text-left flex items-center gap-3"
-              onclick={() => pick(v.id)}>
+      <button
+        type="button"
+        class="bg-zinc-800 rounded-xl px-3 py-3 text-left flex items-center gap-3"
+        onclick={() => pick(v.id)}
+      >
         <VehicleImage vehicleId={v.id} class="w-14 h-14" svgSize={24} />
         <div class="flex-1 min-w-0">
           <div class="text-base font-semibold truncate">

@@ -36,10 +36,7 @@ async function gotoMaintenanceViaDrawer(page: Page) {
   await expect(page).toHaveURL('/maintenance');
 }
 
-async function baseStubs(
-  page: Page,
-  vehicle: Record<string, unknown>
-) {
+async function baseStubs(page: Page, vehicle: Record<string, unknown>) {
   await page.route('**/api/vehicles', (route) => route.fulfill({ json: [vehicle] }));
   await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: null }));
   await page.route('**/api/fx**', (route) =>

@@ -3,7 +3,9 @@ import type { RequestHandler } from './$types';
 import { parseVehicleId, withLubeLogger } from '$lib/server/lubeloggerProxy';
 import { getCachedVehicles, _resetVehicleCache } from '$lib/server/vehicleCache';
 
-export function _resetCache() { _resetVehicleCache(); }
+export function _resetCache() {
+  _resetVehicleCache();
+}
 
 export const GET: RequestHandler = ({ url, locals }) => {
   const vehicleId = parseVehicleId(url);

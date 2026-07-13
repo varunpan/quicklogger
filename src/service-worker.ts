@@ -63,7 +63,12 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(API_CACHE);
-        return vehiclesNetworkFirst(req, (r) => fetch(r), cache, (p) => event.waitUntil(p));
+        return vehiclesNetworkFirst(
+          req,
+          (r) => fetch(r),
+          cache,
+          (p) => event.waitUntil(p)
+        );
       })()
     );
     return;
@@ -108,7 +113,8 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
   const data = event.data as { type?: string; historyKeepPerVehicle?: number } | undefined;
   // historyKeepPerVehicle rides in on the message — this worker has no
   // localStorage, so the page's preference can't be read here directly.
-  if (data?.type === 'sync-queue') event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle));
+  if (data?.type === 'sync-queue')
+    event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle));
   // Version query from registerControllerReload: reply on the transferred
   // port with this worker's build version so the page can decide whether a
   // controllerchange means "new deploy → reload" or "same build → ignore".
@@ -150,15 +156,23 @@ self.addEventListener('unhandledrejection', (event) => {
   });
 });
 
-async function sendSwLog(level: 'error' | 'warn' | 'info', msg: string, ctx: Record<string, unknown>) {
+async function sendSwLog(
+  level: 'error' | 'warn' | 'info',
+  msg: string,
+  ctx: Record<string, unknown>
+) {
   try {
     await fetch('/api/log', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       keepalive: true,
       body: JSON.stringify({
-        records: [{ level, msg, ts: new Date().toISOString(), ctx: { ...ctx, source: 'service-worker' } }]
+        records: [
+          { level, msg, ts: new Date().toISOString(), ctx: { ...ctx, source: 'service-worker' } }
+        ]
       })
     });
-  } catch { /* swallow — we can't log a log failure */ }
+  } catch {
+    /* swallow — we can't log a log failure */
+  }
 }

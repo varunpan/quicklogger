@@ -17,8 +17,13 @@ beforeAll(() => {
 beforeEach(() => _resetCache());
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-  child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as unknown as import('../../src/lib/server/logger').Logger;
 
 function eventFor(): Parameters<typeof GET>[0] {
@@ -117,11 +122,13 @@ describe('GET /api/vehicles', () => {
         calls++;
         return HttpResponse.json([{ id: 1, imageLocation: '/images/a.jpg' }]);
       }),
-      http.get('http://lubelog:8080/images/a.jpg', () =>
-        new HttpResponse(new Uint8Array([1, 2, 3]), {
-          status: 200,
-          headers: { 'content-type': 'image/jpeg' }
-        })
+      http.get(
+        'http://lubelog:8080/images/a.jpg',
+        () =>
+          new HttpResponse(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          })
       )
     );
     // Both routes ask for the vehicle list. With a shared cache only the first

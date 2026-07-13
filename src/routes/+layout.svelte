@@ -116,7 +116,15 @@
       onclick={() => (drawerOpen = !drawerOpen)}
       class="p-2 -mr-2 text-zinc-300 active:text-zinc-100"
     >
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <svg
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
         <line x1="4" y1="6" x2="20" y2="6" />
         <line x1="4" y1="12" x2="20" y2="12" />
         <line x1="4" y1="18" x2="20" y2="18" />
@@ -152,7 +160,15 @@
       <span>quicklogger</span>
     </span>
     <button type="button" aria-label="Close menu" onclick={close} class="p-2 -mr-2 text-zinc-400">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
         <line x1="6" y1="6" x2="18" y2="18" />
         <line x1="6" y1="18" x2="18" y2="6" />
       </svg>
@@ -162,8 +178,10 @@
     <ul class="flex flex-col gap-1">
       {#each navItems as item (item.href)}
         <li>
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a href={item.href} onclick={close}
+          <!-- eslint-disable svelte/no-navigation-without-resolve -->
+          <a
+            href={item.href}
+            onclick={close}
             class="block px-3 py-3 rounded-lg text-base"
             class:bg-zinc-800={isActive(item.href)}
             class:text-blue-400={isActive(item.href)}
@@ -172,6 +190,7 @@
           >
             {item.label}
           </a>
+          <!-- eslint-enable svelte/no-navigation-without-resolve -->
         </li>
       {/each}
     </ul>
@@ -181,7 +200,11 @@
     <span class="inline-flex items-center gap-1.5">
       <span>v{__APP_VERSION__}</span>
       {#if appUpdateAvailable}
-        <span class="w-1.5 h-1.5 rounded-full bg-amber-500" title="Update available" data-testid="drawer-update-dot"></span>
+        <span
+          class="w-1.5 h-1.5 rounded-full bg-amber-500"
+          title="Update available"
+          data-testid="drawer-update-dot"
+        ></span>
       {/if}
     </span>
     <span aria-hidden="true">·</span>

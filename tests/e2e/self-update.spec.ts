@@ -5,9 +5,15 @@ test.use({ serviceWorkers: 'block' });
 
 function appUpdateInfo(overrides: Record<string, unknown> = {}) {
   return {
-    reachable: true, status: 'ok',
-    currentVersion: '1.6.5', latestVersion: '1.6.5', updateAvailable: false,
-    locale: null, currencySymbol: null, decimalSeparator: null, dateFormat: null,
+    reachable: true,
+    status: 'ok',
+    currentVersion: '1.6.5',
+    latestVersion: '1.6.5',
+    updateAvailable: false,
+    locale: null,
+    currencySymbol: null,
+    decimalSeparator: null,
+    dateFormat: null,
     lubeloggerCurrency: null,
     appCurrentVersion: '0.2.3',
     appLatestVersion: '0.2.4',
@@ -26,7 +32,9 @@ async function mockServerInfo(page: Page, body: Record<string, unknown>) {
   await page.route('**/api/server-info', (route) => route.fulfill({ json: body }));
 }
 
-test('Settings: update available shows badge, version arrow, release-notes link', async ({ page }) => {
+test('Settings: update available shows badge, version arrow, release-notes link', async ({
+  page
+}) => {
   const info = appUpdateInfo();
   await seedCache(page, info);
   await mockServerInfo(page, info);
@@ -34,7 +42,10 @@ test('Settings: update available shows badge, version arrow, release-notes link'
   const block = page.getByTestId('app-info');
   await expect(block.getByText('Update available')).toBeVisible();
   await expect(page.getByTestId('app-version')).toContainText('v0.2.3 → v0.2.4');
-  await expect(page.getByTestId('app-release-notes')).toHaveAttribute('href', info.appReleaseUrl as string);
+  await expect(page.getByTestId('app-release-notes')).toHaveAttribute(
+    'href',
+    info.appReleaseUrl as string
+  );
 });
 
 test('Settings: up to date shows emerald + version only, no release link', async ({ page }) => {
@@ -76,7 +87,10 @@ test('Home banner: shows + links, dismiss persists across navigation', async ({ 
   const banner = page.getByTestId('update-banner');
   await expect(banner).toBeVisible();
   await expect(banner).toContainText('quicklogger v0.2.4 available');
-  await expect(page.getByTestId('banner-release-notes')).toHaveAttribute('href', info.appReleaseUrl as string);
+  await expect(page.getByTestId('banner-release-notes')).toHaveAttribute(
+    'href',
+    info.appReleaseUrl as string
+  );
 
   await page.getByTestId('banner-dismiss').click();
   await expect(banner).toHaveCount(0);

@@ -17,7 +17,9 @@ function captureLogger(): { logger: Logger; calls: LogCall[] } {
     info: log('info'),
     warn: log('warn'),
     error: log('error'),
-    child() { return this; }
+    child() {
+      return this;
+    }
   } as unknown as Logger;
   return { logger, calls };
 }
@@ -25,8 +27,12 @@ function captureLogger(): { logger: Logger; calls: LogCall[] } {
 function inMemoryStore(initial?: BudgetEntry | null): BudgetStore {
   let data = initial ?? null;
   return {
-    async load() { return data; },
-    async update(mutator) { data = mutator(data); }
+    async load() {
+      return data;
+    },
+    async update(mutator) {
+      data = mutator(data);
+    }
   };
 }
 
@@ -78,27 +84,31 @@ describe('OcrBudget', () => {
   it('logs a warn and proceeds when the store read fails on check()', async () => {
     const { logger, calls } = captureLogger();
     const store: BudgetStore = {
-      async load() { throw new Error('disk gone'); },
+      async load() {
+        throw new Error('disk gone');
+      },
       async update() {}
     };
     const b = new OcrBudget({ dailyUsd: 1.0, store, logger });
     await expect(b.check()).resolves.toEqual({ ok: true });
-    expect(
-      calls.some((c) => c.level === 'warn' && c.msg === 'ocr budget read failed')
-    ).toBe(true);
+    expect(calls.some((c) => c.level === 'warn' && c.msg === 'ocr budget read failed')).toBe(true);
   });
 
   it('logs an error and swallows when the store write fails on add()', async () => {
     const { logger, calls } = captureLogger();
     const store: BudgetStore = {
-      async load() { return null; },
-      async update() { throw new Error('disk full'); }
+      async load() {
+        return null;
+      },
+      async update() {
+        throw new Error('disk full');
+      }
     };
     const b = new OcrBudget({ dailyUsd: 1.0, store, logger });
     await expect(b.add(0.6)).resolves.toBeUndefined();
-    expect(
-      calls.some((c) => c.level === 'error' && c.msg === 'ocr budget write failed')
-    ).toBe(true);
+    expect(calls.some((c) => c.level === 'error' && c.msg === 'ocr budget write failed')).toBe(
+      true
+    );
   });
 });
 

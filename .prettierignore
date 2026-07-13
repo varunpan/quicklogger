@@ -1,0 +1,12 @@
+# Build / generated output
+.svelte-kit/
+build/
+coverage/
+playwright-report/
+test-results/
+
+# Lockfile — machine-generated, huge diff noise
+package-lock.json
+
+# Runtime data volume
+data/

@@ -16,11 +16,11 @@ export async function mockQuickloggerApi(page: Page) {
   await page.route('**/api/vehicles', (route) =>
     route.fulfill({ json: [{ id: 1, year: 2019, make: 'Honda', model: 'Civic Si' }] })
   );
-  await page.route('**/api/vehicle/last-fuelup**', (route) =>
-    route.fulfill({ json: null })
-  );
+  await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: null }));
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 0.73, source: 'frankfurter', fetchedAt: Date.now(), stale: false, ageHours: 1 } })
+    route.fulfill({
+      json: { rate: 0.73, source: 'frankfurter', fetchedAt: Date.now(), stale: false, ageHours: 1 }
+    })
   );
   await page.route('**/api/fuelup', async (route) => {
     const body = JSON.parse(route.request().postData() ?? '{}');
@@ -58,7 +58,9 @@ export async function pinClock(page: Page, isoLocal: string) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         else super(...(args as [any]));
       }
-      static now() { return now; }
+      static now() {
+        return now;
+      }
     };
   }, isoLocal);
 }
@@ -66,7 +68,7 @@ export async function pinClock(page: Page, isoLocal: string) {
 export type LastFuelupPayload = {
   id: number;
   vehicleId: number;
-  date: string;           // ISO YYYY-MM-DD
+  date: string; // ISO YYYY-MM-DD
   odometer: number;
   fuelConsumed: number;
   cost: number;
@@ -112,7 +114,9 @@ export async function mockWithLastFuelup(
     route.fulfill({ json: lastFuelup ?? null })
   );
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
 }
 

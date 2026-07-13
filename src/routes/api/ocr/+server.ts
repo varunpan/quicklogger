@@ -9,7 +9,7 @@ import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey } from '$lib/server/oc
 import { getLogger } from '$lib/server/logger';
 import type { OcrMode, OcrStatus } from '$lib/shared/types';
 
-const AUDIT_MAX_BYTES = 10 * 1024 * 1024;       // 10 MiB JSONL rotation
+const AUDIT_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB JSONL rotation
 
 // Multipart envelope overhead (boundaries + part headers + the handful of
 // small text fields). A generous fixed allowance so an honest-sized image is
@@ -44,7 +44,10 @@ function bootstrap(env: Env) {
 }
 
 export function _resetForTests() {
-  rateLimiter = null; budget = null; audit = null; hmacKey = null;
+  rateLimiter = null;
+  budget = null;
+  audit = null;
+  hmacKey = null;
 }
 
 const ADVERTISED_MODES: OcrMode[] = ['pump', 'odometer'];
@@ -125,9 +128,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
   const rotationRaw = form.get('rotation');
   const rotationParsed = typeof rotationRaw === 'string' ? Number(rotationRaw) : 0;
   const rotationApplied =
-    rotationParsed === 90 || rotationParsed === 180 || rotationParsed === 270
-      ? rotationParsed
-      : 0;
+    rotationParsed === 90 || rotationParsed === 180 || rotationParsed === 270 ? rotationParsed : 0;
 
   // Optional crop fields — all four required, all four must parse to finite
   // numbers in [0, 1], with cropX + cropW <= 1 and cropY + cropH <= 1, and
@@ -157,8 +158,12 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 
   const arr = new Uint8Array(await file.arrayBuffer());
   const outcome = await runOcrPipeline({
-    bytes: arr, mode, provider, env,
-    lastOdometerMi, lastPricePerUnit,
+    bytes: arr,
+    mode,
+    provider,
+    env,
+    lastOdometerMi,
+    lastPricePerUnit,
     logger: locals.logger
   });
 
@@ -174,13 +179,17 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
       cropRect,
       ...(lastOdometerMi !== undefined ? { lastOdometerMi } : {}),
       ...(lastPricePerUnit !== undefined ? { lastPricePerUnit } : {}),
-      ipHash, imgHash, imgBytes: arr.byteLength,
+      ipHash,
+      imgHash,
+      imgBytes: arr.byteLength,
       imageType: outcome.imageType,
       provider: outcome.provider,
       model: modelForSlot(outcome.provider, env),
       fellbackFrom: outcome.fellbackFrom,
-      latencyMs: outcome.latencyMs, costCents: outcome.costCents,
-      parsed: outcome.result, ok: true
+      latencyMs: outcome.latencyMs,
+      costCents: outcome.costCents,
+      parsed: outcome.result,
+      ok: true
     });
     return json(outcome.result);
   }
@@ -205,13 +214,17 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
     cropRect,
     ...(lastOdometerMi !== undefined ? { lastOdometerMi } : {}),
     ...(lastPricePerUnit !== undefined ? { lastPricePerUnit } : {}),
-    ipHash, imgHash, imgBytes: arr.byteLength,
+    ipHash,
+    imgHash,
+    imgBytes: arr.byteLength,
     imageType: outcome.imageType ?? 'unknown',
     provider: failSlot,
     model: modelForSlot(failSlot, env),
     fellbackFrom: null,
-    latencyMs: outcome.latencyMs, costCents: outcome.costCents,
-    parsed: null, ok: false,
+    latencyMs: outcome.latencyMs,
+    costCents: outcome.costCents,
+    parsed: null,
+    ok: false,
     error: { code: String(outcome.statusCode), message: outcome.error }
   });
   return json({ error: outcome.error }, { status: outcome.statusCode });
@@ -236,14 +249,24 @@ function parseCropFields(form: FormData): { x: number; y: number; w: number; h: 
   const w = form.get('cropW');
   const h = form.get('cropH');
   // All four or nothing.
-  if (typeof x !== 'string' || typeof y !== 'string' || typeof w !== 'string' || typeof h !== 'string') {
+  if (
+    typeof x !== 'string' ||
+    typeof y !== 'string' ||
+    typeof w !== 'string' ||
+    typeof h !== 'string'
+  ) {
     return null;
   }
   const xn = Number(x);
   const yn = Number(y);
   const wn = Number(w);
   const hn = Number(h);
-  if (!Number.isFinite(xn) || !Number.isFinite(yn) || !Number.isFinite(wn) || !Number.isFinite(hn)) {
+  if (
+    !Number.isFinite(xn) ||
+    !Number.isFinite(yn) ||
+    !Number.isFinite(wn) ||
+    !Number.isFinite(hn)
+  ) {
     return null;
   }
   if (xn < 0 || yn < 0 || wn <= 0 || hn <= 0) return null;

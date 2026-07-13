@@ -136,9 +136,14 @@ describe('vehiclesNetworkFirst', () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
     await cache.put(req, new Response(JSON.stringify([{ id: 7 }]), { status: 200 }));
-    const res = await vehiclesNetworkFirst(req, async () => {
-      throw new Error('offline');
-    }, cache, fakeWaitUntil().waitUntil);
+    const res = await vehiclesNetworkFirst(
+      req,
+      async () => {
+        throw new Error('offline');
+      },
+      cache,
+      fakeWaitUntil().waitUntil
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([{ id: 7 }]);
   });
@@ -160,9 +165,14 @@ describe('vehiclesNetworkFirst', () => {
   it('returns 504 when offline with a cold cache', async () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
-    const res = await vehiclesNetworkFirst(req, async () => {
-      throw new Error('offline');
-    }, cache, fakeWaitUntil().waitUntil);
+    const res = await vehiclesNetworkFirst(
+      req,
+      async () => {
+        throw new Error('offline');
+      },
+      cache,
+      fakeWaitUntil().waitUntil
+    );
     expect(res.status).toBe(504);
   });
 });

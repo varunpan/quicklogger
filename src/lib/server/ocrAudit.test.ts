@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  readFileSync,
+  writeFileSync,
+  statSync,
+  existsSync,
+  mkdirSync,
+  chmodSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OcrAudit, hashIp, hashImage, resolveAuditHmacKey, type AuditRecord } from './ocrAudit';
@@ -16,7 +25,9 @@ function captureLogger(): { logger: Logger; calls: LogCall[] } {
     info: log('info'),
     warn: log('warn'),
     error: log('error'),
-    child() { return this; }
+    child() {
+      return this;
+    }
   } as unknown as Logger;
   return { logger, calls };
 }
@@ -62,18 +73,20 @@ describe('OcrAudit', () => {
   it('appends one JSONL line per record (pump + odometer)', async () => {
     const audit = new OcrAudit({ path, maxBytes: 1_048_576 });
     await audit.append(pumpRecord());
-    await audit.append(pumpRecord({
-      mode: 'odometer',
-      parsed: { mode: 'odometer', odometer: 87600 },
-      ok: false,
-      error: { code: 'TIMEOUT', message: 'upstream timed out' },
-      provider: 'openrouter',
-      model: 'google/gemini-2.5-flash-lite',
-      fellbackFrom: 'ollama-local',
-      costCents: 0.006,
-      latencyMs: 9999,
-      imgHash: 'sha256:ghi'
-    }));
+    await audit.append(
+      pumpRecord({
+        mode: 'odometer',
+        parsed: { mode: 'odometer', odometer: 87600 },
+        ok: false,
+        error: { code: 'TIMEOUT', message: 'upstream timed out' },
+        provider: 'openrouter',
+        model: 'google/gemini-2.5-flash-lite',
+        fellbackFrom: 'ollama-local',
+        costCents: 0.006,
+        latencyMs: 9999,
+        imgHash: 'sha256:ghi'
+      })
+    );
     const lines = readFileSync(path, 'utf-8').trim().split('\n');
     expect(lines).toHaveLength(2);
     const row0 = JSON.parse(lines[0]);
@@ -85,8 +98,8 @@ describe('OcrAudit', () => {
 
   it('round-trips rotationApplied through append + read (default 0 and explicit 90)', async () => {
     const audit = new OcrAudit({ path, maxBytes: 1_048_576 });
-    await audit.append(pumpRecord());                          // default 0
-    await audit.append(pumpRecord({ rotationApplied: 90 }));   // explicit
+    await audit.append(pumpRecord()); // default 0
+    await audit.append(pumpRecord({ rotationApplied: 90 })); // explicit
     const lines = readFileSync(path, 'utf-8').trim().split('\n');
     expect(lines).toHaveLength(2);
     expect(JSON.parse(lines[0]).rotationApplied).toBe(0);
@@ -95,11 +108,13 @@ describe('OcrAudit', () => {
 
   it('round-trips cropApplied + cropRect through append + read', async () => {
     const audit = new OcrAudit({ path, maxBytes: 1_048_576 });
-    await audit.append(pumpRecord());  // default cropApplied: false, cropRect: null
-    await audit.append(pumpRecord({
-      cropApplied: true,
-      cropRect: { x: 0.1, y: 0.2, w: 0.6, h: 0.4 }
-    }));
+    await audit.append(pumpRecord()); // default cropApplied: false, cropRect: null
+    await audit.append(
+      pumpRecord({
+        cropApplied: true,
+        cropRect: { x: 0.1, y: 0.2, w: 0.6, h: 0.4 }
+      })
+    );
     const lines = readFileSync(path, 'utf-8').trim().split('\n');
     expect(lines).toHaveLength(2);
     expect(JSON.parse(lines[0]).cropApplied).toBe(false);
@@ -141,9 +156,9 @@ describe('OcrAudit', () => {
       logger
     });
     await expect(audit.append(pumpRecord())).resolves.toBeUndefined();
-    expect(
-      calls.some((c) => c.level === 'error' && c.msg === 'ocr audit append failed')
-    ).toBe(true);
+    expect(calls.some((c) => c.level === 'error' && c.msg === 'ocr audit append failed')).toBe(
+      true
+    );
   });
 });
 
@@ -254,8 +269,7 @@ describe('resolveAuditHmacKey', () => {
       calls.some(
         (c) =>
           c.level === 'error' &&
-          (c.msg === 'ocr audit key read failed' ||
-            c.msg === 'ocr audit key generation failed')
+          (c.msg === 'ocr audit key read failed' || c.msg === 'ocr audit key generation failed')
       )
     ).toBe(true);
   });

@@ -19,7 +19,11 @@ function makeDeps(opts: { controller?: FlushTarget | null; ready?: Promise<unkno
   const doc = Object.assign(new EventTarget(), {
     visibilityState: 'visible' as DocumentVisibilityState
   });
-  const deps: SyncTriggerDeps = { serviceWorker: { controller, ready }, window: win, document: doc };
+  const deps: SyncTriggerDeps = {
+    serviceWorker: { controller, ready },
+    window: win,
+    document: doc
+  };
   return { post, win, doc, deps };
 }
 

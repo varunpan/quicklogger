@@ -5,7 +5,9 @@ import { mockQuickloggerApi, seedPrefs } from './fixtures';
 // see the API requests (the SW intercepts /api/* GETs by default).
 test.use({ serviceWorkers: 'block' });
 
-test('logs a CAD/L fillup, shows USD/gal in confirmation, and redirects to maintenance', async ({ page }) => {
+test('logs a CAD/L fillup, shows USD/gal in confirmation, and redirects to maintenance', async ({
+  page
+}) => {
   // Smart checks (default on) would fire against the real upstream
   // lastFuelup that SSR reads in via page.goto. This test is about the
   // CAD/L conversion path, not smart checks — disable them here so the
