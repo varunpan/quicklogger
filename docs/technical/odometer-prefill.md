@@ -6,7 +6,7 @@ Pre-fills the odometer field with the previous reading and renders a one-tap
 `+N mi` chip beneath it, plus a two-line snapshot strip above the form. User
 guide: [`docs/user/odometer-prefill.md`](../user/odometer-prefill.md). Where it
 sits in the bigger picture: see the `/` page section in
-[`docs/architecture.md`](../architecture.md#---main-form).
+[`docs/architecture.md`](../architecture.md#--main-form).
 
 ## Files
 
@@ -50,32 +50,40 @@ upgrading in-place see the feature on with a 300 mi chip on first open.
      or when the parsed reading isn't finite;
    - otherwise returns `String(Math.round(Number(...)))` — raw digits so the
      `type="number"` input accepts them without complaint.
+
+   The input's `placeholder` comes from the sibling `placeholderOdometer()`:
+   the last reading's rounded digits, or the literal `No last fuel up` when
+   `data.lastFuelup` is absent — so an empty field still says what the
+   baseline is (or that there isn't one).
+
 4. `odometerEdited` starts `false`. It flips to `true` on the input's
    `oninput` handler **or** when `bumpOdometer()` runs (chip tap).
 5. `odometerDelta` is `$derived.by(...)`: returns `null` until
    `odometerEdited` is true and `data.lastFuelup` exists, then renders
    `current - last` (signed).
 6. After a successful submit, `odometer = initialOdometer()` and
-   `odometerEdited = false` — the field re-prefills from the same
-   page-load snapshot. The strip itself does not update; it refreshes on
-   the next navigation / page reload (PWA relaunch).
+   `odometerEdited = false` run first (on the still-live component), then
+   the success path navigates away via
+   `goto('/maintenance?vehicleId=…')`. Returning to `/` re-runs the
+   loader, so the strip and prefill pick up the just-submitted fillup on
+   the next visit.
 
 `data.lastFuelup` snapshot semantics are documented in the strip paragraph
 of `docs/architecture.md` — they apply equally to the field prefill.
 
 ## Edge cases & invariants
 
-| Scenario                                | Behaviour                                                                            | Why                                                                                      |
-| --------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `odometerIncrementMi === 0`             | Chip hidden, prefill still applies                                                   | `0`-as-disable matches the user-guide contract; hides the chip without affecting prefill |
-| No last fillup (`data.lastFuelup` null) | Strip + chip hidden, field empty                                                     | Nothing to prefill from, nothing meaningful to bump                                      |
-| `odometerPrefillEnabled === false`      | Strip still shows (independent), field empty, chip hidden                            | Strip is informational and orthogonal to the prefill toggle                              |
-| Empty field + chip tap                  | Field becomes the increment value                                                    | `Number('' \|\| 0) = 0`; `0 + 300 = 300`. Edge but harmless                              |
-| Multi-tap chip                          | Each tap stacks (`+300, +600, +900, …`)                                              | Operates on the _current_ field value, not on a one-shot baseline                        |
-| Manual edit then chip                   | Chip adds to the typed value                                                         | Same code path; the chip never re-reads the snapshot                                     |
-| Submit with prefill, then look          | Field re-prefills, helper line briefly shows `0 mi this tank` until next interaction | See "Future considerations"                                                              |
-| Non-finite parse (`Number('abc')`)      | `formatOdometer` returns the raw string                                              | Better than rendering `NaN`                                                              |
-| `daysAgo` against today                 | Returns `'today'`; `1` → `'yesterday'`; otherwise `N days ago`                       | Diff is local-calendar-day, not UTC                                                      |
+| Scenario                                | Behaviour                                                      | Why                                                                                                                                                      |
+| --------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `odometerIncrementMi === 0`             | Chip hidden, prefill still applies                             | `0`-as-disable matches the user-guide contract; hides the chip without affecting prefill                                                                 |
+| No last fillup (`data.lastFuelup` null) | Strip hidden, field empty; chip still renders                  | Chip is gated only on `odometerPrefillEnabled && odometerIncrementMi > 0`, not on the snapshot — tapping it on the empty field yields the bare increment |
+| `odometerPrefillEnabled === false`      | Strip still shows (independent), field empty, chip hidden      | Strip is informational and orthogonal to the prefill toggle                                                                                              |
+| Empty field + chip tap                  | Field becomes the increment value                              | `Number('' \|\| 0) = 0`; `0 + 300 = 300`. Edge but harmless                                                                                              |
+| Multi-tap chip                          | Each tap stacks (`+300, +600, +900, …`)                        | Operates on the _current_ field value, not on a one-shot baseline                                                                                        |
+| Manual edit then chip                   | Chip adds to the typed value                                   | Same code path; the chip never re-reads the snapshot                                                                                                     |
+| Submit with prefill                     | Field resets re-run, then the app navigates to `/maintenance`  | The form isn't visible post-submit; coming back to `/` re-runs the loader                                                                                |
+| Non-finite parse (`Number('abc')`)      | `formatOdometer` returns the raw string                        | Better than rendering `NaN`                                                                                                                              |
+| `daysAgo` against today                 | Returns `'today'`; `1` → `'yesterday'`; otherwise `N days ago` | Diff is local-calendar-day, not UTC                                                                                                                      |
 
 ## Non-obvious decisions
 
@@ -99,12 +107,13 @@ informative. Same affordance the form already uses for the live MPG
 preview — only renders when there's something to say.
 
 **No optimistic update of the strip post-submit.** `data.lastFuelup`
-stays as the page-load snapshot for the lifetime of the session.
-Submitting then immediately glancing at the strip shows the _previous_
-fillup, not the just-submitted one. The PWA's home-screen launch reloads
-the page on next session, which is when fresh data arrives. Saving a
-round-trip post-submit isn't worth the staleness risk during the same
-session, and the at-pump flow doesn't need it.
+stays as the page-load snapshot for the lifetime of the page. A
+successful submit resets the form fields and then immediately navigates
+to `/maintenance?vehicleId=…`, so there is no post-submit moment where
+the strip is glanced at stale. Returning to `/` re-runs the loader and
+the strip renders the just-submitted fillup. Mutating the snapshot
+client-side to save that loader round-trip isn't worth the staleness
+risk, and the at-pump flow doesn't need it.
 
 **Odometer cell is a `<div>`, not a `<label>`.** Other form cells wrap
 their input in `<label class="field">`, but the odometer cell now
@@ -132,16 +141,17 @@ because LubeLogger's POST is case-insensitive on form-data) is documented
 in [`docs/technical/idb-and-api.md`](./idb-and-api.md) § _LubeLogger
 upstream calls_.
 
-**Strip date locale is pinned to `en-US`.** `formatLastFillupDate` calls
-`toLocaleDateString('en-US', { month: 'short', day: 'numeric', year:
-'numeric' })` rather than the browser default. Without the explicit
-locale, an en-GB device would render `5 May 2026` instead of `May 5,
-2026`, and the rendered strip would silently change shape per user. The
-locale pin trades cross-locale flexibility (out of scope — the source
-LubeLogger date is itself `M/D/YYYY`) for deterministic, testable output.
-The unit test `'uses en-US month abbreviations (not browser locale)'` in
-`format.test.ts` guards against a CI runner whose default locale would
-otherwise hide a regression.
+**Strip date locale is instance-driven, not browser-driven.**
+`formatLastFillupDate` calls `toLocaleDateString(effectiveLocale(), {
+month: 'short', day: 'numeric', year: 'numeric' })`, where
+`effectiveLocale()` is `loadServerInfo()?.locale ?? 'en-US'` — the cached
+LubeLogger instance locale with an `en-US` fallback. The strip therefore
+matches the instance's own date rendering (an en-GB instance shows `5 May
+2026`, en-US shows `May 5, 2026`) instead of silently changing shape with
+each browser's default locale, and stays deterministic when the
+server-info cache is empty (SSR, first boot). The `formatLastFillupDate`
+suite in `format.test.ts` asserts both halves: the en-US fallback output
+and that seeding a cached locale (en-GB) changes the absolute-date shape.
 
 ## Future considerations
 

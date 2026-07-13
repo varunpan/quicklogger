@@ -19,7 +19,7 @@ All env vars in one table, ordered by area. Photo OCR is feature-gated
 | ------------------------------ | -------------------- | -------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `LUBELOGGER_URL`               | URL                  | **yes**  | —                                   | Base URL of your LubeLogger instance (no trailing slash). All upstream API calls are made against this host.                                                                                                      |
 | `LUBELOGGER_API_KEY`           | string               | **yes**  | —                                   | API key used for the `x-api-key` header on every LubeLogger request.                                                                                                                                              |
-| `LUBELOGGER_VOLUME_UNIT`       | string               | no       | `gallons_us`                        | The volume unit LubeLogger expects on inserts. quicklogger converts every submission to this unit before posting.                                                                                                 |
+| `LUBELOGGER_VOLUME_UNIT`       | string               | no       | `gallons_us`                        | The volume unit LubeLogger expects on inserts. **Only `gallons_us` is supported today** — any other value makes every submit fail with a 500 (see the warning below the table).                                   |
 | `LUBELOGGER_CURRENCY`          | ISO 4217 code        | no       | `USD`                               | The currency LubeLogger expects for cost. quicklogger converts every submission to this currency at submit time via the FX chain, AND renders upstream-cached fillups in this currency (via `Intl.NumberFormat`). |
 | `FX_PROVIDERS`                 | comma-separated list | no       | `frankfurter,erapi,fawazahmed`      | Ordered list of FX providers tried in sequence when the cache is cold or stale. First success wins.                                                                                                               |
 | `FX_CACHE_PATH`                | filesystem path      | no       | `/data/fx-cache.json`               | On-disk path the server reads/writes for the persistent FX cache. The directory is created if it doesn't exist.                                                                                                   |
@@ -84,10 +84,15 @@ LubeLogger under Settings → API.
 
 #### `LUBELOGGER_VOLUME_UNIT`
 
-LubeLogger supports `gallons_us`, `gallons_uk`, and `liters`. Set this
-to match your LubeLogger instance's configured unit so the server
-sends consistent values. The form's own `Gal`/`L` toggle is for input
-convenience only; the server always converts.
+> **Warning: only `gallons_us` works today.** The conversion layer
+> (`src/lib/server/convert.ts`) throws on any other target unit, so
+> setting this to `gallons_uk` or `liters` makes **every submission
+> fail with a 500**. Nothing catches this at startup — the value is
+> accepted at boot and only blows up on submit. Leave it unset (or
+> explicitly `gallons_us`) until a future release adds the other units.
+
+The form's own `Gal`/`L` toggle is for input convenience only; the
+server always converts entered liters to US gallons before posting.
 
 #### `LUBELOGGER_CURRENCY`
 
@@ -160,11 +165,14 @@ that matches its own listening address.
 
 ### Photo OCR (v0.2.0+)
 
-All vars in this section are optional. The feature is hidden unless
-`OLLAMA_VISION_URL` or `OPENROUTER_API_KEY` is set. When both are set,
-ollama is tried first and OpenRouter is the bounded cloud fallback —
-see [`photo-ocr.md`](photo-ocr.md) for the full provider chain
-behaviour.
+All vars in this section are optional. The feature is hidden unless at
+least one provider slot is configured: `OLLAMA_VISION_URL`,
+`OPENROUTER_API_KEY`, `OLLAMA_CLOUD_API_KEY`, or the full
+`OPENAI_COMPATIBLE_URL`+`API_KEY`+`MODEL` trio. Configured slots form a
+fallback chain in the default order `ollama-local`, `openrouter`,
+`ollama-cloud`, `openai-compatible` (overridable via
+`OCR_PROVIDER_CHAIN`) — see [`photo-ocr.md`](photo-ocr.md) for the full
+provider chain behaviour.
 
 #### `OLLAMA_VISION_URL`
 
@@ -368,9 +376,10 @@ existing deploy tacks cloud on at the END unless you set
 `OCR_PROVIDER_CHAIN` explicitly).
 
 Slots explicitly named in `OCR_PROVIDER_CHAIN` whose required env
-vars are missing produce a startup WARN line and are dropped from
-the effective chain. Default-chain missing-config slots are
-silent-skipped. Example "fastest cloud first, local fallback":
+vars are missing produce an `ocr chain slot skipped` WARN line and
+are dropped from the effective chain. The check runs each time the
+chain is built — on every `/api/ocr` request and status probe, not
+once at boot. Default-chain missing-config slots are silent-skipped. Example "fastest cloud first, local fallback":
 
         OCR_PROVIDER_CHAIN=ollama-cloud,ollama-local,openrouter
 
@@ -390,13 +399,13 @@ them to a writable location, e.g.:
 
 quicklogger emits a JSON record to stdout for every request and every notable event. By default, that's all — `docker logs quicklogger` shows the stream. Set the env vars below to tune verbosity or also persist to a rotating logfile.
 
-| Var                    | Default | Notes                                                                                                          |
-| ---------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| `LOG_LEVEL`            | `info`  | One of `debug`, `info`, `warn`, `error`. Invalid values fall back to `info` and emit a single warn at boot.    |
-| `LOG_FILE_PATH`        | unset   | If set, writes the same JSON records to this rotating file. Compose example uses `/data/logs/quicklogger.log`. |
-| `LOG_FILE_MAX_SIZE_MB` | `5`     | Rotation threshold. Ignored if `LOG_FILE_PATH` is unset.                                                       |
-| `LOG_FILE_MAX_FILES`   | `5`     | Historical files kept on disk. Oldest deleted on rotation.                                                     |
-| `LOG_PRETTY`           | auto    | `1` = colorized human-readable stdout; `0` = JSON. Auto-detected from `NODE_ENV` when unset.                   |
+| Var                    | Default | Notes                                                                                                                                              |
+| ---------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LOG_LEVEL`            | `info`  | One of `debug`, `info`, `warn`, `error`. Invalid values fall back to `info` and emit a single warn at boot.                                        |
+| `LOG_FILE_PATH`        | unset   | If set, writes the same JSON records to this rotating file. Compose example uses `/data/logs/quicklogger.log`.                                     |
+| `LOG_FILE_MAX_SIZE_MB` | `5`     | Rotation threshold. Valid range 1–100; out-of-range or non-numeric values warn at boot and fall back to `5`. Ignored if `LOG_FILE_PATH` is unset.  |
+| `LOG_FILE_MAX_FILES`   | `5`     | Historical files kept on disk. Valid range 1–20; out-of-range or non-numeric values warn at boot and fall back to `5`. Oldest deleted on rotation. |
+| `LOG_PRETTY`           | auto    | `1` = colorized human-readable stdout; `0` = JSON. Auto-detected from `NODE_ENV` when unset.                                                       |
 
 The browser and service worker also forward thrown errors to the server, so phone-side failures land in the same log stream — no separate client log to chase down. The full level taxonomy and grep recipes live in [`docs/technical/logging.md`](../technical/logging.md).
 
@@ -405,7 +414,9 @@ The browser and service worker also forward thrown errors to the server, so phon
 The repo's [`README.md`](../../README.md) §Configuration shows a
 minimal 5-row version of this table for first-run setup. The
 [`.env.example`](../../.env.example) file at the repo root mirrors
-this reference as a copy-paste template.
+this reference as a copy-paste template. Note that `.env.example` also
+carries a few compose-only variables (`TRAEFIK_*`, `HOST_PORT`) that
+are consumed by the compose files, not read by the app itself.
 
 For the FX provider chain details and the cache file format, see
 [`currency-fx.md`](currency-fx.md) (user perspective) and

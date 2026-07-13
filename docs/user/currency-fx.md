@@ -30,19 +30,22 @@ first form open with no preferences saved, it defaults to `USD`.
 Once you've entered a valid volume **and** cost, a blue summary line
 appears above the **Log fillup** button:
 
-        Will log: 11.20 Gal · $42.18 USD  ·  28.4 MPG since last fill
+        Will log: 11.20 Gal · $42.18  ·  28.4 MPG since last fill
 
-The line always shows the converted gallons and USD-equivalent cost the
-server will receive. It optionally adds:
+The line always shows the converted gallons and the cost in your
+configured target currency (`LUBELOGGER_CURRENCY`, default `USD`),
+formatted with that currency's symbol — e.g. `CA$42.18` on a CAD
+instance. It optionally adds:
 
 - **MPG since last fill** — only if there is a previous fillup to
   compare against and the form has a valid odometer reading.
-- **`FX rate is stale`** in amber — only if the cached FX rate is older
-  than 24 hours (see "FX freshness" below).
+- **`FX rate is stale`** in amber — only when every FX provider failed
+  and the server fell back to a cached rate less than 7 days old (see
+  "FX freshness" below).
 
-If you've entered cost in `USD`, the preview is just an echo (1:1). The
-conversion line is most useful when entering in `CAD`/`EUR`/etc. so you
-can sanity-check the rate before submitting.
+If you've entered cost in the target currency, the preview is just an
+echo (1:1). The conversion line is most useful when entering in another
+currency so you can sanity-check the rate before submitting.
 
 ## When conversion happens
 
@@ -88,8 +91,11 @@ var (see [`configuration.md`](configuration.md)).
 By default the server converts to USD before posting to LubeLogger. Set
 the `LUBELOGGER_CURRENCY` env var to override — for example
 `LUBELOGGER_CURRENCY=CAD` if your LubeLogger instance tracks costs in
-Canadian dollars. The form's hint text always says `USD` (it's a static
-label), but the actual conversion uses whatever target you configured.
+Canadian dollars. The form's conversion preview follows along — it
+renders the converted cost in whatever target you configured. The one
+label still hardcoded to `USD` is the manual-FX field's hint
+(`FX rate (1 CAD = ? USD)`); the actual conversion uses your configured
+target regardless.
 
 See [`configuration.md`](configuration.md) for the full env-var reference.
 

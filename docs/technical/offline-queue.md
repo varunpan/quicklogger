@@ -28,14 +28,15 @@ Source: `src/lib/client/idb.ts`.
 
 ### Row shape (`QueueEntry`)
 
-| Field        | Type                               | Notes                                                                                                                 |
-| ------------ | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `id`         | `number`                           | Auto-assigned by IndexedDB on insert.                                                                                 |
-| `input`      | `FuelSubmissionInput`              | The unmodified user payload (see `src/lib/shared/types.ts`).                                                          |
-| `status`     | `'queued' \| 'failed' \| 'synced'` | See state machine below.                                                                                              |
-| `attempts`   | `number`                           | Counts replay attempts that reached a server. Bumped before each fetch, reverted on a network error. Hard cap of `5`. |
-| `enqueuedAt` | `number` (ms epoch)                | Set by `enqueue()` via `Date.now()`.                                                                                  |
-| `lastError`  | `string` (optional)                | Populated by `markFailed` with the response status.                                                                   |
+| Field        | Type                               | Notes                                                                                                                                                                                                                                                                                                      |
+| ------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`         | `number`                           | Auto-assigned by IndexedDB on insert.                                                                                                                                                                                                                                                                      |
+| `input`      | `FuelSubmissionInput`              | The unmodified user payload (see `src/lib/shared/types.ts`).                                                                                                                                                                                                                                               |
+| `status`     | `'queued' \| 'failed' \| 'synced'` | See state machine below.                                                                                                                                                                                                                                                                                   |
+| `attempts`   | `number`                           | Counts replay attempts that reached a server. Bumped before each fetch, reverted on a network error. Hard cap of `5`.                                                                                                                                                                                      |
+| `enqueuedAt` | `number` (ms epoch)                | Set by `enqueue()` via `Date.now()`.                                                                                                                                                                                                                                                                       |
+| `lastError`  | `string` (optional)                | Populated by `markFailed` with the response status.                                                                                                                                                                                                                                                        |
+| `converted`  | `ConvertedSnapshot` (optional)     | Server-derived `{ cost, currency }` snapshot saved onto the row at sync time (`markSynced` / the form's success-path `enqueue`) so `/history` can render the converted cost fully offline. Not part of `FuelSubmissionInput` — it is not user input. See [`fillup-unit-price.md`](./fillup-unit-price.md). |
 
 The `QueueStatus` union is exported from `idb.ts`:
 

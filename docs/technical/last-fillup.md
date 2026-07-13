@@ -20,11 +20,20 @@ interface LastFillupRecord {
   date: string; // ISO YYYY-MM-DD (post-locale-invariant-parsing)
   odometer: string; // raw integer-string of miles
   fuelConsumed: string; // gallons (always — queue L is converted)
-  cost: string | null; // 2-decimal stringified number
+  cost: string | null; // stringified number: 2-decimal from queue rows, verbatim from the cache
   costCurrency: string | null; // null for upstream rows; entered currency for queue rows
   notes: string | null;
 }
 ```
+
+## `LastFillupSource`
+
+`last-fillup.ts` also exports `LastFillupSource` (`'upstream' | 'offline' | null`).
+`+page.ts`'s `load` returns it as `lastFuelupSource` alongside the record:
+`'upstream'` when the live `/api/vehicle/last-fuelup` fetch succeeded, `'offline'`
+when the page fell back to `resolveOfflineLastFillup`, and `null` when there is no
+record at all. The home page reads it to render the amber **offline copy** badge on
+the strip only for `'offline'` rows.
 
 ## Writer
 

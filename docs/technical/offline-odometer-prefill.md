@@ -11,7 +11,7 @@ queue's `'synced'` and `'queued'` entries.
 
 User guide: [`docs/user/odometer-prefill.md`](../user/odometer-prefill.md).
 Where it sits in the bigger picture: see the `/` page section in
-[`docs/architecture.md`](../architecture.md#---main-form).
+[`docs/architecture.md`](../architecture.md#--main-form).
 
 ## Storage
 
@@ -65,21 +65,38 @@ The output shape mirrors `GasRecord` so the page-side render path
 **only** addition is `costCurrency: string | null`:
 
 - `null` for upstream-cached records — server has FX-normalized `cost` to
-  whatever LubeLogger uses (typically USD), so the page renders `$<cost>`.
+  whatever LubeLogger uses. At render time `formatCost`
+  (`src/lib/client/format.ts`) falls back to `effectiveCurrencyCode()` —
+  the cached instance currency — and formats via `Intl.NumberFormat` in
+  the instance locale (a `$` only when the instance currency is USD).
 - The entered currency (e.g. `'CAD'`) for queue-derived records — we don't
-  run FX offline. The page renders `<currency> <cost>` (e.g. `CAD 60.00`)
-  so the user isn't misled into thinking the value has been converted.
+  run FX offline. `formatCost` renders the cost in that entered currency
+  (e.g. `CA$60.00`) so the user isn't misled into thinking the value has
+  been converted.
 
 ### Normalization
 
-| Field          | Upstream cache                      | Queue entry                                                                           |
-| -------------- | ----------------------------------- | ------------------------------------------------------------------------------------- |
-| `date`         | passes through (already `M/D/YYYY`) | converted from ISO `YYYY-MM-DD` to `M/D/YYYY`                                         |
-| `odometer`     | passes through (string)             | `String(Math.round(input.odometer))`                                                  |
-| `fuelConsumed` | passes through (gallons string)     | `(volume / 3.785411784).toFixed(2)` if `volumeUnit === 'L'`, else `volume.toFixed(2)` |
-| `cost`         | `String(cost)` or `null`            | `input.cost.toFixed(2)`                                                               |
-| `costCurrency` | always `null`                       | `input.currency`                                                                      |
-| `notes`        | `String(notes)` or `null`           | `input.notes ?? null`                                                                 |
+| Field          | Upstream cache                                                                                             | Queue entry                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `date`         | passes through (already ISO `YYYY-MM-DD`; legacy locale-format snapshots are migrated on read — see below) | passes through (already ISO `YYYY-MM-DD`)                                             |
+| `odometer`     | passes through (string)                                                                                    | `String(Math.round(input.odometer))`                                                  |
+| `fuelConsumed` | passes through (gallons string)                                                                            | `(volume / 3.785411784).toFixed(2)` if `volumeUnit === 'L'`, else `volume.toFixed(2)` |
+| `cost`         | `String(cost)` or `null`                                                                                   | `input.cost.toFixed(2)`                                                               |
+| `costCurrency` | always `null`                                                                                              | `input.currency`                                                                      |
+| `notes`        | `String(notes)` or `null`                                                                                  | `input.notes ?? null`                                                                 |
+
+### Legacy-date migration
+
+Cached snapshots written before the typed-ISO change carry `date` in the
+LubeLogger instance's display locale, not ISO. The cache read is tolerant:
+an ISO-shaped date takes the fast path; anything else goes through
+`parseLegacyDate` (`last-fillup.ts`), which supports the four LubeLogger
+`dateFormat` patterns observed in the wild — `M/d/yyyy` (en-US),
+`d/M/yyyy` (en-GB), `yyyy-MM-dd` (ISO), and `d.M.yyyy` (de-DE). The parser
+depends on the cached server-info `dateFormat` (`loadServerInfo()`) to
+disambiguate day vs month; a missing `dateFormat` or an unknown pattern
+makes the snapshot a cache miss — the next successful upstream fetch
+repopulates the cache in the new ISO shape.
 
 ### Storage failure modes
 
@@ -104,10 +121,12 @@ Flow:
    `GasRecord | null`.
 3. If upstream returned a record:
    - Normalize to `LastFillupRecord` (`costCurrency: null`).
-   - In the browser, persist the _raw_ upstream JSON into
-     `localStorage.quicklogger.lastFuelup.<vehicleId>` — that's what the
-     resolver expects to read back. Failures (quota, disabled storage)
-     are swallowed.
+   - In the browser, persist only the five fields the resolver reads
+     (`date`, `odometer`, `fuelConsumed`, `cost`, `notes`) into
+     `localStorage.quicklogger.lastFuelup.<vehicleId>` — the full
+     `GasRecord` includes `extraFields` / `files`, which can be arbitrarily
+     large and would risk localStorage quota. Failures (quota, disabled
+     storage) are swallowed.
    - Set `lastFuelupSource = 'upstream'`.
 4. If upstream returned null:
    - In the browser, call `resolveOfflineLastFillup(vehicleId)`. If it
@@ -144,6 +163,7 @@ Two changes:
 The replay loop's success branch was `q.remove(entry.id)`. It is now
 `q.markSynced(entry.id)`. Net behaviour difference for an upgraded device:
 in-flight `'queued'` rows that previously _disappeared_ on successful
-replay now become `'synced'` rows. Disk usage grows by one row per
-successful replay (a fillup is ~200 bytes; at 50 fillups/year, ~10 KB/year
-worst case). Pruning is out of scope for v1.
+replay now become `'synced'` rows. Growth is bounded: `syncQueue()` ends
+every drain with `Queue.pruneSynced(keep)` (`sync-queue.ts` / `idb.ts`),
+deleting all but the newest `historyKeepPerVehicle` (default 200)
+`'synced'` rows per vehicle — see the Storage section above.

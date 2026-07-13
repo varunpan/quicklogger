@@ -8,7 +8,7 @@ The HTTP API row and the `Reminder` type definition live in
 
 ## Lifecycle
 
-The page is reached three ways:
+The page is reached four ways:
 
 1. **From the drawer.** The user taps `Maintenance` in the
    hamburger menu. The loader resolves the active vehicle via the
@@ -28,6 +28,9 @@ The page is reached three ways:
    read against a small allowlist in
    `src/routes/vehicles/+page.svelte` — unknown values fall back
    to `/` so the picker can't be coerced into an open redirect.
+4. **From the Stats reminder card.** The compact reminder summary
+   on `/stats` links to `/maintenance?vehicleId=<active-id>`, so
+   the URL carries the id like the post-submit redirect.
 
 The redirect only fires on the **green** submit path
 (`/api/fuelup` returned `200 { ok: true, ... }`). The amber
@@ -45,7 +48,9 @@ User taps "Log fillup"
       │   /api/fuelup → 200 ok        (green path)
       ├──────────────────────────────► goto('/maintenance?vehicleId=' + active)
       │
-      │   /api/fuelup → queued        (amber path, SW caught it)
+      │   /api/fuelup unreachable/5xx  (amber path, submit handler's
+      │                                 catch enqueues to IDB — the SW
+      │                                 ignores non-GET requests)
       ├──────────────────────────────► toast only, stay on page
       │
       │   /api/fuelup → 4xx           (red path)
@@ -111,6 +116,14 @@ returned object.
   date and `humanCountdown` for the countdown. `formatLastFillupDate`
   is deliberately NOT used here — it appends `(N days ago)` which would
   double up with `humanCountdown`'s `(N days to go / overdue)` suffix.
+- **Reminder notes:** when a reminder carries a `notes` string it
+  renders as a trailing italic line under the due-context lines
+  (`{#if r.notes}` → `<div class="… italic">{r.notes}</div>`). Empty or
+  absent notes render nothing.
+- **Plate + VIN card:** a tap-to-copy card sits between the vehicle
+  picker and the reminder list, surfacing the active vehicle's license
+  plate and VIN. It's a separate component with its own internals — see
+  [`vehicle-identifiers.md`](./vehicle-identifiers.md).
 
 ## Locale-dynamic rendering
 
@@ -120,17 +133,28 @@ get correct number / date conventions.
 
 ## Persistence
 
-None. The page touches no IndexedDB store, no localStorage key, no
-service-worker cache. Reminders are fetched fresh on every visit —
-they change as soon as the user logs a fillup (LubeLogger uses max
-odometer across tabs to compute urgency), and the post-submit
-redirect would actively defeat any cache. Revisit if an offline
-glance becomes a real friction point.
+**The reminders themselves are never cached** — no IndexedDB store, no
+localStorage key, no service-worker cache holds them. They are fetched
+fresh on every visit: they change as soon as the user logs a fillup
+(LubeLogger uses max odometer across tabs to compute urgency), and the
+post-submit redirect would actively defeat any cache. Revisit if an
+offline glance becomes a real friction point.
+
+The surrounding page furniture does lean on shared storage, though. The
+loader resolves the active vehicle through `resolveSelectedVehicle()`,
+which reads `prefs.lastVehicleId` from `localStorage`
+(`$lib/client/vehicle-resolve.ts`). The vehicle card's label and photo
+come from the service worker's vehicle-list cache (`API_CACHE`) and
+image cache (`IMG_CACHE`), so the card still paints offline even though
+the reminder area below it cannot.
 
 ## Cross-references
 
 - [`idb-and-api.md`](./idb-and-api.md) — HTTP API row + `Reminder`
   type + LubeLogger client surface.
+- [`vehicle-identifiers.md`](./vehicle-identifiers.md) — the tap-to-copy
+  Plate + VIN card mounted between the picker and the reminders.
 - [`service-worker.md`](./service-worker.md) — note that the
-  reminders endpoint is NOT precached; the SW only serves the app
-  shell offline.
+  reminders endpoint is NOT cached; the SW does serve the app shell,
+  the vehicle list (`API_CACHE`), and vehicle images (`IMG_CACHE`)
+  offline.

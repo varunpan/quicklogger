@@ -26,14 +26,15 @@ open it once on a network and you're set.
 
 ## Submitting offline — what you see on the form
 
-After you tap **Log fillup**, one of three toasts appears at the bottom of
+After you tap **Log fillup**, one of these toasts appears at the bottom of
 the form:
 
-| Toast colour | Text                                    | What it means                                                                                                                                                                                       |
-| ------------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Green        | `Logged: {N.NN} Gal · $X.XX`            | Posted to LubeLogger successfully. The numbers are the converted, server-side values (so you can sanity-check FX).                                                                                  |
-| Amber        | `Saved locally — will sync when online` | The network call failed (offline, server down, DNS not resolving). Your submission is in the device queue and will replay automatically.                                                            |
-| Red          | `Submission rejected: {message}`        | The submission got a 4xx — either quicklogger's own validation (missing field, bad value, unknown currency/unit) or LubeLogger rejecting it. The submission is **not** queued; fix it and resubmit. |
+| Toast colour | Text                                    | What it means                                                                                                                                                                                                    |
+| ------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Green        | `Logged: {N.NN} Gal · {cost}`           | Posted to LubeLogger successfully. The numbers are the converted, server-side values (so you can sanity-check FX). The cost is shown in your LubeLogger instance's currency — a `$` amount only when that's USD. |
+| Amber        | `Saved locally — will sync when online` | The network call failed (offline, server down, DNS not resolving). Your submission is in the device queue and will replay automatically.                                                                         |
+| Amber        | `Saved locally — photo not attached.`   | Same save-and-queue as above, shown when you had photos attached at submit time. Only the fill-up itself is queued — photos are never queued, so they won't be attached when it syncs.                           |
+| Red          | `Submission rejected: {message}`        | The submission got a 4xx — either quicklogger's own validation (missing field, bad value, unknown currency/unit) or LubeLogger rejecting it. The submission is **not** queued; fix it and resubmit.              |
 
 The form does not need to know in advance whether you are offline. It
 always tries the POST first and falls back to the queue on network or 5xx
@@ -41,34 +42,34 @@ failure.
 
 ## The History page — what queued submissions look like
 
-Open the drawer → **History**. If you have anything pending, you will see
-a **Pending sync** section at the top with one card per submission:
+Open the drawer → **History**. Every fill-up logged on this device for the
+selected vehicle appears in a single list, newest date first — synced,
+pending, and failed entries together. Each card shows the date, odometer,
+volume and cost, the price per unit, plus any tags and notes you entered.
 
-        11.2 gal · USD 42.18
-        status: queued · attempts: 0
+Cards that haven't reached LubeLogger yet carry a badge:
 
-Each card shows the volume, currency, cost, and two status fields:
+- **Queued** (amber) — waiting for the next sync run.
+- **Failed** (red) — won't retry. Two ways an entry gets here: the server
+  rejected it permanently (HTTP 4xx), or it used up all 5 delivery
+  attempts (shown as `error: max attempts`). To clear it, open the row
+  in your browser's devtools → IndexedDB store and delete it, or accept
+  that the entry won't reach LubeLogger.
 
-- **`status`** — one of:
-  - `queued` — waiting for the next sync run.
-  - `failed` — won't retry. Two ways an entry gets here: the server
-    rejected it permanently (HTTP 4xx), or it used up all 5 delivery
-    attempts (shown as `error: max attempts`). To clear it, open the row
-    in your browser's devtools → IndexedDB store and delete it, or accept
-    that the entry won't reach LubeLogger.
-  - `synced` — already posted successfully. The newest few (5 per vehicle)
-    are kept as local history so the offline odometer prefill has something
-    to fall back on (see [`odometer-prefill.md`](odometer-prefill.md));
-    older ones are cleaned up automatically.
-- **`attempts`** — how many times a POST actually reached your server.
-  Tries that fail because you're offline don't count. Caps at 5 (see
-  "What happens on failure" below).
+Cards without a badge have already posted successfully. These synced
+fill-ups are kept as local history so the offline odometer prefill has
+something to fall back on (see [`odometer-prefill.md`](odometer-prefill.md)).
+How many are kept is up to you: **Settings → Fill-ups kept per vehicle**
+(default 200); older ones are cleaned up automatically. Queued and failed
+entries are never cleaned up.
 
-If the last attempt errored, an `error: ...` line is also shown.
+A failed card also shows an `error: ...` line and — when at least one
+delivery attempt actually reached your server — an `attempts:` count.
+Tries that fail because you're offline don't count, and the count caps
+at 5 (see "What happens on failure" below).
 
-Below the Pending sync block, **Last fillup on LubeLogger** shows the
-freshest record fetched from the server as raw JSON — useful for confirming
-that a previous submission really did land upstream.
+The page reads only from the on-device store — nothing is fetched from
+LubeLogger, and only fill-ups logged through this PWA appear here.
 
 ## When does sync run?
 

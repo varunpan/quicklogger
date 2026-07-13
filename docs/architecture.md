@@ -1,6 +1,6 @@
 # Architecture
 
-quicklogger is a mobile-first PWA that submits fillups to a self-hosted LubeLogger over HTTP. SvelteKit (adapter-node) runs on the server, Svelte 5 with runes runs on the client, and nothing is fetched at runtime that wasn't bundled at build time — there are zero runtime dependencies beyond Node and the LubeLogger API.
+quicklogger is a mobile-first PWA that submits fillups to a self-hosted LubeLogger over HTTP. SvelteKit (adapter-node) runs on the server, Svelte 5 with runes runs on the client, and nothing is fetched at runtime that wasn't bundled at build time — the only runtime dependency beyond Node and the LubeLogger API is `rotating-file-stream` (log-file rotation).
 
 ## Overview
 
@@ -21,9 +21,13 @@ The system has three surfaces:
     ├── /api/vehicles
     ├── /api/vehicle/last-fuelup
     ├── /api/vehicle/reminders
+    ├── /api/vehicle/info
+    ├── /api/vehicle/image
     ├── /api/fuelup       ←──── form submits land here
     ├── /api/fx
+    ├── /api/ocr          ←──── photo OCR extraction
     ├── /api/log          ←──── client + sw error forwarding
+    ├── /api/server-info
     └── /healthz
             │
             │ HTTP (Docker internal network when co-located)
@@ -42,7 +46,7 @@ Pure helpers between US gallons and liters. The constant `GAL_TO_L = 3.785411784
 
 ### Environment configuration (`src/lib/server/env.ts`)
 
-Single source of truth for env-var access — other server modules call `loadEnv()` rather than reading `process.env` directly. Required vars `LUBELOGGER_URL` and `LUBELOGGER_API_KEY` throw `EnvError` if missing; `FX_PROVIDERS` (CSV) is validated against a known-providers set, with unknown names also throwing `EnvError`. Full reference: [`docs/user/configuration.md`](./user/configuration.md).
+Single source of truth for env-var access — other server modules call `loadEnv()` rather than reading `process.env` directly. Required vars `LUBELOGGER_URL` and `LUBELOGGER_API_KEY` throw `EnvError` if missing; `FX_PROVIDERS` (CSV) is validated against a known-providers set, with unknown names also throwing `EnvError`. `LUBELOGGER_VOLUME_UNIT` (`gallons_us`) and `LUBELOGGER_CURRENCY` (`USD`) describe the upstream LubeLogger's configured volume unit and currency. Full reference: [`docs/user/configuration.md`](./user/configuration.md).
 
 **Photo OCR (optional, v0.2.0+):**
 `OLLAMA_VISION_URL`, `OLLAMA_VISION_MODEL` (`qwen2.5vl:7b`),
@@ -79,6 +83,14 @@ Multi-provider FX resolver with a 24-hour fresh cache, a 7-day stale fallback, a
 
 Single integration point with LubeLogger — every upstream call flows through `LubeLoggerClient`. The client is reachable via container DNS on the same Docker network (preferred for security) or over a public URL; `LUBELOGGER_URL` is the switch. Auth is `x-api-key` from `LUBELOGGER_API_KEY` (Editor scope on the LubeLogger side). Default request timeout is 5s via `AbortSignal.timeout()`; `/healthz` constructs its own client with a 2s override so the probe fails fast. Non-2xx responses throw `LubeLoggerError` (status + body); `/api/fuelup` maps 5xx to 502 and passes 4xx through unchanged. Per-method/per-field reference: [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md) § _LubeLogger upstream calls_.
 
+### Shared server utilities
+
+- **`src/lib/server/lubeloggerProxy.ts`** — shared plumbing for the API proxy routes: `lubeloggerFromEnv()` is the one construction site for the env-configured `LubeLoggerClient`, plus `parseVehicleId` / `withLubeLogger` helpers used by the vehicle GET proxies.
+- **`src/lib/server/cache.ts`** — generic `TtlCache` with single-flight dedup: concurrent gets for the same key share one in-flight promise.
+- **`src/lib/server/vehicleCache.ts`** — one shared 5-minute `TtlCache` of the normalized vehicle list, used by both `/api/vehicles` and `/api/vehicle/image` so a cold page load makes a single upstream `listVehicles()` call (review #36).
+- **`src/lib/server/atomicFile.ts`** — crash-safe, race-safe write primitives (per-path lock + atomic rename) for the on-disk JSON stores under `/data` (review #4).
+- **`src/lib/server/github-release.ts`** — fetches the latest GitHub release (1-hour TTL, 3 s timeout) so `/api/server-info` can surface update availability.
+
 ### Conversion orchestrator (`src/lib/server/convert.ts`)
 
 Combines `units.ts` and `currency.ts` into a single `convertSubmission()` call used by `POST /api/fuelup`. Behavior: if `manualFxRate` is set on the input the rate is used verbatim and `fxSource` is recorded as `'manual'` — the currency service is not consulted. Otherwise the currency service resolves the rate per its provider chain; stale rates pass through with `fxStale: true`. Volume always goes through `toGallons`; any target volume unit other than `gallons_us` throws (v0.1.x only supports US-gallon LubeLogger configurations). Pure module — all I/O is delegated to the injected `CurrencyService`, so the whole thing is trivially testable with a fake.
@@ -112,7 +124,7 @@ corrupt it.
 
 Append-only JSONL at `/data/ocr-audit.jsonl`. One row per OCR call,
 including failures. Row shape: `{ ts, mode, ipHash, imgHash, imgBytes,
-imageType, provider, model, fellbackTo, latencyMs, costCents, parsed, ok,
+imageType, provider, model, fellbackFrom, latencyMs, costCents, parsed, ok,
 error? }`. `parsed` is the discriminated `OcrResult` (`OcrPumpResult` or
 `OcrOdometerResult`) on success, `null` on failure.
 
@@ -124,8 +136,10 @@ bind mount as the rest of the OCR state.
 
 `imgHash` is SHA-256 of the post-receive bytes — useful for spotting
 re-tries of the same image without storing pixels. Rotation: when the
-next append would cross 10 MiB, the file is truncated to 0 bytes
-(destructive — old entries are discarded, not archived).
+next append would cross 10 MiB, the live file is renamed to `.1`
+(overwriting any prior `.1`) and a fresh file starts on the next append
+— one prior generation is kept. It used to truncate to 0 bytes, which
+let anyone who could spam OCR wipe the forensic trail (review #33).
 
 ### OCR validators + dispatcher (`src/lib/server/ocr.ts`)
 
@@ -154,7 +168,7 @@ sits well inside that band).
 **Odometer contract** — schema-validates `{ odometer }`. Range-validates
 against `OCR_ODOMETER_MAX_MI`. No cross-field check (single field). The
 _relative-range_ check vs the previous fillup happens client-side
-([`+page.svelte`](#---main-form)) — the server has no access to prior
+([`+page.svelte`](#--main-form)) — the server has no access to prior
 fillup history, and the failure mode is user-recoverable.
 
 ### OCR providers (`src/lib/server/ocrProviders.ts`)
@@ -232,7 +246,7 @@ These are intentionally separated: prefs are sync + tiny, the queue is async + s
 
 ## Frontend pages
 
-Six pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), **History** (`/history`), **Maintenance** (`/maintenance`), and **Stats** (`/stats`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md); internals for the maintenance route in [`docs/technical/maintenance-page.md`](./technical/maintenance-page.md) and the stats route in [`docs/technical/stats-page.md`](./technical/stats-page.md).
+Six pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), **History** (`/history`), **Maintenance** (`/maintenance`), and **Stats** (`/stats`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md); internals for the maintenance route in [`docs/technical/maintenance-page.md`](./technical/maintenance-page.md) and the stats route in [`docs/technical/stats-page.md`](./technical/stats-page.md). A seventh route, `/offline`, sits outside the drawer: it's the prerendered carrier for the service worker's offline shell, only ever seen directly if someone navigates to `/offline` by hand.
 
 ### `/` — main form
 

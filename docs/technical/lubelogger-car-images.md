@@ -2,7 +2,7 @@
 
 ## Overview
 
-Replaces the generic car SVG in every vehicle-row surface — the home Log Fuel button (`src/routes/+page.svelte`), the History vehicle card (`src/routes/history/+page.svelte`), the Maintenance vehicle card (`src/routes/maintenance/+page.svelte`), and each row of the vehicle picker (`src/routes/vehicles/+page.svelte`) — with the vehicle's actual photo stored in LubeLogger, proxied server-side via a new `/api/vehicle/image` endpoint and cached client-side in a dedicated service-worker cache. User view: see the "Vehicle" row in [`docs/user/app-pages.md`](../user/app-pages.md#log-fuel-). Architecture context: this is one extra entry in the `/api/*` surface — see [`docs/architecture.md`](../architecture.md).
+Replaces the generic car SVG in every vehicle-row surface — the home Log Fuel button (`src/routes/+page.svelte`), the History vehicle card (`src/routes/history/+page.svelte`), the Maintenance vehicle card (`src/routes/maintenance/+page.svelte`), the Stats vehicle card (`src/routes/stats/+page.svelte`), and each row of the vehicle picker (`src/routes/vehicles/+page.svelte`) — with the vehicle's actual photo stored in LubeLogger, proxied server-side via a new `/api/vehicle/image` endpoint and cached client-side in a dedicated service-worker cache. User view: see the "Vehicle" row in [`docs/user/app-pages.md`](../user/app-pages.md#log-fuel-). Architecture context: this is one extra entry in the `/api/*` surface — see [`docs/architecture.md`](../architecture.md).
 
 ## Files touched
 

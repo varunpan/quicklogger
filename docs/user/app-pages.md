@@ -44,7 +44,8 @@ means here.
 | **Fill to full**           | Toggle button. Blue when on (default on).                                                                                                                                                                                                                      |
 | **Missed fillup**          | Toggle button. Blue when on. Marks the entry as one where a previous fillup was missed (so MPG calcs handle the gap).                                                                                                                                          |
 | **Note · station · grade** | Free-form text. Plain string, sent to LubeLogger's `notes` field.                                                                                                                                                                                              |
-| **Will log** preview       | Blue summary line appearing when both volume and cost are valid. Shows converted gallons + USD cost, plus MPG-since-last-fill when computable.                                                                                                                 |
+| **`+N mi this tank`**      | Read-only line below the odometer, shown once you've entered a new reading. The blue number is how far you've driven since the previous fillup (this reading minus the last).                                                                                  |
+| **Will log** preview       | Blue summary line appearing when both volume and cost are valid. Shows converted gallons plus the cost in your LubeLogger instance's currency (it falls back to USD only on a cold cache), plus MPG-since-last-fill when computable.                           |
 | **Log fillup**             | The submit button. Disabled until odometer, volume, cost, and date are all valid (>0 / non-empty).                                                                                                                                                             |
 
 ### What happens on submit
@@ -53,16 +54,25 @@ See [`offline-queue.md`](offline-queue.md) for the toast colours and the
 queue behaviour. In short: green toast = posted; amber = saved locally
 and will sync later; red = LubeLogger rejected it (fix and retry).
 
-**Photo OCR (v0.2.0+):** when an OCR provider is configured, two blue
-camera chips render — one in the Odometer cell, one between Volume and
-Cost — letting you snap the pump display or odometer to pre-fill the
-form. See [`photo-ocr.md`](photo-ocr.md) for setup and walkthrough.
+When your device is offline, an amber banner at the top of the form
+warns you up front and the submit button reads **Save offline** instead
+of **Log fillup** — the entry is queued and synced when you reconnect.
+See [`offline-queue.md`](offline-queue.md).
+
+**Photo OCR (v0.2.0+):** when an OCR provider is configured, the camera
+buttons render side by side in a single row above the odometer/date grid
+— one to read the pump display, one to read the odometer — letting you
+snap a photo to pre-fill the form. After a photo is read, a **set from
+photo** cue (or a date-missing warning) chip appears under the Date
+field, and an **Attach photo(s) to this record** checkbox row lets you
+send the original image along with the entry. See
+[`photo-ocr.md`](photo-ocr.md) for setup and walkthrough.
 
 ## Vehicles (`/vehicles`)
 
 A flat list of every vehicle LubeLogger knows about. Each tile shows:
 
-- A generic car icon (the Vehicles list intentionally stays text-first; the LubeLogger photo only appears on the Log Fuel vehicle button).
+- The vehicle's LubeLogger photo, with the generic car icon shown only as a fallback for vehicles without a photo or when the image isn't reachable. The same photo also appears on the Log Fuel vehicle button and the History, Maintenance, and Stats vehicle cards.
 - The vehicle's year + make + model, joined with spaces, skipping
   blanks.
 - The LubeLogger vehicle id underneath (small grey text). Useful for
@@ -95,18 +105,19 @@ touch LubeLogger and do not sync between devices.
 If you're looking for the deploy-wide knobs (LubeLogger URL, target
 currency, FX provider chain), see [`configuration.md`](configuration.md).
 
-| Label                    | What it does                                                                                                                                                                                                                    | localStorage field                              |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| **Default volume unit**  | `Gallons` / `Liters` toggle. New form opens with this unit pre-selected. Server still converts to whatever LubeLogger expects.                                                                                                  | `defaultVolumeUnit` (`gal` or `L`)              |
-| **Default currency**     | Dropdown of the same five currencies the form accepts. New form opens with this currency pre-selected.                                                                                                                          | `defaultCurrency` (ISO 4217 code)               |
-| **Odometer prefill**     | `On` / `Off` toggle. Off = form opens with an empty odometer field; the `+N mi` chip is also hidden.                                                                                                                            | `odometerPrefillEnabled` (bool, default `true`) |
-| **Quick increment (mi)** | Number input. The `+N mi` chip below the odometer field adds this many miles per tap. Set to `0` to hide the chip while keeping the prefilled value.                                                                            | `odometerIncrementMi` (int, default `300`)      |
-| **Smart checks**         | `On` / `Off` toggle. On = advisory chip appears at submit time when the form looks off (lower odometer than last, future date, tiny volume, etc.); the chip has a `[Submit anyway]` override. Off = no chip, no extra friction. | `smartChecksEnabled` (bool, default `true`)     |
+| Label                         | What it does                                                                                                                                                                                                                    | localStorage field                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| **Default volume unit**       | `Gallons` / `Liters` toggle. New form opens with this unit pre-selected. Server still converts to whatever LubeLogger expects.                                                                                                  | `defaultVolumeUnit` (`gal` or `L`)              |
+| **Default currency**          | Dropdown of the same five currencies the form accepts. New form opens with this currency pre-selected.                                                                                                                          | `defaultCurrency` (ISO 4217 code)               |
+| **Odometer prefill**          | `On` / `Off` toggle. Off = form opens with an empty odometer field; the `+N mi` chip is also hidden.                                                                                                                            | `odometerPrefillEnabled` (bool, default `true`) |
+| **Quick increment (mi)**      | Number input. The `+N mi` chip below the odometer field adds this many miles per tap. Set to `0` to hide the chip while keeping the prefilled value.                                                                            | `odometerIncrementMi` (int, default `300`)      |
+| **Smart checks**              | `On` / `Off` toggle. On = advisory chip appears at submit time when the form looks off (lower odometer than last, future date, tiny volume, etc.); the chip has a `[Submit anyway]` override. Off = no chip, no extra friction. | `smartChecksEnabled` (bool, default `true`)     |
+| **Fill-ups kept per vehicle** | Number input. History shows at most this many synced fill-ups per vehicle on this device; older synced ones are pruned. Queued and failed fill-ups are always kept.                                                             | `historyKeepPerVehicle` (int, default `200`)    |
 
 One field is also persisted but has no UI on this page: `lastVehicleId`,
 set automatically when you pick a vehicle on `/vehicles` or submit a
 fillup. The Log Fuel page falls back to this when no `vehicleId` query
-param is present. The full set of persisted fields (these five plus
+param is present. The full set of persisted fields (these six plus
 `lastVehicleId`) is defined by `DEFAULT_PREFS` in
 `src/lib/client/prefs.ts`.
 
@@ -133,8 +144,10 @@ your LubeLogger instance:
   button — quicklogger can't update LubeLogger, it only surfaces the hint.
 
 The result is cached per-device (localStorage key `quicklogger-server-info`) so
-the block paints instantly on revisit, then refreshes in the background each
-time you open Settings.
+the block paints instantly on revisit. The Settings page itself is read-only;
+the cache is refreshed in the background once per full page load (at app boot,
+from the shared layout), not each time you open Settings — so the value shown
+can be up to one reload stale.
 
 ### quicklogger updates
 
@@ -256,8 +269,14 @@ A small "← Back to Log Fuel" link at the bottom returns you to the form.
 
 ## History (`/history`)
 
-A scrollable list of every fillup you've logged through this PWA for
+A scrollable list of the fillups you've logged through this PWA for
 the active vehicle. One card per entry, newest date first.
+
+Only the most recent synced fill-ups are kept per vehicle on this
+device — the number is the **Fill-ups kept per vehicle** setting
+(default 200; see Settings above). Older synced entries are pruned once
+you're past the cap, so a very long history won't grow without bound.
+Queued and failed entries are never pruned.
 
 A vehicle card at the top mirrors the one on Log Fuel and Maintenance —
 tap it to switch which vehicle's history you're looking at. The

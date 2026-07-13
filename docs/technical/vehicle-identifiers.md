@@ -2,8 +2,10 @@
 
 ## Overview
 
-Tap-to-copy card on `/maintenance` showing the active vehicle's
-license plate and VIN. Pulls both from `/api/vehicles`. User guide:
+Tap-to-copy card on `/maintenance` and `/stats` showing the active
+vehicle's license plate and VIN. Pulls both from `/api/vehicles`. Both
+pages mount the same component with the same `typeof === 'string'`
+guards. User guide:
 [`docs/user/app-pages.md`](../user/app-pages.md). Where it sits in
 the bigger picture: see the `/maintenance` section of
 [`docs/architecture.md`](../architecture.md).
@@ -34,6 +36,9 @@ the bigger picture: see the `/maintenance` section of
   mounts the card between the picker `<a>` and the error / reminders
   blocks. Guards `licensePlate` and `vin` with `typeof === 'string'`
   to satisfy the open-ended `Vehicle` index signature.
+- [`src/routes/stats/+page.svelte`](../../src/routes/stats/+page.svelte) —
+  mounts the same card below the vehicle card, above the stats body,
+  with the identical `typeof === 'string'` guards.
 
 ## Data model
 
@@ -72,8 +77,8 @@ interface Props {
 
 ## Lifecycle / control flow
 
-1. `/maintenance` `+page.ts` calls `listVehicles(fetch)`, which hits
-   `/api/vehicles`.
+1. `/maintenance` (or `/stats`) `+page.ts` calls `listVehicles(fetch)`,
+   which hits `/api/vehicles`.
 2. The server route calls `getCachedVehicles(client)` (shared
    `vehicleCache.ts`). On a miss the loader calls `client.listVehicles()`,
    then maps each vehicle through `normalizeVehicleIdentifiers`. On a hit it

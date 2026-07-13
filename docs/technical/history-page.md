@@ -8,10 +8,11 @@ in [`idb-and-api.md`](./idb-and-api.md).
 
 ## Overview
 
-Read-only, client-side-only. The page never calls a server endpoint
-itself; the only `fetch` happens inside the loader's `listVehicles`
-call to populate the picker. All card content comes from
-`Queue.list()` in `onMount`. User-facing copy:
+Read-only, client-side-only. The page itself only fetches via the
+loader's `listVehicles` call to populate the picker; the rendered
+`<VehicleCard>` additionally loads the vehicle photo through
+`GET /api/vehicle/image?vehicleId=N` (`$lib/client/VehicleImage.svelte`).
+All card content comes from `Queue.list()` in `onMount`. User-facing copy:
 [`docs/user/app-pages.md` § History](../user/app-pages.md#history-history).
 
 ## Files touched
@@ -97,16 +98,19 @@ Page-local state:
    again and `onMount` reads IDB again. Within a single page life
    we keep `allEntries` and just re-derive `visible`. Reading on every
    `data.vehicle` change would be wasted work for the same store.
-2. **`Date.UTC` for the sort key.** We split `YYYY-MM-DD` and feed
-   integers into `Date.UTC`, not `new Date(iso)`. Reason: the constructor
-   path applies the local timezone offset which would shift midnight
-   boundaries during DST transitions. We only need ordering, not display,
-   so UTC is the stable choice.
+2. **`parseIsoLocal` for the sort key, not `new Date(iso)`.** `dateKey`
+   runs the `YYYY-MM-DD` string through the shared `parseIsoLocal()`
+   helper — the local-midnight `new Date(y, m - 1, d)` constructor path —
+   and takes `.getTime()`. Local-midnight ms order calendar dates
+   identically to UTC ms, and we only need ordering, not absolute
+   display, so reusing the app's one strict date parser wins over a
+   bespoke sort key. Unparseable input collapses to `0` and sorts oldest.
 3. **Reuse `daysAgo` instead of writing a fresh relative-date helper.**
-   `daysAgo` already takes `M/D/YYYY`; we synthesize that shape in
-   `formatIsoDate` and reuse. One canonical definition of "today" /
-   "yesterday" / "N days ago" across the app — the home-page strip,
-   reminders countdown, and the new card date line all share it.
+   `daysAgo` takes the strict `YYYY-MM-DD` string (parsed via
+   `parseIsoLocal`), so `formatIsoDate` passes the ISO date straight
+   through. One canonical definition of "today" / "yesterday" /
+   "N days ago" across the app — the home-page strip
+   (`formatLastFillupDate`) and the card date line share it.
 4. **No status badge for `synced`.** The mockup intentionally drops the
    badge for synced entries so the eye reaches the date and odometer
    first. The synced state is the default; only deviations are flagged.
@@ -127,8 +131,6 @@ month names.
   and unit-aware computation. Out of scope for v0.1.4.
 - Merging IDB rows with LubeLogger's `GasRecord[]` for a complete
   history view across devices and the web UI.
-- Extracting the shared vehicle-row pattern into a component; today
-  it's hand-duplicated between `/maintenance` and `/history`.
 - Smarter relative wording — `"36 days ago"` → `"5 weeks ago"`,
   `"~6 months ago"`, `"over a year ago"`.
 

@@ -167,7 +167,7 @@ Full env-var reference:
    - **Crop** the image — tap `[Crop]`, then frame the part you want:
      - **Drag** the corners or edges (or drag inside the box to move it).
      - **Zoom in** to nail a small target (the pump digits on a big photo):
-       **pinch** with two fingers, or tap the **`−` / `+`** buttons in the crop
+       **pinch** with two fingers, or drag the **zoom slider** in the crop
        toolbar (on a computer, scroll-wheel or trackpad-pinch also zooms). The box stays put while the **photo moves behind it** — what the
        box frames is what gets read. Drag with two fingers to pan. A small
        `2.5×`-style badge shows the current zoom.
@@ -214,7 +214,7 @@ Two reasons it's worth a tap:
    are real OCR confusion fuel. Cropping focuses the model on the
    digits you care about.
 3. **Zoom for precision.** On a high-resolution photo the digits can be tiny.
-   Pinch (or use `+`) to magnify, pan to centre them, and box them tightly —
+   Pinch (or drag the zoom slider) to magnify, pan to centre them, and box them tightly —
    far easier than nudging a finger-sized handle around a full-frame shot.
 
 You don't _need_ to crop — the model handles a fair amount of
@@ -229,7 +229,9 @@ context. But a 2-second crop on a difficult photo turns 422
 - **Audit log** at `/data/ocr-audit.jsonl` — one line per call,
   recording an HMAC-keyed IP hash, the SHA-256 of the resized image,
   the parsed numeric fields, latency, and which provider served the
-  call. No raw IPs, no pixels.
+  call. It also records the odometer / price hints derived from your
+  last fillup (`lastOdometerMi` / `lastPricePerUnit`) when they were
+  sent with the call. No raw IPs, no pixels.
 - **Daily $ tally** at `/data/ocr-budget.json` — used by the runaway
   cap. UTC rollover.
 
@@ -288,14 +290,18 @@ disappears the moment you change the value.
   odometers and app screenshots.
 - **First fillup for a vehicle.** No `lastFuelup` to compare against,
   so the odometer chip always shows `[Use]` — no relative check yet.
-- **Going offline mid-OCR.** After 90 seconds the client times out and
-  surfaces a toast — type the value manually. Image is **not** queued
-  for replay (intentional — see internals doc).
+- **Going offline mid-OCR.** The client's timeout tracks your server's
+  setup: the configured provider-chain timeout plus 10 s of slack —
+  about 70 s on a default single-provider setup, longer if you've set
+  a long local-ollama timeout. (A flat 90 s applies only when the page
+  loaded without the server's timing info.) When it expires, a toast
+  surfaces — type the value manually. Image is **not** queued for
+  replay (intentional — see internals doc).
 - **The preview is local — works offline.** You can pick the photo,
   rotate it, and decide whether to send even when offline. Tapping
   `Send for OCR` is the only thing that needs network. If the network
-  is down at that moment, the same 90 s timeout fires and you fall
-  back to typing.
+  is down at that moment, the same timeout fires and you fall back to
+  typing.
 - **Cross-currency.** The pump cross-field check is currency-agnostic;
   it relies on the relationship `cost ≈ volume × price/unit`, which
   holds in any currency. Just make sure the currency selector matches
@@ -311,7 +317,7 @@ disappears the moment you change the value.
 | _Couldn't read clearly — try again or type manually_ | 422 — values failed the range check or pump cross-field check (5% drift) | Re-shoot square-on, or type the values                                                    |
 | _Couldn't read image — try a clearer photo_          | 415 — file wasn't a recognized image type                                | Re-take the photo                                                                         |
 | _OCR service unreachable — please type values_       | 502/503 — providers down, ollama crashed, or no provider configured      | Type values; check provider health later                                                  |
-| _OCR took too long — please type values_             | 90 s client timeout                                                      | Type values; ollama may be loading the model — first call after a cold start is slow      |
+| _OCR took too long — please type values_             | Client timeout (provider-chain timeout + 10 s; flat 90 s fallback)       | Type values; ollama may be loading the model — first call after a cold start is slow      |
 | _OCR rate limit reached, try again in Ns_            | 429 — > 20 calls in the last hour                                        | Wait `N` seconds; if hitting this routinely, raise `OCR_RATE_LIMIT_PER_HOUR`              |
 | _OCR budget for today reached_                       | 402 — daily $ cap exhausted                                              | Wait until UTC rollover (00:00 UTC) or raise `OCR_DAILY_BUDGET_USD`                       |
 | _Photo too large — try again_                        | 413 — file exceeds `OCR_MAX_IMAGE_MB` (default 5 MiB)                    | Should be rare; the in-browser resize keeps photos well under this. Re-take and try again |
