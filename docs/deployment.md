@@ -14,9 +14,17 @@ Multi-stage `Dockerfile` produces a slim runtime image based on
    unprivileged `node` user. Creates `/data` so the FX cache volume
    mount has a writable target.
 
-Size: ~150–200 MB. Healthcheck hits `/healthz` every 30 s — Docker
-marks the container `unhealthy` if LubeLogger is unreachable for two
-consecutive checks (~1 minute).
+Size: ~150–200 MB. Healthcheck hits `/healthz` every 30 s — with
+Docker's default of 3 retries, the container is marked `unhealthy`
+after three consecutive failures (~90 s+).
+
+The image sets `BODY_SIZE_LIMIT=Infinity` to disable adapter-node's
+transport-layer body cap. `0` is **not** "unlimited" there — it's a
+literal 0-byte limit that rejects every request with a body — so
+`Infinity` is the only way to turn the cap off. Per-route limits still
+apply: the OCR upload (the only route that buffers a large body)
+enforces its own `OCR_MAX_IMAGE_MB` cap (default 5 MiB) and returns a
+clean 413.
 
 **Local dev build:**
 
@@ -99,24 +107,39 @@ docker compose -f compose.dev.yml up --build
 | `TRAEFIK_NETWORK`          | `quicklogger_dev_net`      | Proxy network name                               |
 | `TRAEFIK_NETWORK_EXTERNAL` | `false`                    | `true` to join an existing external network      |
 
-App env (`LUBELOGGER_URL`, `LUBELOGGER_API_KEY`, `FX_*`, `OCR_*`, `LOG_*`) reads
-from `.env` exactly like the other compose files; see `.env.example`. Logs land
+App env: the core vars (`LUBELOGGER_*`, `FX_PROVIDERS`, `LOG_LEVEL`,
+`OCR_PROVIDER_CHAIN`, and the `OLLAMA_VISION_*` / `OLLAMA_CLOUD_*` slots) read
+from `.env` like the other compose files; see `.env.example`. Two deliberate
+deviations: `OLLAMA_VISION_URL` is hardcoded to
+`http://host.docker.internal:11434` (a host-path `localhost` value would
+resolve to the container itself — see the in-file comment), and the on-disk
+paths (`FX_CACHE_PATH`, `LOG_FILE_PATH`, `OCR_BUDGET_PATH`, `OCR_AUDIT_PATH`,
+`OCR_AUDIT_KEY_PATH`) are pinned under `/data`. Vars the file doesn't forward
+(`OPENROUTER_*`, `OPENAI_COMPATIBLE_*`, the `OCR_*` budget / rate-limit /
+range / image-size knobs, `LOG_PRETTY`, `LOG_FILE_MAX_*`) fall back to their
+app defaults. Logs land
 in `./data/logs/quicklogger.log` via the `./data:/data` bind mount, so the
 host-side log read works the same as the `node build` UAT path.
 
 ## CI workflow
 
-`.github/workflows/ci.yml` runs on every push and pull request:
+`.github/workflows/ci.yml` runs on every push and pull request.
+Concurrent runs on the same ref cancel the superseded one
+(`concurrency` with `cancel-in-progress`):
 
-1. Lint (`npm run lint` — ESLint flat config)
-2. Format check (`npm run format:check` — Prettier, config in `.prettierrc`)
-3. Type-check (`npm run check` — svelte-check)
-4. Unit + integration tests (`npm test` — Vitest)
-5. Build (`npm run build`)
-6. E2E (`npm run test:e2e` — Playwright on mobile-Safari profile) — gated; runs only when `tests/e2e/*.spec.ts` files exist (Task 25 introduces them)
+1. Audit dependencies (`npm audit --audit-level=high` — runs first, over the full dependency tree; fails on high/critical)
+2. Lint (`npm run lint` — ESLint flat config)
+3. Format check (`npm run format:check` — Prettier, config in `.prettierrc`)
+4. Type-check (`npm run check` — svelte-check)
+5. Unit + integration tests (`npm test` — Vitest)
+6. Build (`npm run build`)
+7. E2E (`npm run test:e2e` — Playwright on mobile-Safari profile) — gated; runs only when `tests/e2e/*.spec.ts` files exist
 
-Node 24 with npm cache. ~3-minute pipeline. CI must be green for the
-release workflow (Task 29) to publish a multi-arch image.
+Node 24 with npm cache. ~3-minute pipeline. There's no mechanical
+trigger linking the two workflows — `build.yml` fires on a tag push
+regardless of CI — so "CI green before release" is enforced procedurally
+by the `release-ship` flow, which runs the full sweep before pushing the
+tag.
 
 ## Release workflow (multi-arch GHCR)
 
@@ -183,9 +206,10 @@ base is available. It also removes the base image's bundled **npm/npx** —
 the production container only runs `node build` and never invokes npm, so
 dropping it clears CVEs carried in npm's _own_ bundled dependencies (a
 `picomatch` ReDoS surfaced this way in #31's scan) and trims attack
-surface. The app itself bundles all its npm deps into the build artifact
-and ships **zero** runtime `dependencies`, so the remaining npm attack
-surface inside the image is minimal.
+surface. The app itself bundles nearly all its npm deps into the build
+artifact and ships a **single** runtime `dependency` — `rotating-file-stream`
+(log rotation) — so the remaining npm attack surface inside the image is
+minimal.
 
 **Source-tree dependencies (`npm audit`).** Image scanning only sees what
 ships _in the image_ — it's blind to `devDependencies` that get compiled
@@ -198,12 +222,13 @@ devDependencies. A high-severity `devalue` DoS is fixed by pinning it to
 the patched `5.8.1` via an npm `override` in `package.json` (it's a
 transitive SvelteKit dep). The four moderate `svelte` SSR-XSS advisories are
 cleared by upgrading to `5.56.3` (#37); see that fix's note in the CHANGELOG for
-why the bump needed a CropOverlay rework first. Some lower-severity advisories are
-**knowingly deferred** — all below the high gate, so CI stays green:
+why the bump needed a CropOverlay rework first. The **`cookie`** advisory (low)
+has since been cleared by a targeted npm `override` pinning `cookie` to `^0.7.0`
+under `@sveltejs/kit` — `npm audit` no longer reports it. One lower-severity
+advisory stays **knowingly deferred** — below the high gate, so CI stays green:
 
-- **`cookie` (low)** and **`brace-expansion` (moderate, build-only)** — npm's only
-  offered "fix" for the cookie chain is a destructive downgrade of SvelteKit to a
-  pre-1.0 version, so these are left until upstream ships a real fix.
+- **`brace-expansion` (moderate, build-only)** — no clean upstream fix has landed
+  yet, so it's left until one does.
 
 Dependabot will open PRs as real upstream fixes land.
 
@@ -237,13 +262,6 @@ The repository is `varunpan/quicklogger`, public, MIT-licensed.
 **CODEOWNERS** lives at `.github/CODEOWNERS`. As collaborators join,
 add path-specific entries above the catch-all `*  @varunpan` line.
 
-**Local git identity:** the working tree at
-`~/Documents/Projects/personal/quicklogger` resolves to varunpan via
-the `includeIf` rule in `~/.gitconfig` pointing at
-`~/Documents/Projects/personal/.gitconfig`. The remote uses the
-`personal` SSH host alias defined in `~/.ssh/config`, which routes
-through `~/.ssh/github-personal` for SSH key auth.
-
 ## Self-hosting (fork-friendly)
 
 To run quicklogger against your own LubeLogger:
@@ -268,15 +286,14 @@ restarts.
 The build workflow tags every release multiple ways on GHCR. Pick
 the one that matches your tolerance for surprise:
 
-| Tag              | Behaviour                                                                | When to use                                                                                  |
-| ---------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `:0.1.2` (exact) | Frozen until you edit compose.                                           | Production where you want bit-for-bit reproducibility.                                       |
-| `:0.1` (minor)   | Auto-picks up patches in 0.1.x on `pull`. Won't jump to 0.2.x.           | Most fork users — patches land automatically, breaking changes are gated.                    |
-| `:latest`        | Tracks main HEAD. Updates whenever any merge to main happens (after CI). | Solo-dev with full ownership of the repo and CI as the gate. The upstream homelab uses this. |
+| Tag              | Behaviour                                                                                                                                              | When to use                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `:0.1.2` (exact) | Frozen until you edit compose.                                                                                                                         | Production where you want bit-for-bit reproducibility.                       |
+| `:0.1` (minor)   | Auto-picks up patches in 0.1.x on `pull`. Won't jump to 0.2.x.                                                                                         | Most fork users — patches land automatically, breaking changes are gated.    |
+| `:latest`        | Points at the most recent tagged release — re-stamped on every tag build, not on bare merges to main (see "Release workflow": only a tag push builds). | Owners who always want the newest release and accept auto-updates on `pull`. |
 
 `docker compose pull && docker compose up -d` is the release ritual
-either way — Dockhand's auto-update is off globally, so you opt in
-manually.
+either way — updates are opt-in, so you pull when you're ready.
 
 ## Same-stack deployment (recommended)
 
@@ -353,7 +370,7 @@ Expected: `ReadOnly=true`, `CapDrop=[ALL]`, `NoNewPriv=[no-new-privileges:true]`
 **What this does _not_ protect against:**
 
 - Compromise of the LubeLogger upstream (we have full write access via the API key).
-- Compromise of the homelab host itself (the container only constrains what it can do; it can't outweigh full host root).
+- Compromise of the host itself (the container only constrains what it can do; it can't outweigh full host root).
 - Logic bugs in quicklogger that submit unwanted data to LubeLogger.
 
 For those threats, the right mitigations live elsewhere: Traefik

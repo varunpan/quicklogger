@@ -2,7 +2,7 @@
 
 ## Overview
 
-The service worker (`src/service-worker.ts`) has three responsibilities:
+The service worker (`src/service-worker.ts`) has four responsibilities:
 
 1. Precache the app shell — including the prerendered `/offline` SPA shell — so
    the PWA launches instantly and an offline cold-start renders the real app
@@ -11,6 +11,9 @@ The service worker (`src/service-worker.ts`) has three responsibilities:
    a cache-first policy for everything else.
 3. Replay the offline submission queue on demand, triggered by a
    `sync-queue` message from the layout.
+4. Ship its own crashes off-device — global `error` and `unhandledrejection`
+   listeners forward the failure to `/api/log` via `sendSwLog`, so a worker
+   fault is visible in the server logs instead of dying silently on the phone.
 
 There is no built-in BackgroundSync — see
 [No BackgroundSync](#no-backgroundsync).
@@ -200,7 +203,7 @@ For same-origin GETs the handler branches by pathname:
 
 ```ts
 if (url.pathname === '/api/vehicle/image') {
-  event.respondWith(staleWhileRevalidate(req));
+  event.respondWith(staleWhileRevalidate(event));
   return;
 }
 ```
@@ -311,7 +314,7 @@ event.respondWith(
     try {
       return await fetch(req);
     } catch {
-      return cached ?? new Response('offline', { status: 504 });
+      return new Response('offline', { status: 504 });
     }
   })()
 );

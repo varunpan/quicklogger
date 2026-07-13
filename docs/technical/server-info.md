@@ -62,7 +62,7 @@ interface ServerInfo {
   decimalSeparator: string | null; // cached from /api/info
   dateFormat: string | null; // cached from /api/info
   lubeloggerCurrency: string | null; // LubeLogger instance currency (ISO); sourced from env.lubeloggerCurrency
-  appCurrentVersion: string | null; // __APP_VERSION__ at runtime; null only on the unreachable fallback
+  appCurrentVersion: string | null; // __APP_VERSION__ at runtime; set even on the unreachable fallback — null only when the Vite define is absent (vitest)
   appLatestVersion: string | null; // latest GitHub release tag, v-stripped; null if unknown
   appUpdateAvailable: boolean; // _isUpdateAvailable(appCurrentVersion, appLatestVersion)
   appReleaseUrl: string | null; // GitHub release html_url; null if unknown

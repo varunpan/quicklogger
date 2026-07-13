@@ -64,8 +64,9 @@ break the master toggle into individual switches in a future release.
 
 - **They don't block external submissions.** Apple Shortcuts and any
   direct `/api/fuelup` callers bypass smart checks entirely — the
-  server still only enforces "all four required fields present and
-  positive". Smart checks are a UI-side guard, not a contract.
+  server still checks basic validity (required fields present, numbers
+  positive, a real currency code and volume unit), but it runs none of
+  the smart checks. Smart checks are a UI-side guard, not a contract.
 - **They don't catch every weird case.** A cost-vs-volume ratio check
   is deferred — too many currency × market combinations to ship
   responsibly in v0.2.0. If a fillup is overpriced or underpriced for

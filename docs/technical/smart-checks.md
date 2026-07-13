@@ -7,7 +7,7 @@ to `/api/fuelup`. Six pure checks (A, B, C, D, E, G) evaluated client-side
 at submit time, gated by the `smartChecksEnabled` pref. User guide:
 [`docs/user/smart-checks.md`](../user/smart-checks.md). Where it sits in
 the bigger picture: see the `/` main-form section of
-[`docs/architecture.md`](../architecture.md#---main-form).
+[`docs/architecture.md`](../architecture.md#--main-form).
 
 ## Files
 
@@ -66,9 +66,10 @@ export function evaluateSmartChecks(
 1. User taps the main **Log fillup** button → `submit()` runs with
    `skipSmartChecks = false` (default).
 2. `submit()` builds the `FuelSubmissionInput`, derives the
-   `LastFuelupForCheck` projection from `data.lastFuelup`
-   (`M/D/YYYY` → `YYYY-MM-DD` via the local `lubeDateToIso` helper), and
-   passes everything plus `{ smartChecksEnabled: prefs.smartChecksEnabled }`
+   `LastFuelupForCheck` projection from `data.lastFuelup` (the wire date
+   is already ISO `YYYY-MM-DD`; the local `lubeDateToIso` helper just
+   validates it, returning `null` on anything non-ISO), and passes
+   everything plus `{ smartChecksEnabled: prefs.smartChecksEnabled }`
    to `evaluateSmartChecks`.
 3. If `result.issues.length > 0`, the function assigns
    `smartCheckIssues = result.issues` and returns early. The reactive
@@ -124,12 +125,14 @@ round-trip from native input events that themselves trigger effects.
 Explicit `oninput` is simpler, predictable, and matches the existing
 `odometerEdited` pattern.
 
-**LubeLogger `M/D/YYYY` is parsed inline, not via `format.ts`.** Existing
-`format.ts` helpers render dates for display; smart-checks needs the
-opposite direction (raw upstream date → ISO for lex compare). A four-line
-regex helper inside `+page.svelte` is cheaper than expanding the format
-module's surface. If a second caller needs the same conversion later,
-promote it to `format.ts` then.
+**`lubeDateToIso` is an ISO validator, not a converter.** The
+`/api/vehicle/last-fuelup` wire date is already ISO `YYYY-MM-DD` (the
+proxy fetches under `culture-invariant: true`), so the helper reduces to
+`/^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null` — a defensive gate that hands
+check code a clean ISO string or `null`. It stays inline in
+`+page.svelte` rather than `format.ts`: the format module renders dates
+for display, and a one-line validator isn't worth expanding its surface.
+Promote it if a second caller appears.
 
 **Smart-checks owns `ODOMETER_MAX_DELTA_MI`, not `format.ts` or a new
 constants module.** The constant is now meaningful only to smart-check E
@@ -140,13 +143,19 @@ That OCR-side too-high check was removed (the OCR-confirm step now only
 flags a _backwards_ reading), so the constant has a single consumer and
 `+page.svelte` no longer imports it.
 
-**Server side is intentionally untouched.** `/api/fuelup` continues to
-enforce only the four required-and-positive invariants. Apple Shortcuts
-and direct callers bypass smart checks by design — the Shortcut surface
-already constructs valid payloads, and server-side smart-checks would
-block legitimate scripted backfills of historical data (where "future
-date" relative to ingest time is meaningless, and `Δ odometer > 2000` is
-expected for the first row of a multi-year backfill).
+**Server side runs no smart checks.** `/api/fuelup`'s `validate()`
+enforces structural validity only: eight required fields (`vehicleId`,
+`date`, `odometer`, `volume`, `volumeUnit`, `cost`, `currency`,
+`clientSubmissionId`), positive-integer `vehicleId`, the `gal`/`L`
+`volumeUnit` enum, a 3-letter ISO-4217 `currency`, positive finite
+odometer/volume/cost, positive `manualFxRate` when present, and
+`queueReplay` normalized to a literal boolean — but none of checks
+A–G. Apple Shortcuts and direct callers bypass smart checks by design —
+the Shortcut surface already constructs valid payloads, and server-side
+smart-checks would block legitimate scripted backfills of historical
+data (where "future date" relative to ingest time is meaningless, and
+`Δ odometer > 2000` is expected for the first row of a multi-year
+backfill).
 
 **Helper takes `now?: Date` instead of reading `Date.now()` directly.**
 Check D's "future date" semantics depend on the user's local clock day.
@@ -156,8 +165,11 @@ across CI time zones — no need to monkey-patch the global `Date`
 constructor like `tests/e2e/fixtures.ts#pinClock` does for e2e.
 
 **`localIsoDate` is exported as the canonical "today" seed.** The fillup
-form's default date (`+page.svelte`) seeds from it so the seed and check D
-share one date basis by construction. It must stay the _local_ calendar
+form's date field (`+page.svelte`) seeds from `data.prefill.date` when
+present (vehicle-picker round-trip / Shortcuts deep-link, #50), validated
+through `lubeDateToIso`; on absence or garbage it falls back to
+`localIsoDate()`, so the fallback seed and check D share one date basis
+by construction. It must stay the _local_ calendar
 date (`toLocaleDateString('en-CA')`): the form briefly seeded from
 `toISOString().slice(0, 10)`, whose UTC basis is already "tomorrow" from
 ~8 PM onward west of UTC — so every late-evening submission opened with a

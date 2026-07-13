@@ -53,7 +53,7 @@ upstream provider supports, but the UI doesn't expose them.
 `CurrencyService.getRate(from, to)` in `currency.ts`:
 
 1. **Identity short-circuit.** If `from === to`, return
-   `{ rate: 1, source: 'identity', stale: false, ageHours: 0 }`
+   `{ rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }`
    without touching the cache or the network.
 2. **Disk cache hit.** Load the cache JSON via the injected `FxStore`.
    If there's an entry for the `${from}:${to}` key and its `fetchedAt`
@@ -62,8 +62,9 @@ upstream provider supports, but the UI doesn't expose them.
 3. **Provider chain.** Walk `opts.providers` in order. For each
    provider, call `opts.fetcher(provider, from, to)` (production:
    `realFetcher` above). On success, persist the new entry to the
-   store and return with `stale: false`. On failure, log a warning
-   (`[fx] provider <name> failed: <message>`) and continue.
+   store and return with `stale: false`. On failure, log a structured
+   warning (`fx provider failed`, see "Failure logging" below) and
+   continue.
 4. **Stale-cache fallback.** If every provider failed but a cache
    entry exists and is within the **7-day stale window**
    (`STALE_MAX_MS = 7 * 24 * 60 * 60 * 1000`), return it with
@@ -187,11 +188,17 @@ next provider.
 
 ### Failure logging
 
-Every provider failure is logged via `console.warn` with the format:
+Every provider failure is logged via the service's injected structured
+logger:
 
+```ts
+this.log.warn('fx provider failed', { provider: p, err });
 ```
-[fx] provider <name> failed: <error message>
-```
+
+In production both constructors (`/api/fx` and `/api/fuelup`) build the
+process-level `CurrencyService` singleton with `getLogger()` — the root
+logger, not a per-request child — so these warnings land in the normal
+JSON log stream without a stray `request_id`.
 
 Failures never throw out of the chain — only the final "all providers
 failed AND no usable cache" branch throws `FxUnavailableError`.

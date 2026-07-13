@@ -2,14 +2,14 @@
 
 quicklogger supports two iOS Shortcut patterns. Both work over the same HTTPS endpoint and require nothing on quicklogger's side beyond the regular setup.
 
-|                             | Path 1 — URL deep link                                            | Path 2 — Direct POST                             |
-| --------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
-| **What it does**            | Opens the form pre-filled in Safari, you tap "Log fuel" to submit | POSTs JSON straight to `/api/fuelup`, no UI      |
-| **Best for**                | Eyeball-and-confirm flows; reading values off the pump display    | Voice-first ("Hey Siri, log fillup"); hands-busy |
-| **Browser opens?**          | Yes (then iOS may keep it focused)                                | No                                               |
-| **Voice-friendly?**         | Awkward (browser tab needed)                                      | Yes (designed for it)                            |
-| **Failure mode if offline** | Form will queue the submit via SW once Safari is open             | POST fails immediately; the Shortcut errors      |
-| **Setup complexity**        | Easy (4 actions)                                                  | Moderate (10–13 actions)                         |
+|                             | Path 1 — URL deep link                                              | Path 2 — Direct POST                             |
+| --------------------------- | ------------------------------------------------------------------- | ------------------------------------------------ |
+| **What it does**            | Opens the form pre-filled in Safari, you tap "Log fillup" to submit | POSTs JSON straight to `/api/fuelup`, no UI      |
+| **Best for**                | Eyeball-and-confirm flows; reading values off the pump display      | Voice-first ("Hey Siri, log fillup"); hands-busy |
+| **Browser opens?**          | Yes (then iOS may keep it focused)                                  | No                                               |
+| **Voice-friendly?**         | Awkward (browser tab needed)                                        | Yes (designed for it)                            |
+| **Failure mode if offline** | Form will queue the submit via SW once Safari is open               | POST fails immediately; the Shortcut errors      |
+| **Setup complexity**        | Easy (4 actions)                                                    | Moderate (10–13 actions)                         |
 
 If you only build one, **Path 1 is the higher-leverage one** — you'll use it daily.
 If you do a lot of pump-side work and want voice, **also build Path 2**.
@@ -31,7 +31,7 @@ If you want to share with a friend or fork user (different Apple ID, so iCloud s
 
 ## Path 1 — URL deep link (form opens pre-filled)
 
-The home page (`/`) accepts query params. The shortcut just builds a URL and opens it in Safari; the form mounts pre-filled and you tap **Log fuel** to submit.
+The home page (`/`) accepts query params. The shortcut just builds a URL and opens it in Safari; the form mounts pre-filled and you tap **Log fillup** to submit.
 
 ### Supported query params
 
@@ -46,7 +46,7 @@ The home page (`/`) accepts query params. The shortcut just builds a URL and ope
 | `date`       | `YYYY-MM-DD`      | Defaults to today; ignored if not a valid ISO date                    |
 | `notes`      | text              | Free text — note / station / grade                                    |
 
-All params are optional — anything you don't pass uses the form's normal defaults (last vehicle, today's date, your Settings defaults for unit/currency).
+All params are optional — anything you don't pass uses the form's normal defaults (the first vehicle in your LubeLogger list, today's date, your Settings defaults for unit/currency).
 
 ### Build it on iPhone
 
@@ -118,9 +118,18 @@ The server returns:
 ```json
 {
   "ok": true,
-  "submitted": { "gallons": 11.2, "cost": 42.18 }
+  "submitted": {
+    "gallons": 11.2,
+    "cost": 42.18,
+    "currency": "USD",
+    "fxRate": 1,
+    "fxSource": "identity",
+    "fxStale": false
+  }
 }
 ```
+
+The response also carries the target `currency` and the FX details (`fxRate`, `fxSource`, `fxStale`) used for the conversion, plus an optional `photoWarning` (a photo failed to attach) or `deduped` flag (an offline replay matched an existing record). The two fields the recipe reads — `submitted.gallons` and `submitted.cost` — are always present.
 
 Use `submitted.gallons` and `submitted.cost` in a final **Speak Text** action so Siri tells you what was logged (handy for verifying the conversion when you submitted in CAD/L).
 
@@ -287,7 +296,7 @@ Then in step 7 use `[vehicleId]` instead of the hardcoded `1`.
 
 ## Quick reference — quicklog-prefill
 
-Builds a URL with query params, opens it in Safari. The form mounts pre-filled; you tap **Log fuel** to submit.
+Builds a URL with query params, opens it in Safari. The form mounts pre-filled; you tap **Log fillup** to submit.
 
 For the full walkthrough with detail on each Shortcuts UI action, see [Path 1 — URL deep link](#path-1--url-deep-link-form-opens-pre-filled) above.
 
@@ -303,7 +312,7 @@ For the full walkthrough with detail on each Shortcuts UI action, see [Path 1 �
 
 4. **Open URLs** — drag the Text from step 3 in as the input
 
-The web form mounts pre-filled. User taps **Log fuel** to submit.
+The web form mounts pre-filled. User taps **Log fillup** to submit.
 
 ### Install
 

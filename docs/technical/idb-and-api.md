@@ -49,8 +49,8 @@ this document under § _LubeLogger upstream calls_.
 
 ### Consumers
 
-- `Queue.enqueue` — written by the Log Fuel submit path and the service-worker replay (see [`offline-queue.md`](./offline-queue.md)).
-- The offline-prefill resolver in `src/lib/client/last-fillup.ts` — reads `'synced'` rows to surface the most-recent fillup when `/api/vehicle/last-fuelup` is unreachable.
+- `Queue.enqueue` — written only by the Log Fuel submit path (`src/routes/+page.svelte`); the service-worker replay loop in `src/lib/client/sync-queue.ts` updates existing rows but never enqueues (see [`offline-queue.md`](./offline-queue.md)).
+- The offline-prefill resolver in `src/lib/client/last-fillup.ts` — reads `'queued'` and `'synced'` rows (skips only `'failed'`) to surface the most-recent fillup when `/api/vehicle/last-fuelup` is unreachable.
 - `/history` (`src/routes/history/+page.svelte`) — reads the whole store for display ([`history-page.md`](./history-page.md)).
 
 ### `FuelSubmissionInput` shape
@@ -116,39 +116,43 @@ reverse-proxy health probe hit this.
 
 Source: `src/routes/api/vehicles/+server.ts`.
 
-| Field        | Value                                                                                                                                                                                                                                                                                                                     |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Request      | No params.                                                                                                                                                                                                                                                                                                                |
-| Cache        | Server: in-memory `TtlCache` keyed on `'vehicles'`, 5-minute TTL. Client: the service worker caches the last good 2xx response in `quicklogger-api-cache-v1` (network-first, survives deploys) so the offline cold-start form has a vehicle list — see [`service-worker.md`](./service-worker.md#vehicle-list-api-cache). |
-| Response 200 | `Vehicle[]` from LubeLogger's `/api/vehicles`.                                                                                                                                                                                                                                                                            |
-| Response 502 | `{ error: string }` — LubeLogger returned an error (`LubeLoggerError`).                                                                                                                                                                                                                                                   |
-| Response 500 | `{ error: string }` — anything else (env missing, network failure, etc.).                                                                                                                                                                                                                                                 |
+| Field        | Value                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Request      | No params.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Cache        | Server: the shared in-memory `TtlCache` in `src/lib/server/vehicleCache.ts`, keyed on `'vehicles'`, 5-minute TTL (same cache as `/api/vehicle/image` — see below). Client: the service worker caches the last good 2xx response in `quicklogger-api-cache-v1` (network-first, survives deploys) so the offline cold-start form has a vehicle list — see [`service-worker.md`](./service-worker.md#vehicle-list-api-cache). |
+| Response 200 | `Vehicle[]` from LubeLogger's `/api/vehicles`.                                                                                                                                                                                                                                                                                                                                                                             |
+| Response 502 | `{ error: string }` — LubeLogger returned an error (`LubeLoggerError`).                                                                                                                                                                                                                                                                                                                                                    |
+| Response 500 | `{ error: string }` — anything else (env missing, network failure, etc.).                                                                                                                                                                                                                                                                                                                                                  |
+
+Responses are normalized via `normalizeVehicleIdentifiers` (VIN hoist) before
+caching/serving — the cache loader in `vehicleCache.ts` maps every upstream
+vehicle through it once per fetch, so cache hits cost no extraction work.
 
 `Vehicle` shape (`src/lib/server/lubelogger.ts`):
 
 ```ts
-{ id: number; year?: number; make?: string; model?: string; [k: string]: unknown }
+{ id: number; year?: number; make?: string; model?: string; licensePlate?: string; vin?: string; [k: string]: unknown }
 ```
 
 ### `GET /api/vehicle/image?vehicleId=<id>`
 
 Source: `src/routes/api/vehicle/image/+server.ts`. Proxies the LubeLogger `/images/<uuid>.<ext>` path so the browser doesn't need a session cookie — the server-side `x-api-key` (added in LubeLogger v1.6.5) authenticates the upstream call.
 
-| Field        | Value                                                                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Request      | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()` in `$lib/server/lubeloggerProxy.ts`, same rule as `/api/fuelup`). |
-| Cache        | In-memory `TtlCache<Vehicle[]>` keyed on `'vehicles'`, 5-minute TTL (separate from `/api/vehicles`'s cache — see below).                     |
-| Response 200 | Streamed image bytes with the upstream `content-type` (`image/jpeg` or `image/png`) and `cache-control: no-store`.                           |
-| Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`.                                                                       |
-| Response 404 | `{ error: 'no image' }` — vehicle id not found, or `imageLocation` is empty / not a string / not under `/images/` (defensive path guard).    |
-| Response 502 | `{ error: string }` — `LubeLoggerError` from either the vehicles lookup or the image fetch.                                                  |
-| Response 500 | `{ error: string }` — anything else.                                                                                                         |
+| Field        | Value                                                                                                                                                            |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Request      | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()` in `$lib/server/lubeloggerProxy.ts`, same rule as `/api/fuelup`).                     |
+| Cache        | The shared in-memory `TtlCache<Vehicle[]>` in `src/lib/server/vehicleCache.ts`, keyed on `'vehicles'`, 5-minute TTL (same cache as `/api/vehicles` — see below). |
+| Response 200 | Streamed image bytes with the upstream `content-type` (`image/jpeg` or `image/png`) and `cache-control: no-store`.                                               |
+| Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`.                                                                                           |
+| Response 404 | `{ error: 'no image' }` — vehicle id not found, or `imageLocation` is empty / not a string / not under `/images/` (defensive path guard).                        |
+| Response 502 | `{ error: string }` — `LubeLoggerError` from either the vehicles lookup or the image fetch.                                                                      |
+| Response 500 | `{ error: string }` — anything else.                                                                                                                             |
 
 `cache-control: no-store` is deliberate: the service worker is the authoritative client-side cache for image bytes (see [`service-worker.md`](./service-worker.md#vehicle-image-cache)). Letting the HTTP cache compete would create two staleness windows for the same bytes.
 
 The path-guard refuses to proxy anything that doesn't start with `/images/`, even though we control the upstream. Defense-in-depth in case a future LubeLogger version stores arbitrary paths in `imageLocation` (e.g. external URLs).
 
-The endpoint maintains its own `TtlCache` rather than sharing with `/api/vehicles/+server.ts`. Cost: at most one extra `listVehicles()` call per 5-minute window when both endpoints run cold. Acceptable at personal-use scale — revisit if it ever matters.
+Both this endpoint and `/api/vehicles` share the single `TtlCache` in `src/lib/server/vehicleCache.ts` (they previously each kept their own — review #36). `TtlCache` caches the in-flight promise, so concurrent cold misses from both routes collapse into one upstream `listVehicles()` call per 5-minute window.
 
 ### `GET /api/vehicle/last-fuelup?vehicleId=<id>`
 
@@ -325,7 +329,7 @@ conversion (kept for response-shape parity).
 | 413    | `{ error: 'request body must be <= N bytes' }`                                | Advertised `Content-Length` exceeds 2 × `OCR_MAX_IMAGE_MB` + 256 KiB form slack (two photo parts max, each gated to the image policy post-parse). Early best-effort guard — with the transport's `BODY_SIZE_LIMIT=Infinity` the body would otherwise be fully buffered before any check; an absent or lying header falls through to the post-parse gates. |
 | 400    | `{ error: 'missing fields: ...' }`                                            | Required field missing or null.                                                                                                                                                                                                                                                                                                                           |
 | 400    | `{ error: 'invalid fields (must be > 0 / non-empty): ...' }`                  | Zero/negative/NaN on a numeric field, non-integer `vehicleId`, unknown `volumeUnit`, empty `date`, or a non-string / empty / whitespace-only `clientSubmissionId`.                                                                                                                                                                                        |
-| 4xx    | `{ error: string }`                                                           | `LubeLoggerError` with upstream 4xx — re-emitted with same status. Upstream status/body stay in server logs (`lubelogger non-ok`).                                                                                                                                                                                                                        |
+| 4xx    | `{ error: string }`                                                           | `LubeLoggerError` with upstream status < 500 — passed through with the same status (the mapping is `status >= 500 ? 502 : status`, so any sub-500 status passes through; in practice 4xx). Upstream status/body stay in server logs (`lubelogger non-ok`).                                                                                                |
 | 502    | `{ error: string }`                                                           | `LubeLoggerError` with upstream 5xx — re-emitted as 502. Generic message only.                                                                                                                                                                                                                                                                            |
 | 503    | `{ error: 'exchange rate unavailable — retry later or enter a manual rate' }` | `FxUnavailableError` (chain dry, no manual rate). 5xx so a queued replay stays `'queued'`.                                                                                                                                                                                                                                                                |
 | 500    | `{ error: 'unexpected server error' }`                                        | Any other thrown error. The exception detail is logged server-side (`fuelup submit failed`), never echoed to the client.                                                                                                                                                                                                                                  |
@@ -346,13 +350,19 @@ Always `200 application/json`. Body:
 or
 
 ```json
-{ "enabled": true, "modes": ["pump", "odometer"] }
+{ "enabled": true, "modes": ["pump", "odometer"], "chainTimeoutMs": 90000 }
 ```
 
-`enabled` is `true` iff at least one of `OLLAMA_VISION_URL` /
-`OPENROUTER_API_KEY` is set. `modes` lists modes the dispatcher actively
-handles. Used by the `/` page loader to decide whether to render the
-camera affordances.
+`enabled` is `true` iff at least one of the four provider slots is
+configured: `OLLAMA_VISION_URL` (ollama-local), `OLLAMA_CLOUD_API_KEY`
+(ollama-cloud), `OPENROUTER_API_KEY` (openrouter), or
+`OPENAI_COMPATIBLE_URL` + `_API_KEY` + `_MODEL` (openai-compatible) —
+see `selectProvider` in `src/lib/server/ocr.ts`. `modes` lists modes the
+dispatcher actively handles. `chainTimeoutMs` (present only when enabled;
+`OcrStatus` in `src/lib/shared/types.ts`) is the sum of the effective
+chain's per-slot timeouts — the `/` page loader uses it (+10 s) for its
+client-side abort timeout on `POST /api/ocr`. Used by the `/` page loader
+to decide whether to render the camera affordances.
 
 ### `POST /api/ocr` — read pump or odometer (v0.2.0+)
 
@@ -360,6 +370,18 @@ camera affordances.
 
 - `image` — image file (JPEG / PNG / WebP / HEIC), ≤ `OCR_MAX_IMAGE_MB` (default 5 MiB).
 - `mode` — `'pump'` | `'odometer'`.
+- Optional fields, all defensively parsed (malformed values silently
+  collapse to absent): `rotation` (`0`/`90`/`180`/`270`) and
+  `cropX`/`cropY`/`cropW`/`cropH` (all four or nothing, fractions in
+  [0, 1]) feed the audit row only; `lastOdometerMi` / `lastPricePerUnit`
+  (finite positive numbers) feed the prompt builders as soft
+  sanity-check hints.
+
+Like the other upload routes, the endpoint has an early best-effort 413
+pre-guard from the advertised `Content-Length` (`_contentLengthExceeds`,
+image policy + 64 KiB multipart-envelope allowance) before the body is
+buffered; an absent or lying header falls through to the authoritative
+post-parse `file.size` check.
 
 **200 response (discriminated by `mode`):**
 
@@ -386,13 +408,22 @@ or
 | 502    | all providers failed, or returned malformed JSON                   | —                    |
 | 503    | no provider configured (UI should hide camera via `GET /api/ocr`)  | —                    |
 
+Failed-but-billed attempts (the provider responded, then parse / schema /
+range validation failed) still debit the daily budget with their token-cost
+estimate — otherwise billed failures would burn money invisibly and the 402
+gate would never trip. Network/timeout failures cost 0.
+
 The endpoint never persists image bytes. The audit log at
-`/data/ocr-audit.jsonl` records HMAC-keyed IP hash, SHA-256 image hash,
-and the parsed numeric fields only.
+`/data/ocr-audit.jsonl` records, per attempt: HMAC-keyed IP hash, SHA-256
+image hash, the parsed numeric fields, `rotationApplied`,
+`cropApplied`/`cropRect`, the `lastOdometerMi`/`lastPricePerUnit` hints
+(when supplied), `imgBytes`, `imageType`, `provider`, `model`,
+`fellbackFrom`, `latencyMs`, and `costCents`. Failures write an audit row
+too (`ok: false`, `parsed: null`, plus an `error` code/message).
 
 ### `POST /api/log` (v0.2.3+)
 
-Browser + service worker forward `error` / `unhandledrejection` records here. Server tags each with `source: client` (or `source: service-worker`), the `User-Agent`, and the pathname from `Referer`. Rate-limited 60 req/min per IP, batches capped at 20 records / 100kb total, individual records capped at 8kb. The 100kb batch cap is enforced twice: from the advertised `Content-Length` _before_ the body is buffered (early 413 — the transport's `BODY_SIZE_LIMIT=Infinity` means nothing below the app rejects first), then again on the buffered text for chunked/lying-header bodies. Returns `204 No Content` on success.
+Browser + service worker forward `error` / `unhandledrejection` records here. Server tags each with a hardcoded top-level `source: client`, the `User-Agent`, and the pathname from `Referer`; client-supplied `ctx` is quarantined under `client_ctx` so it can't collide with server-owned fields — the service worker's `source: 'service-worker'` marker lives inside that `client_ctx`, not at the top level. Rate-limited 60 req/min per IP, batches capped at 20 records / 100kb total; individual records over 8kb are silently skipped (`continue`), not rejected. The 100kb batch cap is enforced twice: from the advertised `Content-Length` _before_ the body is buffered (early 413 — the transport's `BODY_SIZE_LIMIT=Infinity` means nothing below the app rejects first), then again on the buffered text for chunked/lying-header bodies. Returns `204 No Content` on success.
 
 Request body:
 
@@ -429,7 +460,7 @@ interface ServerInfo {
   decimalSeparator: string | null; // cached from /api/info
   dateFormat: string | null; // cached from /api/info
   lubeloggerCurrency: string | null; // LubeLogger instance currency (ISO 4217); from server env LUBELOGGER_CURRENCY (default 'USD'), null on UNREACHABLE
-  appCurrentVersion: string | null; // app's own __APP_VERSION__ (runtime); null on UNREACHABLE
+  appCurrentVersion: string | null; // app's own __APP_VERSION__ (runtime); set even on the UNREACHABLE fallback — null only when the Vite define is absent (vitest)
   appLatestVersion: string | null; // latest quicklogger GitHub release tag, v-stripped
   appUpdateAvailable: boolean; // guarded compare of appCurrentVersion vs appLatestVersion
   appReleaseUrl: string | null; // GitHub release html_url
@@ -549,9 +580,9 @@ Any non-2xx response throws `LubeLoggerError extends Error` with:
 
 The route handlers use this for status-class routing — `/api/vehicles`
 and `/api/vehicle/last-fuelup` re-emit any `LubeLoggerError` as a
-quicklogger 502; `/api/fuelup` re-emits 4xx with the same status code
-(so the SW replay marks the entry `'failed'`) and 5xx as a 502
-(so the SW leaves the entry `'queued'`).
+quicklogger 502; `/api/fuelup` re-emits any sub-500 status unchanged
+(in practice 4xx — so the SW replay marks the entry `'failed'`) and 5xx
+as a 502 (so the SW leaves the entry `'queued'`).
 
 ## Cross-references
 

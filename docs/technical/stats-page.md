@@ -14,7 +14,7 @@ and the `VehicleInfo` type live in [`idb-and-api.md`](./idb-and-api.md).
 - `src/lib/client/api.ts` — `getVehicleInfo(id, fetch)` wrapper.
 - `src/lib/client/stats.ts` — pure display helpers (`totalCostOfOwnership`, `totalRecordCount`, `costRows`, `reminderSummary`, `purchasePrice`).
 - `src/routes/stats/+page.ts` — loader: resolve vehicle → `getVehicleInfo` → `{ vehicle, info, error }`.
-- `src/routes/stats/+page.svelte` — renders the cards / states; thin, all math in `stats.ts`.
+- `src/routes/stats/+page.svelte` — renders the cards / states; thin, all math in `stats.ts`. Also mounts the shared `<VehicleIdentifiersCard>` (Plate + VIN) below the vehicle card with `typeof === 'string'` guards — same component as `/maintenance`; see [`vehicle-identifiers.md`](./vehicle-identifiers.md).
 - `src/routes/+layout.svelte` — `Stats` drawer nav item (between Maintenance and Vehicles).
 - `src/routes/vehicles/+page.svelte` — `stats` entry in the picker `RETURN_TO` allowlist.
 

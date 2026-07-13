@@ -45,7 +45,9 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
 4. On submit, `wantsAttach = attachPhotos && (≥1 blob)`:
    - `wantsAttach` → `submitFuelupWithPhotos` (multipart).
    - else → `submitFuelup` (JSON) — unchanged path.
-5. Server (multipart, ≥1 image): for each present part, gate (size ≤ `OCR_MAX_IMAGE_MB`,
+5. Server (multipart, ≥1 image): an early Content-Length pre-guard first rejects (413) bodies over
+   2 × `OCR_MAX_IMAGE_MB` + fixed form slack, before parsing buffers anything (mirrors `/api/ocr`;
+   post-parse gates stay authoritative). Then for each present part, gate (size ≤ `OCR_MAX_IMAGE_MB`,
    `sniffImageType` ≠ null) → `uploadDocument` → collect `UploadedFile`. Then
    `addGasRecord(vehicleId, payload, files)` uses the JSON variant. A gate/upload failure skips that
    file and sets `photoWarning`; `addGasRecord` failing throws and surfaces as a normal 4xx/5xx.

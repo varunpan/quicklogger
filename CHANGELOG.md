@@ -28,6 +28,13 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Documentation reconciled with the code.** A full grounding review of every
+  technical and user doc (plus `architecture.md` and `deployment.md`) against
+  the v0.3.1 code found ~75 stale or wrong claims — pre-fix implementation
+  descriptions (locale pinning, ISO date handling, queue pruning, 2-provider
+  OCR activation, separate vehicle caches), outdated constants and UI
+  descriptions, dead anchors, and undocumented behavior. All verified findings
+  fixed; docs now match the shipped code.
 - **Screen readers now announce the submit outcome.** The logged / saved-offline /
   failed toast after submitting a fill-up was invisible to assistive tech; it now
   carries a live-region role (`status`, or `alert` for errors) like every other

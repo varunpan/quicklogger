@@ -45,14 +45,14 @@ Settings changes apply on the next time you open the form.
 
 ## Common patterns
 
-| Situation                                  | What to do                                                             |
-| ------------------------------------------ | ---------------------------------------------------------------------- |
-| Typical fillup, ~300 miles since last fill | Tap `+300 mi` once, adjust by a few digits if needed.                  |
-| Long road trip, ~600 miles                 | Tap `+300 mi` twice.                                                   |
-| You wrote down the exact reading           | Just type it — the prefill is overwritten the moment you start typing. |
-| First-ever fillup for a vehicle            | The strip and chip are hidden; field is empty, exactly like before.    |
-| You don't want any prefill                 | Settings → Odometer prefill → **Off**.                                 |
-| You want the prefill but no chip           | Settings → Quick increment → **0**.                                    |
+| Situation                                  | What to do                                                                                                                             |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Typical fillup, ~300 miles since last fill | Tap `+300 mi` once, adjust by a few digits if needed.                                                                                  |
+| Long road trip, ~600 miles                 | Tap `+300 mi` twice.                                                                                                                   |
+| You wrote down the exact reading           | Just type it — the prefill is overwritten the moment you start typing.                                                                 |
+| First-ever fillup for a vehicle            | The strip is hidden and the field is empty; the chip still shows — tapping it just puts the increment (e.g. `300`) in the empty field. |
+| You don't want any prefill                 | Settings → Odometer prefill → **Off**.                                                                                                 |
+| You want the prefill but no chip           | Settings → Quick increment → **0**.                                                                                                    |
 
 ## Why both?
 
@@ -80,7 +80,7 @@ last-fillup strip with a small amber **`offline copy`** tag next to the
 date:
 
         Last fill: 87,234 mi · May 3, 2026 (2 days ago)  [offline copy]
-        11.50 Gal · CAD 60.00
+        11.50 Gal · CA$60.00
 
 The odometer prefill works exactly like online — the field opens with the
 last reading, the chip still bumps by your configured increment.
@@ -91,7 +91,7 @@ last reading, the chip still bumps by your configured increment.
   may be a fillup you logged from this phone, or a snapshot of what
   LubeLogger had the last time you were online.
 - Cost is shown in whatever currency you originally entered (e.g.
-  `CAD 60.00`) — no FX conversion happens offline. Online cached entries
+  `CA$60.00`) — no FX conversion happens offline. Online cached entries
   still render with a leading `$` because that's what the strip has
   always shown for the upstream value (typically USD; whatever your
   LubeLogger is configured to return).
