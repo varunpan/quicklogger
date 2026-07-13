@@ -18,7 +18,10 @@ function fullInfo(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function mockServerInfo(page: import('@playwright/test').Page, body: Record<string, unknown>) {
+async function mockServerInfo(
+  page: import('@playwright/test').Page,
+  body: Record<string, unknown>
+) {
   await page.route('**/api/server-info', (route) => route.fulfill({ json: body }));
 }
 
@@ -28,7 +31,9 @@ async function seedCache(page: import('@playwright/test').Page, body: Record<str
   }, body);
 }
 
-test('connected + up to date: shows Connected and the version, no update badge', async ({ page }) => {
+test('connected + up to date: shows Connected and the version, no update badge', async ({
+  page
+}) => {
   const payload = fullInfo();
   await seedCache(page, payload);
   await mockServerInfo(page, payload);
@@ -52,7 +57,11 @@ test('update available: shows the badge and the version arrow', async ({ page })
 
 test('unauthorized: shows API key rejected', async ({ page }) => {
   const payload = fullInfo({
-    reachable: false, status: 'unauthorized', currentVersion: null, latestVersion: null, updateAvailable: false
+    reachable: false,
+    status: 'unauthorized',
+    currentVersion: null,
+    latestVersion: null,
+    updateAvailable: false
   });
   await seedCache(page, payload);
   await mockServerInfo(page, payload);
@@ -64,7 +73,11 @@ test('unauthorized: shows API key rejected', async ({ page }) => {
 
 test("unreachable: shows Can't reach LubeLogger", async ({ page }) => {
   const payload = fullInfo({
-    reachable: false, status: 'unreachable', currentVersion: null, latestVersion: null, updateAvailable: false
+    reachable: false,
+    status: 'unreachable',
+    currentVersion: null,
+    latestVersion: null,
+    updateAvailable: false
   });
   await seedCache(page, payload);
   await mockServerInfo(page, payload);
@@ -73,12 +86,21 @@ test("unreachable: shows Can't reach LubeLogger", async ({ page }) => {
   await expect(block.getByText("Can't reach LubeLogger")).toBeVisible();
 });
 
-test('layout boot refresh updates cache from live fetch (Settings does not re-render in place)', async ({ page }) => {
+test('layout boot refresh updates cache from live fetch (Settings does not re-render in place)', async ({
+  page
+}) => {
   // Seed a stale cached "unreachable" before scripts run.
   await seedCache(page, {
-    reachable: false, status: 'unreachable', currentVersion: null, latestVersion: null,
-    updateAvailable: false, locale: null, currencySymbol: null,
-    decimalSeparator: null, dateFormat: null, lubeloggerCurrency: null
+    reachable: false,
+    status: 'unreachable',
+    currentVersion: null,
+    latestVersion: null,
+    updateAvailable: false,
+    locale: null,
+    currencySymbol: null,
+    decimalSeparator: null,
+    dateFormat: null,
+    lubeloggerCurrency: null
   });
   // Delay the live response so the stale cache is observably painted first.
   await page.route('**/api/server-info', async (route) => {
@@ -95,6 +117,10 @@ test('layout boot refresh updates cache from live fetch (Settings does not re-re
   await page.waitForFunction(() => {
     const raw = localStorage.getItem('quicklogger-server-info');
     if (!raw) return false;
-    try { return JSON.parse(raw).currentVersion === '1.6.5'; } catch { return false; }
+    try {
+      return JSON.parse(raw).currentVersion === '1.6.5';
+    } catch {
+      return false;
+    }
   });
 });

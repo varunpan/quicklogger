@@ -14,9 +14,9 @@ export type LastFillupSource = 'upstream' | 'offline' | null;
 // LubeLogger instance currency at format-time); the entered currency for
 // queue-derived records (we don't FX offline). `formatCost` consumes both.
 export interface LastFillupRecord {
-  date: string;          // ISO YYYY-MM-DD
-  odometer: string;      // raw integer-string of miles
-  fuelConsumed: string;  // gallons (always — queue L is converted)
+  date: string; // ISO YYYY-MM-DD
+  odometer: string; // raw integer-string of miles
+  fuelConsumed: string; // gallons (always — queue L is converted)
   cost: string | null;
   costCurrency: string | null;
   notes: string | null;
@@ -54,23 +54,43 @@ function parseISO(s: string): number | null {
 //   "d.M.yyyy"   de-DE   → "7.4.2024"
 // Unknown format → null. Caller treats as cache miss; upstream refetch
 // repopulates with the new typed-ISO shape.
-function parseLegacyDate(
-  raw: string,
-  dateFormat: string
-): { iso: string; ts: number } | null {
+function parseLegacyDate(raw: string, dateFormat: string): { iso: string; ts: number } | null {
   const fmt = dateFormat.toLowerCase();
   let sep: string;
   let yIdx: number, mIdx: number, dIdx: number;
   switch (fmt) {
-    case 'm/d/yyyy':   sep = '/'; mIdx = 0; dIdx = 1; yIdx = 2; break;
-    case 'd/m/yyyy':   sep = '/'; dIdx = 0; mIdx = 1; yIdx = 2; break;
-    case 'yyyy-mm-dd': sep = '-'; yIdx = 0; mIdx = 1; dIdx = 2; break;
-    case 'd.m.yyyy':   sep = '.'; dIdx = 0; mIdx = 1; yIdx = 2; break;
-    default: return null;
+    case 'm/d/yyyy':
+      sep = '/';
+      mIdx = 0;
+      dIdx = 1;
+      yIdx = 2;
+      break;
+    case 'd/m/yyyy':
+      sep = '/';
+      dIdx = 0;
+      mIdx = 1;
+      yIdx = 2;
+      break;
+    case 'yyyy-mm-dd':
+      sep = '-';
+      yIdx = 0;
+      mIdx = 1;
+      dIdx = 2;
+      break;
+    case 'd.m.yyyy':
+      sep = '.';
+      dIdx = 0;
+      mIdx = 1;
+      yIdx = 2;
+      break;
+    default:
+      return null;
   }
   const parts = raw.split(sep).map((p) => Number(p));
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
-  const y = parts[yIdx], m = parts[mIdx], d = parts[dIdx];
+  const y = parts[yIdx],
+    m = parts[mIdx],
+    d = parts[dIdx];
   const dt = new Date(y, m - 1, d);
   if (Number.isNaN(dt.getTime())) return null;
   return {
@@ -130,10 +150,7 @@ function readCacheCandidate(vehicleId: number): InternalCandidate | null {
   };
 }
 
-async function readQueueCandidates(
-  vehicleId: number,
-  q: Queue
-): Promise<InternalCandidate[]> {
+async function readQueueCandidates(vehicleId: number, q: Queue): Promise<InternalCandidate[]> {
   let entries;
   try {
     entries = await q.list();
@@ -147,12 +164,10 @@ async function readQueueCandidates(
     const ts = parseISO(entry.input.date);
     if (ts === null) continue;
     const gallons =
-      entry.input.volumeUnit === 'gal'
-        ? entry.input.volume
-        : entry.input.volume / L_PER_GALLON;
+      entry.input.volumeUnit === 'gal' ? entry.input.volume : entry.input.volume / L_PER_GALLON;
     out.push({
       record: {
-        date: entry.input.date,                          // already ISO from the queue
+        date: entry.input.date, // already ISO from the queue
         odometer: String(Math.round(entry.input.odometer)),
         fuelConsumed: gallons.toFixed(2),
         cost: entry.input.cost.toFixed(2),

@@ -5,7 +5,9 @@ const NOOP_LOGGER: Logger = {
   info: () => {},
   warn: () => {},
   error: () => {},
-  child() { return this; }
+  child() {
+    return this;
+  }
 };
 
 export interface OcrRateLimiterOptions {
@@ -13,9 +15,7 @@ export interface OcrRateLimiterOptions {
   logger?: Logger;
 }
 
-export type RateLimitResult =
-  | { allowed: true }
-  | { allowed: false; retryAfterSec: number };
+export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterSec: number };
 
 const HOUR_MS = 60 * 60 * 1000;
 

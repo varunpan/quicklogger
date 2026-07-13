@@ -29,13 +29,18 @@ function makeRequest(body: unknown, contentType = 'application/json') {
   return new Request('http://localhost/api/fuelup', {
     method: 'POST',
     headers: { 'content-type': contentType },
-    body: contentType === 'application/json' ? JSON.stringify(body) : body as BodyInit
+    body: contentType === 'application/json' ? JSON.stringify(body) : (body as BodyInit)
   });
 }
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-  child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as unknown as import('../../src/lib/server/logger').Logger;
 
 function eventFor(body: unknown, contentType = 'application/json'): Parameters<typeof POST>[0] {
@@ -62,7 +67,9 @@ describe('POST /api/fuelup', () => {
   it('happy path — converts CAD/L → USD/gal and posts to lubelogger', async () => {
     let observedForm: FormData | undefined;
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
+      http.get('https://api.frankfurter.dev/v1/latest', () =>
+        HttpResponse.json({ rates: { USD: 0.73 } })
+      ),
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', async ({ request }) => {
         observedForm = await request.formData();
         return HttpResponse.json({ success: true });
@@ -85,8 +92,12 @@ describe('POST /api/fuelup', () => {
 
   it('accepts form-urlencoded body in addition to JSON', async () => {
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 1 } })),
-      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
+      http.get('https://api.frankfurter.dev/v1/latest', () =>
+        HttpResponse.json({ rates: { USD: 1 } })
+      ),
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () =>
+        HttpResponse.json({ success: true })
+      )
     );
     const usp = new URLSearchParams();
     for (const [k, v] of Object.entries({ ...baseInput, currency: 'USD', volumeUnit: 'gal' })) {
@@ -98,8 +109,13 @@ describe('POST /api/fuelup', () => {
 
   it('returns 502 on lubelogger 5xx and does not retry', async () => {
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
-      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => new HttpResponse('upstream down', { status: 503 }))
+      http.get('https://api.frankfurter.dev/v1/latest', () =>
+        HttpResponse.json({ rates: { USD: 0.73 } })
+      ),
+      http.post(
+        'http://lubelog:8080/api/vehicle/gasrecords/add',
+        () => new HttpResponse('upstream down', { status: 503 })
+      )
     );
     const res = await POST(eventFor(baseInput));
     expect(res.status).toBe(502);
@@ -108,7 +124,9 @@ describe('POST /api/fuelup', () => {
   it('idempotent within 60s on duplicate clientSubmissionId', async () => {
     let upstreamCalls = 0;
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
+      http.get('https://api.frankfurter.dev/v1/latest', () =>
+        HttpResponse.json({ rates: { USD: 0.73 } })
+      ),
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => {
         upstreamCalls++;
         return HttpResponse.json({ success: true });
@@ -224,13 +242,17 @@ describe('POST /api/fuelup', () => {
   it('accepts a numeric-string vehicleId and coerces it for the upstream URL', async () => {
     let observedUrl = '';
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
+      http.get('https://api.frankfurter.dev/v1/latest', () =>
+        HttpResponse.json({ rates: { USD: 0.73 } })
+      ),
       http.post('http://lubelog:8080/api/vehicle/gasrecords/add', ({ request }) => {
         observedUrl = request.url;
         return HttpResponse.json({ success: true });
       })
     );
-    const res = await POST(eventFor({ ...baseInput, vehicleId: '2', clientSubmissionId: 'vid-str-1' }));
+    const res = await POST(
+      eventFor({ ...baseInput, vehicleId: '2', clientSubmissionId: 'vid-str-1' })
+    );
     expect(res.status).toBe(200);
     expect(observedUrl).toContain('vehicleId=2');
   });
@@ -249,15 +271,17 @@ describe('POST /api/fuelup', () => {
         return HttpResponse.json({ success: true });
       })
     );
-    const res = await POST(eventFor({
-      ...baseInput,
-      currency: 'USD',
-      volumeUnit: 'gal',
-      volume: '12.3',
-      cost: '42.18',
-      odometer: '87432',
-      clientSubmissionId: 'numstr-1'
-    }));
+    const res = await POST(
+      eventFor({
+        ...baseInput,
+        currency: 'USD',
+        volumeUnit: 'gal',
+        volume: '12.3',
+        cost: '42.18',
+        odometer: '87432',
+        clientSubmissionId: 'numstr-1'
+      })
+    );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.submitted.gallons).toBeCloseTo(12.3, 3);
@@ -280,18 +304,25 @@ describe('POST /api/fuelup', () => {
         observedBase = new URL(request.url).searchParams.get('base') ?? '';
         return HttpResponse.json({ rates: { USD: 0.73 } });
       }),
-      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () =>
+        HttpResponse.json({ success: true })
+      )
     );
-    const res = await POST(eventFor({ ...baseInput, currency: 'cad', clientSubmissionId: 'cur-lc-1' }));
+    const res = await POST(
+      eventFor({ ...baseInput, currency: 'cad', clientSubmissionId: 'cur-lc-1' })
+    );
     expect(res.status).toBe(200);
     expect(observedBase).toBe('CAD');
   });
 
   it('502 arm returns a generic message — no upstream details leak', async () => {
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => HttpResponse.json({ rates: { USD: 0.73 } })),
-      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () =>
-        new HttpResponse('secret internal detail', { status: 503 })
+      http.get('https://api.frankfurter.dev/v1/latest', () =>
+        HttpResponse.json({ rates: { USD: 0.73 } })
+      ),
+      http.post(
+        'http://lubelog:8080/api/vehicle/gasrecords/add',
+        () => new HttpResponse('secret internal detail', { status: 503 })
       )
     );
     const res = await POST(eventFor(baseInput));
@@ -306,7 +337,10 @@ describe('POST /api/fuelup', () => {
 
   it('returns 503 with a manual-rate hint when the FX chain is dry', async () => {
     upstream.use(
-      http.get('https://api.frankfurter.dev/v1/latest', () => new HttpResponse(null, { status: 503 }))
+      http.get(
+        'https://api.frankfurter.dev/v1/latest',
+        () => new HttpResponse(null, { status: 503 })
+      )
     );
     const res = await POST(eventFor({ ...baseInput, clientSubmissionId: 'fx-dry-1' }));
     expect(res.status).toBe(503);
@@ -328,7 +362,9 @@ describe('POST /api/fuelup', () => {
 
   it('uses manualFxRate when provided (no chain call)', async () => {
     upstream.use(
-      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.json({ success: true }))
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () =>
+        HttpResponse.json({ success: true })
+      )
     );
     const res = await POST(eventFor({ ...baseInput, manualFxRate: 0.72 }));
     expect(res.status).toBe(200);

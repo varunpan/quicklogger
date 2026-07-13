@@ -9,7 +9,9 @@ const VEHICLES: Vehicle[] = [
 ];
 
 function urlWith(vehicleId?: string): URL {
-  return new URL(`http://localhost/history${vehicleId !== undefined ? `?vehicleId=${vehicleId}` : ''}`);
+  return new URL(
+    `http://localhost/history${vehicleId !== undefined ? `?vehicleId=${vehicleId}` : ''}`
+  );
 }
 
 beforeEach(() => localStorage.clear());

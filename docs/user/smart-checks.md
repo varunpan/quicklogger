@@ -28,14 +28,14 @@ chip clears. Tap **Log fillup** again to re-check.
 
 quicklogger evaluates these at the moment you tap Submit:
 
-| What it catches | Example chip line |
-| --- | --- |
-| Odometer is lower than the previous fillup (and the date isn't older) | `Odometer (12,400 mi) is lower than the last fillup (45,210 mi on May 7).` |
-| Date is older than the last fillup but odometer is higher | `Older date but higher odometer than the most recent fillup (45,210 mi on May 7).` |
-| Looks like a duplicate of an entry on the same date | `Looks like a duplicate of the May 7 fillup at 45,210 mi.` |
-| Date is in the future | `Date is in the future.` |
-| Odometer jumped more than 2,000 miles since the last fillup | `Odometer is 2,150 mi above the last fillup — over 2,000 mi.` |
-| Volume looks tiny (under 0.5 gal or 2 L) — likely a decimal slip | `Volume (0.5) seems small — did you mean 5?` |
+| What it catches                                                       | Example chip line                                                                  |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Odometer is lower than the previous fillup (and the date isn't older) | `Odometer (12,400 mi) is lower than the last fillup (45,210 mi on May 7).`         |
+| Date is older than the last fillup but odometer is higher             | `Older date but higher odometer than the most recent fillup (45,210 mi on May 7).` |
+| Looks like a duplicate of an entry on the same date                   | `Looks like a duplicate of the May 7 fillup at 45,210 mi.`                         |
+| Date is in the future                                                 | `Date is in the future.`                                                           |
+| Odometer jumped more than 2,000 miles since the last fillup           | `Odometer is 2,150 mi above the last fillup — over 2,000 mi.`                      |
+| Volume looks tiny (under 0.5 gal or 2 L) — likely a decimal slip      | `Volume (0.5) seems small — did you mean 5?`                                       |
 
 The first three plus the odometer-jump check are silent when there's no
 previous fillup for the active vehicle (no baseline to compare against).

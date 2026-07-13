@@ -2,14 +2,14 @@
 
 quicklogger supports two iOS Shortcut patterns. Both work over the same HTTPS endpoint and require nothing on quicklogger's side beyond the regular setup.
 
-| | Path 1 — URL deep link | Path 2 — Direct POST |
-| --- | --- | --- |
-| **What it does** | Opens the form pre-filled in Safari, you tap "Log fuel" to submit | POSTs JSON straight to `/api/fuelup`, no UI |
-| **Best for** | Eyeball-and-confirm flows; reading values off the pump display | Voice-first ("Hey Siri, log fillup"); hands-busy |
-| **Browser opens?** | Yes (then iOS may keep it focused) | No |
-| **Voice-friendly?** | Awkward (browser tab needed) | Yes (designed for it) |
-| **Failure mode if offline** | Form will queue the submit via SW once Safari is open | POST fails immediately; the Shortcut errors |
-| **Setup complexity** | Easy (4 actions) | Moderate (10–13 actions) |
+|                             | Path 1 — URL deep link                                            | Path 2 — Direct POST                             |
+| --------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
+| **What it does**            | Opens the form pre-filled in Safari, you tap "Log fuel" to submit | POSTs JSON straight to `/api/fuelup`, no UI      |
+| **Best for**                | Eyeball-and-confirm flows; reading values off the pump display    | Voice-first ("Hey Siri, log fillup"); hands-busy |
+| **Browser opens?**          | Yes (then iOS may keep it focused)                                | No                                               |
+| **Voice-friendly?**         | Awkward (browser tab needed)                                      | Yes (designed for it)                            |
+| **Failure mode if offline** | Form will queue the submit via SW once Safari is open             | POST fails immediately; the Shortcut errors      |
+| **Setup complexity**        | Easy (4 actions)                                                  | Moderate (10–13 actions)                         |
 
 If you only build one, **Path 1 is the higher-leverage one** — you'll use it daily.
 If you do a lot of pump-side work and want voice, **also build Path 2**.
@@ -24,7 +24,7 @@ If you want to share with a friend or fork user (different Apple ID, so iCloud s
 
 1. Long-press the shortcut tile in iPhone **Shortcuts** → **Share** → **Copy iCloud Link**.
 2. Send them the URL. They tap it on their iPhone → Shortcuts opens with an "Add Shortcut" prompt.
-3. Because the `Get Contents of URL` action has *your* `quicklogger` host baked in, they need to edit it after install. Easier flow: before publishing, replace the URL in that action with a literal placeholder like `https://YOUR-QUICKLOGGER-HOST/api/fuelup`. Then your sharing instructions become *"after install, edit the `Get Contents of URL` action and replace `YOUR-QUICKLOGGER-HOST` with your hostname."*
+3. Because the `Get Contents of URL` action has _your_ `quicklogger` host baked in, they need to edit it after install. Easier flow: before publishing, replace the URL in that action with a literal placeholder like `https://YOUR-QUICKLOGGER-HOST/api/fuelup`. Then your sharing instructions become _"after install, edit the `Get Contents of URL` action and replace `YOUR-QUICKLOGGER-HOST` with your hostname."_
 4. Optional: paste the link into [the `Re-publishing iCloud links` table below](#re-publishing-icloud-links) so anyone landing in this doc can find it.
 
 ---
@@ -35,16 +35,16 @@ The home page (`/`) accepts query params. The shortcut just builds a URL and ope
 
 ### Supported query params
 
-| Param | Type | Notes |
-| --- | --- | --- |
-| `vehicleId` | int | LubeLogger vehicle id (`/vehicles` page shows the id under each name) |
-| `volume` | decimal | Matches the chosen unit |
-| `volumeUnit` | `gal` \| `L` | |
-| `cost` | decimal | Matches the chosen currency |
-| `currency` | ISO 4217 | `USD`, `CAD`, `EUR`, `GBP`, `MXN` |
-| `fillToFull` | `true` \| `false` | Defaults `true` if missing |
-| `date` | `YYYY-MM-DD` | Defaults to today; ignored if not a valid ISO date |
-| `notes` | text | Free text — note / station / grade |
+| Param        | Type              | Notes                                                                 |
+| ------------ | ----------------- | --------------------------------------------------------------------- |
+| `vehicleId`  | int               | LubeLogger vehicle id (`/vehicles` page shows the id under each name) |
+| `volume`     | decimal           | Matches the chosen unit                                               |
+| `volumeUnit` | `gal` \| `L`      |                                                                       |
+| `cost`       | decimal           | Matches the chosen currency                                           |
+| `currency`   | ISO 4217          | `USD`, `CAD`, `EUR`, `GBP`, `MXN`                                     |
+| `fillToFull` | `true` \| `false` | Defaults `true` if missing                                            |
+| `date`       | `YYYY-MM-DD`      | Defaults to today; ignored if not a valid ISO date                    |
+| `notes`      | text              | Free text — note / station / grade                                    |
 
 All params are optional — anything you don't pass uses the form's normal defaults (last vehicle, today's date, your Settings defaults for unit/currency).
 
@@ -61,7 +61,9 @@ All params are optional — anything you don't pass uses the form's normal defau
      ```
 
      Replace `[volume]` and `[cost]` by tapping the variable picker (the magic-wand icon) and selecting the saved variables from steps 1–2.
+
    - **Open URLs** — drag the Text from step 3 in as the input.
+
 3. Name it `quicklog-prefill` and tap **Done**.
 4. **Share → Add to Home Screen** so it's one tap from the lock screen.
 
@@ -129,11 +131,11 @@ When you say **"Hey Siri, log fillup"**:
 1. Siri runs the shortcut from the top.
 2. For each **Ask for Input** action, Siri speaks the prompt and **listens for your spoken response**.
 3. Siri parses the spoken response according to the input type:
-   - **Number**: dictate digits (`forty-two point one eight` → `42.18`). Saying *"point"* explicitly is the most reliable way to get decimals; *"and"* sometimes works but is ambiguous.
+   - **Number**: dictate digits (`forty-two point one eight` → `42.18`). Saying _"point"_ explicitly is the most reliable way to get decimals; _"and"_ sometimes works but is ambiguous.
    - **Yes/No**: spoken "yes" or "no".
    - **Text**: free-form dictation.
 4. After all prompts, the shortcut runs the POST silently.
-5. The final **Speak Text** action speaks the confirmation (e.g., *"Logged 11.2 gallons, 42 dollars and 18 cents"*).
+5. The final **Speak Text** action speaks the confirmation (e.g., _"Logged 11.2 gallons, 42 dollars and 18 cents"_).
 
 **Each `Ask for Input` is a separate Siri prompt.** They are sequential — Siri waits for each answer before moving on. So a 3-prompt shortcut is roughly:
 
@@ -162,17 +164,17 @@ The recipe below assumes a single-vehicle (`vehicleId=1`) `gal`/`USD` setup. Adj
    6. **Ask for Input** — Type: Number, Prompt: "Cost in dollars?" → save as `cost`.
    7. **Dictionary** — build the JSON body with these key/value pairs:
 
-      | Key | Value |
-      | --- | --- |
-      | `vehicleId` | `1` (Number) |
-      | `date` | `[date]` (Text, magic var) |
-      | `odometer` | `[odometer]` (Number, magic var) |
-      | `volume` | `[volume]` (Number, magic var) |
-      | `volumeUnit` | `gal` (Text) |
-      | `cost` | `[cost]` (Number, magic var) |
-      | `currency` | `USD` (Text) |
-      | `isFillToFull` | `true` (Boolean) |
-      | `missedFuelup` | `false` (Boolean) |
+      | Key                  | Value                                    |
+      | -------------------- | ---------------------------------------- |
+      | `vehicleId`          | `1` (Number)                             |
+      | `date`               | `[date]` (Text, magic var)               |
+      | `odometer`           | `[odometer]` (Number, magic var)         |
+      | `volume`             | `[volume]` (Number, magic var)           |
+      | `volumeUnit`         | `gal` (Text)                             |
+      | `cost`               | `[cost]` (Number, magic var)             |
+      | `currency`           | `USD` (Text)                             |
+      | `isFillToFull`       | `true` (Boolean)                         |
+      | `missedFuelup`       | `false` (Boolean)                        |
       | `clientSubmissionId` | `[clientSubmissionId]` (Text, magic var) |
 
    8. **Get Contents of URL** — drag the Dictionary in as the body:
@@ -183,6 +185,7 @@ The recipe below assumes a single-vehicle (`vehicleId=1`) `gal`/`USD` setup. Adj
    9. **Get Dictionary Value** — Get value for `submitted.gallons` in the previous result → save as `loggedGal`.
    10. **Get Dictionary Value** — Get value for `submitted.cost` in the previous result → save as `loggedUsd`.
    11. **Speak Text** — `Logged [loggedGal] gallons, [loggedUsd] dollars`.
+
 3. Name it `quicklog-fuelup` and tap **Done**.
 4. **Share → Add to Home Screen** so it works without voice too.
 5. **Share → Add Voice Trigger** → say "Log fillup" → save. (Same trigger word as the shortcut name is fine.)
@@ -205,21 +208,21 @@ Same as Path 1 — insert a Dictionary + Choose from List + Get Dictionary Value
 ## Tips & gotchas
 
 - **Dictating decimals**: Siri's most reliable parse is `<integer> point <integer>` (e.g., "eleven point two"). Saying "and" instead of "point" works sometimes but Siri may interpret "ten dollars and fifty cents" as `10` then prompt again for the decimal.
-- **Currency conversion**: if you submit in non-USD (e.g., CAD), the server converts to USD before storing in LubeLogger. The Speak Text action announces the *converted* USD amount, which is the actual stored value.
+- **Currency conversion**: if you submit in non-USD (e.g., CAD), the server converts to USD before storing in LubeLogger. The Speak Text action announces the _converted_ USD amount, which is the actual stored value.
 - **Offline**: Path 1 works offline (the form's IndexedDB queue handles it once Safari is open). Path 2 fails immediately — the POST has no client-side queue. Future enhancement could add one.
-- **Multi-vehicle without picking**: an alternative to a Choose-from-List is to build *two* separate shortcuts (`log-honda`, `log-atlas`), each hardcoded to its `vehicleId`. Lower friction at the pump, more shortcuts to maintain.
+- **Multi-vehicle without picking**: an alternative to a Choose-from-List is to build _two_ separate shortcuts (`log-honda`, `log-atlas`), each hardcoded to its `vehicleId`. Lower friction at the pump, more shortcuts to maintain.
 - **Apple Watch**: shortcuts published to the watch can run there. Path 2 works well on watch since there's no browser. Path 1 typically opens Safari on the paired iPhone.
 
 ## Re-publishing iCloud links
 
 iCloud already syncs your shortcuts across every Apple device on your Apple ID — no manual step needed for personal portability. The links below are useful only for **sharing with someone on a different Apple ID** (a fork user, family member, or anyone else who can't sync from your iCloud).
 
-| Shortcut | iCloud link |
-| --- | --- |
-| quicklog-fuelup | *(populate after first publish)* |
-| quicklog-prefill | *(populate after first publish)* |
+| Shortcut         | iCloud link                      |
+| ---------------- | -------------------------------- |
+| quicklog-fuelup  | _(populate after first publish)_ |
+| quicklog-prefill | _(populate after first publish)_ |
 
-To publish: in Shortcuts app, long-press the shortcut → **Share** → **Copy iCloud Link**. Whoever opens the link on their iPhone gets a Shortcuts "Add Shortcut" prompt. They will need to edit the `Get Contents of URL` action's URL to point at *their* quicklogger instance after install — see "Sharing a shortcut with someone else" near the top of this doc for the placeholder-host trick to make that edit obvious.
+To publish: in Shortcuts app, long-press the shortcut → **Share** → **Copy iCloud Link**. Whoever opens the link on their iPhone gets a Shortcuts "Add Shortcut" prompt. They will need to edit the `Get Contents of URL` action's URL to point at _their_ quicklogger instance after install — see "Sharing a shortcut with someone else" near the top of this doc for the placeholder-host trick to make that edit obvious.
 
 ## Android
 
@@ -243,18 +246,18 @@ For the full walkthrough with detail on each Shortcuts UI action, see [Path 2 �
 6. **Ask for Input** — Number, prompt "Cost in dollars?" → save as `cost`
 7. **Dictionary** — JSON body:
 
-   | Key | Type | Value |
-   |---|---|---|
-   | `vehicleId` | Number | `1` (your LubeLogger vehicle id) |
-   | `date` | Text | `[date]` magic var |
-   | `odometer` | Number | `[odometer]` magic var |
-   | `volume` | Number | `[volume]` magic var |
-   | `volumeUnit` | Text | `gal` |
-   | `cost` | Number | `[cost]` magic var |
-   | `currency` | Text | `USD` |
-   | `isFillToFull` | Boolean | `true` |
-   | `missedFuelup` | Boolean | `false` |
-   | `clientSubmissionId` | Text | `[clientSubmissionId]` magic var |
+   | Key                  | Type    | Value                            |
+   | -------------------- | ------- | -------------------------------- |
+   | `vehicleId`          | Number  | `1` (your LubeLogger vehicle id) |
+   | `date`               | Text    | `[date]` magic var               |
+   | `odometer`           | Number  | `[odometer]` magic var           |
+   | `volume`             | Number  | `[volume]` magic var             |
+   | `volumeUnit`         | Text    | `gal`                            |
+   | `cost`               | Number  | `[cost]` magic var               |
+   | `currency`           | Text    | `USD`                            |
+   | `isFillToFull`       | Boolean | `true`                           |
+   | `missedFuelup`       | Boolean | `false`                          |
+   | `clientSubmissionId` | Text    | `[clientSubmissionId]` magic var |
 
 8. **Get Contents of URL** — `https://<your-quicklogger-host>/api/fuelup`
    - Method: `POST`

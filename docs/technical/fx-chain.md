@@ -38,11 +38,11 @@ Source: the `switch` in `realFetcher` (`src/lib/server/currency.ts`).
 All three are free (no API key required) and use
 `AbortSignal.timeout(3000)` for a 3-second per-request budget.
 
-| Provider | URL | Notes |
-|---|---|---|
-| `frankfurter` | `https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${to}` | ECB-backed, daily rates. Response shape: `{ rates: { [code]: number } }`. |
-| `erapi` | `https://open.er-api.com/v6/latest/${from}` | Free, no key required. Returns rates for all currencies; we pick `[to]`. |
-| `fawazahmed` | `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from-lowercased}.json` | jsDelivr-hosted; both currency codes are lowercased on the request. |
+| Provider      | URL                                                                                                   | Notes                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `frankfurter` | `https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${to}`                                    | ECB-backed, daily rates. Response shape: `{ rates: { [code]: number } }`. |
+| `erapi`       | `https://open.er-api.com/v6/latest/${from}`                                                           | Free, no key required. Returns rates for all currencies; we pick `[to]`.  |
+| `fawazahmed`  | `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from-lowercased}.json` | jsDelivr-hosted; both currency codes are lowercased on the request.       |
 
 The page's currency dropdown is limited to USD/CAD/EUR/GBP/MXN (see
 `src/routes/+page.svelte`). The chain itself supports any code the
@@ -57,8 +57,8 @@ upstream provider supports, but the UI doesn't expose them.
    without touching the cache or the network.
 2. **Disk cache hit.** Load the cache JSON via the injected `FxStore`.
    If there's an entry for the `${from}:${to}` key and its `fetchedAt`
-   is within the **24-hour fresh window** (`FRESH_MAX_MS = 24 * 60 * 60
-   * 1000`), return it with `stale: false`.
+   is within the **24-hour fresh window**
+   (`FRESH_MAX_MS = 24 * 60 * 60 * 1000`), return it with `stale: false`.
 3. **Provider chain.** Walk `opts.providers` in order. For each
    provider, call `opts.fetcher(provider, from, to)` (production:
    `realFetcher` above). On success, persist the new entry to the
@@ -83,9 +83,9 @@ upstream provider supports, but the UI doesn't expose them.
 {
   rate: number;
   source: 'frankfurter' | 'erapi' | 'fawazahmed' | 'identity' | 'manual';
-  fetchedAt: number;     // ms epoch
-  stale: boolean;        // true only on the 7-day fallback branch
-  ageHours: number;      // (Date.now() - fetchedAt) / 3.6e6
+  fetchedAt: number; // ms epoch
+  stale: boolean; // true only on the 7-day fallback branch
+  ageHours: number; // (Date.now() - fetchedAt) / 3.6e6
 }
 ```
 
@@ -115,7 +115,7 @@ changes. Two behaviours matter:
   selected currency was still in flight.
 - **Manual-rate trigger.** The manual-FX override field appears whenever the
   rate source can't be reached, in two cases: the deliberate **503**
-  `{ available: false }` (chain all-fail, above), *and* when the `GET /api/fx`
+  `{ available: false }` (chain all-fail, above), _and_ when the `GET /api/fx`
   call throws — most importantly **offline**, where the service worker returns
   a synthetic 504. Both leave the preview rate empty and surface the manual
   field so a foreign-currency fillup can still be pinned and queued offline.
@@ -134,7 +134,7 @@ in `currency.ts`:
   [`atomicFile.ts`](../../src/lib/server/atomicFile.ts)) it re-reads the
   cache fresh, applies `mutator` (which merges the one new pair), and
   writes via temp file + `rename` (`atomicWriteFile`). The lock spans the
-  whole read-modify-write, so a concurrent lookup for a *different* pair
+  whole read-modify-write, so a concurrent lookup for a _different_ pair
   can't clobber this write, and the atomic rename means a crash mid-write
   can't leave a torn `fx-cache.json`. A corrupt/unparseable file
   self-heals — the locked read falls back to `{}` and the fresh fetch
@@ -143,8 +143,8 @@ in `currency.ts`:
   Scope: an **in-process** lock. The FX service is a module-level singleton
   and the app runs single-replica, so one lock per process covers every
   writer. (The previous "serialize via the module-level singleton" claim was
-  wrong — the singleton is the *service object*, not a lock, and `await
-  load()` yields the event loop.) A multi-replica deployment sharing `/data`
+  wrong — the singleton is the _service object_, not a lock, and `await
+load()` yields the event loop.) A multi-replica deployment sharing `/data`
   would need an OS-level file lock.
 
 On-disk shape:

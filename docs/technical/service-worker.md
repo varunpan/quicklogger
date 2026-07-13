@@ -89,9 +89,13 @@ const API_CACHE = 'quicklogger-api-cache-v1';
 ```ts
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((c) =>
-      precacheShell(c, SHELL, (err) => sendSwLog('error', 'sw install failed', { message: err.message }))
-    )
+    caches
+      .open(CACHE)
+      .then((c) =>
+        precacheShell(c, SHELL, (err) =>
+          sendSwLog('error', 'sw install failed', { message: err.message })
+        )
+      )
   );
   void self.skipWaiting();
 });
@@ -217,7 +221,7 @@ async function staleWhileRevalidate(event: FetchEvent): Promise<Response> {
     })
     .catch(() => undefined);
   if (cached) {
-    event.waitUntil(networkFetch);  // background refresh; SW kept alive until the write lands
+    event.waitUntil(networkFetch); // background refresh; SW kept alive until the write lands
     return cached;
   }
   return (await networkFetch) ?? new Response(null, { status: 504 });
@@ -231,7 +235,7 @@ or an un-awaited `cache.put` mid-write (whole-app review #23). `waitUntil`
 extends the worker's lifetime until the refreshed bytes have actually
 landed in the cache. The same applies to the `/api/vehicles` write below.
 
-This branch is inserted *before* the generic `/api/` branch so the image path doesn't fall through to network-first. The `cache-control: no-store` header on the server response is what keeps the browser's HTTP cache out of the picture — `IMG_CACHE` is the only persistence layer for these bytes.
+This branch is inserted _before_ the generic `/api/` branch so the image path doesn't fall through to network-first. The `cache-control: no-store` header on the server response is what keeps the browser's HTTP cache out of the picture — `IMG_CACHE` is the only persistence layer for these bytes.
 
 ### `/api/vehicles` — network-first with a survives-deploys cache
 
@@ -240,7 +244,12 @@ if (url.pathname === '/api/vehicles') {
   event.respondWith(
     (async () => {
       const cache = await caches.open(API_CACHE);
-      return vehiclesNetworkFirst(req, (r) => fetch(r), cache, (p) => event.waitUntil(p));
+      return vehiclesNetworkFirst(
+        req,
+        (r) => fetch(r),
+        cache,
+        (p) => event.waitUntil(p)
+      );
     })()
   );
   return;
@@ -274,7 +283,11 @@ how to fall back (the loader for the form page treats this as
 ```ts
 if (req.mode === 'navigate') {
   event.respondWith(
-    navigationFallback(req, (r) => fetch(r), (k) => caches.match(k))
+    navigationFallback(
+      req,
+      (r) => fetch(r),
+      (k) => caches.match(k)
+    )
   );
   return;
 }
@@ -323,7 +336,8 @@ The replay glue is a `message` handler (which also answers the
 ```ts
 self.addEventListener('message', (event) => {
   const data = event.data as { type?: string; historyKeepPerVehicle?: number } | undefined;
-  if (data?.type === 'sync-queue') event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle));
+  if (data?.type === 'sync-queue')
+    event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle));
   if (data?.type === SW_VERSION_REQUEST) event.ports[0]?.postMessage({ version });
 });
 ```

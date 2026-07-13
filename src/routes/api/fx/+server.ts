@@ -26,7 +26,9 @@ function service() {
   return svc;
 }
 
-export function _resetForTests() { svc = null; }
+export function _resetForTests() {
+  svc = null;
+}
 
 export const GET: RequestHandler = async ({ url, locals }) => {
   const from = (url.searchParams.get('from') ?? '').toUpperCase();

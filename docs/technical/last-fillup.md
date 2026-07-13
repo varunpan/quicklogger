@@ -17,10 +17,10 @@ Related: [`offline-queue.md`](./offline-queue.md) for the IDB layer,
 
 ```ts
 interface LastFillupRecord {
-  date: string;          // ISO YYYY-MM-DD (post-locale-invariant-parsing)
-  odometer: string;      // raw integer-string of miles
-  fuelConsumed: string;  // gallons (always — queue L is converted)
-  cost: string | null;   // 2-decimal stringified number
+  date: string; // ISO YYYY-MM-DD (post-locale-invariant-parsing)
+  odometer: string; // raw integer-string of miles
+  fuelConsumed: string; // gallons (always — queue L is converted)
+  cost: string | null; // 2-decimal stringified number
   costCurrency: string | null; // null for upstream rows; entered currency for queue rows
   notes: string | null;
 }

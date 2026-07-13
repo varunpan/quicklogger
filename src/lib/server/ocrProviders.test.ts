@@ -2,11 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import {
-	OllamaOcrProvider,
-	OcrProviderError,
-	OpenRouterOcrProvider,
-	ChainOcrProvider,
-	parseLenientJson
+  OllamaOcrProvider,
+  OcrProviderError,
+  OpenRouterOcrProvider,
+  ChainOcrProvider,
+  parseLenientJson
 } from './ocrProviders';
 import type { OcrProvider } from './ocrProviders';
 
@@ -20,534 +20,576 @@ const PROMPT = 'test-prompt';
 const SCHEMA = { type: 'object', required: ['v'], properties: { v: { type: 'number' } } };
 
 describe('OllamaOcrProvider', () => {
-	it('POSTs to /api/chat with model + image and returns parsed JSON', async () => {
-		let observedBody: Record<string, unknown> | undefined;
-		server.use(
-			http.post(`${URL}/api/chat`, async ({ request }) => {
-				observedBody = (await request.json()) as Record<string, unknown>;
-				return HttpResponse.json({
-					message: { content: '{"v":42}' }
-				});
-			})
-		);
-		const p = new OllamaOcrProvider({
-			url: URL,
-			model: 'qwen2.5vl:7b',
-			timeoutMs: 5_000,
-			keepAlive: '30m',
-			slotName: 'ollama-local'
-		});
-		const buf = Buffer.from([0xff, 0xd8, 0xff]);
-		const result = await p.extract(buf, PROMPT, SCHEMA);
-		expect(result).toEqual({ v: 42 });
-		expect(observedBody).toMatchObject({
-			model: 'qwen2.5vl:7b',
-			stream: false,
-			keep_alive: '30m',
-			format: SCHEMA
-		});
-		const msg = (observedBody as { messages: { images: string[]; content: string }[] }).messages[0];
-		expect(msg.images[0]).toBe(buf.toString('base64'));
-		expect(msg.content).toBe(PROMPT);
-	});
+  it('POSTs to /api/chat with model + image and returns parsed JSON', async () => {
+    let observedBody: Record<string, unknown> | undefined;
+    server.use(
+      http.post(`${URL}/api/chat`, async ({ request }) => {
+        observedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          message: { content: '{"v":42}' }
+        });
+      })
+    );
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'qwen2.5vl:7b',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      slotName: 'ollama-local'
+    });
+    const buf = Buffer.from([0xff, 0xd8, 0xff]);
+    const result = await p.extract(buf, PROMPT, SCHEMA);
+    expect(result).toEqual({ v: 42 });
+    expect(observedBody).toMatchObject({
+      model: 'qwen2.5vl:7b',
+      stream: false,
+      keep_alive: '30m',
+      format: SCHEMA
+    });
+    const msg = (observedBody as { messages: { images: string[]; content: string }[] }).messages[0];
+    expect(msg.images[0]).toBe(buf.toString('base64'));
+    expect(msg.content).toBe(PROMPT);
+  });
 
-	it('throws OcrProviderError on non-2xx', async () => {
-		server.use(http.post(`${URL}/api/chat`, () => new HttpResponse('boom', { status: 500 })));
-		const p = new OllamaOcrProvider({
-			url: URL,
-			model: 'm',
-			timeoutMs: 5_000,
-			keepAlive: '30m',
-			slotName: 'ollama-local'
-		});
-		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
-			OcrProviderError
-		);
-	});
+  it('throws OcrProviderError on non-2xx', async () => {
+    server.use(http.post(`${URL}/api/chat`, () => new HttpResponse('boom', { status: 500 })));
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'm',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      slotName: 'ollama-local'
+    });
+    await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+      OcrProviderError
+    );
+  });
 
-	it('throws OcrProviderError when message.content is unparseable JSON', async () => {
-		server.use(
-			http.post(`${URL}/api/chat`, () =>
-				HttpResponse.json({ message: { content: 'not valid json' } })
-			)
-		);
-		const p = new OllamaOcrProvider({
-			url: URL,
-			model: 'm',
-			timeoutMs: 5_000,
-			keepAlive: '30m',
-			slotName: 'ollama-local'
-		});
-		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
-			OcrProviderError
-		);
-	});
+  it('throws OcrProviderError when message.content is unparseable JSON', async () => {
+    server.use(
+      http.post(`${URL}/api/chat`, () =>
+        HttpResponse.json({ message: { content: 'not valid json' } })
+      )
+    );
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'm',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      slotName: 'ollama-local'
+    });
+    await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+      OcrProviderError
+    );
+  });
 
-	it('returns 0 cost (local inference)', () => {
-		const p = new OllamaOcrProvider({
-			url: URL,
-			model: 'm',
-			timeoutMs: 5_000,
-			keepAlive: '30m',
-			slotName: 'ollama-local'
-		});
-		expect(p.estimateCostCents()).toBe(0);
-	});
+  it('returns 0 cost (local inference)', () => {
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'm',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      slotName: 'ollama-local'
+    });
+    expect(p.estimateCostCents()).toBe(0);
+  });
 
-	it('throws OcrProviderError on timeout', async () => {
-		server.use(
-			http.post(`${URL}/api/chat`, async () => {
-				await new Promise((r) => setTimeout(r, 100));
-				return HttpResponse.json({ message: { content: '{"v":1}' } });
-			})
-		);
-		const p = new OllamaOcrProvider({
-			url: URL,
-			model: 'm',
-			timeoutMs: 10,
-			keepAlive: '30m',
-			slotName: 'ollama-local'
-		});
-		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
-			OcrProviderError
-		);
-	});
+  it('throws OcrProviderError on timeout', async () => {
+    server.use(
+      http.post(`${URL}/api/chat`, async () => {
+        await new Promise((r) => setTimeout(r, 100));
+        return HttpResponse.json({ message: { content: '{"v":1}' } });
+      })
+    );
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'm',
+      timeoutMs: 10,
+      keepAlive: '30m',
+      slotName: 'ollama-local'
+    });
+    await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+      OcrProviderError
+    );
+  });
 });
 
 describe('OllamaOcrProvider — cloud variant', () => {
-	it('sends Authorization: Bearer when apiKey is provided', async () => {
-		let observedAuth = '';
-		server.use(
-			http.post(`${URL}/api/chat`, ({ request }) => {
-				observedAuth = request.headers.get('authorization') ?? '';
-				return HttpResponse.json({ message: { content: '{"v":1}' } });
-			})
-		);
-		const p = new OllamaOcrProvider({
-			url: URL,
-			model: 'gemma4:31b',
-			timeoutMs: 5_000,
-			keepAlive: '30m',
-			apiKey: 'sk-cloud-test',
-			slotName: 'ollama-cloud'
-		});
-		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(observedAuth).toBe('Bearer sk-cloud-test');
-	});
+  it('sends Authorization: Bearer when apiKey is provided', async () => {
+    let observedAuth = '';
+    server.use(
+      http.post(`${URL}/api/chat`, ({ request }) => {
+        observedAuth = request.headers.get('authorization') ?? '';
+        return HttpResponse.json({ message: { content: '{"v":1}' } });
+      })
+    );
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'gemma4:31b',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      apiKey: 'sk-cloud-test',
+      slotName: 'ollama-cloud'
+    });
+    await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(observedAuth).toBe('Bearer sk-cloud-test');
+  });
 
-	it('omits Authorization header when apiKey is unset', async () => {
-		let observedAuth: string | null = 'unset';
-		server.use(
-			http.post(`${URL}/api/chat`, ({ request }) => {
-				observedAuth = request.headers.get('authorization');
-				return HttpResponse.json({ message: { content: '{"v":1}' } });
-			})
-		);
-		const p = new OllamaOcrProvider({
-			url: URL,
-			model: 'qwen2.5vl:7b',
-			timeoutMs: 5_000,
-			keepAlive: '30m',
-			slotName: 'ollama-local'
-		});
-		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(observedAuth).toBeNull();
-	});
+  it('omits Authorization header when apiKey is unset', async () => {
+    let observedAuth: string | null = 'unset';
+    server.use(
+      http.post(`${URL}/api/chat`, ({ request }) => {
+        observedAuth = request.headers.get('authorization');
+        return HttpResponse.json({ message: { content: '{"v":1}' } });
+      })
+    );
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'qwen2.5vl:7b',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      slotName: 'ollama-local'
+    });
+    await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(observedAuth).toBeNull();
+  });
 
-	it('flows slotName through to provider.name', () => {
-		const local = new OllamaOcrProvider({
-			url: URL, model: 'm', timeoutMs: 1, keepAlive: '30m', slotName: 'ollama-local'
-		});
-		const cloud = new OllamaOcrProvider({
-			url: URL, model: 'm', timeoutMs: 1, keepAlive: '30m', apiKey: 'k', slotName: 'ollama-cloud'
-		});
-		expect(local.name).toBe('ollama-local');
-		expect(cloud.name).toBe('ollama-cloud');
-	});
+  it('flows slotName through to provider.name', () => {
+    const local = new OllamaOcrProvider({
+      url: URL,
+      model: 'm',
+      timeoutMs: 1,
+      keepAlive: '30m',
+      slotName: 'ollama-local'
+    });
+    const cloud = new OllamaOcrProvider({
+      url: URL,
+      model: 'm',
+      timeoutMs: 1,
+      keepAlive: '30m',
+      apiKey: 'k',
+      slotName: 'ollama-cloud'
+    });
+    expect(local.name).toBe('ollama-local');
+    expect(cloud.name).toBe('ollama-cloud');
+  });
 
-	it('parses fenced JSON via parseLenientJson (cloud-shape response)', async () => {
-		server.use(
-			http.post(`${URL}/api/chat`, () =>
-				HttpResponse.json({
-					message: { content: '```json\n{"v":42}\n```\nSanity check: yes.' }
-				})
-			)
-		);
-		const p = new OllamaOcrProvider({
-			url: URL, model: 'gemma4:31b', timeoutMs: 5_000,
-			keepAlive: '30m', apiKey: 'k', slotName: 'ollama-cloud'
-		});
-		const result = await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(result).toEqual({ v: 42 });
-	});
+  it('parses fenced JSON via parseLenientJson (cloud-shape response)', async () => {
+    server.use(
+      http.post(`${URL}/api/chat`, () =>
+        HttpResponse.json({
+          message: { content: '```json\n{"v":42}\n```\nSanity check: yes.' }
+        })
+      )
+    );
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'gemma4:31b',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      apiKey: 'k',
+      slotName: 'ollama-cloud'
+    });
+    const result = await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(result).toEqual({ v: 42 });
+  });
 
-	it('error messages name the slot (not the literal "ollama")', async () => {
-		server.use(http.post(`${URL}/api/chat`, () => new HttpResponse('boom', { status: 500 })));
-		const p = new OllamaOcrProvider({
-			url: URL, model: 'm', timeoutMs: 5_000, keepAlive: '30m',
-			apiKey: 'k', slotName: 'ollama-cloud'
-		});
-		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA))
-			.rejects.toThrow(/ollama-cloud/);
-	});
+  it('error messages name the slot (not the literal "ollama")', async () => {
+    server.use(http.post(`${URL}/api/chat`, () => new HttpResponse('boom', { status: 500 })));
+    const p = new OllamaOcrProvider({
+      url: URL,
+      model: 'm',
+      timeoutMs: 5_000,
+      keepAlive: '30m',
+      apiKey: 'k',
+      slotName: 'ollama-cloud'
+    });
+    await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toThrow(/ollama-cloud/);
+  });
 });
 
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 describe('OpenRouterOcrProvider', () => {
-	it('POSTs with auth header, json_schema, and base64 image URL', async () => {
-		let observedAuth = '';
-		let observedBody: Record<string, unknown> | undefined;
-		server.use(
-			http.post(OR_URL, async ({ request }) => {
-				observedAuth = request.headers.get('authorization') ?? '';
-				observedBody = (await request.json()) as Record<string, unknown>;
-				return HttpResponse.json({
-					choices: [{ message: { content: '{"v":42}' } }]
-				});
-			})
-		);
-		const p = new OpenRouterOcrProvider({
-			apiKey: 'sk-or-test',
-			model: 'google/gemini-2.5-flash-lite',
-			timeoutMs: 5_000,
-			slotName: 'openrouter'
-		});
-		const result = await p.extract(Buffer.from([0xff, 0xd8, 0xff]), PROMPT, SCHEMA);
-		expect(result).toEqual({ v: 42 });
-		expect(observedAuth).toBe('Bearer sk-or-test');
-		const rf = (
-			observedBody as { response_format: { type: string; json_schema: { schema: object } } }
-		).response_format;
-		expect(rf.type).toBe('json_schema');
-		expect(rf.json_schema.schema).toEqual(SCHEMA);
-		const content = (observedBody as { messages: { content: Array<{ type: string }> }[] })
-			.messages[0].content;
-		expect(content[0].type).toBe('text');
-		expect(content[1].type).toBe('image_url');
-		// Anti-runaway: request body must cap output tokens. Real responses
-		// are ~30 tokens (pump) / ~10 (odometer); 256 is the headroom value.
-		expect((observedBody as { max_tokens: number }).max_tokens).toBe(256);
-	});
+  it('POSTs with auth header, json_schema, and base64 image URL', async () => {
+    let observedAuth = '';
+    let observedBody: Record<string, unknown> | undefined;
+    server.use(
+      http.post(OR_URL, async ({ request }) => {
+        observedAuth = request.headers.get('authorization') ?? '';
+        observedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          choices: [{ message: { content: '{"v":42}' } }]
+        });
+      })
+    );
+    const p = new OpenRouterOcrProvider({
+      apiKey: 'sk-or-test',
+      model: 'google/gemini-2.5-flash-lite',
+      timeoutMs: 5_000,
+      slotName: 'openrouter'
+    });
+    const result = await p.extract(Buffer.from([0xff, 0xd8, 0xff]), PROMPT, SCHEMA);
+    expect(result).toEqual({ v: 42 });
+    expect(observedAuth).toBe('Bearer sk-or-test');
+    const rf = (
+      observedBody as { response_format: { type: string; json_schema: { schema: object } } }
+    ).response_format;
+    expect(rf.type).toBe('json_schema');
+    expect(rf.json_schema.schema).toEqual(SCHEMA);
+    const content = (observedBody as { messages: { content: Array<{ type: string }> }[] })
+      .messages[0].content;
+    expect(content[0].type).toBe('text');
+    expect(content[1].type).toBe('image_url');
+    // Anti-runaway: request body must cap output tokens. Real responses
+    // are ~30 tokens (pump) / ~10 (odometer); 256 is the headroom value.
+    expect((observedBody as { max_tokens: number }).max_tokens).toBe(256);
+  });
 
-	it('throws OcrProviderError on non-2xx', async () => {
-		server.use(http.post(OR_URL, () => new HttpResponse('rate limited', { status: 429 })));
-		const p = new OpenRouterOcrProvider({
-			apiKey: 'k',
-			model: 'm',
-			timeoutMs: 5_000,
-			slotName: 'openrouter'
-		});
-		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
-			OcrProviderError
-		);
-	});
+  it('throws OcrProviderError on non-2xx', async () => {
+    server.use(http.post(OR_URL, () => new HttpResponse('rate limited', { status: 429 })));
+    const p = new OpenRouterOcrProvider({
+      apiKey: 'k',
+      model: 'm',
+      timeoutMs: 5_000,
+      slotName: 'openrouter'
+    });
+    await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+      OcrProviderError
+    );
+  });
 
-	it('reports a non-zero, sub-cent cost estimate', () => {
-		const p = new OpenRouterOcrProvider({
-			apiKey: 'k',
-			model: 'm',
-			timeoutMs: 5_000,
-			slotName: 'openrouter'
-		});
-		expect(p.estimateCostCents()).toBeGreaterThan(0);
-		expect(p.estimateCostCents()).toBeLessThan(1);
-	});
+  it('reports a non-zero, sub-cent cost estimate', () => {
+    const p = new OpenRouterOcrProvider({
+      apiKey: 'k',
+      model: 'm',
+      timeoutMs: 5_000,
+      slotName: 'openrouter'
+    });
+    expect(p.estimateCostCents()).toBeGreaterThan(0);
+    expect(p.estimateCostCents()).toBeLessThan(1);
+  });
 });
 
 describe('OpenRouterOcrProvider — slot variants', () => {
-	const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+  const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-	it('POSTs to opts.url when url is provided (openai-compatible slot)', async () => {
-		let hit = false;
-		server.use(
-			http.post(GROQ_URL, () => {
-				hit = true;
-				return HttpResponse.json({ choices: [{ message: { content: '{"v":1}' } }] });
-			})
-		);
-		const p = new OpenRouterOcrProvider({
-			url: GROQ_URL,
-			apiKey: 'gsk-test',
-			model: 'llama-3.2-90b-vision-preview',
-			timeoutMs: 5_000,
-			slotName: 'openai-compatible'
-		});
-		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(hit).toBe(true);
-	});
+  it('POSTs to opts.url when url is provided (openai-compatible slot)', async () => {
+    let hit = false;
+    server.use(
+      http.post(GROQ_URL, () => {
+        hit = true;
+        return HttpResponse.json({ choices: [{ message: { content: '{"v":1}' } }] });
+      })
+    );
+    const p = new OpenRouterOcrProvider({
+      url: GROQ_URL,
+      apiKey: 'gsk-test',
+      model: 'llama-3.2-90b-vision-preview',
+      timeoutMs: 5_000,
+      slotName: 'openai-compatible'
+    });
+    await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(hit).toBe(true);
+  });
 
-	it('POSTs to default OpenRouter URL when url is unset (openrouter slot)', async () => {
-		let hit = false;
-		server.use(
-			http.post('https://openrouter.ai/api/v1/chat/completions', () => {
-				hit = true;
-				return HttpResponse.json({ choices: [{ message: { content: '{"v":1}' } }] });
-			})
-		);
-		const p = new OpenRouterOcrProvider({
-			apiKey: 'sk-or-test',
-			model: 'google/gemini-2.5-flash-lite',
-			timeoutMs: 5_000,
-			slotName: 'openrouter'
-		});
-		await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(hit).toBe(true);
-	});
+  it('POSTs to default OpenRouter URL when url is unset (openrouter slot)', async () => {
+    let hit = false;
+    server.use(
+      http.post('https://openrouter.ai/api/v1/chat/completions', () => {
+        hit = true;
+        return HttpResponse.json({ choices: [{ message: { content: '{"v":1}' } }] });
+      })
+    );
+    const p = new OpenRouterOcrProvider({
+      apiKey: 'sk-or-test',
+      model: 'google/gemini-2.5-flash-lite',
+      timeoutMs: 5_000,
+      slotName: 'openrouter'
+    });
+    await p.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(hit).toBe(true);
+  });
 
-	it('flows slotName through to provider.name', () => {
-		const or = new OpenRouterOcrProvider({
-			apiKey: 'k', model: 'm', timeoutMs: 1, slotName: 'openrouter'
-		});
-		const oai = new OpenRouterOcrProvider({
-			url: GROQ_URL, apiKey: 'k', model: 'm', timeoutMs: 1, slotName: 'openai-compatible'
-		});
-		expect(or.name).toBe('openrouter');
-		expect(oai.name).toBe('openai-compatible');
-	});
+  it('flows slotName through to provider.name', () => {
+    const or = new OpenRouterOcrProvider({
+      apiKey: 'k',
+      model: 'm',
+      timeoutMs: 1,
+      slotName: 'openrouter'
+    });
+    const oai = new OpenRouterOcrProvider({
+      url: GROQ_URL,
+      apiKey: 'k',
+      model: 'm',
+      timeoutMs: 1,
+      slotName: 'openai-compatible'
+    });
+    expect(or.name).toBe('openrouter');
+    expect(oai.name).toBe('openai-compatible');
+  });
 
-	it('error messages name the slot, not "openrouter" literally', async () => {
-		server.use(http.post(GROQ_URL, () => new HttpResponse('rate limited', { status: 429 })));
-		const p = new OpenRouterOcrProvider({
-			url: GROQ_URL, apiKey: 'k', model: 'm', timeoutMs: 5_000, slotName: 'openai-compatible'
-		});
-		await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA))
-			.rejects.toThrow(/openai-compatible/);
-	});
+  it('error messages name the slot, not "openrouter" literally', async () => {
+    server.use(http.post(GROQ_URL, () => new HttpResponse('rate limited', { status: 429 })));
+    const p = new OpenRouterOcrProvider({
+      url: GROQ_URL,
+      apiKey: 'k',
+      model: 'm',
+      timeoutMs: 5_000,
+      slotName: 'openai-compatible'
+    });
+    await expect(p.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toThrow(
+      /openai-compatible/
+    );
+  });
 });
 
 describe('ChainOcrProvider', () => {
-	it('returns the first provider result on success; activeProvider = first; lastFellbackFrom = null', async () => {
-		const a: OcrProvider = {
-			name: 'ollama-local',
-			estimateCostCents: () => 0,
-			extract: vi.fn(async () => ({ v: 1 }))
-		};
-		const b: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => ({ v: 999 }))
-		};
-		const chain = new ChainOcrProvider([a, b]);
-		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(result).toEqual({ v: 1 });
-		expect(b.extract).not.toHaveBeenCalled();
-		expect(chain.activeProvider?.name).toBe('ollama-local');
-		expect(chain.lastFellbackFrom).toBeNull();
-	});
+  it('returns the first provider result on success; activeProvider = first; lastFellbackFrom = null', async () => {
+    const a: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: vi.fn(async () => ({ v: 1 }))
+    };
+    const b: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => ({ v: 999 }))
+    };
+    const chain = new ChainOcrProvider([a, b]);
+    const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(result).toEqual({ v: 1 });
+    expect(b.extract).not.toHaveBeenCalled();
+    expect(chain.activeProvider?.name).toBe('ollama-local');
+    expect(chain.lastFellbackFrom).toBeNull();
+  });
 
-	it('falls through to the second provider on first failure; records lastFellbackFrom = chain[0].name', async () => {
-		const a: OcrProvider = {
-			name: 'ollama-local',
-			estimateCostCents: () => 0,
-			extract: vi.fn(async () => {
-				throw new OcrProviderError('NETWORK', 'down');
-			})
-		};
-		const b: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => ({ v: 42 }))
-		};
-		const chain = new ChainOcrProvider([a, b]);
-		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(result).toEqual({ v: 42 });
-		expect(chain.activeProvider?.name).toBe('openrouter');
-		expect(chain.lastFellbackFrom).toBe('ollama-local');
-	});
+  it('falls through to the second provider on first failure; records lastFellbackFrom = chain[0].name', async () => {
+    const a: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('NETWORK', 'down');
+      })
+    };
+    const b: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => ({ v: 42 }))
+    };
+    const chain = new ChainOcrProvider([a, b]);
+    const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(result).toEqual({ v: 42 });
+    expect(chain.activeProvider?.name).toBe('openrouter');
+    expect(chain.lastFellbackFrom).toBe('ollama-local');
+  });
 
-	it('throws the last error when all providers fail', async () => {
-		const a: OcrProvider = {
-			name: 'ollama-local',
-			estimateCostCents: () => 0,
-			extract: vi.fn(async () => {
-				throw new OcrProviderError('TIMEOUT', 'a-down');
-			})
-		};
-		const b: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => {
-				throw new OcrProviderError('HTTP', 'b-down');
-			})
-		};
-		const chain = new ChainOcrProvider([a, b]);
-		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toMatchObject({
-			name: 'OcrProviderError',
-			code: 'HTTP'
-		});
-	});
+  it('throws the last error when all providers fail', async () => {
+    const a: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('TIMEOUT', 'a-down');
+      })
+    };
+    const b: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('HTTP', 'b-down');
+      })
+    };
+    const chain = new ChainOcrProvider([a, b]);
+    await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toMatchObject({
+      name: 'OcrProviderError',
+      code: 'HTTP'
+    });
+  });
 
-	it('exposes the underlying chain via `chain` accessor', () => {
-		const a: OcrProvider = {
-			name: 'ollama-local',
-			estimateCostCents: () => 0,
-			extract: async () => ({})
-		};
-		const b: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: async () => ({})
-		};
-		const chain = new ChainOcrProvider([a, b]);
-		expect(chain.chain.length).toBe(2);
-		expect(chain.chain[0].name).toBe('ollama-local');
-		expect(chain.chain[1].name).toBe('openrouter');
-	});
+  it('exposes the underlying chain via `chain` accessor', () => {
+    const a: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: async () => ({})
+    };
+    const b: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: async () => ({})
+    };
+    const chain = new ChainOcrProvider([a, b]);
+    expect(chain.chain.length).toBe(2);
+    expect(chain.chain[0].name).toBe('ollama-local');
+    expect(chain.chain[1].name).toBe('openrouter');
+  });
 
-	it('records lastFellbackFrom = chain[0].name in a 4-link chain when slot 2 succeeds', async () => {
-		const a: OcrProvider = {
-			name: 'ollama-cloud',
-			estimateCostCents: () => 0,
-			extract: vi.fn(async () => { throw new OcrProviderError('HTTP', 'cloud-down'); })
-		};
-		const b: OcrProvider = {
-			name: 'ollama-local',
-			estimateCostCents: () => 0,
-			extract: vi.fn(async () => { throw new OcrProviderError('NETWORK', 'local-down'); })
-		};
-		const c: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => ({ v: 7 }))
-		};
-		const d: OcrProvider = {
-			name: 'openai-compatible',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => ({ v: 99 }))
-		};
-		const chain = new ChainOcrProvider([a, b, c, d]);
-		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(result).toEqual({ v: 7 });
-		expect(chain.activeProvider?.name).toBe('openrouter');
-		// 2-link semantics preserved: name of chain[0], not the full breadcrumb.
-		expect(chain.lastFellbackFrom).toBe('ollama-cloud');
-		expect(d.extract).not.toHaveBeenCalled();
-	});
+  it('records lastFellbackFrom = chain[0].name in a 4-link chain when slot 2 succeeds', async () => {
+    const a: OcrProvider = {
+      name: 'ollama-cloud',
+      estimateCostCents: () => 0,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('HTTP', 'cloud-down');
+      })
+    };
+    const b: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('NETWORK', 'local-down');
+      })
+    };
+    const c: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => ({ v: 7 }))
+    };
+    const d: OcrProvider = {
+      name: 'openai-compatible',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => ({ v: 99 }))
+    };
+    const chain = new ChainOcrProvider([a, b, c, d]);
+    const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(result).toEqual({ v: 7 });
+    expect(chain.activeProvider?.name).toBe('openrouter');
+    // 2-link semantics preserved: name of chain[0], not the full breadcrumb.
+    expect(chain.lastFellbackFrom).toBe('ollama-cloud');
+    expect(d.extract).not.toHaveBeenCalled();
+  });
 
-	it('accumulates lastFailedCostCents for paid attempts that received a response before failing', async () => {
-		// PARSE / HTTP / NO_CONTENT mean the upstream responded — tokens were
-		// billed even though extract threw. Both paid slots fail that way here.
-		const a: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => { throw new OcrProviderError('PARSE', 'garbage content'); })
-		};
-		const b: OcrProvider = {
-			name: 'openai-compatible',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => { throw new OcrProviderError('HTTP', '500 boom'); })
-		};
-		const chain = new ChainOcrProvider([a, b]);
-		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
-			OcrProviderError
-		);
-		expect(chain.lastFailedCostCents).toBeCloseTo(0.012, 6);
-	});
+  it('accumulates lastFailedCostCents for paid attempts that received a response before failing', async () => {
+    // PARSE / HTTP / NO_CONTENT mean the upstream responded — tokens were
+    // billed even though extract threw. Both paid slots fail that way here.
+    const a: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('PARSE', 'garbage content');
+      })
+    };
+    const b: OcrProvider = {
+      name: 'openai-compatible',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('HTTP', '500 boom');
+      })
+    };
+    const chain = new ChainOcrProvider([a, b]);
+    await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+      OcrProviderError
+    );
+    expect(chain.lastFailedCostCents).toBeCloseTo(0.012, 6);
+  });
 
-	it('does not count NETWORK failures toward lastFailedCostCents (nothing was billed)', async () => {
-		const a: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => { throw new OcrProviderError('NETWORK', 'timeout'); })
-		};
-		const chain = new ChainOcrProvider([a]);
-		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
-			OcrProviderError
-		);
-		expect(chain.lastFailedCostCents).toBe(0);
-	});
+  it('does not count NETWORK failures toward lastFailedCostCents (nothing was billed)', async () => {
+    const a: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('NETWORK', 'timeout');
+      })
+    };
+    const chain = new ChainOcrProvider([a]);
+    await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+      OcrProviderError
+    );
+    expect(chain.lastFailedCostCents).toBe(0);
+  });
 
-	it('accumulates a failed paid attempt even when a later slot succeeds', async () => {
-		const a: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => { throw new OcrProviderError('PARSE', 'garbage'); })
-		};
-		const b: OcrProvider = {
-			name: 'ollama-local',
-			estimateCostCents: () => 0,
-			extract: vi.fn(async () => ({ v: 1 }))
-		};
-		const chain = new ChainOcrProvider([a, b]);
-		const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(result).toEqual({ v: 1 });
-		expect(chain.lastFailedCostCents).toBeCloseTo(0.006, 6);
-	});
+  it('accumulates a failed paid attempt even when a later slot succeeds', async () => {
+    const a: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('PARSE', 'garbage');
+      })
+    };
+    const b: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: vi.fn(async () => ({ v: 1 }))
+    };
+    const chain = new ChainOcrProvider([a, b]);
+    const result = await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(result).toEqual({ v: 1 });
+    expect(chain.lastFailedCostCents).toBeCloseTo(0.006, 6);
+  });
 
-	it('resets lastFailedCostCents at the start of each extract()', async () => {
-		let fail = true;
-		const a: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => {
-				if (fail) throw new OcrProviderError('PARSE', 'garbage');
-				return { v: 1 };
-			})
-		};
-		const chain = new ChainOcrProvider([a]);
-		await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
-			OcrProviderError
-		);
-		expect(chain.lastFailedCostCents).toBeCloseTo(0.006, 6);
-		fail = false;
-		await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(chain.lastFailedCostCents).toBe(0);
-	});
+  it('resets lastFailedCostCents at the start of each extract()', async () => {
+    let fail = true;
+    const a: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => {
+        if (fail) throw new OcrProviderError('PARSE', 'garbage');
+        return { v: 1 };
+      })
+    };
+    const chain = new ChainOcrProvider([a]);
+    await expect(chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA)).rejects.toBeInstanceOf(
+      OcrProviderError
+    );
+    expect(chain.lastFailedCostCents).toBeCloseTo(0.006, 6);
+    fail = false;
+    await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(chain.lastFailedCostCents).toBe(0);
+  });
 
-	it('chain.name reflects the active provider when one exists, else chain[0].name', async () => {
-		const a: OcrProvider = {
-			name: 'ollama-local',
-			estimateCostCents: () => 0,
-			extract: vi.fn(async () => { throw new OcrProviderError('NETWORK', 'down'); })
-		};
-		const b: OcrProvider = {
-			name: 'openrouter',
-			estimateCostCents: () => 0.006,
-			extract: vi.fn(async () => ({ v: 1 }))
-		};
-		const chain = new ChainOcrProvider([a, b]);
-		expect(chain.name).toBe('ollama-local');
-		await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
-		expect(chain.name).toBe('openrouter');
-	});
+  it('chain.name reflects the active provider when one exists, else chain[0].name', async () => {
+    const a: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: vi.fn(async () => {
+        throw new OcrProviderError('NETWORK', 'down');
+      })
+    };
+    const b: OcrProvider = {
+      name: 'openrouter',
+      estimateCostCents: () => 0.006,
+      extract: vi.fn(async () => ({ v: 1 }))
+    };
+    const chain = new ChainOcrProvider([a, b]);
+    expect(chain.name).toBe('ollama-local');
+    await chain.extract(Buffer.from([0xff]), PROMPT, SCHEMA);
+    expect(chain.name).toBe('openrouter');
+  });
 });
 
 describe('parseLenientJson', () => {
-	it('parses naked JSON (idempotent on clean input)', () => {
-		expect(parseLenientJson('{"v":42}')).toEqual({ v: 42 });
-	});
+  it('parses naked JSON (idempotent on clean input)', () => {
+    expect(parseLenientJson('{"v":42}')).toEqual({ v: 42 });
+  });
 
-	it('strips a leading markdown fence and trailing fence', () => {
-		const raw = '```json\n{"v":42,"label":"x"}\n```';
-		expect(parseLenientJson(raw)).toEqual({ v: 42, label: 'x' });
-	});
+  it('strips a leading markdown fence and trailing fence', () => {
+    const raw = '```json\n{"v":42,"label":"x"}\n```';
+    expect(parseLenientJson(raw)).toEqual({ v: 42, label: 'x' });
+  });
 
-	it('strips trailing prose after the object (ministral-3:14b case)', () => {
-		const raw = '```json\n{"v":1}\n```\nSanity check: this looks right.';
-		expect(parseLenientJson(raw)).toEqual({ v: 1 });
-	});
+  it('strips trailing prose after the object (ministral-3:14b case)', () => {
+    const raw = '```json\n{"v":1}\n```\nSanity check: this looks right.';
+    expect(parseLenientJson(raw)).toEqual({ v: 1 });
+  });
 
-	it('strips prose prefix before the object', () => {
-		const raw = 'Here is the JSON you requested:\n{"v":1}';
-		expect(parseLenientJson(raw)).toEqual({ v: 1 });
-	});
+  it('strips prose prefix before the object', () => {
+    const raw = 'Here is the JSON you requested:\n{"v":1}';
+    expect(parseLenientJson(raw)).toEqual({ v: 1 });
+  });
 
-	it('handles nested objects via lastIndexOf', () => {
-		const raw = '```json\n{"outer":{"inner":7}}\n```';
-		expect(parseLenientJson(raw)).toEqual({ outer: { inner: 7 } });
-	});
+  it('handles nested objects via lastIndexOf', () => {
+    const raw = '```json\n{"outer":{"inner":7}}\n```';
+    expect(parseLenientJson(raw)).toEqual({ outer: { inner: 7 } });
+  });
 
-	it('throws OcrProviderError(PARSE) when no { is present', () => {
-		expect(() => parseLenientJson('no json here at all')).toThrow(
-			expect.objectContaining({ name: 'OcrProviderError', code: 'PARSE' })
-		);
-	});
+  it('throws OcrProviderError(PARSE) when no { is present', () => {
+    expect(() => parseLenientJson('no json here at all')).toThrow(
+      expect.objectContaining({ name: 'OcrProviderError', code: 'PARSE' })
+    );
+  });
 
-	it('throws OcrProviderError(PARSE) when slice contents are malformed', () => {
-		// Has { and } but the slice between them is invalid JSON.
-		expect(() => parseLenientJson('prefix { not: json } suffix')).toThrow(
-			expect.objectContaining({ name: 'OcrProviderError', code: 'PARSE' })
-		);
-	});
+  it('throws OcrProviderError(PARSE) when slice contents are malformed', () => {
+    // Has { and } but the slice between them is invalid JSON.
+    expect(() => parseLenientJson('prefix { not: json } suffix')).toThrow(
+      expect.objectContaining({ name: 'OcrProviderError', code: 'PARSE' })
+    );
+  });
 });

@@ -58,11 +58,11 @@ export class Queue {
   ): Promise<number> {
     const entry: Omit<QueueEntry, 'id'> = { input, status, attempts: 0, enqueuedAt: Date.now() };
     if (converted) entry.converted = converted;
-    return await this.db.add(STORE, entry) as number;
+    return (await this.db.add(STORE, entry)) as number;
   }
 
   async list(): Promise<QueueEntry[]> {
-    return await this.db.getAll(STORE) as QueueEntry[];
+    return (await this.db.getAll(STORE)) as QueueEntry[];
   }
 
   async remove(id: number): Promise<void> {
@@ -70,7 +70,7 @@ export class Queue {
   }
 
   async markFailed(id: number, error: string): Promise<void> {
-    const entry = await this.db.get(STORE, id) as QueueEntry | undefined;
+    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
     if (!entry) return;
     entry.status = 'failed';
     entry.lastError = error;
@@ -78,7 +78,7 @@ export class Queue {
   }
 
   async markSynced(id: number, converted?: ConvertedSnapshot): Promise<void> {
-    const entry = await this.db.get(STORE, id) as QueueEntry | undefined;
+    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
     if (!entry) return;
     entry.status = 'synced';
     if (converted) entry.converted = converted;
@@ -86,14 +86,14 @@ export class Queue {
   }
 
   async incrementAttempts(id: number): Promise<void> {
-    const entry = await this.db.get(STORE, id) as QueueEntry | undefined;
+    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
     if (!entry) return;
     entry.attempts += 1;
     await this.db.put(STORE, entry);
   }
 
   async decrementAttempts(id: number): Promise<void> {
-    const entry = await this.db.get(STORE, id) as QueueEntry | undefined;
+    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
     if (!entry) return;
     entry.attempts = Math.max(0, entry.attempts - 1);
     await this.db.put(STORE, entry);

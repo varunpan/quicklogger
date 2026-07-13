@@ -8,10 +8,7 @@
 
   type PixelRect = { x: number; y: number; w: number; h: number };
 
-  let {
-    initial,
-    oncommit
-  }: { initial: PixelRect; oncommit: (rect: PixelRect) => void } = $props();
+  let { initial, oncommit }: { initial: PixelRect; oncommit: (rect: PixelRect) => void } = $props();
 
   // Host-owned live rect, seeded once (untrack mirrors OcrPreview's snapshot).
   let live = $state<PixelRect>(untrack(() => ({ ...initial })));

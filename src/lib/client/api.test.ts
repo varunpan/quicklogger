@@ -26,11 +26,18 @@ const input: FuelSubmissionInput = {
 };
 
 function okFetch() {
-  return vi.fn(async () =>
-    new Response(JSON.stringify({ ok: true, submitted: { gallons: 11.2, cost: 42.18, fxRate: 1, fxSource: 'x' } }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' }
-    })
+  return vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          submitted: { gallons: 11.2, cost: 42.18, fxRate: 1, fxSource: 'x' }
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        }
+      )
   );
 }
 
@@ -69,20 +76,31 @@ describe('submitFuelupWithPhotos', () => {
 describe('getVehicleInfo', () => {
   const INFO = {
     vehicleData: { id: 1, year: 2014, make: 'Honda', model: 'Accord' },
-    gasRecordCount: 22, gasRecordCost: 707.39,
-    serviceRecordCount: 44, serviceRecordCost: 4164.2,
-    repairRecordCount: 9, repairRecordCost: 1018.24,
-    upgradeRecordCount: 1, upgradeRecordCost: 595,
-    taxRecordCount: 0, taxRecordCost: 0,
+    gasRecordCount: 22,
+    gasRecordCost: 707.39,
+    serviceRecordCount: 44,
+    serviceRecordCost: 4164.2,
+    repairRecordCount: 9,
+    repairRecordCost: 1018.24,
+    upgradeRecordCount: 1,
+    upgradeRecordCost: 595,
+    taxRecordCount: 0,
+    taxRecordCost: 0,
     lastReportedOdometer: 111180,
-    pastDueReminderCount: 2, veryUrgentReminderCount: 0,
-    urgentReminderCount: 0, notUrgentReminderCount: 7,
+    pastDueReminderCount: 2,
+    veryUrgentReminderCount: 0,
+    urgentReminderCount: 0,
+    notUrgentReminderCount: 7,
     nextReminder: null
   };
 
   it('requests /api/vehicle/info with the vehicle id and returns the parsed body', async () => {
-    const f = vi.fn(async () =>
-      new Response(JSON.stringify(INFO), { status: 200, headers: { 'content-type': 'application/json' } })
+    const f = vi.fn(
+      async () =>
+        new Response(JSON.stringify(INFO), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
     );
     const info = await getVehicleInfo(1, f as unknown as typeof fetch);
     expect((f.mock.calls[0] as unknown as [string])[0]).toBe('/api/vehicle/info?vehicleId=1');
@@ -92,7 +110,9 @@ describe('getVehicleInfo', () => {
 
   it('throws with .status on a non-ok response', async () => {
     const f = vi.fn(async () => new Response('boom', { status: 502 }));
-    await expect(getVehicleInfo(1, f as unknown as typeof fetch)).rejects.toMatchObject({ status: 502 });
+    await expect(getVehicleInfo(1, f as unknown as typeof fetch)).rejects.toMatchObject({
+      status: 502
+    });
   });
 });
 
@@ -108,11 +128,12 @@ describe('postOcr', () => {
   }
 
   it('carries rotation, crop and hint fields when present', async () => {
-    const f = vi.fn(async () =>
-      new Response(JSON.stringify({ mode: 'odometer', odometer: 123456 }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      })
+    const f = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ mode: 'odometer', odometer: 123456 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
     );
     const result = await postOcr(
       image,
@@ -139,13 +160,32 @@ describe('postOcr', () => {
   });
 
   it('omits rotation, crop and hint fields at their defaults', async () => {
-    const f = vi.fn(async () =>
-      new Response(JSON.stringify({ mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.77 }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      })
+    const f = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            mode: 'pump',
+            volume: 11.2,
+            volumeUnit: 'gal',
+            cost: 42.18,
+            pricePerUnit: 3.77
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          }
+        )
     );
-    await postOcr(image, 'pump', 0, null, undefined, undefined, undefined, f as unknown as typeof fetch);
+    await postOcr(
+      image,
+      'pump',
+      0,
+      null,
+      undefined,
+      undefined,
+      undefined,
+      f as unknown as typeof fetch
+    );
     const body = bodyOf(f);
     expect(body.get('mode')).toBe('pump');
     expect(body.get('rotation')).toBeNull();
@@ -199,6 +239,8 @@ describe('silent-degradation contracts', () => {
 
   it('listReminders throws with .status on a non-ok response', async () => {
     const f = vi.fn(async () => new Response('nope', { status: 502 }));
-    await expect(listReminders(3, f as unknown as typeof fetch)).rejects.toMatchObject({ status: 502 });
+    await expect(listReminders(3, f as unknown as typeof fetch)).rejects.toMatchObject({
+      status: 502
+    });
   });
 });

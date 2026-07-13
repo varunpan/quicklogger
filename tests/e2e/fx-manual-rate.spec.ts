@@ -29,7 +29,14 @@ test('switching currency back to the target clears a typed manual FX rate', asyn
     await route.fulfill({
       json: {
         ok: true,
-        submitted: { gallons: 11.2, cost: 42.18, currency: 'USD', fxRate: 1, fxSource: 'identity', fxStale: false }
+        submitted: {
+          gallons: 11.2,
+          cost: 42.18,
+          currency: 'USD',
+          fxRate: 1,
+          fxSource: 'identity',
+          fxStale: false
+        }
       }
     });
   });

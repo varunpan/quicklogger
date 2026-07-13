@@ -72,14 +72,14 @@ The output shape mirrors `GasRecord` so the page-side render path
 
 ### Normalization
 
-| Field | Upstream cache | Queue entry |
-|---|---|---|
-| `date` | passes through (already `M/D/YYYY`) | converted from ISO `YYYY-MM-DD` to `M/D/YYYY` |
-| `odometer` | passes through (string) | `String(Math.round(input.odometer))` |
-| `fuelConsumed` | passes through (gallons string) | `(volume / 3.785411784).toFixed(2)` if `volumeUnit === 'L'`, else `volume.toFixed(2)` |
-| `cost` | `String(cost)` or `null` | `input.cost.toFixed(2)` |
-| `costCurrency` | always `null` | `input.currency` |
-| `notes` | `String(notes)` or `null` | `input.notes ?? null` |
+| Field          | Upstream cache                      | Queue entry                                                                           |
+| -------------- | ----------------------------------- | ------------------------------------------------------------------------------------- |
+| `date`         | passes through (already `M/D/YYYY`) | converted from ISO `YYYY-MM-DD` to `M/D/YYYY`                                         |
+| `odometer`     | passes through (string)             | `String(Math.round(input.odometer))`                                                  |
+| `fuelConsumed` | passes through (gallons string)     | `(volume / 3.785411784).toFixed(2)` if `volumeUnit === 'L'`, else `volume.toFixed(2)` |
+| `cost`         | `String(cost)` or `null`            | `input.cost.toFixed(2)`                                                               |
+| `costCurrency` | always `null`                       | `input.currency`                                                                      |
+| `notes`        | `String(notes)` or `null`           | `input.notes ?? null`                                                                 |
 
 ### Storage failure modes
 
@@ -104,7 +104,7 @@ Flow:
    `GasRecord | null`.
 3. If upstream returned a record:
    - Normalize to `LastFillupRecord` (`costCurrency: null`).
-   - In the browser, persist the *raw* upstream JSON into
+   - In the browser, persist the _raw_ upstream JSON into
      `localStorage.quicklogger.lastFuelup.<vehicleId>` — that's what the
      resolver expects to read back. Failures (quota, disabled storage)
      are swallowed.
@@ -133,7 +133,7 @@ Two changes:
 2. **Submit success path** — after `submitFuelup` returns 200 and prefs are
    saved, the input is appended to the queue with `status: 'synced'`. This
    is fire-and-forget; IDB failures are swallowed and don't affect the
-   submit toast. The form is reset *before* the navigation to the vehicle's
+   submit toast. The form is reset _before_ the navigation to the vehicle's
    maintenance view (so the writes land on the still-mounted component), and
    the success toast set above stays visible through the maintenance load.
    On the next page navigation / PWA relaunch, the resolver has this row
@@ -143,7 +143,7 @@ Two changes:
 
 The replay loop's success branch was `q.remove(entry.id)`. It is now
 `q.markSynced(entry.id)`. Net behaviour difference for an upgraded device:
-in-flight `'queued'` rows that previously *disappeared* on successful
+in-flight `'queued'` rows that previously _disappeared_ on successful
 replay now become `'synced'` rows. Disk usage grows by one row per
 successful replay (a fillup is ~200 bytes; at 50 fillups/year, ~10 KB/year
 worst case). Pruning is out of scope for v1.

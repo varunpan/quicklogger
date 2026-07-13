@@ -61,10 +61,7 @@ function formatShortDate(iso: string): string {
   });
 }
 
-function checkA(
-  s: SubmissionForCheck,
-  last: LastFuelupForCheck
-): SmartCheckIssue | null {
+function checkA(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssue | null {
   if (s.date >= last.date && s.odometer < last.odometer) {
     return {
       code: 'A',
@@ -74,10 +71,7 @@ function checkA(
   return null;
 }
 
-function checkB(
-  s: SubmissionForCheck,
-  last: LastFuelupForCheck
-): SmartCheckIssue | null {
+function checkB(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssue | null {
   if (s.date < last.date && s.odometer > last.odometer) {
     return {
       code: 'B',
@@ -87,10 +81,7 @@ function checkB(
   return null;
 }
 
-function checkC(
-  s: SubmissionForCheck,
-  last: LastFuelupForCheck
-): SmartCheckIssue | null {
+function checkC(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssue | null {
   if (s.date === last.date && Math.abs(s.odometer - last.odometer) <= 5) {
     return {
       code: 'C',
@@ -107,10 +98,7 @@ function checkD(s: SubmissionForCheck, today: string): SmartCheckIssue | null {
   return null;
 }
 
-function checkE(
-  s: SubmissionForCheck,
-  last: LastFuelupForCheck
-): SmartCheckIssue | null {
+function checkE(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssue | null {
   const delta = s.odometer - last.odometer;
   if (delta > ODOMETER_MAX_DELTA_MI) {
     return {

@@ -6,11 +6,8 @@
   // The tappable "current vehicle" card that opens the picker. Renders as an
   // <a> when `href` is given (history / maintenance / stats) or as a <button>
   // with `onclick` (home, which carries form state onto the picker URL).
-  let {
-    vehicle,
-    href,
-    onclick
-  }: { vehicle: Vehicle; href?: string; onclick?: () => void } = $props();
+  let { vehicle, href, onclick }: { vehicle: Vehicle; href?: string; onclick?: () => void } =
+    $props();
 </script>
 
 {#snippet content()}

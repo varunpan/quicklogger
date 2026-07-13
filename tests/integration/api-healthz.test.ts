@@ -14,8 +14,13 @@ beforeAll(() => {
 });
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-  child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as unknown as import('../../src/lib/server/logger').Logger;
 
 function eventFor(logger = noopLogger): Parameters<typeof GET>[0] {
@@ -24,9 +29,7 @@ function eventFor(logger = noopLogger): Parameters<typeof GET>[0] {
 
 describe('GET /healthz', () => {
   it('returns 200 when LubeLogger is reachable', async () => {
-    upstream.use(
-      http.get('http://lubelog:8080/api/vehicles', () => HttpResponse.json([]))
-    );
+    upstream.use(http.get('http://lubelog:8080/api/vehicles', () => HttpResponse.json([])));
     const res = await GET(eventFor());
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -35,9 +38,7 @@ describe('GET /healthz', () => {
 
   it('returns 503 when LubeLogger is unreachable', async () => {
     upstream.use(
-      http.get('http://lubelog:8080/api/vehicles', () =>
-        new HttpResponse(null, { status: 503 })
-      )
+      http.get('http://lubelog:8080/api/vehicles', () => new HttpResponse(null, { status: 503 }))
     );
     const res = await GET(eventFor());
     expect(res.status).toBe(503);
@@ -47,8 +48,9 @@ describe('GET /healthz', () => {
     // LubeLoggerError.message embeds the upstream status + a 200-char body
     // preview; healthz is unauthenticated, so none of that may be echoed.
     upstream.use(
-      http.get('http://lubelog:8080/api/vehicles', () =>
-        new HttpResponse('SECRET-internal-detail-xyz', { status: 500 })
+      http.get(
+        'http://lubelog:8080/api/vehicles',
+        () => new HttpResponse('SECRET-internal-detail-xyz', { status: 500 })
       )
     );
     const warns: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];

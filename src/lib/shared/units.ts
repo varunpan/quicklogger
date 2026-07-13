@@ -11,8 +11,10 @@ function assertNonNegative(value: number): void {
 export function toGallons(value: number, unit: VolumeUnit): number {
   assertNonNegative(value);
   switch (unit) {
-    case 'gal': return value;
-    case 'L':   return value / GAL_TO_L;
+    case 'gal':
+      return value;
+    case 'L':
+      return value / GAL_TO_L;
     default:
       throw new TypeError(`Unknown volume unit: ${String(unit)}`);
   }
@@ -21,8 +23,10 @@ export function toGallons(value: number, unit: VolumeUnit): number {
 export function toLiters(value: number, unit: VolumeUnit): number {
   assertNonNegative(value);
   switch (unit) {
-    case 'L':   return value;
-    case 'gal': return value * GAL_TO_L;
+    case 'L':
+      return value;
+    case 'gal':
+      return value * GAL_TO_L;
     default:
       throw new TypeError(`Unknown volume unit: ${String(unit)}`);
   }

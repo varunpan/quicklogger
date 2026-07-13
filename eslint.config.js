@@ -29,11 +29,14 @@ export default [
   },
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrorsIgnorePattern: '^_'
-      }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_'
+        }
+      ],
       // Type-only imports must use `import type` — stops a careless import
       // from pulling $lib/server modules into client bundles at runtime
       // (e.g. client/api.ts importing lubelogger types). Inline `import()`

@@ -86,7 +86,8 @@ export async function getLatestRelease(
     cache = { checkedAt: now(), release };
     return release;
   } catch (err) {
-    const isTimeout = (err as Error).name === 'AbortError' || (err as Error).name === 'TimeoutError';
+    const isTimeout =
+      (err as Error).name === 'AbortError' || (err as Error).name === 'TimeoutError';
     if (isTimeout) {
       logger.warn('github-release: timeout', { repo: GITHUB_REPO, timeout_ms: TIMEOUT_MS, err });
     } else {

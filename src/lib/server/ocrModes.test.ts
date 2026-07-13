@@ -4,13 +4,20 @@ import type { Env } from './env';
 
 function fakeEnv(overrides: Partial<Env> = {}): Env {
   return {
-    lubeloggerUrl: 'http://l', lubeloggerApiKey: 'k',
-    lubeloggerVolumeUnit: 'gallons_us', lubeloggerCurrency: 'USD',
+    lubeloggerUrl: 'http://l',
+    lubeloggerApiKey: 'k',
+    lubeloggerVolumeUnit: 'gallons_us',
+    lubeloggerCurrency: 'USD',
     fxProviders: ['frankfurter'],
-    fxCachePath: '/tmp/fx', port: 3000, origin: undefined,
-    ollamaVisionUrl: undefined, ollamaVisionModel: 'qwen2.5vl:7b',
-    ollamaVisionTimeoutMs: 60_000, ollamaKeepAlive: '30m',
-    openrouterApiKey: undefined, openrouterVisionModel: 'google/gemini-2.5-flash-lite',
+    fxCachePath: '/tmp/fx',
+    port: 3000,
+    origin: undefined,
+    ollamaVisionUrl: undefined,
+    ollamaVisionModel: 'qwen2.5vl:7b',
+    ollamaVisionTimeoutMs: 60_000,
+    ollamaKeepAlive: '30m',
+    openrouterApiKey: undefined,
+    openrouterVisionModel: 'google/gemini-2.5-flash-lite',
     openrouterVisionTimeoutMs: 30_000,
     ollamaCloudApiKey: undefined,
     ollamaCloudUrl: 'https://ollama.com',
@@ -21,14 +28,23 @@ function fakeEnv(overrides: Partial<Env> = {}): Env {
     openaiCompatibleModel: undefined,
     openaiCompatibleTimeoutMs: 30_000,
     ocrProviderChain: undefined,
-    ocrDailyBudgetUsd: 1, ocrRateLimitPerHour: 20,
-    ocrBudgetPath: '/tmp/b.json', ocrAuditPath: '/tmp/a.jsonl',
-    ocrAuditKeyPath: '/tmp/k.txt', ocrAuditHmacKey: undefined,
-    ocrPumpVolumeMax: 200, ocrPumpCostMax: 500, ocrPumpPricePerUnitMax: 20,
+    ocrDailyBudgetUsd: 1,
+    ocrRateLimitPerHour: 20,
+    ocrBudgetPath: '/tmp/b.json',
+    ocrAuditPath: '/tmp/a.jsonl',
+    ocrAuditKeyPath: '/tmp/k.txt',
+    ocrAuditHmacKey: undefined,
+    ocrPumpVolumeMax: 200,
+    ocrPumpCostMax: 500,
+    ocrPumpPricePerUnitMax: 20,
     ocrOdometerMaxMi: 1_000_000,
     ocrMaxImageBytes: 5 * 1024 * 1024,
-    logLevel: 'info', logPretty: false, logFilePath: undefined,
-    logFileMaxSizeMb: 5, logFileMaxFiles: 5, envWarnings: [],
+    logLevel: 'info',
+    logPretty: false,
+    logFilePath: undefined,
+    logFileMaxSizeMb: 5,
+    logFileMaxFiles: 5,
+    envWarnings: [],
     ...overrides
   };
 }
@@ -59,7 +75,10 @@ describe('pump contract', () => {
 
   it('validateSchema accepts a complete pump payload', () => {
     const r = pump.validateSchema({
-      volume: 11.234, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78
+      volume: 11.234,
+      volumeUnit: 'gal',
+      cost: 42.18,
+      pricePerUnit: 3.78
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -76,56 +95,110 @@ describe('pump contract', () => {
 
   it('validateSchema rejects a wrong type', () => {
     const r = pump.validateSchema({
-      volume: '11', volumeUnit: 'gal', cost: 42, pricePerUnit: 3.78
+      volume: '11',
+      volumeUnit: 'gal',
+      cost: 42,
+      pricePerUnit: 3.78
     });
     expect(r.ok).toBe(false);
   });
 
   it('validateSchema rejects an unknown volumeUnit', () => {
     const r = pump.validateSchema({
-      volume: 11, volumeUnit: 'imperial-gal', cost: 42, pricePerUnit: 3.78
+      volume: 11,
+      volumeUnit: 'imperial-gal',
+      cost: 42,
+      pricePerUnit: 3.78
     });
     expect(r.ok).toBe(false);
   });
 
   it('validateRanges accepts realistic values', () => {
     const env = fakeEnv();
-    expect(pump.validateRanges({
-      mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78
-    }, env).ok).toBe(true);
+    expect(
+      pump.validateRanges(
+        {
+          mode: 'pump',
+          volume: 11.2,
+          volumeUnit: 'gal',
+          cost: 42.18,
+          pricePerUnit: 3.78
+        },
+        env
+      ).ok
+    ).toBe(true);
   });
 
   it('validateRanges rejects volume out of bounds', () => {
     const env = fakeEnv();
-    expect(pump.validateRanges({
-      mode: 'pump', volume: 0, volumeUnit: 'gal', cost: 1, pricePerUnit: 1
-    }, env).ok).toBe(false);
-    expect(pump.validateRanges({
-      mode: 'pump', volume: 999, volumeUnit: 'gal', cost: 1, pricePerUnit: 1
-    }, env).ok).toBe(false);
+    expect(
+      pump.validateRanges(
+        {
+          mode: 'pump',
+          volume: 0,
+          volumeUnit: 'gal',
+          cost: 1,
+          pricePerUnit: 1
+        },
+        env
+      ).ok
+    ).toBe(false);
+    expect(
+      pump.validateRanges(
+        {
+          mode: 'pump',
+          volume: 999,
+          volumeUnit: 'gal',
+          cost: 1,
+          pricePerUnit: 1
+        },
+        env
+      ).ok
+    ).toBe(false);
   });
 
   it('validateRanges respects env overrides', () => {
     const env = fakeEnv({ ocrPumpVolumeMax: 50 });
-    expect(pump.validateRanges({
-      mode: 'pump', volume: 100, volumeUnit: 'gal', cost: 1, pricePerUnit: 1
-    }, env).ok).toBe(false);
+    expect(
+      pump.validateRanges(
+        {
+          mode: 'pump',
+          volume: 100,
+          volumeUnit: 'gal',
+          cost: 1,
+          pricePerUnit: 1
+        },
+        env
+      ).ok
+    ).toBe(false);
   });
 
   it('validateCrossField passes within 5% drift', () => {
     if (!pump.validateCrossField) throw new Error('pump must have validateCrossField');
     // 11.2 * 3.78 = 42.336; observed 42.18 → drift = 0.37% → ok
-    expect(pump.validateCrossField({
-      mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 42.18, pricePerUnit: 3.78
-    }).ok).toBe(true);
+    expect(
+      pump.validateCrossField({
+        mode: 'pump',
+        volume: 11.2,
+        volumeUnit: 'gal',
+        cost: 42.18,
+        pricePerUnit: 3.78
+      }).ok
+    ).toBe(true);
   });
 
   it('validateCrossField fails on > 5% drift', () => {
     if (!pump.validateCrossField) throw new Error('pump must have validateCrossField');
     // 11.2 * 3.78 = 42.336; observed 100 → drift = ~58% → fail
-    expect(pump.validateCrossField({
-      mode: 'pump', volume: 11.2, volumeUnit: 'gal', cost: 100, pricePerUnit: 3.78
-    }).ok).toBe(false);
+    expect(
+      pump.validateCrossField({
+        mode: 'pump',
+        volume: 11.2,
+        volumeUnit: 'gal',
+        cost: 100,
+        pricePerUnit: 3.78
+      }).ok
+    ).toBe(false);
   });
 });
 

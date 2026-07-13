@@ -6,7 +6,14 @@
   import { Queue } from '$lib/client/idb';
   import { toGallons } from '$lib/shared/units';
   import { SUPPORTED_CURRENCIES } from '$lib/shared/currencies';
-  import { submitFuelup, submitFuelupWithPhotos, getFx, postOcr, ApiError, OcrError } from '$lib/client/api';
+  import {
+    submitFuelup,
+    submitFuelupWithPhotos,
+    getFx,
+    postOcr,
+    ApiError,
+    OcrError
+  } from '$lib/client/api';
   import { resizeForOcr } from '$lib/client/image';
   import { bufferPickedPhoto, type BufferedPhoto } from '$lib/client/photo-buffer';
   import type { Vehicle } from '$lib/server/lubelogger';
@@ -19,7 +26,10 @@
   } from '$lib/shared/types';
   import { formatOdometer, formatLastFillupDate, formatCost } from '$lib/client/format';
   import { loadServerInfo } from '$lib/client/server-info';
-  import { loadDismissedUpdateVersion, saveDismissedUpdateVersion } from '$lib/client/dismissed-update';
+  import {
+    loadDismissedUpdateVersion,
+    saveDismissedUpdateVersion
+  } from '$lib/client/dismissed-update';
   import {
     evaluateSmartChecks,
     localIsoDate,
@@ -98,7 +108,9 @@
   // from prefill.date when present (vehicle-picker round-trip / deep-link),
   // validated to ISO; falls back to today on absence or garbage. lubeDateToIso
   // is a hoisted function declaration, so it's callable here.
-  let isoDate: string = $state(untrack(() => lubeDateToIso(data.prefill.date ?? '') ?? localIsoDate()));
+  let isoDate: string = $state(
+    untrack(() => lubeDateToIso(data.prefill.date ?? '') ?? localIsoDate())
+  );
   let volume: string = $state(untrack(() => data.prefill.volume ?? ''));
   let volumeUnit: VolumeUnit = $state(
     untrack(() => (data.prefill.volumeUnit as VolumeUnit) ?? prefs.defaultVolumeUnit)
@@ -111,7 +123,8 @@
   let manualFxRate: string = $state('');
   let needsManualFx: boolean = $state(false);
   let submitting: boolean = $state(false);
-  let toast: { kind: 'success' | 'queued' | 'error' | 'warning'; text: string } | null = $state(null);
+  let toast: { kind: 'success' | 'queued' | 'error' | 'warning'; text: string } | null =
+    $state(null);
 
   // --- Photo OCR state (v0.2.0+) ---
 
@@ -211,13 +224,18 @@
       return { kind: 'error', text: `OCR rate limit reached, try again in ${ra}s` };
     }
     if (s === 400) {
-      return { kind: 'error', text: e?.serverError ? `OCR rejected photo: ${e.serverError}` : 'OCR rejected photo' };
+      return {
+        kind: 'error',
+        text: e?.serverError ? `OCR rejected photo: ${e.serverError}` : 'OCR rejected photo'
+      };
     }
     if (s === 402) return { kind: 'error', text: 'OCR budget for today reached' };
     if (s === 413) return { kind: 'error', text: 'Photo too large — try again' };
     if (s === 415) return { kind: 'error', text: "Couldn't read image — try a clearer photo" };
-    if (s === 422) return { kind: 'error', text: "Couldn't read clearly — try again or type manually" };
-    if (s === 502 || s === 503) return { kind: 'error', text: 'OCR service unreachable — please type values' };
+    if (s === 422)
+      return { kind: 'error', text: "Couldn't read clearly — try again or type manually" };
+    if (s === 502 || s === 503)
+      return { kind: 'error', text: 'OCR service unreachable — please type values' };
     return { kind: 'error', text: `OCR failed (${s ?? 'network'})` };
   }
 
@@ -226,7 +244,7 @@
     const picked = input.files?.[0];
     input.value = '';
     if (!picked) return;
-    attachPumpBlob = null;   // a fresh pick supersedes retained pump bytes
+    attachPumpBlob = null; // a fresh pick supersedes retained pump bytes
     const buf = await bufferPickedPhotoOrToast(picked);
     if (!buf) return;
     pendingCapture = { file: buf.ocrFile, mode: 'pump' };
@@ -274,15 +292,13 @@
     const picked = input.files?.[0];
     input.value = '';
     if (!picked) return;
-    attachOdometerBlob = null;   // a fresh pick supersedes retained odometer bytes
+    attachOdometerBlob = null; // a fresh pick supersedes retained odometer bytes
     const buf = await bufferPickedPhotoOrToast(picked);
     if (!buf) return;
     pendingCapture = { file: buf.ocrFile, mode: 'odometer' };
   }
 
-  function checkOdometerRelative(
-    detected: number
-  ): { ok: true } | OdoWarn {
+  function checkOdometerRelative(detected: number): { ok: true } | OdoWarn {
     if (!data.lastFuelup) return { ok: true };
     const last = Number(data.lastFuelup.odometer);
     if (!Number.isFinite(last) || last <= 0) return { ok: true };
@@ -290,7 +306,12 @@
     return { ok: true };
   }
 
-  async function runOcr(file: File, mode: OcrMode, rotation: Rotation, crop: NormalizedRect | null) {
+  async function runOcr(
+    file: File,
+    mode: OcrMode,
+    rotation: Rotation,
+    crop: NormalizedRect | null
+  ) {
     if (mode === 'pump') {
       pumpOcrPending = true;
     } else {
@@ -332,14 +353,19 @@
       if (mode === 'pump' && data.lastFuelup && data.lastFuelup.cost != null) {
         const cost = Number(data.lastFuelup.cost);
         const gallons = Number(data.lastFuelup.fuelConsumed);
-        if (
-          Number.isFinite(cost) && cost > 0 &&
-          Number.isFinite(gallons) && gallons > 0
-        ) {
+        if (Number.isFinite(cost) && cost > 0 && Number.isFinite(gallons) && gallons > 0) {
           lastPriceHint = cost / gallons;
         }
       }
-      const result = await postOcr(blob, mode, rotation, crop, lastOdoHint, lastPriceHint, data.ocrChainTimeoutMs);
+      const result = await postOcr(
+        blob,
+        mode,
+        rotation,
+        crop,
+        lastOdoHint,
+        lastPriceHint,
+        data.ocrChainTimeoutMs
+      );
       if (result.mode === 'pump') {
         pumpSuggestion = result;
       } else if (result.mode === 'odometer') {
@@ -393,7 +419,9 @@
     cost = String(pumpSuggestion.cost);
     pumpSuggestion = null;
   }
-  function discardPumpOcr() { pumpSuggestion = null; }
+  function discardPumpOcr() {
+    pumpSuggestion = null;
+  }
 
   function applyOdoOcr() {
     if (!odoSuggestion) return;
@@ -401,8 +429,12 @@
     odometerEdited = true;
     odoSuggestion = null;
   }
-  function discardOdoOcr() { odoSuggestion = null; }
-  function dismissOdoWarning() { odoWarning = null; }
+  function discardOdoOcr() {
+    odoSuggestion = null;
+  }
+  function dismissOdoWarning() {
+    odoWarning = null;
+  }
   function useOdoWarning() {
     if (!odoWarning) return;
     odometer = String(Math.round(odoWarning.detected));
@@ -439,30 +471,32 @@
     // the currently-selected currency's response can apply. Mirrors the
     // photoDatePickSeq guard in prefillDateFromPhoto.
     let stale = false;
-    getFx(currency, TARGET_CURRENCY).then((r) => {
-      if (stale) return;
-      if ('available' in r) {
+    getFx(currency, TARGET_CURRENCY)
+      .then((r) => {
+        if (stale) return;
+        if ('available' in r) {
+          fxRate = null;
+          fxStale = false;
+          needsManualFx = true;
+        } else {
+          fxRate = r.rate;
+          fxStale = r.stale;
+          needsManualFx = false;
+          manualFxRate = '';
+        }
+      })
+      .catch(() => {
+        if (stale) return;
+        // The rate source is unreachable: offline (getFx sees the SW's synthetic
+        // 504 and throws) or a transient error that isn't the deliberate 503.
+        // Offer the manual-rate field — the same affordance as the 503/
+        // {available:false} branch — so an offline foreign-currency fillup can
+        // still pin a rate. Matches the field's own "rate sources are
+        // unreachable" label.
         fxRate = null;
         fxStale = false;
         needsManualFx = true;
-      } else {
-        fxRate = r.rate;
-        fxStale = r.stale;
-        needsManualFx = false;
-        manualFxRate = '';
-      }
-    }).catch(() => {
-      if (stale) return;
-      // The rate source is unreachable: offline (getFx sees the SW's synthetic
-      // 504 and throws) or a transient error that isn't the deliberate 503.
-      // Offer the manual-rate field — the same affordance as the 503/
-      // {available:false} branch — so an offline foreign-currency fillup can
-      // still pin a rate. Matches the field's own "rate sources are
-      // unreachable" label.
-      fxRate = null;
-      fxStale = false;
-      needsManualFx = true;
-    });
+      });
     return () => {
       stale = true;
     };
@@ -503,9 +537,14 @@
     const od = Number(odometer);
     const vol = Number(volume);
     const c = Number(cost);
-    return Number.isFinite(od) && od > 0
-        && Number.isFinite(vol) && vol > 0
-        && Number.isFinite(c) && c > 0;
+    return (
+      Number.isFinite(od) &&
+      od > 0 &&
+      Number.isFinite(vol) &&
+      vol > 0 &&
+      Number.isFinite(c) &&
+      c > 0
+    );
   });
 
   // Per-tank delta shown under the odometer field once the user has interacted.
@@ -601,7 +640,10 @@
 
     try {
       const result = wantsAttach
-        ? await submitFuelupWithPhotos(input, { pump: attachPumpBlob, odometer: attachOdometerBlob })
+        ? await submitFuelupWithPhotos(input, {
+            pump: attachPumpBlob,
+            odometer: attachOdometerBlob
+          })
         : await submitFuelup(input);
       toast = result.photoWarning
         ? { kind: 'warning', text: "Logged — but the photo couldn't be attached." }
@@ -615,7 +657,10 @@
       savePrefs({ lastVehicleId: vehicle.id });
       try {
         const q = await Queue.open();
-        await q.enqueue(input, 'synced', { cost: result.submitted.cost, currency: result.submitted.currency });
+        await q.enqueue(input, 'synced', {
+          cost: result.submitted.cost,
+          currency: result.submitted.currency
+        });
       } catch {
         // IDB unavailable (private mode, quota); ignore.
       }
@@ -638,7 +683,7 @@
       smartCheckIssues = [];
       attachPumpBlob = null;
       attachOdometerBlob = null;
-      attachPhotos = true;   // default-on again; checkbox stays hidden until the next OCR send (blobs cleared)
+      attachPhotos = true; // default-on again; checkbox stays hidden until the next OCR send (blobs cleared)
       // eslint-disable-next-line svelte/no-navigation-without-resolve
       void goto(`/maintenance?vehicleId=${vehicle.id}`).catch(() => {});
     } catch (err) {
@@ -648,10 +693,12 @@
       } else {
         try {
           const q = await Queue.open();
-          await q.enqueue(input);   // text-only — no image bytes ever enter IDB (online-only attach)
+          await q.enqueue(input); // text-only — no image bytes ever enter IDB (online-only attach)
           toast = {
             kind: 'queued',
-            text: wantsAttach ? 'Saved locally — photo not attached.' : 'Saved locally — will sync when online'
+            text: wantsAttach
+              ? 'Saved locally — photo not attached.'
+              : 'Saved locally — will sync when online'
           };
         } catch {
           // IDB unavailable (Safari private mode, quota): the offline fallback
@@ -676,26 +723,59 @@
 </script>
 
 {#if !online}
-  <div role="status" data-testid="offline-banner" class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-start gap-2">
+  <div
+    role="status"
+    data-testid="offline-banner"
+    class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-start gap-2"
+  >
     <Icon name="warning" size={15} class="text-amber-300 mt-0.5 shrink-0" />
-    <span class="text-sm text-amber-200 leading-relaxed">You're offline — this fill-up will be saved and synced when you reconnect.</span>
+    <span class="text-sm text-amber-200 leading-relaxed"
+      >You're offline — this fill-up will be saved and synced when you reconnect.</span
+    >
   </div>
 {/if}
 
 {#if showUpdateBanner}
-  <div class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-center gap-3" data-testid="update-banner">
+  <div
+    class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-4 flex items-center gap-3"
+    data-testid="update-banner"
+  >
     <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-      <span class="text-sm font-medium text-amber-200">quicklogger v{appLatestVersion} available</span>
+      <span class="text-sm font-medium text-amber-200"
+        >quicklogger v{appLatestVersion} available</span
+      >
       {#if appReleaseUrl}
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href={appReleaseUrl} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300" data-testid="banner-release-notes">
+        <!-- eslint-disable svelte/no-navigation-without-resolve -->
+        <a
+          href={appReleaseUrl}
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-1 text-sm text-blue-400 active:text-blue-300"
+          data-testid="banner-release-notes"
+        >
           Release notes
           <Icon name="external" size={11} />
         </a>
+        <!-- eslint-enable svelte/no-navigation-without-resolve -->
       {/if}
     </div>
-    <button type="button" class="p-1 -mr-1 text-amber-300/70 active:text-amber-200 shrink-0" aria-label="Dismiss" onclick={dismissUpdateBanner} data-testid="banner-dismiss">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+    <button
+      type="button"
+      class="p-1 -mr-1 text-amber-300/70 active:text-amber-200 shrink-0"
+      aria-label="Dismiss"
+      onclick={dismissUpdateBanner}
+      data-testid="banner-dismiss"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
         <line x1="6" y1="6" x2="18" y2="18" /><line x1="6" y1="18" x2="18" y2="6" />
       </svg>
     </button>
@@ -710,7 +790,11 @@
   {#if data.lastFuelup}
     <div class="text-xs text-zinc-500 mb-3 leading-relaxed">
       <div class="flex items-center gap-2">
-        <span>Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {formatLastFillupDate(data.lastFuelup.date)}</span>
+        <span
+          >Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {formatLastFillupDate(
+            data.lastFuelup.date
+          )}</span
+        >
         {#if data.lastFuelupSource === 'offline'}
           <span class="badge text-amber-300 bg-amber-500/15 border border-amber-500/30">
             offline copy
@@ -744,7 +828,10 @@
         disabled={pending}
       >
         {#if pending}
-          <span class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin" aria-hidden="true"></span>
+          <span
+            class="inline-block w-3 h-3 rounded-full border-2 border-blue-300/30 border-t-blue-300 animate-spin"
+            aria-hidden="true"
+          ></span>
           <span class="truncate">Reading photo…</span>
         {:else}
           <Icon name="camera" />
@@ -753,25 +840,48 @@
       </button>
     {/snippet}
 
-    {#snippet suggestionCard(bold: string, dim: string | null, onuse: () => void, ondiscard: () => void)}
-      <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2" role="status">
+    {#snippet suggestionCard(
+      bold: string,
+      dim: string | null,
+      onuse: () => void,
+      ondiscard: () => void
+    )}
+      <div
+        class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 mb-2"
+        role="status"
+      >
         <div class="flex items-start gap-2">
           <Icon name="camera" class="text-blue-300 mt-0.5 shrink-0" />
           <div class="text-xs text-blue-200 flex-1 leading-relaxed">
             <span class="text-blue-300/70">Detected:</span>
-            <span class="font-semibold">{bold}</span>{#if dim}<span class="text-blue-300/70"> · {dim}</span>{/if}
+            <span class="font-semibold">{bold}</span>{#if dim}<span class="text-blue-300/70">
+                · {dim}</span
+              >{/if}
           </div>
         </div>
         <div class="flex gap-2 mt-2 ml-6">
-          <button type="button" class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={onuse}>Use</button>
-          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={ondiscard}>Discard</button>
+          <button
+            type="button"
+            class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold"
+            onclick={onuse}>Use</button
+          >
+          <button
+            type="button"
+            class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold"
+            onclick={ondiscard}>Discard</button
+          >
         </div>
       </div>
     {/snippet}
 
     <div class="flex gap-2 mb-3">
       {#if pumpModeEnabled()}
-        {@render cameraButton('Read pump display from photo', 'Pump display photo', pumpOcrPending, openPumpCamera)}
+        {@render cameraButton(
+          'Read pump display from photo',
+          'Pump display photo',
+          pumpOcrPending,
+          openPumpCamera
+        )}
         <input
           bind:this={pumpCameraInput}
           type="file"
@@ -781,7 +891,12 @@
         />
       {/if}
       {#if odoModeEnabled()}
-        {@render cameraButton('Read odometer from photo', 'Odometer photo', odoOcrPending, openOdoCamera)}
+        {@render cameraButton(
+          'Read odometer from photo',
+          'Odometer photo',
+          odoOcrPending,
+          openOdoCamera
+        )}
         <input
           bind:this={odoCameraInput}
           type="file"
@@ -811,17 +926,30 @@
     {/if}
 
     {#if odoWarning}
-      <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 mb-2" role="alert">
+      <div
+        class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 mb-2"
+        role="alert"
+      >
         <div class="flex items-start gap-2">
           <Icon name="warning" class="text-amber-300 mt-0.5 shrink-0" />
           <div class="text-xs text-amber-300 flex-1 leading-relaxed">
-            <span class="font-semibold">Detected: {formatOdometer(String(odoWarning.detected))} mi</span> —
-            lower than last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
+            <span class="font-semibold"
+              >Detected: {formatOdometer(String(odoWarning.detected))} mi</span
+            >
+            — lower than last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
           </div>
         </div>
         <div class="flex gap-2 mt-2 ml-6">
-          <button type="button" class="bg-amber-500/20 text-amber-200 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={useOdoWarning}>Use anyway</button>
-          <button type="button" class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold" onclick={dismissOdoWarning}>Dismiss</button>
+          <button
+            type="button"
+            class="bg-amber-500/20 text-amber-200 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs font-semibold"
+            onclick={useOdoWarning}>Use anyway</button
+          >
+          <button
+            type="button"
+            class="text-zinc-400 rounded-lg px-3 py-1.5 text-xs font-semibold"
+            onclick={dismissOdoWarning}>Dismiss</button
+          >
         </div>
       </div>
     {/if}
@@ -831,13 +959,23 @@
     <div class="field min-w-0">
       <label for="odometer" class="field-label">Odometer</label>
       <div class="relative">
-        <input id="odometer" class="field-input min-w-0" type="number" inputmode="numeric"
-               step="1"
-               onkeydown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
-               bind:value={odometer}
-               oninput={() => { odometerEdited = true; clearSmartCheckIssues(); }}
-               class:text-zinc-400={!odometerEdited && odometer !== ''}
-               placeholder={placeholderOdometer()} />
+        <input
+          id="odometer"
+          class="field-input min-w-0"
+          type="number"
+          inputmode="numeric"
+          step="1"
+          onkeydown={(e) => {
+            if (e.key === '.' || e.key === ',') e.preventDefault();
+          }}
+          bind:value={odometer}
+          oninput={() => {
+            odometerEdited = true;
+            clearSmartCheckIssues();
+          }}
+          class:text-zinc-400={!odometerEdited && odometer !== ''}
+          placeholder={placeholderOdometer()}
+        />
         {#if !odometerEdited && odometer !== ''}
           <span class="badge absolute top-1.5 right-2 text-zinc-500 bg-zinc-700/60">
             prefilled
@@ -846,21 +984,38 @@
       </div>
       {#if odometerDelta !== null}
         <div class="text-xs text-zinc-500 mt-1 px-1">
-          <span class="text-blue-400 font-semibold">{odometerDelta > 0 ? '+' : ''}{odometerDelta} mi</span> this tank
+          <span class="text-blue-400 font-semibold"
+            >{odometerDelta > 0 ? '+' : ''}{odometerDelta} mi</span
+          > this tank
         </div>
       {/if}
     </div>
     <label class="field min-w-0">
       <span class="field-label">Date</span>
-      <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate}
-             oninput={() => { clearSmartCheckIssues(); photoDateCue = null; }} />
+      <input
+        class="field-input min-w-0 appearance-none"
+        type="date"
+        bind:value={isoDate}
+        oninput={() => {
+          clearSmartCheckIssues();
+          photoDateCue = null;
+        }}
+      />
       {#if photoDateCue === 'set'}
-        <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status" data-testid="photo-date-cue">
+        <div
+          class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-1 mt-1 flex items-center gap-1.5"
+          role="status"
+          data-testid="photo-date-cue"
+        >
           <Icon name="camera" size={12} class="text-blue-300 shrink-0" />
           <span class="text-[11px] font-semibold text-blue-200">set from photo</span>
         </div>
       {:else if photoDateCue === 'missing'}
-        <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 mt-1 flex items-center gap-1.5" role="status" data-testid="photo-date-cue">
+        <div
+          class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 mt-1 flex items-center gap-1.5"
+          role="status"
+          data-testid="photo-date-cue"
+        >
           <Icon name="warning" size={12} class="text-amber-300 shrink-0" />
           <span class="text-[11px] font-semibold text-amber-300">no date in photo</span>
         </div>
@@ -882,13 +1037,31 @@
   <label class="field mb-3">
     <span class="field-label">Volume</span>
     <div class="flex gap-2">
-      <input class="field-input min-w-0 flex-1" type="number" inputmode="decimal" step="0.01"
-             aria-label="Volume" bind:value={volume} oninput={clearSmartCheckIssues} placeholder="11.2" />
+      <input
+        class="field-input min-w-0 flex-1"
+        type="number"
+        inputmode="decimal"
+        step="0.01"
+        aria-label="Volume"
+        bind:value={volume}
+        oninput={clearSmartCheckIssues}
+        placeholder="11.2"
+      />
       <div class="flex bg-zinc-800 rounded-xl p-1 w-20 shrink-0">
-        <button type="button" class="toggle-pill flex-1" class:active={volumeUnit === 'gal'} class:inactive={volumeUnit !== 'gal'}
-                onclick={() => (volumeUnit = 'gal')}>Gal</button>
-        <button type="button" class="toggle-pill flex-1" class:active={volumeUnit === 'L'} class:inactive={volumeUnit !== 'L'}
-                onclick={() => (volumeUnit = 'L')}>L</button>
+        <button
+          type="button"
+          class="toggle-pill flex-1"
+          class:active={volumeUnit === 'gal'}
+          class:inactive={volumeUnit !== 'gal'}
+          onclick={() => (volumeUnit = 'gal')}>Gal</button
+        >
+        <button
+          type="button"
+          class="toggle-pill flex-1"
+          class:active={volumeUnit === 'L'}
+          class:inactive={volumeUnit !== 'L'}
+          onclick={() => (volumeUnit = 'L')}>L</button
+        >
       </div>
     </div>
   </label>
@@ -896,8 +1069,15 @@
   <label class="field mb-3">
     <span class="field-label">Cost</span>
     <div class="flex gap-2">
-      <input class="field-input min-w-0 flex-1" type="number" inputmode="decimal" step="0.01"
-             aria-label="Cost" bind:value={cost} placeholder="42.18" />
+      <input
+        class="field-input min-w-0 flex-1"
+        type="number"
+        inputmode="decimal"
+        step="0.01"
+        aria-label="Cost"
+        bind:value={cost}
+        placeholder="42.18"
+      />
       <div class="flex bg-zinc-800 rounded-xl p-1 w-20 shrink-0">
         <select
           class="bg-transparent rounded-lg text-xs font-semibold text-zinc-100 outline-none cursor-pointer w-full appearance-none text-center [text-align-last:center]"
@@ -914,29 +1094,41 @@
 
   {#if needsManualFx}
     <label class="field mb-3">
-      <span class="field-label">FX rate (1 {currency} = ? USD) — entered manually because rate sources are unreachable</span>
-      <input class="field-input" type="number" inputmode="decimal" step="0.0001"
-             bind:value={manualFxRate} placeholder="0.73" />
+      <span class="field-label"
+        >FX rate (1 {currency} = ? USD) — entered manually because rate sources are unreachable</span
+      >
+      <input
+        class="field-input"
+        type="number"
+        inputmode="decimal"
+        step="0.0001"
+        bind:value={manualFxRate}
+        placeholder="0.73"
+      />
     </label>
   {/if}
 
   <div class="grid grid-cols-2 gap-2 mb-3">
-    <button type="button"
-            class="rounded-xl py-2 text-sm font-semibold"
-            class:bg-blue-600={isFillToFull}
-            class:text-white={isFillToFull}
-            class:bg-zinc-800={!isFillToFull}
-            class:text-zinc-400={!isFillToFull}
-            onclick={() => (isFillToFull = !isFillToFull)}>
+    <button
+      type="button"
+      class="rounded-xl py-2 text-sm font-semibold"
+      class:bg-blue-600={isFillToFull}
+      class:text-white={isFillToFull}
+      class:bg-zinc-800={!isFillToFull}
+      class:text-zinc-400={!isFillToFull}
+      onclick={() => (isFillToFull = !isFillToFull)}
+    >
       {isFillToFull ? '✓ Fill to full' : 'Fill to full'}
     </button>
-    <button type="button"
-            class="rounded-xl py-2 text-sm font-semibold"
-            class:bg-blue-600={missedFuelup}
-            class:text-white={missedFuelup}
-            class:bg-zinc-800={!missedFuelup}
-            class:text-zinc-400={!missedFuelup}
-            onclick={() => (missedFuelup = !missedFuelup)}>
+    <button
+      type="button"
+      class="rounded-xl py-2 text-sm font-semibold"
+      class:bg-blue-600={missedFuelup}
+      class:text-white={missedFuelup}
+      class:bg-zinc-800={!missedFuelup}
+      class:text-zinc-400={!missedFuelup}
+      onclick={() => (missedFuelup = !missedFuelup)}
+    >
       {missedFuelup ? '✓ Missed fillup' : 'Missed fillup'}
     </button>
   </div>
@@ -946,13 +1138,19 @@
     <!-- text-base (16px), not text-sm (14px): a focused input under 16px makes
          iOS Safari auto-zoom and never zoom back out (#51). 16px keeps notes a
          touch smaller than the 18px primary fields while clearing that floor. -->
-    <input class="field-input text-base" type="text" bind:value={notes}
-           placeholder="Costco Pump 4, regular grade" />
+    <input
+      class="field-input text-base"
+      type="text"
+      bind:value={notes}
+      placeholder="Costco Pump 4, regular grade"
+    />
   </label>
 
   {#if previewUsd !== null && previewGallons !== null}
     <!-- `previewUsd` is a legacy name — value is in env.lubeloggerCurrency, not always USD. -->
-    <div class="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300 mb-3">
+    <div
+      class="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300 mb-3"
+    >
       Will log: {previewGallons.toFixed(2)} Gal · {formatCost(previewUsd, TARGET_CURRENCY)}
       {#if mpgPreview !== null}
         &nbsp;·&nbsp; {mpgPreview.toFixed(1)} MPG since last fill
@@ -964,47 +1162,79 @@
   {/if}
 
   {#if smartCheckIssues.length > 0}
-    <div class="rounded-xl px-4 py-3 mb-3 border border-amber-500/30 bg-amber-500/15 text-amber-300 text-sm leading-relaxed" role="alert" data-testid="smart-check-chip">
+    <div
+      class="rounded-xl px-4 py-3 mb-3 border border-amber-500/30 bg-amber-500/15 text-amber-300 text-sm leading-relaxed"
+      role="alert"
+      data-testid="smart-check-chip"
+    >
       <div class="flex items-center gap-2 font-semibold mb-2">
         <span aria-hidden="true">⚠</span>
-        <span>{smartCheckIssues.length} {smartCheckIssues.length === 1 ? 'issue' : 'issues'} found</span>
+        <span
+          >{smartCheckIssues.length}
+          {smartCheckIssues.length === 1 ? 'issue' : 'issues'} found</span
+        >
       </div>
       <ul class="list-disc pl-5 space-y-1 mb-3">
         {#each smartCheckIssues as issue (issue.code)}
           <li>{issue.message}</li>
         {/each}
       </ul>
-      <button type="button"
-              class="w-full rounded-lg py-2 px-3 text-sm font-semibold border border-amber-500/40 text-amber-200"
-              onclick={submitAnyway}>
+      <button
+        type="button"
+        class="w-full rounded-lg py-2 px-3 text-sm font-semibold border border-amber-500/40 text-amber-200"
+        onclick={submitAnyway}
+      >
         Submit anyway
       </button>
     </div>
   {/if}
 
   {#if attachPumpBlob || attachOdometerBlob}
-    <button type="button"
-            aria-pressed={attachPhotos}
-            class="flex items-center gap-3 w-full rounded-xl px-3 py-3 mb-3 bg-zinc-800/60 border border-zinc-700/60 text-left"
-            onclick={() => (attachPhotos = !attachPhotos)}>
+    <button
+      type="button"
+      aria-pressed={attachPhotos}
+      class="flex items-center gap-3 w-full rounded-xl px-3 py-3 mb-3 bg-zinc-800/60 border border-zinc-700/60 text-left"
+      onclick={() => (attachPhotos = !attachPhotos)}
+    >
       {#if attachPhotos}
-        <span class="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shrink-0" aria-hidden="true">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span
+          class="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shrink-0"
+          aria-hidden="true"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+          >
         </span>
       {:else}
-        <span class="w-5 h-5 rounded-md border-2 border-zinc-600 bg-transparent shrink-0" aria-hidden="true"></span>
+        <span
+          class="w-5 h-5 rounded-md border-2 border-zinc-600 bg-transparent shrink-0"
+          aria-hidden="true"
+        ></span>
       {/if}
       <span class="flex-1 min-w-0">
-        <span class="block text-sm font-semibold" class:text-zinc-100={attachPhotos} class:text-zinc-300={!attachPhotos}>{attachLabel}</span>
+        <span
+          class="block text-sm font-semibold"
+          class:text-zinc-100={attachPhotos}
+          class:text-zinc-300={!attachPhotos}>{attachLabel}</span
+        >
         <span class="block text-xs text-zinc-500 mt-0.5">{attachSubLabel}</span>
       </span>
     </button>
   {/if}
 
-  <button type="button"
-          disabled={!canSubmit || smartCheckIssues.length > 0}
-          class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
-          onclick={() => submit()}>
+  <button
+    type="button"
+    disabled={!canSubmit || smartCheckIssues.length > 0}
+    class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
+    onclick={() => submit()}
+  >
     {submitting ? 'Logging…' : online ? 'Log fillup' : 'Save offline'}
   </button>
 
@@ -1021,11 +1251,13 @@
   {#if toast}
     <!-- role makes screen readers announce the submit outcome — the only
          transient panel that lacked one (review Q5). Errors are assertive. -->
-    <div role={toast.kind === 'error' ? 'alert' : 'status'}
-         class="mt-4 rounded-xl px-4 py-3 text-sm"
-         class:bg-emerald-600={toast.kind === 'success'}
-         class:bg-amber-600={toast.kind === 'queued' || toast.kind === 'warning'}
-         class:bg-rose-600={toast.kind === 'error'}>
+    <div
+      role={toast.kind === 'error' ? 'alert' : 'status'}
+      class="mt-4 rounded-xl px-4 py-3 text-sm"
+      class:bg-emerald-600={toast.kind === 'success'}
+      class:bg-amber-600={toast.kind === 'queued' || toast.kind === 'warning'}
+      class:bg-rose-600={toast.kind === 'error'}
+    >
       {toast.text}
     </div>
   {/if}

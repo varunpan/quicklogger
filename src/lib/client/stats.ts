@@ -35,9 +35,24 @@ export interface CostRow {
 export function costRows(info: VehicleInfo): CostRow[] {
   const rows: CostRow[] = [
     { label: 'Fuel', cost: info.gasRecordCost, count: info.gasRecordCount, noun: 'fill-up' },
-    { label: 'Service', cost: info.serviceRecordCost, count: info.serviceRecordCount, noun: 'record' },
-    { label: 'Repairs', cost: info.repairRecordCost, count: info.repairRecordCount, noun: 'record' },
-    { label: 'Upgrades', cost: info.upgradeRecordCost, count: info.upgradeRecordCount, noun: 'record' },
+    {
+      label: 'Service',
+      cost: info.serviceRecordCost,
+      count: info.serviceRecordCount,
+      noun: 'record'
+    },
+    {
+      label: 'Repairs',
+      cost: info.repairRecordCost,
+      count: info.repairRecordCount,
+      noun: 'record'
+    },
+    {
+      label: 'Upgrades',
+      cost: info.upgradeRecordCost,
+      count: info.upgradeRecordCount,
+      noun: 'record'
+    },
     { label: 'Tax', cost: info.taxRecordCost, count: info.taxRecordCount, noun: 'record' }
   ];
   return rows.filter((r) => r.count > 0);

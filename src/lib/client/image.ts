@@ -18,21 +18,18 @@ const JPEG_QUALITY = 0.8;
 export type Rotation = 0 | 90 | 180 | 270;
 
 export interface NormalizedRect {
-  x: number;  // 0..1, relative to un-rotated image width
-  y: number;  // 0..1, relative to un-rotated image height
-  w: number;  // 0..1
-  h: number;  // 0..1
+  x: number; // 0..1, relative to un-rotated image width
+  y: number; // 0..1, relative to un-rotated image height
+  w: number; // 0..1
+  h: number; // 0..1
 }
 
 export interface ResizeOptions {
   rotation?: Rotation;
-  crop?: NormalizedRect | null;  // null and undefined behave identically
+  crop?: NormalizedRect | null; // null and undefined behave identically
 }
 
-export async function resizeForOcr(
-  file: Blob,
-  opts: ResizeOptions = {}
-): Promise<Blob> {
+export async function resizeForOcr(file: Blob, opts: ResizeOptions = {}): Promise<Blob> {
   const rotation = (opts.rotation ?? 0) as Rotation;
   const crop = sanitizeCrop(opts.crop);
 
@@ -87,9 +84,14 @@ interface Dimensioned {
 }
 
 interface RenderDims {
-  sx: number; sy: number; sw: number; sh: number;
-  baseW: number; baseH: number;
-  canvasW: number; canvasH: number;
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+  baseW: number;
+  baseH: number;
+  canvasW: number;
+  canvasH: number;
 }
 
 function computeRenderDims(
@@ -165,14 +167,17 @@ async function renderToJpegBlob(
     // HTMLCanvasElement.toBlob uses a separate decode/encode chain that
     // iOS Safari handles reliably. Diagnostic warn so the failure mode is
     // visible in the server log via /api/log forwarding.
-    console.warn('OffscreenCanvas.convertToBlob returned 0 bytes, falling back to HTMLCanvasElement', {
-      sourceW: source.width,
-      sourceH: source.height,
-      crop,
-      rotation,
-      canvasW: d.canvasW,
-      canvasH: d.canvasH
-    });
+    console.warn(
+      'OffscreenCanvas.convertToBlob returned 0 bytes, falling back to HTMLCanvasElement',
+      {
+        sourceW: source.width,
+        sourceH: source.height,
+        crop,
+        rotation,
+        canvasW: d.canvasW,
+        canvasH: d.canvasH
+      }
+    );
   }
 
   const fallback = await renderViaHtmlCanvas(source, rotation, d);

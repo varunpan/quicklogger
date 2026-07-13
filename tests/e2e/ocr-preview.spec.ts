@@ -12,7 +12,9 @@ async function commonRoutes(page: Page) {
   );
   await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: null }));
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
   await page.route('**/api/ocr', (route) => {
     if (route.request().method() === 'GET') {
@@ -88,7 +90,9 @@ test('preview: rotate then send POSTs rotation form field', async ({ page }) => 
   expect(postedRotation).toBe('90');
 });
 
-test('preview: Send without rotating omits the rotation form field (wire-compat)', async ({ page }) => {
+test('preview: Send without rotating omits the rotation form field (wire-compat)', async ({
+  page
+}) => {
   await commonRoutes(page);
   let bodySaw = '';
   await page.route('**/api/ocr', async (route) => {

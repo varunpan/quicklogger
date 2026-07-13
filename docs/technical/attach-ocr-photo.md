@@ -66,10 +66,10 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
   error surfaced; the uploaded temp file orphans (harmless ~22 KB GUID temp; `/api/cleanup?deepClean=true`
   is the operator sweep). Accepted.
 - **No image bytes in IDB** — preserves the deliberate rule in `docs/technical/photo-ocr.md`
-  (§ *No image queue-for-replay*). Online-only by design.
+  (§ _No image queue-for-replay_). Online-only by design.
 - **Visibility is derived from blob presence** — when no blobs remain (e.g. picking a fresh photo
   clears the slot until the next send), the checkbox hides and `attachPhotos` is irrelevant (no
-  blobs to send). Reopening the picker and cancelling does *not* clear the slot.
+  blobs to send). Reopening the picker and cancelling does _not_ clear the slot.
 - **Wire-additive both directions** — an old JSON client hits the no-files branch (unchanged); a new
   multipart client hitting an old server has its image parts ignored (graceful degradation).
 - **OCR disabled** — no capture affordance → no blobs → checkbox never shows → feature inert.

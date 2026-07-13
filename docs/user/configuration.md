@@ -15,43 +15,43 @@ on each device — see [`app-pages.md`](app-pages.md#settings-settings).
 All env vars in one table, ordered by area. Photo OCR is feature-gated
 — see the activation note under the table.
 
-| Var | Type | Required | Default | Purpose |
-| --- | --- | --- | --- | --- |
-| `LUBELOGGER_URL` | URL | **yes** | — | Base URL of your LubeLogger instance (no trailing slash). All upstream API calls are made against this host. |
-| `LUBELOGGER_API_KEY` | string | **yes** | — | API key used for the `x-api-key` header on every LubeLogger request. |
-| `LUBELOGGER_VOLUME_UNIT` | string | no | `gallons_us` | The volume unit LubeLogger expects on inserts. quicklogger converts every submission to this unit before posting. |
-| `LUBELOGGER_CURRENCY` | ISO 4217 code | no | `USD` | The currency LubeLogger expects for cost. quicklogger converts every submission to this currency at submit time via the FX chain, AND renders upstream-cached fillups in this currency (via `Intl.NumberFormat`). |
-| `FX_PROVIDERS` | comma-separated list | no | `frankfurter,erapi,fawazahmed` | Ordered list of FX providers tried in sequence when the cache is cold or stale. First success wins. |
-| `FX_CACHE_PATH` | filesystem path | no | `/data/fx-cache.json` | On-disk path the server reads/writes for the persistent FX cache. The directory is created if it doesn't exist. |
-| `PORT` | int | no | `3000` | HTTP listen port for the Node server. |
-| `ORIGIN` | URL | no | — | The public origin SvelteKit's CSRF check should accept on POSTs. Set this when you run behind a reverse proxy that terminates a different hostname than the one Node sees. |
-| `OLLAMA_VISION_URL` | URL | no | — | URL of an ollama instance with a vision-capable model loaded. Setting this (or `OPENROUTER_API_KEY`) activates the Photo OCR feature. |
-| `OLLAMA_VISION_MODEL` | string | no | `qwen2.5vl:7b` | Ollama model tag for OCR. `qwen2.5vl:7b` (~6 GB) is the tested default. |
-| `OLLAMA_VISION_TIMEOUT_MS` | int (ms) | no | `60000` | Per-call timeout for the ollama provider. CPU inference takes 15–30 s. |
-| `OLLAMA_KEEP_ALIVE` | duration | no | `30m` | How long ollama holds the model in memory between calls. |
-| `OPENROUTER_API_KEY` | string | no | — | If set, adds OpenRouter as a cloud fallback (or sole provider). Activates Photo OCR. |
-| `OPENROUTER_VISION_MODEL` | string | no | `google/gemini-2.5-flash-lite` | OpenRouter model id. |
-| `OPENROUTER_VISION_TIMEOUT_MS` | int (ms) | no | `30000` | Per-call timeout for the OpenRouter provider. Cloud is reliably <5 s. |
-| `OCR_DAILY_BUDGET_USD` | number (USD) | no | `1.00` | Runaway cap. Server returns 402 once exceeded. |
-| `OCR_RATE_LIMIT_PER_HOUR` | int | no | `20` | Per-IP sliding-window rate limit. Abuse signal, not a usage limit. |
-| `OCR_BUDGET_PATH` | filesystem path | no | `/data/ocr-budget.json` | Daily-tally persistence path. |
-| `OCR_AUDIT_PATH` | filesystem path | no | `/data/ocr-audit.jsonl` | Append-only audit log. Rotates at 10 MiB by truncation. |
-| `OCR_AUDIT_KEY_PATH` | filesystem path | no | `/data/ocr-audit-key.txt` | HMAC key file; auto-generated if absent. `0600` perms. |
-| `OCR_AUDIT_HMAC_KEY` | hex string | no | — | Optional explicit override. When unset, key is generated and persisted to `OCR_AUDIT_KEY_PATH`. |
-| `OCR_PUMP_VOLUME_MAX` | number | no | `200` | Range bound on detected pump volume (raw value in gal or L). |
-| `OCR_PUMP_COST_MAX` | number | no | `500` | Range bound on detected pump cost (raw pump-display number). |
-| `OCR_PUMP_PRICE_PER_UNIT_MAX` | number | no | `20` | Range bound on detected price per unit. |
-| `OCR_ODOMETER_MAX_MI` | int | no | `1000000` | Absolute upper bound on odometer reading, miles. |
-| `OCR_MAX_IMAGE_MB` | int (1–50) | no | `5` | Max accepted upload size, MiB. Sole size gate — oversized images get a clean 413. See note below. |
-| `OLLAMA_CLOUD_API_KEY` | string | no | — | If set, enables the `ollama-cloud` provider slot (Ollama Cloud free-tier). Activates Photo OCR. |
-| `OLLAMA_CLOUD_URL` | URL | no | `https://ollama.com` | Base URL of the Ollama Cloud API (override only for compatible proxies). |
-| `OLLAMA_CLOUD_MODEL` | string | no | `gemma4:31b` | Cloud model tag. See [`photo-ocr.md`](photo-ocr.md#ollama-cloud-model-selection) for tested alternatives. |
-| `OLLAMA_CLOUD_TIMEOUT_MS` | int (ms) | no | `30000` | Per-call timeout for the `ollama-cloud` slot. |
-| `OPENAI_COMPATIBLE_URL` | URL | no | — | Chat-completions endpoint URL (e.g. Groq, Cerebras, OpenAI direct). Required to enable the `openai-compatible` slot. |
-| `OPENAI_COMPATIBLE_API_KEY` | string | no | — | Bearer token for the OpenAI-compatible endpoint. Required to enable the slot. |
-| `OPENAI_COMPATIBLE_MODEL` | string | no | — | Model id at the OpenAI-compatible endpoint. Required to enable the slot. |
-| `OPENAI_COMPATIBLE_TIMEOUT_MS` | int (ms) | no | `30000` | Per-call timeout for the `openai-compatible` slot. |
-| `OCR_PROVIDER_CHAIN` | CSV | no | (configured slots in default order) | Override the fallback order. CSV of `ollama-local`, `ollama-cloud`, `openrouter`, `openai-compatible`. Unknown / duplicate names fail boot. |
+| Var                            | Type                 | Required | Default                             | Purpose                                                                                                                                                                                                           |
+| ------------------------------ | -------------------- | -------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LUBELOGGER_URL`               | URL                  | **yes**  | —                                   | Base URL of your LubeLogger instance (no trailing slash). All upstream API calls are made against this host.                                                                                                      |
+| `LUBELOGGER_API_KEY`           | string               | **yes**  | —                                   | API key used for the `x-api-key` header on every LubeLogger request.                                                                                                                                              |
+| `LUBELOGGER_VOLUME_UNIT`       | string               | no       | `gallons_us`                        | The volume unit LubeLogger expects on inserts. quicklogger converts every submission to this unit before posting.                                                                                                 |
+| `LUBELOGGER_CURRENCY`          | ISO 4217 code        | no       | `USD`                               | The currency LubeLogger expects for cost. quicklogger converts every submission to this currency at submit time via the FX chain, AND renders upstream-cached fillups in this currency (via `Intl.NumberFormat`). |
+| `FX_PROVIDERS`                 | comma-separated list | no       | `frankfurter,erapi,fawazahmed`      | Ordered list of FX providers tried in sequence when the cache is cold or stale. First success wins.                                                                                                               |
+| `FX_CACHE_PATH`                | filesystem path      | no       | `/data/fx-cache.json`               | On-disk path the server reads/writes for the persistent FX cache. The directory is created if it doesn't exist.                                                                                                   |
+| `PORT`                         | int                  | no       | `3000`                              | HTTP listen port for the Node server.                                                                                                                                                                             |
+| `ORIGIN`                       | URL                  | no       | —                                   | The public origin SvelteKit's CSRF check should accept on POSTs. Set this when you run behind a reverse proxy that terminates a different hostname than the one Node sees.                                        |
+| `OLLAMA_VISION_URL`            | URL                  | no       | —                                   | URL of an ollama instance with a vision-capable model loaded. Setting this (or `OPENROUTER_API_KEY`) activates the Photo OCR feature.                                                                             |
+| `OLLAMA_VISION_MODEL`          | string               | no       | `qwen2.5vl:7b`                      | Ollama model tag for OCR. `qwen2.5vl:7b` (~6 GB) is the tested default.                                                                                                                                           |
+| `OLLAMA_VISION_TIMEOUT_MS`     | int (ms)             | no       | `60000`                             | Per-call timeout for the ollama provider. CPU inference takes 15–30 s.                                                                                                                                            |
+| `OLLAMA_KEEP_ALIVE`            | duration             | no       | `30m`                               | How long ollama holds the model in memory between calls.                                                                                                                                                          |
+| `OPENROUTER_API_KEY`           | string               | no       | —                                   | If set, adds OpenRouter as a cloud fallback (or sole provider). Activates Photo OCR.                                                                                                                              |
+| `OPENROUTER_VISION_MODEL`      | string               | no       | `google/gemini-2.5-flash-lite`      | OpenRouter model id.                                                                                                                                                                                              |
+| `OPENROUTER_VISION_TIMEOUT_MS` | int (ms)             | no       | `30000`                             | Per-call timeout for the OpenRouter provider. Cloud is reliably <5 s.                                                                                                                                             |
+| `OCR_DAILY_BUDGET_USD`         | number (USD)         | no       | `1.00`                              | Runaway cap. Server returns 402 once exceeded.                                                                                                                                                                    |
+| `OCR_RATE_LIMIT_PER_HOUR`      | int                  | no       | `20`                                | Per-IP sliding-window rate limit. Abuse signal, not a usage limit.                                                                                                                                                |
+| `OCR_BUDGET_PATH`              | filesystem path      | no       | `/data/ocr-budget.json`             | Daily-tally persistence path.                                                                                                                                                                                     |
+| `OCR_AUDIT_PATH`               | filesystem path      | no       | `/data/ocr-audit.jsonl`             | Append-only audit log. Rotates at 10 MiB by truncation.                                                                                                                                                           |
+| `OCR_AUDIT_KEY_PATH`           | filesystem path      | no       | `/data/ocr-audit-key.txt`           | HMAC key file; auto-generated if absent. `0600` perms.                                                                                                                                                            |
+| `OCR_AUDIT_HMAC_KEY`           | hex string           | no       | —                                   | Optional explicit override. When unset, key is generated and persisted to `OCR_AUDIT_KEY_PATH`.                                                                                                                   |
+| `OCR_PUMP_VOLUME_MAX`          | number               | no       | `200`                               | Range bound on detected pump volume (raw value in gal or L).                                                                                                                                                      |
+| `OCR_PUMP_COST_MAX`            | number               | no       | `500`                               | Range bound on detected pump cost (raw pump-display number).                                                                                                                                                      |
+| `OCR_PUMP_PRICE_PER_UNIT_MAX`  | number               | no       | `20`                                | Range bound on detected price per unit.                                                                                                                                                                           |
+| `OCR_ODOMETER_MAX_MI`          | int                  | no       | `1000000`                           | Absolute upper bound on odometer reading, miles.                                                                                                                                                                  |
+| `OCR_MAX_IMAGE_MB`             | int (1–50)           | no       | `5`                                 | Max accepted upload size, MiB. Sole size gate — oversized images get a clean 413. See note below.                                                                                                                 |
+| `OLLAMA_CLOUD_API_KEY`         | string               | no       | —                                   | If set, enables the `ollama-cloud` provider slot (Ollama Cloud free-tier). Activates Photo OCR.                                                                                                                   |
+| `OLLAMA_CLOUD_URL`             | URL                  | no       | `https://ollama.com`                | Base URL of the Ollama Cloud API (override only for compatible proxies).                                                                                                                                          |
+| `OLLAMA_CLOUD_MODEL`           | string               | no       | `gemma4:31b`                        | Cloud model tag. See [`photo-ocr.md`](photo-ocr.md#ollama-cloud-model-selection) for tested alternatives.                                                                                                         |
+| `OLLAMA_CLOUD_TIMEOUT_MS`      | int (ms)             | no       | `30000`                             | Per-call timeout for the `ollama-cloud` slot.                                                                                                                                                                     |
+| `OPENAI_COMPATIBLE_URL`        | URL                  | no       | —                                   | Chat-completions endpoint URL (e.g. Groq, Cerebras, OpenAI direct). Required to enable the `openai-compatible` slot.                                                                                              |
+| `OPENAI_COMPATIBLE_API_KEY`    | string               | no       | —                                   | Bearer token for the OpenAI-compatible endpoint. Required to enable the slot.                                                                                                                                     |
+| `OPENAI_COMPATIBLE_MODEL`      | string               | no       | —                                   | Model id at the OpenAI-compatible endpoint. Required to enable the slot.                                                                                                                                          |
+| `OPENAI_COMPATIBLE_TIMEOUT_MS` | int (ms)             | no       | `30000`                             | Per-call timeout for the `openai-compatible` slot.                                                                                                                                                                |
+| `OCR_PROVIDER_CHAIN`           | CSV                  | no       | (configured slots in default order) | Override the fallback order. CSV of `ollama-local`, `ollama-cloud`, `openrouter`, `openai-compatible`. Unknown / duplicate names fail boot.                                                                       |
 
 The startup loader fails fast (`EnvError`) if a required var is missing
 or if `FX_PROVIDERS` contains an unknown provider name.
@@ -390,13 +390,13 @@ them to a writable location, e.g.:
 
 quicklogger emits a JSON record to stdout for every request and every notable event. By default, that's all — `docker logs quicklogger` shows the stream. Set the env vars below to tune verbosity or also persist to a rotating logfile.
 
-| Var | Default | Notes |
-|---|---|---|
-| `LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error`. Invalid values fall back to `info` and emit a single warn at boot. |
-| `LOG_FILE_PATH` | unset | If set, writes the same JSON records to this rotating file. Compose example uses `/data/logs/quicklogger.log`. |
-| `LOG_FILE_MAX_SIZE_MB` | `5` | Rotation threshold. Ignored if `LOG_FILE_PATH` is unset. |
-| `LOG_FILE_MAX_FILES` | `5` | Historical files kept on disk. Oldest deleted on rotation. |
-| `LOG_PRETTY` | auto | `1` = colorized human-readable stdout; `0` = JSON. Auto-detected from `NODE_ENV` when unset. |
+| Var                    | Default | Notes                                                                                                          |
+| ---------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| `LOG_LEVEL`            | `info`  | One of `debug`, `info`, `warn`, `error`. Invalid values fall back to `info` and emit a single warn at boot.    |
+| `LOG_FILE_PATH`        | unset   | If set, writes the same JSON records to this rotating file. Compose example uses `/data/logs/quicklogger.log`. |
+| `LOG_FILE_MAX_SIZE_MB` | `5`     | Rotation threshold. Ignored if `LOG_FILE_PATH` is unset.                                                       |
+| `LOG_FILE_MAX_FILES`   | `5`     | Historical files kept on disk. Oldest deleted on rotation.                                                     |
+| `LOG_PRETTY`           | auto    | `1` = colorized human-readable stdout; `0` = JSON. Auto-detected from `NODE_ENV` when unset.                   |
 
 The browser and service worker also forward thrown errors to the server, so phone-side failures land in the same log stream — no separate client log to chase down. The full level taxonomy and grep recipes live in [`docs/technical/logging.md`](../technical/logging.md).
 

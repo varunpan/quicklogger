@@ -5,12 +5,12 @@ odometer** from a photo and auto-fill the form. The feature is opt-in
 and disabled by default — the camera chips only appear when at least
 one OCR provider is configured.
 
-| | Pump mode | Odometer mode |
-| --- | --- | --- |
-| **What it reads** | Volume + Cost (+ price/unit) from the pump display | Mileage from your odometer or a phone app showing it |
-| **Where the chip lives** | Top of the form, in the capture row under the vehicle picker | Same — the capture row holds both photo pills |
-| **What `[Use]` fills** | Volume, Volume unit (Gal/L), Cost | Odometer |
-| **Safety check** | Cross-field consistency (cost ≈ volume × price/unit within 5%) | Relative-range vs your last fillup (a reading **below** your last is flagged here; a 2,000+ mi jump is checked at submit instead) |
+|                          | Pump mode                                                      | Odometer mode                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **What it reads**        | Volume + Cost (+ price/unit) from the pump display             | Mileage from your odometer or a phone app showing it                                                                              |
+| **Where the chip lives** | Top of the form, in the capture row under the vehicle picker   | Same — the capture row holds both photo pills                                                                                     |
+| **What `[Use]` fills**   | Volume, Volume unit (Gal/L), Cost                              | Odometer                                                                                                                          |
+| **Safety check**         | Cross-field consistency (cost ≈ volume × price/unit within 5%) | Relative-range vs your last fillup (a reading **below** your last is flagged here; a 2,000+ mi jump is checked at submit instead) |
 
 ## Setup
 
@@ -19,12 +19,12 @@ order; the first one that returns a clean reading wins, and on
 failure (timeout, HTTP error, quota exhaustion) the next slot in the
 chain is tried automatically.
 
-| Slot identifier      | Speed         | Privacy        | Cost (per call)    | Setup difficulty |
-|----------------------|---------------|----------------|---------------------|------------------|
-| `ollama-local`       | ~15–30 s CPU  | fully local    | free                | medium (run ollama) |
-| `ollama-cloud`       | ~1 s          | request leaves the box | free (weekly GPU-time budget) | easy (one API key) |
-| `openrouter`         | ~2–5 s        | request leaves the box | ~$0.00006           | easy (one API key) |
-| `openai-compatible`  | varies        | varies         | varies              | medium (URL+key+model) |
+| Slot identifier     | Speed        | Privacy                | Cost (per call)               | Setup difficulty       |
+| ------------------- | ------------ | ---------------------- | ----------------------------- | ---------------------- |
+| `ollama-local`      | ~15–30 s CPU | fully local            | free                          | medium (run ollama)    |
+| `ollama-cloud`      | ~1 s         | request leaves the box | free (weekly GPU-time budget) | easy (one API key)     |
+| `openrouter`        | ~2–5 s       | request leaves the box | ~$0.00006                     | easy (one API key)     |
+| `openai-compatible` | varies       | varies                 | varies                        | medium (URL+key+model) |
 
 ### Option A — local ollama (recommended for privacy)
 
@@ -123,16 +123,16 @@ most. Numbers below are from real pump-display probes against a
 free-tier account (truth: cost=46.84, volume=12.561 gal,
 ppu=3.729 computed).
 
-| Model                       | Latency | OCR result   | Notes                                                                                                       |
-|-----------------------------|---------|--------------|-------------------------------------------------------------------------------------------------------------|
-| `gemma4:31b` **(default)**  | ~1 s    | Perfect      | Reads all 3 decimals + computed price-per-unit. Best free-tier choice.                                       |
-| `qwen3-vl:235b-instruct`    | ~4 s    | Perfect      | Largest free-tier model. Slower; consumes free-tier weekly budget faster, but returns cleaner JSON.         |
-| `gemma3:27b`                | ~2 s    | Truncates    | Loses the 3rd decimal of volume (12.561 → 12.56). Don't use for pump OCR.                                   |
-| `gemma3:12b` / `gemma3:4b`  | 1–2 s   | Bad PPU      | Smaller, faster, but hallucinates price-per-unit when not shown on display. Avoid.                          |
-| `ministral-3:3b/8b/14b`     | 2–4 s   | Mixed        | 14b reads correctly but appends prose after the JSON; smaller variants misread digits. Avoid.               |
-| `devstral-small-2:24b`      | —       | Disabled     | Vision capability shown but cloud-side disables image input. HTTP 400.                                      |
-| `gemini-3-flash-preview`    | —       | Pro-only     | Requires a paid Ollama Cloud subscription (HTTP 403 on free tier).                                          |
-| `qwen3.5:397b`, `kimi-k2.*` | —       | Pro-only     | Same — Pro subscription required.                                                                           |
+| Model                       | Latency | OCR result | Notes                                                                                               |
+| --------------------------- | ------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| `gemma4:31b` **(default)**  | ~1 s    | Perfect    | Reads all 3 decimals + computed price-per-unit. Best free-tier choice.                              |
+| `qwen3-vl:235b-instruct`    | ~4 s    | Perfect    | Largest free-tier model. Slower; consumes free-tier weekly budget faster, but returns cleaner JSON. |
+| `gemma3:27b`                | ~2 s    | Truncates  | Loses the 3rd decimal of volume (12.561 → 12.56). Don't use for pump OCR.                           |
+| `gemma3:12b` / `gemma3:4b`  | 1–2 s   | Bad PPU    | Smaller, faster, but hallucinates price-per-unit when not shown on display. Avoid.                  |
+| `ministral-3:3b/8b/14b`     | 2–4 s   | Mixed      | 14b reads correctly but appends prose after the JSON; smaller variants misread digits. Avoid.       |
+| `devstral-small-2:24b`      | —       | Disabled   | Vision capability shown but cloud-side disables image input. HTTP 400.                              |
+| `gemini-3-flash-preview`    | —       | Pro-only   | Requires a paid Ollama Cloud subscription (HTTP 403 on free tier).                                  |
+| `qwen3.5:397b`, `kimi-k2.*` | —       | Pro-only   | Same — Pro subscription required.                                                                   |
 
 **Avoid "thinking-mode" models for OCR.** `qwen3-vl:235b`
 (non-instruct) burns 60+ s of internal reasoning before producing
@@ -178,8 +178,9 @@ Full env-var reference:
      without sending.
 
    When the framing looks right, tap **Send for OCR**.
+
 5. ~2–15 s later a blue chip appears in the feedback zone showing
-   the detected values: *Detected: 11.2 gal · $42.18 · $3.78/gal*
+   the detected values: _Detected: 11.2 gal · $42.18 · $3.78/gal_
 6. Tap **Use** → Volume + Cost (+ unit) populate. **Discard**
    dismisses without changing anything.
 
@@ -194,7 +195,7 @@ Full env-var reference:
 3. The **preview screen** opens. Rotate or retake if the image isn't
    right; tap **Send for OCR** when it is.
 4. A blue chip appears in the feedback zone under the capture row:
-   *Detected: 87,612 mi*. Tap **Use** to populate.
+   _Detected: 87,612 mi_. Tap **Use** to populate.
 5. If the detected reading is **lower than your last fillup**, the chip
    turns amber and shows `[Use anyway]` and `[Dismiss]`. Both are valid:
    tap `Use anyway` if you know the reading is right (cluster swap,
@@ -216,7 +217,7 @@ Two reasons it's worth a tap:
    Pinch (or use `+`) to magnify, pan to centre them, and box them tightly —
    far easier than nudging a finger-sized handle around a full-frame shot.
 
-You don't *need* to crop — the model handles a fair amount of
+You don't _need_ to crop — the model handles a fair amount of
 context. But a 2-second crop on a difficult photo turns 422
 "Couldn't read clearly" into a clean confirm chip a lot of the time.
 
@@ -305,12 +306,12 @@ disappears the moment you change the value.
 
 ## Troubleshooting
 
-| Toast | Cause | What to do |
-| --- | --- | --- |
-| *Couldn't read clearly — try again or type manually* | 422 — values failed the range check or pump cross-field check (5% drift) | Re-shoot square-on, or type the values |
-| *Couldn't read image — try a clearer photo* | 415 — file wasn't a recognized image type | Re-take the photo |
-| *OCR service unreachable — please type values* | 502/503 — providers down, ollama crashed, or no provider configured | Type values; check provider health later |
-| *OCR took too long — please type values* | 90 s client timeout | Type values; ollama may be loading the model — first call after a cold start is slow |
-| *OCR rate limit reached, try again in Ns* | 429 — > 20 calls in the last hour | Wait `N` seconds; if hitting this routinely, raise `OCR_RATE_LIMIT_PER_HOUR` |
-| *OCR budget for today reached* | 402 — daily $ cap exhausted | Wait until UTC rollover (00:00 UTC) or raise `OCR_DAILY_BUDGET_USD` |
-| *Photo too large — try again* | 413 — file exceeds `OCR_MAX_IMAGE_MB` (default 5 MiB) | Should be rare; the in-browser resize keeps photos well under this. Re-take and try again |
+| Toast                                                | Cause                                                                    | What to do                                                                                |
+| ---------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| _Couldn't read clearly — try again or type manually_ | 422 — values failed the range check or pump cross-field check (5% drift) | Re-shoot square-on, or type the values                                                    |
+| _Couldn't read image — try a clearer photo_          | 415 — file wasn't a recognized image type                                | Re-take the photo                                                                         |
+| _OCR service unreachable — please type values_       | 502/503 — providers down, ollama crashed, or no provider configured      | Type values; check provider health later                                                  |
+| _OCR took too long — please type values_             | 90 s client timeout                                                      | Type values; ollama may be loading the model — first call after a cold start is slow      |
+| _OCR rate limit reached, try again in Ns_            | 429 — > 20 calls in the last hour                                        | Wait `N` seconds; if hitting this routinely, raise `OCR_RATE_LIMIT_PER_HOUR`              |
+| _OCR budget for today reached_                       | 402 — daily $ cap exhausted                                              | Wait until UTC rollover (00:00 UTC) or raise `OCR_DAILY_BUDGET_USD`                       |
+| _Photo too large — try again_                        | 413 — file exceeds `OCR_MAX_IMAGE_MB` (default 5 MiB)                    | Should be rare; the in-browser resize keeps photos well under this. Re-take and try again |

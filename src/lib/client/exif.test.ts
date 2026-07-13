@@ -41,8 +41,7 @@ function buildExifJpeg(opts: {
   const u32 = (v: number) => {
     if (byteOrder === 'II')
       tiff.push(v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >> 24) & 0xff);
-    else
-      tiff.push((v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
+    else tiff.push((v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
   };
 
   // TIFF header
@@ -86,13 +85,7 @@ function buildExifJpeg(opts: {
   const app1Payload = [...exifHeader, ...tiff];
   // APP1 length field includes itself (2 bytes) + payload bytes
   const app1Len = app1Payload.length + 2;
-  const app1 = [
-    0xff,
-    0xe1,
-    (app1Len >> 8) & 0xff,
-    app1Len & 0xff,
-    ...app1Payload
-  ];
+  const app1 = [0xff, 0xe1, (app1Len >> 8) & 0xff, app1Len & 0xff, ...app1Payload];
 
   // SOI + APP1 + EOI
   return new Uint8Array([0xff, 0xd8, ...app1, 0xff, 0xd9]);
@@ -125,13 +118,24 @@ describe('readPhotoDate — JPEG', () => {
     // + units(1) + xdens(2) + ydens(2) + xthumb(1) + ythumb(1) = 16 bytes payload
     // (length field includes itself, so length = 16).
     const app0 = new Uint8Array([
-      0xff, 0xe0, // APP0 marker
-      0x00, 0x10, // length = 16
-      0x4a, 0x46, 0x49, 0x46, 0x00, // "JFIF\0"
-      0x01, 0x01, // version 1.1
-      0x00,       // units = 0 (no units)
-      0x00, 0x48, 0x00, 0x48, // 72x72 density
-      0x00, 0x00  // no thumbnail
+      0xff,
+      0xe0, // APP0 marker
+      0x00,
+      0x10, // length = 16
+      0x4a,
+      0x46,
+      0x49,
+      0x46,
+      0x00, // "JFIF\0"
+      0x01,
+      0x01, // version 1.1
+      0x00, // units = 0 (no units)
+      0x00,
+      0x48,
+      0x00,
+      0x48, // 72x72 density
+      0x00,
+      0x00 // no thumbnail
     ]);
     // Splice APP0 between SOI (bytes 0..1) and the existing APP1 (bytes 2+).
     const composite = new Uint8Array(2 + app0.length + (exifJpeg.length - 2));
@@ -226,10 +230,7 @@ describe('readPhotoDate — HEIC', () => {
     return out;
   }
 
-  function buildHeic(opts: {
-    dateTimeOriginal?: string;
-    omitExifEntry?: boolean;
-  }): Uint8Array {
+  function buildHeic(opts: { dateTimeOriginal?: string; omitExifEntry?: boolean }): Uint8Array {
     const dto = opts.dateTimeOriginal ?? '2026:05:10 11:00:00';
 
     // Build the same TIFF block as the JPEG fixture (little-endian, with DateTimeOriginal)
@@ -246,9 +247,18 @@ describe('readPhotoDate — HEIC', () => {
     const ftyp = box(
       'ftyp',
       new Uint8Array([
-        0x68, 0x65, 0x69, 0x63, // major brand "heic"
-        0x00, 0x00, 0x00, 0x00, // minor version
-        0x6d, 0x69, 0x66, 0x31 // compat brand "mif1"
+        0x68,
+        0x65,
+        0x69,
+        0x63, // major brand "heic"
+        0x00,
+        0x00,
+        0x00,
+        0x00, // minor version
+        0x6d,
+        0x69,
+        0x66,
+        0x31 // compat brand "mif1"
       ])
     );
 
@@ -339,9 +349,7 @@ describe('readPhotoDate — HEIC', () => {
     //       data_reference_index(2) + base_offset(0 bytes) +
     //       extent_count(2) + per extent: extent_offset(4) + extent_length(4)
     const ilocItemId = itemId;
-    const ilocBody = new Uint8Array(
-      1 + 3 + 1 + 1 + 2 + 2 + 2 + 2 + 2 + 4 + 4
-    );
+    const ilocBody = new Uint8Array(1 + 3 + 1 + 1 + 2 + 2 + 2 + 2 + 2 + 4 + 4);
     let q = 0;
     ilocBody[q++] = 1; // version 1
     ilocBody[q++] = 0;
@@ -458,10 +466,15 @@ describe('readPhotoDate — read cap', () => {
 function jpegWithApp1(payload: number[]): Uint8Array {
   const len = payload.length + 2; // APP1 length field includes itself
   return new Uint8Array([
-    0xff, 0xd8, // SOI
-    0xff, 0xe1, (len >> 8) & 0xff, len & 0xff, // APP1 marker + length
+    0xff,
+    0xd8, // SOI
+    0xff,
+    0xe1,
+    (len >> 8) & 0xff,
+    len & 0xff, // APP1 marker + length
     ...payload,
-    0xff, 0xd9 // EOI
+    0xff,
+    0xd9 // EOI
   ]);
 }
 const EXIF_PREFIX = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // "Exif\0\0"
@@ -471,15 +484,30 @@ describe('readPhotoDate — hostile input (T9: null, never throws)', () => {
     // Truncated right after the APP1 marker — no room for the length field.
     ['truncated after the APP1 marker', () => new Uint8Array([0xff, 0xd8, 0xff, 0xe1])],
     // Declared segment length overruns the buffer.
-    ['APP1 length overruns the buffer', () => new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0xff, 0x45, 0x78])],
+    [
+      'APP1 length overruns the buffer',
+      () => new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0xff, 0x45, 0x78])
+    ],
     // Well-formed APP1 whose payload is NOT "Exif\0\0" (e.g. an XMP packet).
-    ['APP1 without the Exif\\0\\0 prefix', () => jpegWithApp1([0x58, 0x4d, 0x50, 0x00, 1, 2, 3, 4, 5, 6])],
+    [
+      'APP1 without the Exif\\0\\0 prefix',
+      () => jpegWithApp1([0x58, 0x4d, 0x50, 0x00, 1, 2, 3, 4, 5, 6])
+    ],
     // Valid Exif header, but the TIFF byte-order marker is neither II nor MM.
-    ['TIFF with a bad byte-order marker', () => jpegWithApp1([...EXIF_PREFIX, 0x00, 0x00, 0x00, 0x2a, 0, 0, 0, 8, 0, 0, 0, 0])],
+    [
+      'TIFF with a bad byte-order marker',
+      () => jpegWithApp1([...EXIF_PREFIX, 0x00, 0x00, 0x00, 0x2a, 0, 0, 0, 8, 0, 0, 0, 0])
+    ],
     // Valid Exif header + II, but the TIFF magic is not 0x002A.
-    ['TIFF with a bad magic number', () => jpegWithApp1([...EXIF_PREFIX, 0x49, 0x49, 0xff, 0xff, 0, 0, 0, 8, 0, 0, 0, 0])],
+    [
+      'TIFF with a bad magic number',
+      () => jpegWithApp1([...EXIF_PREFIX, 0x49, 0x49, 0xff, 0xff, 0, 0, 0, 8, 0, 0, 0, 0])
+    ],
     // DateTimeOriginal that is 19 chars but fails the YYYY:MM:DD regex (dashes).
-    ['DateTimeOriginal failing the format regex', () => buildExifJpeg({ dateTimeOriginal: '2026-05-12 14:33:00' })]
+    [
+      'DateTimeOriginal failing the format regex',
+      () => buildExifJpeg({ dateTimeOriginal: '2026-05-12 14:33:00' })
+    ]
   ];
 
   it.each(cases)('returns null without throwing: %s', async (_label, make) => {
@@ -492,7 +520,9 @@ describe('readPhotoDate — hostile input (T9: null, never throws)', () => {
     // the numeric Date constructor rolls month 13 into January of the next year,
     // so a valid (non-null) Date comes back. The invariant the parser actually
     // guarantees on hostile input is "never throws" — asserted here either way.
-    const date = await readPhotoDate(buildBlob(buildExifJpeg({ dateTimeOriginal: '2026:13:01 00:00:00' })));
+    const date = await readPhotoDate(
+      buildBlob(buildExifJpeg({ dateTimeOriginal: '2026:13:01 00:00:00' }))
+    );
     expect(date).not.toBeNull();
     expect(date!.getFullYear()).toBe(2027);
     expect(date!.getMonth()).toBe(0); // January, rolled over from month 13

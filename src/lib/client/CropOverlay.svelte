@@ -67,8 +67,20 @@
 
   // Active drag state — null when not dragging.
   type DragMode =
-    | { kind: 'corner'; corner: 'tl' | 'tr' | 'bl' | 'br'; startX: number; startY: number; startRect: PixelRect }
-    | { kind: 'edge'; edge: 't' | 'b' | 'l' | 'r'; startX: number; startY: number; startRect: PixelRect }
+    | {
+        kind: 'corner';
+        corner: 'tl' | 'tr' | 'bl' | 'br';
+        startX: number;
+        startY: number;
+        startRect: PixelRect;
+      }
+    | {
+        kind: 'edge';
+        edge: 't' | 'b' | 'l' | 'r';
+        startX: number;
+        startY: number;
+        startRect: PixelRect;
+      }
     | { kind: 'interior'; startX: number; startY: number; startRect: PixelRect };
 
   let drag: DragMode | null = null;
@@ -89,9 +101,12 @@
   const pointers = new Map<number, { x: number; y: number }>();
   // Pinch gesture anchor, captured on the 2nd pointer-down. Non-reactive.
   // null when fewer than 2 pointers are down.
-  let pinch:
-    | { startDist: number; startZoom: number; startMidLocal: { x: number; y: number }; startPan: { x: number; y: number } }
-    | null = null;
+  let pinch: {
+    startDist: number;
+    startZoom: number;
+    startMidLocal: { x: number; y: number };
+    startPan: { x: number; y: number };
+  } | null = null;
 
   // Overlay root element, for converting client → local (viewport) coordinates.
   let rootEl: HTMLElement | undefined;
@@ -137,9 +152,7 @@
 
   // Display-space floor — finger-sized 50×50 on a 4032×3024 capture renders
   // as 200×200 in source space, which is what we actually care about.
-  const floorDisplayPx = $derived(
-    Math.max(1, floorSourcePx * (imageDisplayRect.w / sourceSize.w))
-  );
+  const floorDisplayPx = $derived(Math.max(1, floorSourcePx * (imageDisplayRect.w / sourceSize.w)));
 
   // The box lives in screen space, so its minimum on-screen size scales with
   // zoom — guaranteeing the committed crop (base = box/zoom) never falls below
@@ -167,7 +180,13 @@
 
   function onPointerDownCorner(corner: 'tl' | 'tr' | 'bl' | 'br', ev: PointerEvent) {
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
-    drag = { kind: 'corner', corner, startX: ev.clientX, startY: ev.clientY, startRect: { ...rect } };
+    drag = {
+      kind: 'corner',
+      corner,
+      startX: ev.clientX,
+      startY: ev.clientY,
+      startRect: { ...rect }
+    };
   }
   function onPointerDownEdge(edge: 't' | 'b' | 'l' | 'r', ev: PointerEvent) {
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
@@ -358,7 +377,8 @@
   <div
     data-shroud
     class="absolute bg-black/55"
-    style="left: 0; top: {rect.y + rect.h}px; width: {imageDisplayRect.w}px; height: {imageDisplayRect.h - rect.y - rect.h}px;"
+    style="left: 0; top: {rect.y +
+      rect.h}px; width: {imageDisplayRect.w}px; height: {imageDisplayRect.h - rect.y - rect.h}px;"
   ></div>
   <div
     data-shroud
@@ -368,7 +388,9 @@
   <div
     data-shroud
     class="absolute bg-black/55"
-    style="left: {rect.x + rect.w}px; top: {rect.y}px; width: {imageDisplayRect.w - rect.x - rect.w}px; height: {rect.h}px;"
+    style="left: {rect.x + rect.w}px; top: {rect.y}px; width: {imageDisplayRect.w -
+      rect.x -
+      rect.w}px; height: {rect.h}px;"
   ></div>
 
   <!-- Rect border + grid + interior drag zone -->
@@ -379,10 +401,26 @@
     onpointerdown={onPointerDownInterior}
     role="presentation"
   >
-    <div data-grid-line class="absolute bg-white/35" style="left: 0; top: {rect.h / 3}px; width: {rect.w}px; height: 1px;"></div>
-    <div data-grid-line class="absolute bg-white/35" style="left: 0; top: {(rect.h * 2) / 3}px; width: {rect.w}px; height: 1px;"></div>
-    <div data-grid-line class="absolute bg-white/35" style="left: {rect.w / 3}px; top: 0; width: 1px; height: {rect.h}px;"></div>
-    <div data-grid-line class="absolute bg-white/35" style="left: {(rect.w * 2) / 3}px; top: 0; width: 1px; height: {rect.h}px;"></div>
+    <div
+      data-grid-line
+      class="absolute bg-white/35"
+      style="left: 0; top: {rect.h / 3}px; width: {rect.w}px; height: 1px;"
+    ></div>
+    <div
+      data-grid-line
+      class="absolute bg-white/35"
+      style="left: 0; top: {(rect.h * 2) / 3}px; width: {rect.w}px; height: 1px;"
+    ></div>
+    <div
+      data-grid-line
+      class="absolute bg-white/35"
+      style="left: {rect.w / 3}px; top: 0; width: 1px; height: {rect.h}px;"
+    ></div>
+    <div
+      data-grid-line
+      class="absolute bg-white/35"
+      style="left: {(rect.w * 2) / 3}px; top: 0; width: 1px; height: {rect.h}px;"
+    ></div>
   </div>
 
   <!-- Corner handles. Each handle's visual position is clamped to stay
@@ -396,7 +434,11 @@
     data-corner="tl"
     aria-label="Top-left handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(rect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(
+      rect.y - 7,
+      0,
+      imageDisplayRect.h - 14
+    )}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('tl', ev)}
   ></button>
   <button
@@ -405,7 +447,11 @@
     data-corner="tr"
     aria-label="Top-right handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(rect.x + rect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x + rect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(
+      rect.y - 7,
+      0,
+      imageDisplayRect.h - 14
+    )}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('tr', ev)}
   ></button>
   <button
@@ -414,7 +460,11 @@
     data-corner="bl"
     aria-label="Bottom-left handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(rect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y + rect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(
+      rect.y + rect.h - 7,
+      0,
+      imageDisplayRect.h - 14
+    )}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('bl', ev)}
   ></button>
   <button
@@ -423,7 +473,11 @@
     data-corner="br"
     aria-label="Bottom-right handle"
     class="absolute bg-white border border-zinc-900 rounded-sm"
-    style="left: {clamp(rect.x + rect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y + rect.h - 7, 0, imageDisplayRect.h - 14)}px; width: 14px; height: 14px;"
+    style="left: {clamp(rect.x + rect.w - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(
+      rect.y + rect.h - 7,
+      0,
+      imageDisplayRect.h - 14
+    )}px; width: 14px; height: 14px;"
     onpointerdown={(ev) => onPointerDownCorner('br', ev)}
   ></button>
 
@@ -434,7 +488,11 @@
     data-edge="t"
     aria-label="Top edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(rect.x + rect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
+    style="left: {clamp(rect.x + rect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(
+      rect.y - 2,
+      0,
+      imageDisplayRect.h - 4
+    )}px; width: 14px; height: 4px;"
     onpointerdown={(ev) => onPointerDownEdge('t', ev)}
   ></button>
   <button
@@ -443,7 +501,11 @@
     data-edge="b"
     aria-label="Bottom edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(rect.x + rect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(rect.y + rect.h - 2, 0, imageDisplayRect.h - 4)}px; width: 14px; height: 4px;"
+    style="left: {clamp(rect.x + rect.w / 2 - 7, 0, imageDisplayRect.w - 14)}px; top: {clamp(
+      rect.y + rect.h - 2,
+      0,
+      imageDisplayRect.h - 4
+    )}px; width: 14px; height: 4px;"
     onpointerdown={(ev) => onPointerDownEdge('b', ev)}
   ></button>
   <button
@@ -452,7 +514,11 @@
     data-edge="l"
     aria-label="Left edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(rect.x - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(rect.y + rect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
+    style="left: {clamp(rect.x - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(
+      rect.y + rect.h / 2 - 7,
+      0,
+      imageDisplayRect.h - 14
+    )}px; width: 4px; height: 14px;"
     onpointerdown={(ev) => onPointerDownEdge('l', ev)}
   ></button>
   <button
@@ -461,7 +527,11 @@
     data-edge="r"
     aria-label="Right edge"
     class="absolute bg-white rounded-sm"
-    style="left: {clamp(rect.x + rect.w - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(rect.y + rect.h / 2 - 7, 0, imageDisplayRect.h - 14)}px; width: 4px; height: 14px;"
+    style="left: {clamp(rect.x + rect.w - 2, 0, imageDisplayRect.w - 4)}px; top: {clamp(
+      rect.y + rect.h / 2 - 7,
+      0,
+      imageDisplayRect.h - 14
+    )}px; width: 4px; height: 14px;"
     onpointerdown={(ev) => onPointerDownEdge('r', ev)}
   ></button>
 </div>
@@ -469,7 +539,9 @@
 <!-- Action row hosted by the overlay so the test can find Reset/Done/Cancel.
      Buttons are conditionally rendered so the host can lift them into the
      modal header / footer when wiring up Task 4. -->
-<div class="absolute left-0 right-0 bottom-0 px-4 pb-4 pt-2 flex items-center justify-between gap-2 pointer-events-auto">
+<div
+  class="absolute left-0 right-0 bottom-0 px-4 pb-4 pt-2 flex items-center justify-between gap-2 pointer-events-auto"
+>
   {#if showOwnCancel}
     <button
       type="button"

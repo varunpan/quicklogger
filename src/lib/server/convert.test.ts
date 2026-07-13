@@ -14,7 +14,9 @@ describe('convertSubmission', () => {
   it('converts L + CAD to gallons_us + USD using FX rate', async () => {
     const input: FuelInput = { volume: 50, volumeUnit: 'L', cost: 65, currency: 'CAD' };
     const result = await convertSubmission(input, {
-      targetVolumeUnit: 'gallons_us', targetCurrency: 'USD', currencyService: fakeCurrency(0.73)
+      targetVolumeUnit: 'gallons_us',
+      targetCurrency: 'USD',
+      currencyService: fakeCurrency(0.73)
     });
     expect(result.gallons).toBeCloseTo(13.2086, 4);
     expect(result.cost).toBeCloseTo(47.45, 2);
@@ -35,19 +37,31 @@ describe('convertSubmission', () => {
   it('records manual FX source when service returns manual', async () => {
     const result = await convertSubmission(
       { volume: 50, volumeUnit: 'L', cost: 65, currency: 'CAD' },
-      { targetVolumeUnit: 'gallons_us', targetCurrency: 'USD', currencyService: fakeCurrency(0.74, 'manual') }
+      {
+        targetVolumeUnit: 'gallons_us',
+        targetCurrency: 'USD',
+        currencyService: fakeCurrency(0.74, 'manual')
+      }
     );
     expect(result.fxSource).toBe('manual');
   });
 
   it('uses manual override rate when provided', async () => {
-    const input: FuelInput = { volume: 50, volumeUnit: 'L', cost: 65, currency: 'CAD', manualFxRate: 0.72 };
+    const input: FuelInput = {
+      volume: 50,
+      volumeUnit: 'L',
+      cost: 65,
+      currency: 'CAD',
+      manualFxRate: 0.72
+    };
     const result = await convertSubmission(input, {
-      targetVolumeUnit: 'gallons_us', targetCurrency: 'USD', currencyService: fakeCurrency(0.99)
+      targetVolumeUnit: 'gallons_us',
+      targetCurrency: 'USD',
+      currencyService: fakeCurrency(0.99)
     });
     expect(result.fxRate).toBe(0.72);
     expect(result.fxSource).toBe('manual');
-    expect(result.cost).toBeCloseTo(46.80, 2);
+    expect(result.cost).toBeCloseTo(46.8, 2);
   });
 
   it('rejects unsupported target volume unit', async () => {

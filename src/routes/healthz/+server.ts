@@ -18,9 +18,6 @@ export const GET: RequestHandler = async ({ locals }) => {
     // status and a 200-char body preview, and this endpoint is unauthenticated
     // (residual of review #16). The real cause goes to the server log instead.
     locals.logger.warn('healthz upstream check failed', { err });
-    return json(
-      { ok: false, error: 'upstream unreachable' },
-      { status: 503 }
-    );
+    return json({ ok: false, error: 'upstream unreachable' }, { status: 503 });
   }
 };

@@ -68,7 +68,11 @@ export function daysAgo(s: string): string {
 export function formatLastFillupDate(s: string): string {
   const then = parseIsoLocal(s);
   if (!then) return s;
-  const abs = then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
+  const abs = then.toLocaleDateString(effectiveLocale(), {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
   return `${abs} (${daysAgo(s)})`;
 }
 
@@ -90,14 +94,22 @@ export function humanCountdown(value: number | string, unit: 'days' | 'mi'): str
 export function formatDueDate(s: string): string {
   const then = parseIsoLocal(s);
   if (!then) return s;
-  return then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
+  return then.toLocaleDateString(effectiveLocale(), {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
 }
 
 // `Mon D, YYYY · N days ago` for /history cards.
 export function formatIsoDate(s: string): string {
   const then = parseIsoLocal(s);
   if (!then) return s;
-  const abs = then.toLocaleDateString(effectiveLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
+  const abs = then.toLocaleDateString(effectiveLocale(), {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
   return `${abs} · ${daysAgo(s)}`;
 }
 

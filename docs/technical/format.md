@@ -14,17 +14,17 @@ LubeLogger's locale matches the browser's. Locale source-of-truth:
 
 ## Helpers
 
-| Helper | Input | Output shape | Locale source |
-| --- | --- | --- | --- |
-| `formatOdometer(s)` | string (digits) | locale thousands sep | `effectiveLocale()` |
-| `daysAgo(iso)` | ISO date | `today` / `yesterday` / `N days ago` | local calendar (no locale) |
-| `formatLastFillupDate(iso)` | ISO date | `Mon D, YYYY (relative)` | `effectiveLocale()` |
-| `humanCountdown(n, 'days' \| 'mi')` | number \| string | `N units to go` / `N units overdue` | `effectiveLocale()` (mi only) |
-| `formatDueDate(iso)` | ISO date | `Mon D, YYYY` | `effectiveLocale()` |
-| `formatIsoDate(iso)` | ISO date | `Mon D, YYYY · relative` | `effectiveLocale()` |
-| `formatCost(n, code \| null)` | number, ISO 4217 code or null | locale-currency format | `effectiveLocale()` + (code ?? `effectiveCurrencyCode()`) |
-| `parseIsoLocal(iso)` | ISO date | local-midnight `Date` or `null` | none — shared strict-parse preamble of every date helper above; also keys `/history` card sorting |
-| `vehicleLabel(v)` | `{ year?, make?, model? }` | `2019 Honda Civic Si` (missing parts skipped) | none |
+| Helper                              | Input                         | Output shape                                  | Locale source                                                                                     |
+| ----------------------------------- | ----------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `formatOdometer(s)`                 | string (digits)               | locale thousands sep                          | `effectiveLocale()`                                                                               |
+| `daysAgo(iso)`                      | ISO date                      | `today` / `yesterday` / `N days ago`          | local calendar (no locale)                                                                        |
+| `formatLastFillupDate(iso)`         | ISO date                      | `Mon D, YYYY (relative)`                      | `effectiveLocale()`                                                                               |
+| `humanCountdown(n, 'days' \| 'mi')` | number \| string              | `N units to go` / `N units overdue`           | `effectiveLocale()` (mi only)                                                                     |
+| `formatDueDate(iso)`                | ISO date                      | `Mon D, YYYY`                                 | `effectiveLocale()`                                                                               |
+| `formatIsoDate(iso)`                | ISO date                      | `Mon D, YYYY · relative`                      | `effectiveLocale()`                                                                               |
+| `formatCost(n, code \| null)`       | number, ISO 4217 code or null | locale-currency format                        | `effectiveLocale()` + (code ?? `effectiveCurrencyCode()`)                                         |
+| `parseIsoLocal(iso)`                | ISO date                      | local-midnight `Date` or `null`               | none — shared strict-parse preamble of every date helper above; also keys `/history` card sorting |
+| `vehicleLabel(v)`                   | `{ year?, make?, model? }`    | `2019 Honda Civic Si` (missing parts skipped) | none                                                                                              |
 
 ## Resolution rules
 

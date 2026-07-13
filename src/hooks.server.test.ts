@@ -22,7 +22,9 @@ function captureStdout(): Record<string, unknown>[] {
     }
     return true;
   };
-  vi.spyOn(process.stdout, 'write').mockImplementation(collect as unknown as typeof process.stdout.write);
+  vi.spyOn(process.stdout, 'write').mockImplementation(
+    collect as unknown as typeof process.stdout.write
+  );
   return records;
 }
 
@@ -82,10 +84,11 @@ describe('handle hook', () => {
 
   it('preserves a downstream-set X-Request-ID if the handler explicitly sets one', async () => {
     const event = makeEvent();
-    const resolve = async () => new Response('ok', {
-      status: 200,
-      headers: { 'x-request-id': 'preset-id' }
-    });
+    const resolve = async () =>
+      new Response('ok', {
+        status: 200,
+        headers: { 'x-request-id': 'preset-id' }
+      });
     const res = await (handle as Handle)({ event, resolve });
     expect(res.headers.get('X-Request-ID')).toBe('preset-id');
   });

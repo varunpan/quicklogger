@@ -12,7 +12,9 @@ async function commonRoutes(page: Page) {
   );
   await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: null }));
   await page.route('**/api/fx**', (route) =>
-    route.fulfill({ json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 } })
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
   );
 }
 
@@ -159,7 +161,9 @@ test('crop: tall portrait image fits viewport — every handle is reachable', as
   await expect(dialog.locator('[data-handle="corner"][data-corner="tl"]')).toBeVisible();
 
   const result = await page.evaluate(() => {
-    const img = document.querySelector('img[alt="Captured for OCR preview"]') as HTMLImageElement | null;
+    const img = document.querySelector(
+      'img[alt="Captured for OCR preview"]'
+    ) as HTMLImageElement | null;
     if (!img) return { ok: false };
     const ir = img.getBoundingClientRect();
     const corners = ['tl', 'tr', 'bl', 'br'].map((c) => {
@@ -181,7 +185,10 @@ test('crop: tall portrait image fits viewport — every handle is reachable', as
       img_natural: { w: img.naturalWidth, h: img.naturalHeight },
       img_rect: { x: ir.x, y: ir.y, w: ir.width, h: ir.height },
       img_overflows:
-        ir.x < 0 || ir.y < 0 || ir.x + ir.width > window.innerWidth || ir.y + ir.height > window.innerHeight,
+        ir.x < 0 ||
+        ir.y < 0 ||
+        ir.x + ir.width > window.innerWidth ||
+        ir.y + ir.height > window.innerHeight,
       corners
     };
   });
@@ -197,7 +204,9 @@ test('crop: tall portrait image fits viewport — every handle is reachable', as
   }
 });
 
-test('crop: Cancel crop returns to preview with prior state, Send omits crop fields', async ({ page }) => {
+test('crop: Cancel crop returns to preview with prior state, Send omits crop fields', async ({
+  page
+}) => {
   await commonRoutes(page);
   let bodySaw = '';
   await page.route('**/api/ocr', (route) => {

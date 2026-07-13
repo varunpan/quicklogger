@@ -1,11 +1,15 @@
 import type { NormalizedRect, Rotation } from './image';
 
 export interface PixelRect {
-  x: number; y: number; w: number; h: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 export interface Size {
-  w: number; h: number;
+  w: number;
+  h: number;
 }
 
 // Convert a display-space pixel rect into the equivalent normalized rect in

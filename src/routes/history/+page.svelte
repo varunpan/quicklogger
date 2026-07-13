@@ -1,7 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Queue, type QueueEntry } from '$lib/client/idb';
-  import { formatIsoDate, formatOdometer, formatCost, effectiveCurrencyCode, parseIsoLocal } from '$lib/client/format';
+  import {
+    formatIsoDate,
+    formatOdometer,
+    formatCost,
+    effectiveCurrencyCode,
+    parseIsoLocal
+  } from '$lib/client/format';
   import { unitPriceDisplay } from '$lib/client/unit-price';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
 
@@ -28,11 +34,7 @@
     if (vid === null) return [];
     return allEntries
       .filter((e) => e.input.vehicleId === vid)
-      .sort(
-        (a, b) =>
-          dateKey(b.input.date) - dateKey(a.input.date) ||
-          b.enqueuedAt - a.enqueuedAt
-      );
+      .sort((a, b) => dateKey(b.input.date) - dateKey(a.input.date) || b.enqueuedAt - a.enqueuedAt);
   });
 
   const emptyCopy = $derived.by(() => {
@@ -80,14 +82,10 @@
   <div class="rounded-xl px-3 py-2 text-sm text-rose-300 bg-rose-500/15 border border-rose-500/30">
     Couldn't load local history: {error}
   </div>
-  <p class="text-xs text-zinc-500 mt-6 italic">
-    Only fillups logged through this PWA appear here.
-  </p>
+  <p class="text-xs text-zinc-500 mt-6 italic">Only fillups logged through this PWA appear here.</p>
 {:else if visible.length === 0}
   <p class="text-sm text-zinc-500 italic">{emptyCopy}</p>
-  <p class="text-xs text-zinc-500 mt-6 italic">
-    Only fillups logged through this PWA appear here.
-  </p>
+  <p class="text-xs text-zinc-500 mt-6 italic">Only fillups logged through this PWA appear here.</p>
 {:else}
   {#each visible as entry (entry.id)}
     {@const tagList = tagsOf(entry.input.tags)}
@@ -112,7 +110,9 @@
         {fuelCostLine(entry.input)}
       </div>
       <div class="text-sm text-zinc-400 mt-0.5" data-testid="unit-price">
-        {unitPrice.actual}{#if unitPrice.converted}<span class="text-zinc-500"> · {unitPrice.converted}</span>{/if}
+        {unitPrice.actual}{#if unitPrice.converted}<span class="text-zinc-500">
+            · {unitPrice.converted}</span
+          >{/if}
       </div>
       {#if entry.input.isFillToFull}
         <div class="text-xs text-zinc-400 mt-1">Fill-to-full</div>
@@ -138,7 +138,5 @@
       {/if}
     </div>
   {/each}
-  <p class="text-xs text-zinc-500 mt-4 italic">
-    Only fillups logged through this PWA appear here.
-  </p>
+  <p class="text-xs text-zinc-500 mt-4 italic">Only fillups logged through this PWA appear here.</p>
 {/if}

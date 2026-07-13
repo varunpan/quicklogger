@@ -10,21 +10,21 @@ it wasn't, and submit.
 When you open the form on a vehicle that has a previous fillup, two things
 appear:
 
-1. **Last-fillup strip** at the top, above the vehicle picker:
+1.  **Last-fillup strip** at the top, above the vehicle picker:
 
-        Last fill: 87,234 mi · May 5, 2026 (7 days ago)
-        10.8 Gal · $39.42 · Costco Pump 4
+         Last fill: 87,234 mi · May 5, 2026 (7 days ago)
+         10.8 Gal · $39.42 · Costco Pump 4
 
-   The strip is read-only — it's there so you can sanity-check what the
-   previous fillup was without leaving the form.
+    The strip is read-only — it's there so you can sanity-check what the
+    previous fillup was without leaving the form.
 
-2. **Odometer field** opens already filled with the last reading (e.g.
-   `87234`). The text is muted and a small **`prefilled`** tag sits in the
-   corner of the input, signalling "this is a guess, double-check it."
+2.  **Odometer field** opens already filled with the last reading (e.g.
+    `87234`). The text is muted and a small **`prefilled`** tag sits in the
+    corner of the input, signalling "this is a guess, double-check it."
 
-3. **`+300 mi` chip** sits just below the odometer field. One tap adds 300
-   miles to the value. Tap twice for 600. The number on the chip reflects
-   what you've configured in Settings.
+3.  **`+300 mi` chip** sits just below the odometer field. One tap adds 300
+    miles to the value. Tap twice for 600. The number on the chip reflects
+    what you've configured in Settings.
 
 As soon as you tap the chip OR start typing, the muted styling clears and
 the field becomes a normal editable input. A small helper line appears under
@@ -45,14 +45,14 @@ Settings changes apply on the next time you open the form.
 
 ## Common patterns
 
-| Situation | What to do |
-| --- | --- |
-| Typical fillup, ~300 miles since last fill | Tap `+300 mi` once, adjust by a few digits if needed. |
-| Long road trip, ~600 miles | Tap `+300 mi` twice. |
-| You wrote down the exact reading | Just type it — the prefill is overwritten the moment you start typing. |
-| First-ever fillup for a vehicle | The strip and chip are hidden; field is empty, exactly like before. |
-| You don't want any prefill | Settings → Odometer prefill → **Off**. |
-| You want the prefill but no chip | Settings → Quick increment → **0**. |
+| Situation                                  | What to do                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| Typical fillup, ~300 miles since last fill | Tap `+300 mi` once, adjust by a few digits if needed.                  |
+| Long road trip, ~600 miles                 | Tap `+300 mi` twice.                                                   |
+| You wrote down the exact reading           | Just type it — the prefill is overwritten the moment you start typing. |
+| First-ever fillup for a vehicle            | The strip and chip are hidden; field is empty, exactly like before.    |
+| You don't want any prefill                 | Settings → Odometer prefill → **Off**.                                 |
+| You want the prefill but no chip           | Settings → Quick increment → **0**.                                    |
 
 ## Why both?
 

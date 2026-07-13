@@ -48,14 +48,21 @@ export interface FxResponse {
   ageHours: number;
 }
 
-export async function getFx(from: string, to: string, fetchImpl = fetch): Promise<FxResponse | { available: false }> {
+export async function getFx(
+  from: string,
+  to: string,
+  fetchImpl = fetch
+): Promise<FxResponse | { available: false }> {
   const res = await fetchImpl(`/api/fx?from=${from}&to=${to}`);
   if (res.status === 503) return { available: false };
   if (!res.ok) throw new Error(`fx ${res.status}`);
   return res.json();
 }
 
-export async function submitFuelup(input: FuelSubmissionInput, fetchImpl = fetch): Promise<FuelSubmissionResult> {
+export async function submitFuelup(
+  input: FuelSubmissionInput,
+  fetchImpl = fetch
+): Promise<FuelSubmissionResult> {
   const res = await fetchImpl('/api/fuelup', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -144,11 +151,7 @@ export async function postOcr(
     fd.set('cropW', String(crop.w));
     fd.set('cropH', String(crop.h));
   }
-  if (
-    typeof lastOdometerMi === 'number' &&
-    Number.isFinite(lastOdometerMi) &&
-    lastOdometerMi > 0
-  ) {
+  if (typeof lastOdometerMi === 'number' && Number.isFinite(lastOdometerMi) && lastOdometerMi > 0) {
     fd.set('lastOdometerMi', String(lastOdometerMi));
   }
   if (
@@ -164,9 +167,10 @@ export async function postOcr(
   // when absent (older server, or probe failed and page is degraded).
   // The +10 000 covers transit + serialization on top of the chain
   // envelope so the server still "fails first" by construction.
-  const finalTimeoutMs = (typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0)
-    ? timeoutMs + 10_000
-    : 90_000;
+  const finalTimeoutMs =
+    typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? timeoutMs + 10_000
+      : 90_000;
   let res: Response;
   try {
     res = await fetchImpl('/api/ocr', {

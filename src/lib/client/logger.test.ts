@@ -3,7 +3,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 describe('clientLogger', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
-    fetchMock = vi.fn(async () => new Response(null, { status: 204, headers: { 'x-request-id': 'r-1' } }));
+    fetchMock = vi.fn(
+      async () => new Response(null, { status: 204, headers: { 'x-request-id': 'r-1' } })
+    );
     vi.stubGlobal('fetch', fetchMock);
     vi.useFakeTimers();
     vi.resetModules();

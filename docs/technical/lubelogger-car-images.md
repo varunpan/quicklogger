@@ -9,7 +9,7 @@ Replaces the generic car SVG in every vehicle-row surface — the home Log Fuel 
 - [`src/lib/server/lubelogger.ts`](../../src/lib/server/lubelogger.ts) — adds the `fetchImage(path)` method on `LubeLoggerClient`. First client method that returns a raw `Response` instead of parsed JSON.
 - [`src/routes/api/vehicle/image/+server.ts`](../../src/routes/api/vehicle/image/+server.ts) — the new endpoint: parses `vehicleId`, looks up `imageLocation` via the shared vehicles cache (`vehicleCache.ts`), applies a defensive `/images/` path-guard, streams the upstream body with `cache-control: no-store`. Error matrix mirrors the rest of the `/api/vehicle/*` surface.
 - [`src/lib/server/vehicleCache.ts`](../../src/lib/server/vehicleCache.ts) — the shared 5-minute normalized-vehicle cache. Both this endpoint and `/api/vehicles` go through `getCachedVehicles(client)`, so a cold load that fires both makes one upstream `listVehicles()` call, not two (review #36).
-- [`src/service-worker.ts`](../../src/service-worker.ts) — adds the fixed-name `IMG_CACHE` constant, a `staleWhileRevalidate` helper, a fetch-handler branch for `/api/vehicle/image` placed *before* the generic `/api/` network-first branch, and a tweak to the activate handler so `IMG_CACHE` survives shell upgrades.
+- [`src/service-worker.ts`](../../src/service-worker.ts) — adds the fixed-name `IMG_CACHE` constant, a `staleWhileRevalidate` helper, a fetch-handler branch for `/api/vehicle/image` placed _before_ the generic `/api/` network-first branch, and a tweak to the activate handler so `IMG_CACHE` survives shell upgrades.
 - [`src/lib/client/VehicleImage.svelte`](../../src/lib/client/VehicleImage.svelte) — shared icon-slot component. Encapsulates the `vehicleImageOk = $state(true)` flag, the `$effect` keyed on `vehicleId` that resets the flag on vehicle switch, and the `<img>` / SVG-fallback render branch. Accepts `vehicleId`, `class` (passed through to the outer wrapper so callers control sizing), and `svgSize` (defaults to 22; the picker passes 24).
 - [`src/lib/client/VehicleCard.svelte`](../../src/lib/client/VehicleCard.svelte) — the tappable "current vehicle" card shared by `/`, `/history`, `/maintenance`, and `/stats`. Wraps `<VehicleImage class="w-12 h-12">` plus the `vehicleLabel()` line; renders as `<a href>` (picker round-trip pages) or `<button onclick>` (home, which carries form state onto the picker URL).
 - [`src/routes/+page.svelte`](../../src/routes/+page.svelte) — vehicle button is the shared `<VehicleCard>` (which consumes `<VehicleImage>`).
@@ -23,16 +23,16 @@ No new types, no schema changes, no new prefs. The endpoint reads the existing `
 
 In-memory caches:
 
-| Layer | Cache | Key | TTL | Reset |
-|---|---|---|---|---|
-| Server | `TtlCache<Vehicle[]>` in `src/lib/server/vehicleCache.ts` (shared with `/api/vehicles`) | `'vehicles'` | 5 min | Process restart; or `_resetCache()` (delegates to `_resetVehicleCache()`) in tests. One cache for both routes. |
-| Service worker | `quicklogger-vehicle-images-v1` (`caches` API) | Full `Request` | Until evicted by quota or rollback (cache-name version bump) | `activate` handler whitelists this cache name so it survives shell upgrades. |
+| Layer          | Cache                                                                                   | Key            | TTL                                                          | Reset                                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Server         | `TtlCache<Vehicle[]>` in `src/lib/server/vehicleCache.ts` (shared with `/api/vehicles`) | `'vehicles'`   | 5 min                                                        | Process restart; or `_resetCache()` (delegates to `_resetVehicleCache()`) in tests. One cache for both routes. |
+| Service worker | `quicklogger-vehicle-images-v1` (`caches` API)                                          | Full `Request` | Until evicted by quota or rollback (cache-name version bump) | `activate` handler whitelists this cache name so it survives shell upgrades.                                   |
 
 ## Lifecycle / control flow
 
 1. User opens any page that renders a vehicle row (`/`, `/history`, `/maintenance`, or the `/vehicles` picker list). Each rendered `<VehicleImage>` receives a `vehicleId` prop — either the active vehicle's id (single-vehicle surfaces) or the per-row id (picker).
 2. Each `<VehicleImage>` instance initialises `vehicleImageOk = true`. The `<img>` is rendered first, with `src` pointing at `/api/vehicle/image?vehicleId=<id>`.
-3. The browser fires a GET. The service worker fetch handler matches `/api/vehicle/image` (matched *before* the generic `/api/` branch) and routes through `staleWhileRevalidate`:
+3. The browser fires a GET. The service worker fetch handler matches `/api/vehicle/image` (matched _before_ the generic `/api/` branch) and routes through `staleWhileRevalidate`:
    - Open `IMG_CACHE`, look for an exact-`Request` match.
    - Kick off a network fetch in parallel; on a 2xx response, `cache.put(req, res.clone())`.
    - If there was a cache hit, return it immediately and let the network refresh complete in the background. If not, await the network fetch and return whatever it produces (or a `504` if the fetch threw).
@@ -46,17 +46,17 @@ In-memory caches:
 
 ## Edge cases & invariants
 
-| Scenario | Behaviour | Why |
-|---|---|---|
-| Vehicle has no image (`imageLocation === ''`) | Endpoint 404 → `<img>` `onerror` → SVG fallback | The "no image" case is the same UX as a fetch failure — the user sees the original generic icon |
-| Upstream 5xx during image fetch | Endpoint 502 → SWR helper returns 502 to the browser → `<img>` `onerror` → SVG fallback | Same fallback path; user is never blocked |
-| Network offline, image cached previously | SWR returns cached bytes immediately, background refresh fails silently | This is the SWR contract; cache survives until rollback or eviction |
-| Network offline, image never cached | SWR helper awaits network fetch → throws → returns 504 → `<img>` `onerror` → SVG fallback | Graceful degradation, no UI hang |
-| Vehicle switch to one without image | `$effect` resets `vehicleImageOk` to `true` → `<img>` re-attempts → 404 → fallback re-applies | Without this reset, every vehicle after a fall-back-once vehicle would show the SVG even if it had a photo |
-| Photo added in LubeLogger for a previously-imageless vehicle | Picked up after server-side `TtlCache` TTL expires (≤5 min) — no SW invalidation needed because 404s aren't cached | The 404 was never persisted, so the next image-load attempt re-hits the server |
-| Path-guard: upstream returns a non-`/images/` path | 404 with `{ error: 'no image' }` | Defense-in-depth in case a future LubeLogger version stores arbitrary paths in `imageLocation` |
-| Vehicle id not in the upstream list | 404 with `{ error: 'no image' }` | Same code path as "no image" — both are user-invisible failures handled by the fallback |
-| Browser HTTP cache attempting to interfere | `cache-control: no-store` on the 200 response keeps the HTTP cache out of the picture | SW's `IMG_CACHE` is the single source of cached bytes |
+| Scenario                                                     | Behaviour                                                                                                          | Why                                                                                                        |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Vehicle has no image (`imageLocation === ''`)                | Endpoint 404 → `<img>` `onerror` → SVG fallback                                                                    | The "no image" case is the same UX as a fetch failure — the user sees the original generic icon            |
+| Upstream 5xx during image fetch                              | Endpoint 502 → SWR helper returns 502 to the browser → `<img>` `onerror` → SVG fallback                            | Same fallback path; user is never blocked                                                                  |
+| Network offline, image cached previously                     | SWR returns cached bytes immediately, background refresh fails silently                                            | This is the SWR contract; cache survives until rollback or eviction                                        |
+| Network offline, image never cached                          | SWR helper awaits network fetch → throws → returns 504 → `<img>` `onerror` → SVG fallback                          | Graceful degradation, no UI hang                                                                           |
+| Vehicle switch to one without image                          | `$effect` resets `vehicleImageOk` to `true` → `<img>` re-attempts → 404 → fallback re-applies                      | Without this reset, every vehicle after a fall-back-once vehicle would show the SVG even if it had a photo |
+| Photo added in LubeLogger for a previously-imageless vehicle | Picked up after server-side `TtlCache` TTL expires (≤5 min) — no SW invalidation needed because 404s aren't cached | The 404 was never persisted, so the next image-load attempt re-hits the server                             |
+| Path-guard: upstream returns a non-`/images/` path           | 404 with `{ error: 'no image' }`                                                                                   | Defense-in-depth in case a future LubeLogger version stores arbitrary paths in `imageLocation`             |
+| Vehicle id not in the upstream list                          | 404 with `{ error: 'no image' }`                                                                                   | Same code path as "no image" — both are user-invisible failures handled by the fallback                    |
+| Browser HTTP cache attempting to interfere                   | `cache-control: no-store` on the 200 response keeps the HTTP cache out of the picture                              | SW's `IMG_CACHE` is the single source of cached bytes                                                      |
 
 ## Non-obvious decisions
 

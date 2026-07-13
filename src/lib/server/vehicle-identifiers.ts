@@ -9,18 +9,18 @@ import type { Vehicle } from './lubelogger';
  * non-array `extraFields` and non-string `name` / `value` entries.
  */
 export function extractVin(v: Vehicle): string | undefined {
-	const fields = Array.isArray(v.extraFields) ? v.extraFields : [];
-	for (const f of fields) {
-		if (!f || typeof f !== 'object') continue;
-		const rawName = (f as { name?: unknown }).name;
-		if (typeof rawName !== 'string') continue;
-		if (rawName.trim().toLowerCase() !== 'vin') continue;
-		const rawValue = (f as { value?: unknown }).value;
-		if (typeof rawValue !== 'string') continue;
-		const trimmed = rawValue.trim();
-		if (trimmed) return trimmed;
-	}
-	return undefined;
+  const fields = Array.isArray(v.extraFields) ? v.extraFields : [];
+  for (const f of fields) {
+    if (!f || typeof f !== 'object') continue;
+    const rawName = (f as { name?: unknown }).name;
+    if (typeof rawName !== 'string') continue;
+    if (rawName.trim().toLowerCase() !== 'vin') continue;
+    const rawValue = (f as { value?: unknown }).value;
+    if (typeof rawValue !== 'string') continue;
+    const trimmed = rawValue.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
 }
 
 /**
@@ -30,6 +30,6 @@ export function extractVin(v: Vehicle): string | undefined {
  * entirely, keeping the wire additive for existing consumers.
  */
 export function normalizeVehicleIdentifiers(v: Vehicle): Vehicle {
-	const vin = extractVin(v);
-	return vin ? { ...v, vin } : v;
+  const vin = extractVin(v);
+  return vin ? { ...v, vin } : v;
 }

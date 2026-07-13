@@ -34,7 +34,10 @@ describe('createLogger', () => {
   it('filters records below the configured level', () => {
     const { stream, lines } = captureStream();
     const logger = createLogger({ level: 'warn', pretty: false, stdout: stream });
-    logger.debug('d'); logger.info('i'); logger.warn('w'); logger.error('e');
+    logger.debug('d');
+    logger.info('i');
+    logger.warn('w');
+    logger.error('e');
     expect(lines.map((l) => parse(l).level)).toEqual(['warn', 'error']);
   });
 
@@ -127,7 +130,8 @@ describe('createLogger', () => {
   it('unpacks Error in ctx.err as {message, stack, name}', () => {
     const { stream, lines } = captureStream();
     const logger = createLogger({ level: 'info', pretty: false, stdout: stream });
-    const err = new Error('boom'); err.name = 'BoomError';
+    const err = new Error('boom');
+    err.name = 'BoomError';
     logger.error('exploded', { err });
     const rec = parse(lines[0]);
     const errRec = rec.err as Record<string, unknown>;

@@ -3,9 +3,15 @@ import { Queue } from './idb';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 const baseInput: FuelSubmissionInput = {
-  vehicleId: 1, date: '2026-05-07', odometer: 87432, volume: 50,
-  volumeUnit: 'L', cost: 65, currency: 'CAD',
-  isFillToFull: true, missedFuelup: false,
+  vehicleId: 1,
+  date: '2026-05-07',
+  odometer: 87432,
+  volume: 50,
+  volumeUnit: 'L',
+  cost: 65,
+  currency: 'CAD',
+  isFillToFull: true,
+  missedFuelup: false,
   clientSubmissionId: '00000000-0000-0000-0000-000000000001'
 };
 

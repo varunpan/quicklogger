@@ -104,23 +104,23 @@ interface Props {
 
 ## Edge cases & invariants
 
-| Scenario | Behaviour | Why |
-| --- | --- | --- |
-| LubeLogger returns `licensePlate: ""` | Plate row hidden | Trim-then-truthy at the render boundary |
-| `extraFields` missing entirely | VIN undefined, row hidden | `Array.isArray(v.extraFields) ? ... : []` |
-| `extraFields` contains a `VIN` row with empty value | VIN undefined, row hidden | Extractor trims and rejects empties |
-| Two `VIN` rows in `extraFields` | First non-empty wins | Defensive — upstream shouldn't emit this, but if it does, pick a deterministic answer |
-| `VIN` name in mixed case (`Vin`, `vin`, `  VIN  `) | Still matches | `trim().toLowerCase() === 'vin'` |
-| Non-string `name` or `value` in `extraFields` | Row skipped, no throws | Defensive against upstream type drift |
-| Both plate and VIN empty | Component returns nothing (no wrapper) | `{#if showCard}` gate; layout reverts to picker → reminders |
+| Scenario                                                           | Behaviour                                               | Why                                                                                                                                                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| LubeLogger returns `licensePlate: ""`                              | Plate row hidden                                        | Trim-then-truthy at the render boundary                                                                                                                                              |
+| `extraFields` missing entirely                                     | VIN undefined, row hidden                               | `Array.isArray(v.extraFields) ? ... : []`                                                                                                                                            |
+| `extraFields` contains a `VIN` row with empty value                | VIN undefined, row hidden                               | Extractor trims and rejects empties                                                                                                                                                  |
+| Two `VIN` rows in `extraFields`                                    | First non-empty wins                                    | Defensive — upstream shouldn't emit this, but if it does, pick a deterministic answer                                                                                                |
+| `VIN` name in mixed case (`Vin`, `vin`, `  VIN  `)                 | Still matches                                           | `trim().toLowerCase() === 'vin'`                                                                                                                                                     |
+| Non-string `name` or `value` in `extraFields`                      | Row skipped, no throws                                  | Defensive against upstream type drift                                                                                                                                                |
+| Both plate and VIN empty                                           | Component returns nothing (no wrapper)                  | `{#if showCard}` gate; layout reverts to picker → reminders                                                                                                                          |
 | `navigator.clipboard` undefined (HTTP on LAN IP — homelab default) | `execCommand('copy')` fallback fires; flash still shows | Modern API requires a secure context; the fallback uses a transient on-screen textarea + iOS-friendly Range/Selection. Without it, every tap on a homelab deploy was a silent no-op. |
-| `clipboard.writeText` rejects (denied permission, transient) | Falls through to the same `execCommand` path | The two paths are tried in order, not as either/or |
-| Both clipboard paths fail | No flash, no copy | Truly broken environment; iOS Safari long-press select-and-copy on the value text still works because no `user-select: none` |
-| User taps plate, then VIN within 1.5 s | Plate flash ends immediately, VIN flash starts | Single `copiedField` state + timer reset |
-| User navigates away mid-flash | No cleanup needed | Page unmount destroys the component; timer ref is GC'd |
-| Cached `/api/vehicles` payload | Already normalized | Normalizer runs inside the shared `vehicleCache` loader, not after |
-| Vehicle has VIN but not plate (or vice versa) | Only the present row renders | Per-row `{#if plateValue}` / `{#if vinValue}` gates |
-| Very long VIN / vanity plate | Truncates with ellipsis on narrow screens | `truncate` Tailwind class; long-press still selects full text |
+| `clipboard.writeText` rejects (denied permission, transient)       | Falls through to the same `execCommand` path            | The two paths are tried in order, not as either/or                                                                                                                                   |
+| Both clipboard paths fail                                          | No flash, no copy                                       | Truly broken environment; iOS Safari long-press select-and-copy on the value text still works because no `user-select: none`                                                         |
+| User taps plate, then VIN within 1.5 s                             | Plate flash ends immediately, VIN flash starts          | Single `copiedField` state + timer reset                                                                                                                                             |
+| User navigates away mid-flash                                      | No cleanup needed                                       | Page unmount destroys the component; timer ref is GC'd                                                                                                                               |
+| Cached `/api/vehicles` payload                                     | Already normalized                                      | Normalizer runs inside the shared `vehicleCache` loader, not after                                                                                                                   |
+| Vehicle has VIN but not plate (or vice versa)                      | Only the present row renders                            | Per-row `{#if plateValue}` / `{#if vinValue}` gates                                                                                                                                  |
+| Very long VIN / vanity plate                                       | Truncates with ellipsis on narrow screens               | `truncate` Tailwind class; long-press still selects full text                                                                                                                        |
 
 ## Non-obvious decisions
 

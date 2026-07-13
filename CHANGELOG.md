@@ -73,7 +73,7 @@ All notable changes to this project are documented here. Format roughly follows 
   real cause in the server log.
 - **A fillup submitted with a blank submission id can no longer silently
   swallow the next one.** The API's required-field check let an empty or
-  whitespace-only `clientSubmissionId` through, where it became a *shared*
+  whitespace-only `clientSubmissionId` through, where it became a _shared_
   idempotency key — two different submissions sending `""` within a minute
   collided, and the second got the first's cached "success" without ever being
   recorded. The server now rejects a blank or non-string id with a clear 400.
@@ -191,12 +191,12 @@ All notable changes to this project are documented here. Format roughly follows 
   moved from `node:22-alpine` to `node:24-alpine` across all three build stages,
   and Node 24 is now required project-wide — `package.json` `engines` is `>=24`
   (enforced by `engine-strict`), CI runs on Node 24, and the dev docs match.
-  Dependabot proposed Node 26, but that's the *Current* line (no LTS until
+  Dependabot proposed Node 26, but that's the _Current_ line (no LTS until
   October 2026); 24 is the active LTS. The image's OS-package upgrade +
   npm-removal hardening and the Trivy scan gate (#31) are unchanged and still
   pass. (#39)
 - **Type-checking now fails the build on warnings, not just errors.** `npm run
-  check` gained `--fail-on-warnings`, and the home page's form fields were
+check` gained `--fail-on-warnings`, and the home page's form fields were
   cleared of 6 `state_referenced_locally` warnings (the prefill seeds are now
   explicit one-time reads via `untrack`). No behaviour change — the form already
   captured those values once; this just makes the intent explicit and keeps the
@@ -330,7 +330,7 @@ All notable changes to this project are documented here. Format roughly follows 
   context is now quarantined and the core fields are authoritative.
 - **Server log lines are attributed to the right request again.** Background
   services (currency, OCR budget/audit/rate-limit) were tagging every log line
-  with the *first* request's id for the life of the process; they now log
+  with the _first_ request's id for the life of the process; they now log
   without a stale request id, so the structured logs read correctly.
 - **The OCR audit log no longer erases its whole history when it fills up.** At
   the 10 MiB cap it now rotates by keeping the previous generation
@@ -393,8 +393,8 @@ All notable changes to this project are documented here. Format roughly follows 
   closed, and pressing Escape closes it.
 - **No more double warning for a big odometer jump.** Confirming an OCR-read
   odometer that's more than 2,000 miles above your last fill-up used to warn
-  you at the photo step *and* again at submit; the over-2,000 check now fires
-  once, at submit. (A reading that's *lower* than the last fill-up is still
+  you at the photo step _and_ again at submit; the over-2,000 check now fires
+  once, at submit. (A reading that's _lower_ than the last fill-up is still
   flagged at the photo step — that's almost always a misread.)
 - **Cropping a photo survives a screen reflow.** Adjusting the crop box no
   longer snaps back to the default if the screen resizes mid-drag — e.g. the
@@ -483,7 +483,7 @@ All notable changes to this project are documented here. Format roughly follows 
   near-simultaneous identical submissions — a double-tap, or the offline
   queue replaying while a foreground submit is still in flight — now share a
   single upstream write instead of each creating its own record. The
-  idempotency check previously only caught a resubmit *after* the first had
+  idempotency check previously only caught a resubmit _after_ the first had
   finished.
 - **Guard the offline-queue replay against itself.** Back-to-back `focus`
   and `visibilitychange` triggers (which fire together on iOS resume) can no
@@ -535,7 +535,7 @@ All notable changes to this project are documented here. Format roughly follows 
 
 - **Docker image default `BODY_SIZE_LIMIT` corrected from `0` to `Infinity`.**
   v0.2.5 set `BODY_SIZE_LIMIT=0` to disable the transport body cap, but
-  @sveltejs/adapter-node treats `0` as a literal 0-byte limit — it rejects *every*
+  @sveltejs/adapter-node treats `0` as a literal 0-byte limit — it rejects _every_
   request with a body. `Infinity` is the value that actually disables the cap.
   Deployments overriding `BODY_SIZE_LIMIT=Infinity` at runtime were unaffected; this
   makes the image correct out of the box so the override is no longer needed.
@@ -562,7 +562,7 @@ All notable changes to this project are documented here. Format roughly follows 
 ### Fixed
 
 - **Pump-photo OCR `400 multipart parse failed` (the real, production-only
-  fix).** The container's `BODY_SIZE_LIMIT` was pinned to 128 KiB — *below* the
+  fix).** The container's `BODY_SIZE_LIMIT` was pinned to 128 KiB — _below_ the
   size of a resized pump photo (~150–400 KB) — so the server truncated the
   upload mid-stream and `request.formData()` threw. The failure was invisible
   in dev (no body cap) and UAT (512 KiB default), which is why the v0.2.3 and
@@ -586,7 +586,7 @@ All notable changes to this project are documented here. Format roughly follows 
 ### Fixed
 
 - **Pump-photo OCR `400 multipart parse failed` in Safari (real fix).** Pump
-  submissions failed on iOS *and* desktop Safari because EXIF date-prefill and
+  submissions failed on iOS _and_ desktop Safari because EXIF date-prefill and
   the OCR encode read the same in-memory `File`; in WebKit that left the
   resized image Blob streaming short on the wire, so the server's multipart
   parser rejected the body. EXIF prefill now runs on a fully independent copy
@@ -657,7 +657,7 @@ All notable changes to this project are documented here. Format roughly follows 
 - **LubeLogger upstream errors return structured JSON** instead of a
   passthrough of the upstream message. Bodies now include `upstream`
   (which call), `upstream_status`, and `upstream_body_preview` so
-  client-side error UI can say *which* upstream call failed.
+  client-side error UI can say _which_ upstream call failed.
 - **`/api/server-info` boot refresh moves to the root layout.** Settings now
   paints from cache only; the layout fires the refresh on every app boot so
   cached locale / currency / dateFormat are fresh for client-side rendering
@@ -696,7 +696,7 @@ All notable changes to this project are documented here. Format roughly follows 
   `HTMLCanvasElement.toBlob`, which iOS Safari handles reliably.
 - **Opaque `"OCR failed (400)"` toast** — the toast now surfaces the
   server's specific rejection reason (e.g., `"OCR rejected photo:
-  multipart parse failed"`, `"OCR rejected photo: empty image"`)
+multipart parse failed"`, `"OCR rejected photo: empty image"`)
   instead of the bare status code, so 400s are diagnosable on-device
   without server-log access.
 - **OCR misclassifications now log the raw LLM response** alongside
@@ -1115,7 +1115,7 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
-- **Compose hardening directives** baked into `compose.example.yml`: `read_only: true`, `tmpfs: /tmp`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`. Documented in [`docs/deployment.md`](docs/deployment.md) § *Hardening the runtime*. Same set applied to the upstream homelab stack.
+- **Compose hardening directives** baked into `compose.example.yml`: `read_only: true`, `tmpfs: /tmp`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `pids_limit: 100`, `mem_limit: 256m`. Documented in [`docs/deployment.md`](docs/deployment.md) § _Hardening the runtime_. Same set applied to the upstream homelab stack.
 - README "Security posture" section linking to the hardening write-up.
 - Screenshot grid expanded to 4 columns (Log Fuel | Vehicles | Settings | History) — `history.jpeg` added now that `/history` is reachable from the drawer.
 - "Built with Claude Code" credit in README.

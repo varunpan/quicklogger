@@ -24,7 +24,8 @@ export function parseVehicleId(url: URL): number | Response {
   const raw = url.searchParams.get('vehicleId');
   if (!raw) return json({ error: 'vehicleId required' }, { status: 400 });
   const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) return json({ error: 'invalid vehicleId' }, { status: 400 });
+  if (!Number.isInteger(id) || id <= 0)
+    return json({ error: 'invalid vehicleId' }, { status: 400 });
   return id;
 }
 

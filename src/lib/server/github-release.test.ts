@@ -4,22 +4,35 @@ import { getLatestRelease, _resetReleaseCache } from './github-release';
 import type { Logger } from './logger';
 
 function makeLogger() {
-  const calls = { debug: [] as unknown[], info: [] as unknown[], warn: [] as unknown[], error: [] as unknown[] };
+  const calls = {
+    debug: [] as unknown[],
+    info: [] as unknown[],
+    warn: [] as unknown[],
+    error: [] as unknown[]
+  };
   const logger = {
     debug: (...a: unknown[]) => calls.debug.push(a),
     info: (...a: unknown[]) => calls.info.push(a),
     warn: (...a: unknown[]) => calls.warn.push(a),
     error: (...a: unknown[]) => calls.error.push(a),
-    child() { return this; }
+    child() {
+      return this;
+    }
   } as unknown as Logger;
   return { logger, calls };
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' }
+  });
 }
 
-const RELEASE = { tag_name: 'v0.2.4', html_url: 'https://github.com/varunpan/quicklogger/releases/tag/v0.2.4' };
+const RELEASE = {
+  tag_name: 'v0.2.4',
+  html_url: 'https://github.com/varunpan/quicklogger/releases/tag/v0.2.4'
+};
 
 beforeEach(() => _resetReleaseCache());
 
@@ -48,7 +61,8 @@ describe('getLatestRelease', () => {
 
   it('TTL: a call past the window fetches again', async () => {
     const { logger } = makeLogger();
-    const fetchImpl = vi.fn()
+    const fetchImpl = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ tag_name: 'v0.2.4', html_url: 'https://example/a' }))
       .mockResolvedValueOnce(jsonResponse({ tag_name: 'v0.2.5', html_url: 'https://example/b' }));
     let t = 1000;
@@ -86,7 +100,9 @@ describe('getLatestRelease', () => {
 
   it('timeout: returns null, logs warn', async () => {
     const { logger, calls } = makeLogger();
-    const fetchImpl = vi.fn().mockRejectedValue(Object.assign(new Error('t'), { name: 'TimeoutError' }));
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('t'), { name: 'TimeoutError' }));
     const out = await getLatestRelease(logger, { fetchImpl, now: () => 1000 });
     expect(out).toBeNull();
     expect(calls.warn.length).toBe(1);
@@ -94,7 +110,8 @@ describe('getLatestRelease', () => {
 
   it('last-known-good retained when a post-success refresh fails', async () => {
     const { logger } = makeLogger();
-    const fetchImpl = vi.fn()
+    const fetchImpl = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ tag_name: 'v0.2.4', html_url: 'https://example/a' }))
       .mockRejectedValueOnce(new TypeError('ECONNREFUSED'));
     let t = 1000;

@@ -19,7 +19,8 @@
   // reminder first within the Both subset.
   function sortValue(r: Reminder): number {
     if (r.userMetric === 'Date') return Number.isFinite(r.dueDays) ? r.dueDays : Infinity;
-    if (r.userMetric === 'Odometer') return Number.isFinite(r.dueDistance) ? r.dueDistance : Infinity;
+    if (r.userMetric === 'Odometer')
+      return Number.isFinite(r.dueDistance) ? r.dueDistance : Infinity;
     const ds = Number.isFinite(r.dueDays) ? r.dueDays : Infinity;
     const di = Number.isFinite(r.dueDistance) ? r.dueDistance : Infinity;
     return Math.min(ds, di);
@@ -94,13 +95,17 @@
 
   {#if data.vehicle}
     <VehicleIdentifiersCard
-      licensePlate={typeof data.vehicle.licensePlate === 'string' ? data.vehicle.licensePlate : undefined}
+      licensePlate={typeof data.vehicle.licensePlate === 'string'
+        ? data.vehicle.licensePlate
+        : undefined}
       vin={typeof data.vehicle.vin === 'string' ? data.vehicle.vin : undefined}
     />
   {/if}
 
   {#if data.error}
-    <div class="rounded-xl px-3 py-2 text-sm text-amber-300 bg-amber-500/15 border border-amber-500/30 flex items-center gap-2 mb-3">
+    <div
+      class="rounded-xl px-3 py-2 text-sm text-amber-300 bg-amber-500/15 border border-amber-500/30 flex items-center gap-2 mb-3"
+    >
       <span aria-hidden="true">⚠</span>
       <span>Couldn't reach LubeLogger right now.</span>
     </div>

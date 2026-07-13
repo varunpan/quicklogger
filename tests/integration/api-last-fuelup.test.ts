@@ -14,14 +14,21 @@ beforeAll(() => {
 });
 
 const noopLogger = {
-  debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-  child() { return this; }
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child() {
+    return this;
+  }
 } as unknown as import('../../src/lib/server/logger').Logger;
 
 function eventFor(vehicleId?: string) {
   const u = new URL('http://localhost/api/vehicle/last-fuelup');
   if (vehicleId !== undefined) u.searchParams.set('vehicleId', vehicleId);
-  return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<typeof GET>[0];
+  return { url: u, locals: { logger: noopLogger, requestId: 't' } } as unknown as Parameters<
+    typeof GET
+  >[0];
 }
 
 describe('GET /api/vehicle/last-fuelup', () => {
@@ -29,9 +36,51 @@ describe('GET /api/vehicle/last-fuelup', () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
         HttpResponse.json([
-          { id: 1, vehicleId: 1, date: '2026-04-01', odometer: 85000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
-          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.5, cost: 42.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
-          { id: 3, vehicleId: 1, date: '2026-04-08', odometer: 85500, fuelConsumed: 11.2, cost: 41.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
+          {
+            id: 1,
+            vehicleId: 1,
+            date: '2026-04-01',
+            odometer: 85000,
+            fuelConsumed: 11.0,
+            cost: 40.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          },
+          {
+            id: 2,
+            vehicleId: 1,
+            date: '2026-04-15',
+            odometer: 86000,
+            fuelConsumed: 11.5,
+            cost: 42.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          },
+          {
+            id: 3,
+            vehicleId: 1,
+            date: '2026-04-08',
+            odometer: 85500,
+            fuelConsumed: 11.2,
+            cost: 41.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          }
         ])
       )
     );
@@ -51,8 +100,36 @@ describe('GET /api/vehicle/last-fuelup', () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
         HttpResponse.json([
-          { id: 1, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
-          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86450, fuelConsumed: 11.5, cost: 42.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
+          {
+            id: 1,
+            vehicleId: 1,
+            date: '2026-04-15',
+            odometer: 86000,
+            fuelConsumed: 11.0,
+            cost: 40.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          },
+          {
+            id: 2,
+            vehicleId: 1,
+            date: '2026-04-15',
+            odometer: 86450,
+            fuelConsumed: 11.5,
+            cost: 42.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          }
         ])
       )
     );
@@ -67,8 +144,36 @@ describe('GET /api/vehicle/last-fuelup', () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
         HttpResponse.json([
-          { id: 1, vehicleId: 1, date: '2026-04-15', odometer: 86450, fuelConsumed: 11.5, cost: 42.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
-          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
+          {
+            id: 1,
+            vehicleId: 1,
+            date: '2026-04-15',
+            odometer: 86450,
+            fuelConsumed: 11.5,
+            cost: 42.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          },
+          {
+            id: 2,
+            vehicleId: 1,
+            date: '2026-04-15',
+            odometer: 86000,
+            fuelConsumed: 11.0,
+            cost: 40.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          }
         ])
       )
     );
@@ -81,8 +186,36 @@ describe('GET /api/vehicle/last-fuelup', () => {
     upstream.use(
       http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
         HttpResponse.json([
-          { id: 1, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] },
-          { id: 2, vehicleId: 1, date: '2026-04-15', odometer: 86000, fuelConsumed: 11.0, cost: 40.0, fuelEconomy: 0, isFillToFull: true, missedFuelUp: false, notes: null, tags: '', extraFields: [], files: [] }
+          {
+            id: 1,
+            vehicleId: 1,
+            date: '2026-04-15',
+            odometer: 86000,
+            fuelConsumed: 11.0,
+            cost: 40.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          },
+          {
+            id: 2,
+            vehicleId: 1,
+            date: '2026-04-15',
+            odometer: 86000,
+            fuelConsumed: 11.0,
+            cost: 40.0,
+            fuelEconomy: 0,
+            isFillToFull: true,
+            missedFuelUp: false,
+            notes: null,
+            tags: '',
+            extraFields: [],
+            files: []
+          }
         ])
       )
     );
@@ -110,8 +243,9 @@ describe('GET /api/vehicle/last-fuelup', () => {
   // generic 502, and the upstream body never reaches the client.
   it('maps an upstream 5xx to 502 with a generic message — no upstream detail leak', async () => {
     upstream.use(
-      http.get('http://lubelog:8080/api/vehicle/gasrecords', () =>
-        new HttpResponse('secret internal detail', { status: 503 })
+      http.get(
+        'http://lubelog:8080/api/vehicle/gasrecords',
+        () => new HttpResponse('secret internal detail', { status: 503 })
       )
     );
     const res = await GET(eventFor('1'));

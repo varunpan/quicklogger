@@ -14,20 +14,20 @@
 #   LUBELOGGER_URL. See the dev block in .env.example.
 services:
   quicklogger:
-    build: .                       # builds the prod image from ./Dockerfile (runtime stage)
+    build: . # builds the prod image from ./Dockerfile (runtime stage)
     container_name: quickloggerdev
-    restart: "no"                  # dev: a hard crash stays down and visible (prod uses unless-stopped)
+    restart: 'no' # dev: a hard crash stays down and visible (prod uses unless-stopped)
     environment:
       LUBELOGGER_URL: ${LUBELOGGER_URL:-http://host.docker.internal:8080}
-      LUBELOGGER_API_KEY: "${LUBELOGGER_API_KEY}"
+      LUBELOGGER_API_KEY: '${LUBELOGGER_API_KEY}'
       LUBELOGGER_VOLUME_UNIT: ${LUBELOGGER_VOLUME_UNIT:-gallons_us}
       LUBELOGGER_CURRENCY: ${LUBELOGGER_CURRENCY:-USD}
       FX_PROVIDERS: ${FX_PROVIDERS:-frankfurter,erapi,fawazahmed}
       FX_CACHE_PATH: /data/fx-cache.json
       ORIGIN: ${ORIGIN:-http://localhost:3000}
-      PORT: 3000                   # internal port — unchanged from the image (prod-identical)
+      PORT: 3000 # internal port — unchanged from the image (prod-identical)
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      LOG_FILE_PATH: /data/logs/quicklogger.log   # lands in bind-mounted ./data → host log-read works
+      LOG_FILE_PATH: /data/logs/quicklogger.log # lands in bind-mounted ./data → host log-read works
       # --- Photo OCR — the crop / photo-attach flow gates the whole camera UI
       #     on these (GET /api/ocr → { enabled }). Forwarded from .env like the
       #     LubeLogger vars; defaults keep the file inert when nothing is set.
@@ -40,7 +40,7 @@ services:
       OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-qwen2.5vl:7b}
       OLLAMA_VISION_TIMEOUT_MS: ${OLLAMA_VISION_TIMEOUT_MS:-60000}
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
-      OLLAMA_CLOUD_API_KEY: "${OLLAMA_CLOUD_API_KEY:-}"
+      OLLAMA_CLOUD_API_KEY: '${OLLAMA_CLOUD_API_KEY:-}'
       OLLAMA_CLOUD_URL: ${OLLAMA_CLOUD_URL:-https://ollama.com}
       OLLAMA_CLOUD_MODEL: ${OLLAMA_CLOUD_MODEL:-gemma4:31b}
       OLLAMA_CLOUD_TIMEOUT_MS: ${OLLAMA_CLOUD_TIMEOUT_MS:-30000}
@@ -48,18 +48,18 @@ services:
       OCR_AUDIT_PATH: /data/ocr-audit.jsonl
       OCR_AUDIT_KEY_PATH: /data/ocr-audit-key.txt
     extra_hosts:
-      - "host.docker.internal:host-gateway"   # lets the container reach a host-port LubeLogger on Linux
+      - 'host.docker.internal:host-gateway' # lets the container reach a host-port LubeLogger on Linux
     volumes:
       - ./data:/data
     ports:
-      - "${HOST_PORT:-3000}:3000"
+      - '${HOST_PORT:-3000}:3000'
     labels:
-      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
-      - "traefik.http.routers.quickloggerdev.rule=Host(`${TRAEFIK_HOST:-quickloggerdev.localhost}`)"
-      - "traefik.http.routers.quickloggerdev.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
-      - "traefik.http.routers.quickloggerdev.tls=true"
-      - "traefik.http.routers.quickloggerdev.tls.certresolver=${TRAEFIK_CERTRESOLVER:-}"
-      - "traefik.http.services.quickloggerdev.loadbalancer.server.port=3000"
+      - 'traefik.enable=${TRAEFIK_ENABLE:-false}'
+      - 'traefik.http.routers.quickloggerdev.rule=Host(`${TRAEFIK_HOST:-quickloggerdev.localhost}`)'
+      - 'traefik.http.routers.quickloggerdev.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}'
+      - 'traefik.http.routers.quickloggerdev.tls=true'
+      - 'traefik.http.routers.quickloggerdev.tls.certresolver=${TRAEFIK_CERTRESOLVER:-}'
+      - 'traefik.http.services.quickloggerdev.loadbalancer.server.port=3000'
     networks:
       - proxy
     # --- Runtime hardening — mirrors compose.example.yml so dev == prod ---
@@ -75,8 +75,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 networks:
   proxy:
     name: ${TRAEFIK_NETWORK:-quicklogger_dev_net}

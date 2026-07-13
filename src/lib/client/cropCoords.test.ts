@@ -1,25 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { displayToSource, sourceToDisplay, viewportToBase, clampZoom, clampPan, MAX_ZOOM } from './cropCoords';
+import {
+  displayToSource,
+  sourceToDisplay,
+  viewportToBase,
+  clampZoom,
+  clampPan,
+  MAX_ZOOM
+} from './cropCoords';
 
 describe('displayToSource', () => {
   it('rotation 0 is the identity', () => {
     // Display 800×600 image, user drew (200, 150)–(600, 450) → normalized (.25, .25, .5, .5).
-    const out = displayToSource(
-      { x: 200, y: 150, w: 400, h: 300 },
-      { w: 800, h: 600 },
-      0
-    );
+    const out = displayToSource({ x: 200, y: 150, w: 400, h: 300 }, { w: 800, h: 600 }, 0);
     expect(out).toEqual({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
   });
 
   it('rotation 90: rotates display rect back to source orientation', () => {
     // Display 600×800 (after 90° rotation of an 800×600 source).
     // User drew top-left quadrant of the rotated display.
-    const out = displayToSource(
-      { x: 0, y: 0, w: 300, h: 400 },
-      { w: 600, h: 800 },
-      90
-    );
+    const out = displayToSource({ x: 0, y: 0, w: 300, h: 400 }, { w: 600, h: 800 }, 90);
     // 90° clockwise display means source-top-right becomes display-top-left.
     // Display (x,y,w,h) in 600×800 maps back to source (0..1) as:
     //   source.x = display.y / display.h
@@ -33,11 +32,7 @@ describe('displayToSource', () => {
   });
 
   it('rotation 180: rect mirrors both axes', () => {
-    const out = displayToSource(
-      { x: 100, y: 100, w: 200, h: 100 },
-      { w: 400, h: 300 },
-      180
-    );
+    const out = displayToSource({ x: 100, y: 100, w: 200, h: 100 }, { w: 400, h: 300 }, 180);
     // Source x = 1 - (display.x + display.w) / display.w = 1 - 300/400 = 0.25
     // Source y = 1 - (display.y + display.h) / display.h = 1 - 200/300 = 1/3
     expect(out.x).toBeCloseTo(0.25, 5);
@@ -47,11 +42,7 @@ describe('displayToSource', () => {
   });
 
   it('rotation 270: dual of 90', () => {
-    const out = displayToSource(
-      { x: 0, y: 0, w: 300, h: 400 },
-      { w: 600, h: 800 },
-      270
-    );
+    const out = displayToSource({ x: 0, y: 0, w: 300, h: 400 }, { w: 600, h: 800 }, 270);
     // 270° (= -90°). Source mapping:
     //   source.x = 1 - (display.y + display.h) / display.h
     //   source.y = display.x / display.w
@@ -86,11 +77,7 @@ describe('displayToSource', () => {
   });
 
   it('output stays inside [0, 1] for any rect that fits inside the display', () => {
-    const out = displayToSource(
-      { x: 0, y: 0, w: 800, h: 600 },
-      { w: 800, h: 600 },
-      0
-    );
+    const out = displayToSource({ x: 0, y: 0, w: 800, h: 600 }, { w: 800, h: 600 }, 0);
     expect(out).toEqual({ x: 0, y: 0, w: 1, h: 1 });
   });
 });

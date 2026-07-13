@@ -52,20 +52,20 @@ rendering knows the instance currency without re-reading env on every paint.
 type ServerInfoStatus = 'ok' | 'unauthorized' | 'unreachable';
 
 interface ServerInfo {
-  reachable: boolean;                 // ≥1 of the two upstream calls resolved
+  reachable: boolean; // ≥1 of the two upstream calls resolved
   status: ServerInfoStatus;
   currentVersion: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;
-  locale: string | null;              // cached from /api/info
-  currencySymbol: string | null;      // cached from /api/info
-  decimalSeparator: string | null;    // cached from /api/info
-  dateFormat: string | null;          // cached from /api/info
-  lubeloggerCurrency: string | null;  // LubeLogger instance currency (ISO); sourced from env.lubeloggerCurrency
-  appCurrentVersion: string | null;   // __APP_VERSION__ at runtime; null only on the unreachable fallback
-  appLatestVersion: string | null;    // latest GitHub release tag, v-stripped; null if unknown
-  appUpdateAvailable: boolean;        // _isUpdateAvailable(appCurrentVersion, appLatestVersion)
-  appReleaseUrl: string | null;       // GitHub release html_url; null if unknown
+  locale: string | null; // cached from /api/info
+  currencySymbol: string | null; // cached from /api/info
+  decimalSeparator: string | null; // cached from /api/info
+  dateFormat: string | null; // cached from /api/info
+  lubeloggerCurrency: string | null; // LubeLogger instance currency (ISO); sourced from env.lubeloggerCurrency
+  appCurrentVersion: string | null; // __APP_VERSION__ at runtime; null only on the unreachable fallback
+  appLatestVersion: string | null; // latest GitHub release tag, v-stripped; null if unknown
+  appUpdateAvailable: boolean; // _isUpdateAvailable(appCurrentVersion, appLatestVersion)
+  appReleaseUrl: string | null; // GitHub release html_url; null if unknown
 }
 ```
 
@@ -93,7 +93,7 @@ so consumers can paint locale-driven displays from the cache without re-fetching
    acceptable given how rarely server config changes.
 4. **Route.** Builds a `LubeLoggerClient` from `LUBELOGGER_URL` +
    `LUBELOGGER_API_KEY` (no new env), runs `Promise.allSettled([getInfo,
-   getVersion])`, and merges.
+getVersion])`, and merges.
 
 Merge rules (`_buildServerInfo`):
 
@@ -169,13 +169,13 @@ pins `:latest`, `docker compose pull && up -d`); the check never acts.
   `Promise.allSettled` arm** alongside `getInfo()` / `getVersion()`. The module
   never throws, so the arm always fulfils with `GithubRelease | null`;
   `_buildServerInfo` reads it defensively (`releaseR.status === 'fulfilled' ?
-  releaseR.value : null`). A GitHub failure therefore cannot disturb the
+releaseR.value : null`). A GitHub failure therefore cannot disturb the
   LubeLogger fields, and the route keeps its always-200 contract.
 - **App fields.** `appCurrentVersion` is `__APP_VERSION__` (a Vite compile-time
   define; guarded with `typeof` since it is undefined under vitest — same pattern
   as `hooks.server.ts`). `appLatestVersion` / `appReleaseUrl` come from the
   release (or null). `appUpdateAvailable` reuses the pure `_isUpdateAvailable`, so
-  running *ahead* of latest, a non-integer version part, or a missing version all
+  running _ahead_ of latest, a non-integer version part, or a missing version all
   yield `false`.
 
 ## Follow-up consumption (branch 2)

@@ -9,16 +9,21 @@ import { MAX_ZOOM, viewportToBase } from './cropCoords';
 beforeEach(() => {
   // jsdom doesn't implement setPointerCapture / releasePointerCapture by
   // default — stub them so component handlers don't throw.
-  (HTMLElement.prototype as unknown as { setPointerCapture: (id: number) => void }).setPointerCapture =
-    vi.fn();
-  (HTMLElement.prototype as unknown as { releasePointerCapture: (id: number) => void }).releasePointerCapture =
-    vi.fn();
+  (
+    HTMLElement.prototype as unknown as { setPointerCapture: (id: number) => void }
+  ).setPointerCapture = vi.fn();
+  (
+    HTMLElement.prototype as unknown as { releasePointerCapture: (id: number) => void }
+  ).releasePointerCapture = vi.fn();
 });
 afterEach(() => cleanup());
 
 function makePointerEvent(type: string, x: number, y: number, pointerId = 1) {
   const ev = new Event(type, { bubbles: true }) as Event & {
-    clientX: number; clientY: number; pointerId: number; pointerType: string;
+    clientX: number;
+    clientY: number;
+    pointerId: number;
+    pointerType: string;
   };
   ev.clientX = x;
   ev.clientY = y;
@@ -69,7 +74,9 @@ describe('CropOverlay', () => {
 
   it('pointerdown on a corner handle + pointermove + pointerup commits a resized rect', async () => {
     const { container, oncommit } = mountWith();
-    const tlCorner = container.querySelector('[data-handle="corner"][data-corner="tl"]') as HTMLElement;
+    const tlCorner = container.querySelector(
+      '[data-handle="corner"][data-corner="tl"]'
+    ) as HTMLElement;
     // Drag top-left corner from (40, 30) to (100, 80) → rect (100, 80, 260, 190).
     await fireEvent(tlCorner, makePointerEvent('pointerdown', 40, 30));
     await fireEvent(tlCorner, makePointerEvent('pointermove', 100, 80));
@@ -92,10 +99,10 @@ describe('CropOverlay', () => {
     const doneBtn = container.querySelector('[data-action="done"]') as HTMLElement;
     await fireEvent.click(doneBtn);
     const rect = oncommit.mock.calls[0][0];
-    expect(rect.x).toBe(70);   // 40 + 30
-    expect(rect.y).toBe(50);   // 30 + 20
-    expect(rect.w).toBe(320);  // unchanged
-    expect(rect.h).toBe(240);  // unchanged
+    expect(rect.x).toBe(70); // 40 + 30
+    expect(rect.y).toBe(50); // 30 + 20
+    expect(rect.w).toBe(320); // unchanged
+    expect(rect.h).toBe(240); // unchanged
   });
 
   it('clamps the rect so it stays inside imageDisplayRect (interior drag)', async () => {
@@ -107,13 +114,15 @@ describe('CropOverlay', () => {
     const doneBtn = container.querySelector('[data-action="done"]') as HTMLElement;
     await fireEvent.click(doneBtn);
     const rect = oncommit.mock.calls[0][0];
-    expect(rect.x).toBe(80);  // clamped — image extends 0..400, rect width 320
+    expect(rect.x).toBe(80); // clamped — image extends 0..400, rect width 320
   });
 
   it('refuses to shrink below the 200 source-px floor on the shortest edge', async () => {
     // Display 400×300 = source 2000×1500 → scale 5. 200 source px = 40 display px.
     const { container, oncommit } = mountWith();
-    const brCorner = container.querySelector('[data-handle="corner"][data-corner="br"]') as HTMLElement;
+    const brCorner = container.querySelector(
+      '[data-handle="corner"][data-corner="br"]'
+    ) as HTMLElement;
     // Try to drag bottom-right toward top-left, way past the floor.
     await fireEvent(brCorner, makePointerEvent('pointerdown', 360, 270));
     await fireEvent(brCorner, makePointerEvent('pointermove', 50, 40));
@@ -299,8 +308,7 @@ describe('CropOverlay', () => {
     const EDGE_LONG = 14;
     const EDGE_SHORT = 4;
 
-    const px = (el: HTMLElement, key: 'left' | 'top') =>
-      parseFloat(el.style[key]);
+    const px = (el: HTMLElement, key: 'left' | 'top') => parseFloat(el.style[key]);
 
     for (const el of container.querySelectorAll<HTMLElement>('[data-handle="corner"]')) {
       const left = px(el, 'left');

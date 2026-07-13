@@ -1,10 +1,5 @@
 import { test, expect } from '@playwright/test';
-import {
-  mockWithLastFuelup,
-  gotoHomeViaClientRouter,
-  seedPrefs,
-  pinClock
-} from './fixtures';
+import { mockWithLastFuelup, gotoHomeViaClientRouter, seedPrefs, pinClock } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
 
@@ -52,7 +47,9 @@ test('clean submit: valid values, no chip, posts immediately', async ({ page }) 
   await expect(page.locator('[data-testid="smart-check-chip"]')).toHaveCount(0);
 });
 
-test('single-issue chip: low odometer triggers, Submit disabled, override posts', async ({ page }) => {
+test('single-issue chip: low odometer triggers, Submit disabled, override posts', async ({
+  page
+}) => {
   await pinClock(page, TODAY);
   await mockWithLastFuelup(page);
   await gotoHomeViaClientRouter(page);
@@ -78,7 +75,9 @@ test('single-issue chip: low odometer triggers, Submit disabled, override posts'
   await expect(page).toHaveURL(/\/maintenance/);
 });
 
-test('multi-issue chip: low odo + future date + tiny volume → 3 lines, one override', async ({ page }) => {
+test('multi-issue chip: low odo + future date + tiny volume → 3 lines, one override', async ({
+  page
+}) => {
   await pinClock(page, TODAY);
   await mockWithLastFuelup(page);
   await gotoHomeViaClientRouter(page);

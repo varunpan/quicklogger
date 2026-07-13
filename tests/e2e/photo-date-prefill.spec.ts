@@ -11,9 +11,7 @@ async function commonRoutes(page: Page) {
   await page.route('**/api/vehicles', (route) =>
     route.fulfill({ json: [{ id: 1, year: 2019, make: 'Honda', model: 'Civic Si' }] })
   );
-  await page.route('**/api/vehicle/last-fuelup**', (route) =>
-    route.fulfill({ json: null })
-  );
+  await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: null }));
   await page.route('**/api/fx**', (route) =>
     route.fulfill({
       json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }

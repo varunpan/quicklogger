@@ -9,13 +9,13 @@ services:
     image: ghcr.io/varunpan/quicklogger:latest
     restart: unless-stopped
     environment:
-      LUBELOGGER_URL: http://lubelogger:8080         # change to your container/host
-      LUBELOGGER_API_KEY: "${LUBELOGGER_API_KEY}"     # define in .env
+      LUBELOGGER_URL: http://lubelogger:8080 # change to your container/host
+      LUBELOGGER_API_KEY: '${LUBELOGGER_API_KEY}' # define in .env
       LUBELOGGER_VOLUME_UNIT: gallons_us
       LUBELOGGER_CURRENCY: USD
       FX_PROVIDERS: frankfurter,erapi,fawazahmed
       FX_CACHE_PATH: /data/fx-cache.json
-      ORIGIN: https://quicklog.example.com           # set to whatever URL you serve from
+      ORIGIN: https://quicklog.example.com # set to whatever URL you serve from
       PORT: 3000
       # --- Photo OCR (v0.2.0+, optional) -----------------------------------
       # Feature activates iff at least one provider is configured. UI hides
@@ -53,21 +53,21 @@ services:
     volumes:
       - ./data:/data
     ports:
-      - "3000:3000"   # remove if behind a reverse proxy on the same network
+      - '3000:3000' # remove if behind a reverse proxy on the same network
     networks:
       - default
     # --- Runtime hardening (drop these for permissive parity, keep them for least-privilege) ---
-    read_only: true                       # root FS read-only; only /data + /tmp writable
+    read_only: true # root FS read-only; only /data + /tmp writable
     tmpfs:
-      - /tmp:rw,size=16m,mode=1777        # ephemeral 16MB writable /tmp
+      - /tmp:rw,size=16m,mode=1777 # ephemeral 16MB writable /tmp
     cap_drop:
-      - ALL                               # HTTP server needs zero Linux capabilities
+      - ALL # HTTP server needs zero Linux capabilities
     security_opt:
-      - no-new-privileges:true            # block setuid escalation paths
-    pids_limit: 100                       # bound fork-bomb blast radius
-    mem_limit: 256m                       # OOM-kill the container before it hurts the host
+      - no-new-privileges:true # block setuid escalation paths
+    pids_limit: 100 # bound fork-bomb blast radius
+    mem_limit: 256m # OOM-kill the container before it hurts the host
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'

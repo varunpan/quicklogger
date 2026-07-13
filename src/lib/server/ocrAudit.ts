@@ -12,7 +12,9 @@ const NOOP_LOGGER: Logger = {
   info: () => {},
   warn: () => {},
   error: () => {},
-  child() { return this; }
+  child() {
+    return this;
+  }
 };
 
 export interface AuditCropRect {

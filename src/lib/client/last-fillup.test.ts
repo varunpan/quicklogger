@@ -25,9 +25,16 @@ function seedCache(vehicleId: number, snapshot: Record<string, unknown>) {
 
 function seedServerInfo(dateFormat: string | null) {
   const base = {
-    reachable: true, status: 'ok', currentVersion: '1.6.5', latestVersion: '1.6.5',
-    updateAvailable: false, locale: 'en-US', currencySymbol: '$',
-    decimalSeparator: '.', dateFormat, lubeloggerCurrency: 'USD'
+    reachable: true,
+    status: 'ok',
+    currentVersion: '1.6.5',
+    latestVersion: '1.6.5',
+    updateAvailable: false,
+    locale: 'en-US',
+    currencySymbol: '$',
+    decimalSeparator: '.',
+    dateFormat,
+    lubeloggerCurrency: 'USD'
   };
   localStorage.setItem('quicklogger-server-info', JSON.stringify(base));
 }
@@ -46,8 +53,13 @@ describe('resolveOfflineLastFillup — happy paths', () => {
 
   it('returns cached ISO upstream snapshot (fast path, no server-info needed)', async () => {
     seedCache(1, {
-      id: 999, vehicleId: 1, date: '2026-05-03', odometer: 87234,
-      fuelConsumed: 10.8, cost: 39.42, notes: 'Costco'
+      id: 999,
+      vehicleId: 1,
+      date: '2026-05-03',
+      odometer: 87234,
+      fuelConsumed: 10.8,
+      cost: 39.42,
+      notes: 'Costco'
     });
     const got = await resolveOfflineLastFillup(1, q);
     expect(got).not.toBeNull();
@@ -63,20 +75,32 @@ describe('resolveOfflineLastFillup — happy paths', () => {
     await q.enqueue(baseInput({ date: '2026-05-08', odometer: 87800 }), 'synced');
     const got = await resolveOfflineLastFillup(1, q);
     expect(got).not.toBeNull();
-    expect(got!.date).toBe('2026-05-08');                  // ISO pass-through
+    expect(got!.date).toBe('2026-05-08'); // ISO pass-through
     expect(got!.odometer).toBe('87800');
     expect(got!.costCurrency).toBe('USD');
   });
 
   it('picks queue entry when its date is newer than the cache', async () => {
-    seedCache(1, { id: 999, vehicleId: 1, date: '2026-05-03', odometer: 87234, fuelConsumed: 10.8 });
+    seedCache(1, {
+      id: 999,
+      vehicleId: 1,
+      date: '2026-05-03',
+      odometer: 87234,
+      fuelConsumed: 10.8
+    });
     await q.enqueue(baseInput({ date: '2026-05-08', odometer: 87800 }), 'synced');
     const got = await resolveOfflineLastFillup(1, q);
     expect(got!.odometer).toBe('87800');
   });
 
   it('picks cache when its date is newer than queue entries', async () => {
-    seedCache(1, { id: 999, vehicleId: 1, date: '2026-05-09', odometer: 88100, fuelConsumed: 11.0 });
+    seedCache(1, {
+      id: 999,
+      vehicleId: 1,
+      date: '2026-05-09',
+      odometer: 88100,
+      fuelConsumed: 11.0
+    });
     await q.enqueue(baseInput({ date: '2026-05-08', odometer: 87800 }), 'synced');
     const got = await resolveOfflineLastFillup(1, q);
     expect(got!.odometer).toBe('88100');
@@ -91,7 +115,13 @@ describe('resolveOfflineLastFillup — happy paths', () => {
   });
 
   it('scopes to the requested vehicle', async () => {
-    seedCache(1, { id: 999, vehicleId: 1, date: '2026-05-09', odometer: 88100, fuelConsumed: 11.0 });
+    seedCache(1, {
+      id: 999,
+      vehicleId: 1,
+      date: '2026-05-09',
+      odometer: 88100,
+      fuelConsumed: 11.0
+    });
     seedCache(2, { id: 888, vehicleId: 2, date: '2026-05-09', odometer: 20000, fuelConsumed: 8.0 });
     await q.enqueue(baseInput({ vehicleId: 2, date: '2026-05-10', odometer: 20100 }), 'synced');
     const got1 = await resolveOfflineLastFillup(1, q);
