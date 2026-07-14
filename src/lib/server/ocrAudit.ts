@@ -33,6 +33,10 @@ export interface AuditRecord {
   // odometer-mode request. Forensic field: pairs with `parsed.odometer`
   // to surface "model dropped the leading digit despite the hint" cases.
   lastOdometerMi?: number;
+  // Optional — present only when the client passed `lastPricePerUnit` on a
+  // pump-mode request. Same forensic purpose as `lastOdometerMi`: pairs with
+  // `parsed.pricePerUnit` to catch hint-vs-output divergence.
+  lastPricePerUnit?: number;
   ipHash: string;
   imgHash: string;
   imgBytes: number;
