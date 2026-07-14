@@ -483,7 +483,7 @@ old-era rows over time; no backfill.
 | Two picks in quick succession, slow read on first                                         | Pick-seq counter ensures last-write wins                     | Avoids stale prior-pick overwriting fresh state                                                                                      |
 | `readPhotoDate` throws                                                                    | Caught → `cue: 'missing'`                                    | Never breaks OCR or the form                                                                                                         |
 | Late-evening pick at 11:55 PM local, EXIF on today                                        | Local-component compare → "today" check works                | `toISOString().slice(0,10)` would UTC-shift; helper uses `getFullYear()`/`getMonth()`/`getDate()`                                    |
-| Existing `isoDate` default initializer in `+page.svelte` uses `toISOString().slice(0,10)` | Unchanged — out of scope                                     | Latent bug; new code uses local-component formatting correctly                                                                       |
+| Existing `isoDate` default initializer in `+page.svelte` used `toISOString().slice(0,10)` | Left as-is then (out of scope); since fixed                  | Was a latent UTC-shift bug at v0.2.0; the `localIsoDate()` seed added with smart checks now uses local-component formatting          |
 
 ## Non-obvious decisions
 
