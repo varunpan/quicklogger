@@ -43,6 +43,32 @@ fuelConsumed side is the instance-unit conversion — upstream records are
 already in instance units, so the comparison is unit-consistent by
 construction.
 
+## Client plumbing
+
+The instance units also reach the client, for display purposes only — no
+client-side conversion, that stays server-side (above).
+
+- **Transport.** `env.lubeloggerVolumeUnit` / `env.lubeloggerDistanceUnit` flow
+  into `ServerInfo.lubeloggerVolumeUnit` / `ServerInfo.lubeloggerDistanceUnit`
+  (`src/lib/shared/types.ts`) via `_buildServerInfo`
+  (`src/routes/api/server-info/+server.ts`), the same `/api/server-info`
+  probe that already carries `lubeloggerCurrency`. See
+  [`docs/technical/server-info.md`](./server-info.md) for the field contract
+  and the `UNREACHABLE`/`null` fallback.
+- **Cache.** The root layout's boot refresh (`+layout.svelte` `onMount`)
+  writes the probe response into the `quicklogger-server-info` localStorage
+  cache, same single-writer as every other `ServerInfo` field.
+- **Read side.** `effectiveVolumeUnit()` / `effectiveDistanceUnit()`
+  (`src/lib/client/format.ts`) read the cache and degrade to `'gal'` / `'mi'`
+  on anything other than `'liters'` / `'km'`. See
+  [`docs/technical/format.md`](./format.md) for the exact resolution rules.
+- **Persistence gate.** A cache written before v0.3.2 simply lacks these two
+  keys — `JSON.parse` yields `undefined` for them, which the helpers' strict
+  `=== 'liters'` / `=== 'km'` checks treat as "not liters/km", falling
+  through to gal/mi. No migration or backfill needed. Rollback is equally
+  harmless: an older client reading a newer cache ignores the two unknown
+  JSON fields.
+
 ## Edge cases & invariants
 
 - Bad env value → `EnvError` at startup, not a per-submit 500 (the pre-fix

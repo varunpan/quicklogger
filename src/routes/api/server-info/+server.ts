@@ -24,6 +24,8 @@ const UNREACHABLE: ServerInfo = {
   decimalSeparator: null,
   dateFormat: null,
   lubeloggerCurrency: null,
+  lubeloggerVolumeUnit: null,
+  lubeloggerDistanceUnit: null,
   appCurrentVersion: APP_VERSION,
   appLatestVersion: null,
   appUpdateAvailable: false,
@@ -53,6 +55,8 @@ export function _buildServerInfo(
   infoR: PromiseSettledResult<LubeLoggerInfo>,
   versionR: PromiseSettledResult<LubeLoggerVersion>,
   lubeloggerCurrency: string,
+  lubeloggerVolumeUnit: 'gallons_us' | 'liters',
+  lubeloggerDistanceUnit: 'miles' | 'km',
   releaseR: PromiseSettledResult<GithubRelease | null>,
   appCurrentVersion: string | null
 ): ServerInfo {
@@ -90,6 +94,8 @@ export function _buildServerInfo(
     decimalSeparator: info?.decimalSeparator ?? null,
     dateFormat: info?.dateFormat ?? null,
     lubeloggerCurrency,
+    lubeloggerVolumeUnit,
+    lubeloggerDistanceUnit,
     appCurrentVersion,
     appLatestVersion,
     appUpdateAvailable: _isUpdateAvailable(appCurrentVersion, appLatestVersion),
@@ -108,7 +114,17 @@ export const GET: RequestHandler = async ({ locals }) => {
       client.getVersion(),
       getLatestRelease(locals.logger)
     ]);
-    return json(_buildServerInfo(infoR, versionR, env.lubeloggerCurrency, releaseR, APP_VERSION));
+    return json(
+      _buildServerInfo(
+        infoR,
+        versionR,
+        env.lubeloggerCurrency,
+        env.lubeloggerVolumeUnit,
+        env.lubeloggerDistanceUnit,
+        releaseR,
+        APP_VERSION
+      )
+    );
   } catch (err) {
     // loadEnv() misconfiguration or any unexpected throw — report unreachable
     // rather than 500, to keep the Settings block's contract (always parseable).

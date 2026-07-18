@@ -8,7 +8,9 @@ import {
   formatIsoDate,
   formatCost,
   vehicleLabel,
-  parseIsoLocal
+  parseIsoLocal,
+  effectiveVolumeUnit,
+  effectiveDistanceUnit
 } from './format';
 
 // Helpers ---------------------------------------------------------------
@@ -151,6 +153,35 @@ describe('humanCountdown', () => {
   });
   it('uses locale thousands separators on miles', () => {
     expect(humanCountdown(12500, 'mi')).toBe('12,500 mi to go');
+  });
+});
+
+// humanCountdown — km unit -----------------------------------------------
+
+describe('humanCountdown — km unit', () => {
+  it('formats km countdowns like mi countdowns', () => {
+    expect(humanCountdown(1500, 'km')).toBe('1,500 km to go');
+    expect(humanCountdown(-200, 'km')).toBe('200 km overdue');
+    expect(humanCountdown(0, 'km')).toBe('due now');
+  });
+});
+
+// effectiveVolumeUnit / effectiveDistanceUnit ----------------------------
+
+describe('effectiveVolumeUnit / effectiveDistanceUnit', () => {
+  it('default to gal/mi with no cached server-info', () => {
+    expect(effectiveVolumeUnit()).toBe('gal');
+    expect(effectiveDistanceUnit()).toBe('mi');
+  });
+  it('map liters → L and km → km from the cached info', () => {
+    seedServerInfo({ lubeloggerVolumeUnit: 'liters', lubeloggerDistanceUnit: 'km' });
+    expect(effectiveVolumeUnit()).toBe('L');
+    expect(effectiveDistanceUnit()).toBe('km');
+  });
+  it('fall back to gal/mi on an old cache missing the fields', () => {
+    seedServerInfo(); // base seed has neither field
+    expect(effectiveVolumeUnit()).toBe('gal');
+    expect(effectiveDistanceUnit()).toBe('mi');
   });
 });
 

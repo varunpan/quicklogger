@@ -13,6 +13,8 @@ const SAMPLE: ServerInfo = {
   decimalSeparator: '.',
   dateFormat: 'M/d/yyyy',
   lubeloggerCurrency: 'USD',
+  lubeloggerVolumeUnit: 'gallons_us',
+  lubeloggerDistanceUnit: 'miles',
   appCurrentVersion: '0.2.3',
   appLatestVersion: '0.2.4',
   appUpdateAvailable: true,
@@ -78,5 +80,25 @@ describe('server-info cache', () => {
     const got = loadServerInfo();
     expect(got).not.toBeNull();
     expect((got as Partial<ServerInfo>).appUpdateAvailable).toBeUndefined();
+  });
+  it('tolerates absence of lubeloggerVolumeUnit/lubeloggerDistanceUnit (older cache shape)', () => {
+    const legacy = {
+      reachable: true,
+      status: 'ok',
+      currentVersion: '1.6.5',
+      latestVersion: '1.6.5',
+      updateAvailable: false,
+      locale: 'en-US',
+      currencySymbol: '$',
+      decimalSeparator: '.',
+      dateFormat: 'M/d/yyyy',
+      lubeloggerCurrency: 'USD'
+      // no lubeloggerVolumeUnit / lubeloggerDistanceUnit
+    };
+    localStorage.setItem('quicklogger-server-info', JSON.stringify(legacy));
+    const got = loadServerInfo();
+    expect(got).not.toBeNull();
+    expect((got as Partial<ServerInfo>).lubeloggerVolumeUnit).toBeUndefined();
+    expect((got as Partial<ServerInfo>).lubeloggerDistanceUnit).toBeUndefined();
   });
 });
