@@ -7,6 +7,7 @@ function fakeEnv(overrides: Partial<Env> = {}): Env {
     lubeloggerUrl: 'http://l',
     lubeloggerApiKey: 'k',
     lubeloggerVolumeUnit: 'gallons_us',
+    lubeloggerDistanceUnit: 'miles',
     lubeloggerCurrency: 'USD',
     fxProviders: ['frankfurter'],
     fxCachePath: '/tmp/fx',
