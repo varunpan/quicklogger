@@ -69,6 +69,32 @@ client-side conversion, that stays server-side (above).
   harmless: an older client reading a newer cache ignores the two unknown
   JSON fields.
 
+### Economy preview (log page)
+
+`src/routes/+page.svelte` derives an `economyPreview` figure from the
+in-progress entry and the last fillup, shown in the "Will log" strip. It
+mirrors `previewVolume` (the entered volume converted into the instance unit)
+against the odometer delta since the last fillup, using whichever formula
+matches the instance's unit pairing:
+
+| Instance pairing                         | Formula                 | Label                               |
+| ---------------------------------------- | ----------------------- | ----------------------------------- |
+| `gal` + `mi`                             | `Δdistance ÷ vol`       | `MPG`                               |
+| `L` + `km`                               | `100 × vol ÷ Δdistance` | `L/100km`                           |
+| any other pairing (`L`+`mi`, `gal`+`km`) | —                       | hidden (`economyPreview` is `null`) |
+
+The metric formula matches LubeLogger's own `Helper/GasHelper.cs`
+(`hargata/lubelog`), which computes metric economy as `100 ÷ (distance ÷
+fuel)` — algebraically identical to `100 × fuel ÷ distance`. Mixed unit
+pairings (liters entered against a miles-based instance, or vice versa) have
+no single conventional economy figure, so the preview is hidden rather than
+guessing at a formula.
+
+Like the pre-existing MPG preview, this is a simple last-fill delta: it
+assumes the prior fillup was a full tank. When it wasn't, the figure is an
+approximation — a limitation the MPG preview always had, now shared by the
+metric variant.
+
 ## Edge cases & invariants
 
 - Bad env value → `EnvError` at startup, not a per-submit 500 (the pre-fix
