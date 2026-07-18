@@ -4,18 +4,19 @@
 
 Each `/history` fillup card shows a unit-price line beneath the volume·cost
 line: the **actual** price per logged unit (always), and — when the row differs
-from the LubeLogger instance basis — a **converted** price per gallon. The actual
-and unit-only values are pure arithmetic from the row; the cross-currency
-converted value is rendered from a small snapshot persisted onto the row at sync
-time, so `/history` stays fully offline.
+from the LubeLogger instance basis — a **converted** price per instance unit
+(gallon or liter, whichever the instance uses). The actual and unit-only values
+are pure arithmetic from the row; the cross-currency converted value is
+rendered from a small snapshot persisted onto the row at sync time, so
+`/history` stays fully offline.
 
 ## Files touched
 
 - `src/lib/client/unit-price.ts` — pure `unitPriceDisplay()` formatter.
-- `src/routes/history/+page.svelte` — reads instance currency, renders the line.
+- `src/routes/history/+page.svelte` — reads instance currency and unit, renders the line.
 - `src/lib/client/idb.ts` — `ConvertedSnapshot` + `QueueEntry.converted` + write params.
 - `src/lib/client/sync-queue.ts` / `src/routes/+page.svelte` — the two snapshot write sites.
-- `src/lib/shared/units.ts` — shared `toGallons` (used for the per-gallon basis).
+- `src/lib/shared/units.ts` — shared `toGallons`/`toLiters` (used for the instance-unit basis).
 
 ## Data model
 
@@ -32,8 +33,9 @@ interface ConvertedSnapshot {
 
 - `cost` — converted total in instance currency (server `submitted.cost`).
 - `currency` — instance currency at sync time.
-- Gallons is **not** stored — re-derived via `toGallons(input.volume, input.volumeUnit)`.
-  Converted unit price = `converted.cost / toGallons(...)`.
+- The instance-unit volume is **not** stored — re-derived via
+  `toGallons(input.volume, input.volumeUnit)` or `toLiters(...)`, whichever
+  matches the instance unit. Converted unit price = `converted.cost / <that value>`.
 
 ## Lifecycle / control flow
 
@@ -47,28 +49,33 @@ interface ConvertedSnapshot {
    `q.markSynced(id, { cost, currency })`. The currency comes from the response
    because the SW has no `localStorage` (issue #57); both fields are required or
    no snapshot is saved.
-4. **Render.** `/history` reads `effectiveCurrencyCode()` (page context), calls
-   `unitPriceDisplay(entry.input, entry.converted, instanceCurrency)`.
+4. **Render.** `/history` reads `effectiveCurrencyCode()` and `effectiveVolumeUnit()`
+   (page context), calls
+   `unitPriceDisplay(entry.input, entry.converted, instanceCurrency, instanceUnit)`.
 
 ## Edge cases & invariants
 
-| Case                                                       | Behaviour                                                                                                                 |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Logged in instance basis (e.g. USD·gal on a USD instance)  | Actual only; single `$x/gal`.                                                                                             |
-| Currency matches, unit differs (USD·L on USD)              | Converted half from pure math; **no** `≈`.                                                                                |
-| Currency differs, snapshot present (CAD·L on USD)          | `CA$x/L · ≈ $y/gal`.                                                                                                      |
-| Currency differs, snapshot absent (queued, pre-sync)       | Actual only; converted half appears once synced.                                                                          |
-| `submitted.cost`/`currency` missing/invalid in replay body | Row still `'synced'`; converted half stays absent (no throw — both fields required).                                      |
-| `volume <= 0`                                              | `formatCost` returns `''` (finite guard); unit price reads as `/unit`. Not reachable from the form (volume > 0 enforced). |
+| Case                                                             | Behaviour                                                                                                                 |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Logged in instance basis (e.g. USD·gal on a USD·gal instance)    | Actual only; single `$x/gal`.                                                                                             |
+| Currency matches, unit differs (USD·L on a USD·gal instance)     | Converted half from pure math; **no** `≈`.                                                                                |
+| Currency differs, snapshot present (CAD·L on a USD·gal instance) | `CA$x/L · ≈ $y/gal`.                                                                                                      |
+| Instance unit is liters (e.g. USD·gal on a USD·L instance)       | Converted half from pure math per liter; **no** `≈`.                                                                      |
+| Currency differs, snapshot absent (queued, pre-sync)             | Actual only; converted half appears once synced.                                                                          |
+| `submitted.cost`/`currency` missing/invalid in replay body       | Row still `'synced'`; converted half stays absent (no throw — both fields required).                                      |
+| `volume <= 0`                                                    | `formatCost` returns `''` (finite guard); unit price reads as `/unit`. Not reachable from the form (volume > 0 enforced). |
 
 ## Non-obvious decisions
 
 1. **Snapshot, not live FX (approach B).** The converted total is what the
    server already computed at submit time; persisting it keeps `/history`
    offline and uses the **fillup-day** rate, not today's.
-2. **Converted unit is the `'gal'` constant, not config.** The instance unit is
-   never sent to the client and the server only supports `gallons_us`; the whole
-   app already assumes gallons. This feature matches that assumption.
+2. **Converted unit follows the instance unit, cached the same way as currency.**
+   `instanceUnit` comes from `effectiveVolumeUnit()` (`$lib/client/format`), which
+   reads the LubeLogger instance's `LUBELOGGER_VOLUME_UNIT` from the cached
+   `/api/server-info` response — `'gal'` fallback on a cold cache/SSR, corrected
+   by the layout's boot refresh. Same pattern and fallback semantics as
+   `instanceCurrency`/`effectiveCurrencyCode()`.
 3. **`≈` marks a currency conversion only.** Unit-only conversions are exact, so
    they render without `≈`.
 4. **Currency is server-authoritative (issue #57).** Both write sites take the
