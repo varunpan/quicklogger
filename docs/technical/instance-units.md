@@ -62,6 +62,10 @@ client-side conversion, that stays server-side (above).
   (`src/lib/client/format.ts`) read the cache and degrade to `'gal'` / `'mi'`
   on anything other than `'liters'` / `'km'`. See
   [`docs/technical/format.md`](./format.md) for the exact resolution rules.
+- **Offline merge.** The offline last-fillup resolver also converts queued
+  volumes into the instance unit at read-time via `effectiveVolumeUnit()` —
+  see [`docs/technical/last-fillup.md`](./last-fillup.md) for the
+  `fuelConsumed` basis and cold-cache fallback behavior.
 - **Persistence gate.** A cache written before v0.3.2 simply lacks these two
   keys — `JSON.parse` yields `undefined` for them, which the helpers' strict
   `=== 'liters'` / `=== 'km'` checks treat as "not liters/km", falling

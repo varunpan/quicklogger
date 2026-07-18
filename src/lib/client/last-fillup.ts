@@ -1,5 +1,7 @@
 import { Queue } from './idb';
 import { loadServerInfo } from './server-info';
+import { toGallons, toLiters } from '$lib/shared/units';
+import { effectiveVolumeUnit } from './format';
 
 export type LastFillupSource = 'upstream' | 'offline' | null;
 
@@ -16,13 +18,11 @@ export type LastFillupSource = 'upstream' | 'offline' | null;
 export interface LastFillupRecord {
   date: string; // ISO YYYY-MM-DD
   odometer: string; // raw integer-string of miles
-  fuelConsumed: string; // gallons (always — queue L is converted)
+  fuelConsumed: string; // instance unit (queue entries converted; upstream snapshots already are)
   cost: string | null;
   costCurrency: string | null;
   notes: string | null;
 }
-
-const L_PER_GALLON = 3.785411784;
 
 export function lastFuelupCacheKey(vehicleId: number): string {
   return `quicklogger.lastFuelup.${vehicleId}`;
@@ -163,13 +163,18 @@ async function readQueueCandidates(vehicleId: number, q: Queue): Promise<Interna
     if (entry.input.vehicleId !== vehicleId) continue;
     const ts = parseISO(entry.input.date);
     if (ts === null) continue;
-    const gallons =
-      entry.input.volumeUnit === 'gal' ? entry.input.volume : entry.input.volume / L_PER_GALLON;
+    // Queue entries are entered-unit; convert into the instance unit so they
+    // compare 1:1 with upstream snapshots (which are already instance-unit).
+    const instanceUnit = effectiveVolumeUnit();
+    const vol =
+      instanceUnit === 'L'
+        ? toLiters(entry.input.volume, entry.input.volumeUnit)
+        : toGallons(entry.input.volume, entry.input.volumeUnit);
     out.push({
       record: {
         date: entry.input.date, // already ISO from the queue
         odometer: String(Math.round(entry.input.odometer)),
-        fuelConsumed: gallons.toFixed(2),
+        fuelConsumed: vol.toFixed(2),
         cost: entry.input.cost.toFixed(2),
         costCurrency: entry.input.currency,
         notes: entry.input.notes ?? null
