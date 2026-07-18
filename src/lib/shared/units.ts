@@ -31,3 +31,12 @@ export function toLiters(value: number, unit: VolumeUnit): number {
       throw new TypeError(`Unknown volume unit: ${String(unit)}`);
   }
 }
+
+/** The unit a LubeLogger instance stores fuel volume in (LUBELOGGER_VOLUME_UNIT). */
+export type LubeLoggerVolumeUnit = 'gallons_us' | 'liters';
+
+/** The unit a LubeLogger instance tracks distance in (LUBELOGGER_DISTANCE_UNIT). */
+export type LubeLoggerDistanceUnit = 'miles' | 'km';
+
+/** Display form of the instance distance unit ("84,012 mi" / "84,012 km"). */
+export type DistanceUnit = 'mi' | 'km';

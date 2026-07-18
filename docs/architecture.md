@@ -46,7 +46,7 @@ Pure helpers between US gallons and liters. The constant `GAL_TO_L = 3.785411784
 
 ### Environment configuration (`src/lib/server/env.ts`)
 
-Single source of truth for env-var access — other server modules call `loadEnv()` rather than reading `process.env` directly. Required vars `LUBELOGGER_URL` and `LUBELOGGER_API_KEY` throw `EnvError` if missing; `FX_PROVIDERS` (CSV) is validated against a known-providers set, with unknown names also throwing `EnvError`. `LUBELOGGER_VOLUME_UNIT` (`gallons_us`) and `LUBELOGGER_CURRENCY` (`USD`) describe the upstream LubeLogger's configured volume unit and currency. Full reference: [`docs/user/configuration.md`](./user/configuration.md).
+Single source of truth for env-var access — other server modules call `loadEnv()` rather than reading `process.env` directly. Required vars `LUBELOGGER_URL` and `LUBELOGGER_API_KEY` throw `EnvError` if missing; `FX_PROVIDERS` (CSV) is validated against a known-providers set, with unknown names also throwing `EnvError`. `LUBELOGGER_VOLUME_UNIT` (`gallons_us` | `liters`), `LUBELOGGER_DISTANCE_UNIT` (`miles` | `km`) and `LUBELOGGER_CURRENCY` (`USD`) describe the upstream LubeLogger's configured units and currency; unit values are validated at startup (`EnvError` on anything else). Full reference: [`docs/user/configuration.md`](./user/configuration.md).
 
 **Photo OCR (optional, v0.2.0+):**
 `OLLAMA_VISION_URL`, `OLLAMA_VISION_MODEL` (`qwen2.5vl:7b`),

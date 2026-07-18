@@ -90,6 +90,7 @@ services:
       - LUBELOGGER_URL=http://<lubelog-service>:8080 # whatever your LubeLogger service is named on this network
       - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY} # in your stack's .env
       - LUBELOGGER_VOLUME_UNIT=gallons_us
+      - LUBELOGGER_DISTANCE_UNIT=miles # or km — match your LubeLogger instance
       - LUBELOGGER_CURRENCY=USD
       - ORIGIN=https://quicklog.example.com # your public/internal URL
       - PORT=3000

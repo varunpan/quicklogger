@@ -21,6 +21,7 @@ services:
       LUBELOGGER_URL: ${LUBELOGGER_URL:-http://host.docker.internal:8080}
       LUBELOGGER_API_KEY: '${LUBELOGGER_API_KEY}'
       LUBELOGGER_VOLUME_UNIT: ${LUBELOGGER_VOLUME_UNIT:-gallons_us}
+      LUBELOGGER_DISTANCE_UNIT: ${LUBELOGGER_DISTANCE_UNIT:-miles}
       LUBELOGGER_CURRENCY: ${LUBELOGGER_CURRENCY:-USD}
       FX_PROVIDERS: ${FX_PROVIDERS:-frankfurter,erapi,fawazahmed}
       FX_CACHE_PATH: /data/fx-cache.json

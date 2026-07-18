@@ -1,3 +1,5 @@
+import type { LubeLoggerVolumeUnit, LubeLoggerDistanceUnit } from '$lib/shared/units';
+
 export type FxProviderName = 'frankfurter' | 'erapi' | 'fawazahmed';
 export type OcrSlotName = 'ollama-local' | 'ollama-cloud' | 'openrouter' | 'openai-compatible';
 
@@ -28,7 +30,8 @@ export const DEFAULT_OCR_MAX_IMAGE_MB = 5;
 export interface Env {
   lubeloggerUrl: string;
   lubeloggerApiKey: string;
-  lubeloggerVolumeUnit: string;
+  lubeloggerVolumeUnit: LubeLoggerVolumeUnit;
+  lubeloggerDistanceUnit: LubeLoggerDistanceUnit;
   lubeloggerCurrency: string;
   fxProviders: FxProviderName[];
   fxCachePath: string;
@@ -104,6 +107,24 @@ function numberOr(name: string, fallback: number): number {
   return n;
 }
 
+// `||` not `??`: an empty string (a bare `LUBELOGGER_VOLUME_UNIT:` line in a
+// compose file) falls back to the default instead of failing startup.
+function parseVolumeUnit(): LubeLoggerVolumeUnit {
+  const v = process.env.LUBELOGGER_VOLUME_UNIT || 'gallons_us';
+  if (v !== 'gallons_us' && v !== 'liters') {
+    throw new EnvError(`LUBELOGGER_VOLUME_UNIT must be "gallons_us" or "liters", got "${v}"`);
+  }
+  return v;
+}
+
+function parseDistanceUnit(): LubeLoggerDistanceUnit {
+  const v = process.env.LUBELOGGER_DISTANCE_UNIT || 'miles';
+  if (v !== 'miles' && v !== 'km') {
+    throw new EnvError(`LUBELOGGER_DISTANCE_UNIT must be "miles" or "km", got "${v}"`);
+  }
+  return v;
+}
+
 function parseLogLevel(warnings: string[]): 'debug' | 'info' | 'warn' | 'error' {
   const raw = process.env.LOG_LEVEL;
   if (raw === undefined || raw === '') return 'info';
@@ -176,7 +197,8 @@ export function loadEnv(): Env {
   return {
     lubeloggerUrl: required('LUBELOGGER_URL'),
     lubeloggerApiKey: required('LUBELOGGER_API_KEY'),
-    lubeloggerVolumeUnit: process.env.LUBELOGGER_VOLUME_UNIT ?? 'gallons_us',
+    lubeloggerVolumeUnit: parseVolumeUnit(),
+    lubeloggerDistanceUnit: parseDistanceUnit(),
     lubeloggerCurrency: process.env.LUBELOGGER_CURRENCY ?? 'USD',
     fxProviders: fxRaw as FxProviderName[],
     fxCachePath: process.env.FX_CACHE_PATH ?? '/data/fx-cache.json',

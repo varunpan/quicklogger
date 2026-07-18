@@ -35,6 +35,7 @@ function envOverrides(o: Partial<Env>): Env {
     lubeloggerUrl: 'http://lubelog',
     lubeloggerApiKey: 'k',
     lubeloggerVolumeUnit: 'gallons_us',
+    lubeloggerDistanceUnit: 'miles',
     lubeloggerCurrency: 'USD',
     fxProviders: ['frankfurter'],
     fxCachePath: '/tmp/fx',

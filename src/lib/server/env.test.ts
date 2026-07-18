@@ -40,6 +40,7 @@ describe('loadEnv', () => {
     process.env.LUBELOGGER_API_KEY = 'abc';
     const env = loadEnv();
     expect(env.lubeloggerVolumeUnit).toBe('gallons_us');
+    expect(env.lubeloggerDistanceUnit).toBe('miles');
     expect(env.lubeloggerCurrency).toBe('USD');
     expect(env.fxProviders).toEqual(['frankfurter', 'erapi', 'fawazahmed']);
     expect(env.fxCachePath).toBe('/data/fx-cache.json');
@@ -58,6 +59,36 @@ describe('loadEnv', () => {
     process.env.LUBELOGGER_API_KEY = 'abc';
     process.env.FX_PROVIDERS = 'frankfurter,bogus';
     expect(() => loadEnv()).toThrow(/unknown FX provider/i);
+  });
+
+  it('accepts LUBELOGGER_VOLUME_UNIT=liters', () => {
+    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
+    process.env.LUBELOGGER_API_KEY = 'abc';
+    process.env.LUBELOGGER_VOLUME_UNIT = 'liters';
+    expect(loadEnv().lubeloggerVolumeUnit).toBe('liters');
+  });
+
+  it('rejects unknown LUBELOGGER_VOLUME_UNIT at startup', () => {
+    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
+    process.env.LUBELOGGER_API_KEY = 'abc';
+    process.env.LUBELOGGER_VOLUME_UNIT = 'litres';
+    expect(() => loadEnv()).toThrow(EnvError);
+    expect(() => loadEnv()).toThrow(/LUBELOGGER_VOLUME_UNIT/);
+  });
+
+  it('accepts LUBELOGGER_DISTANCE_UNIT=km', () => {
+    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
+    process.env.LUBELOGGER_API_KEY = 'abc';
+    process.env.LUBELOGGER_DISTANCE_UNIT = 'km';
+    expect(loadEnv().lubeloggerDistanceUnit).toBe('km');
+  });
+
+  it('rejects unknown LUBELOGGER_DISTANCE_UNIT at startup', () => {
+    process.env.LUBELOGGER_URL = 'http://lubelog:8080';
+    process.env.LUBELOGGER_API_KEY = 'abc';
+    process.env.LUBELOGGER_DISTANCE_UNIT = 'kilometers';
+    expect(() => loadEnv()).toThrow(EnvError);
+    expect(() => loadEnv()).toThrow(/LUBELOGGER_DISTANCE_UNIT/);
   });
 });
 

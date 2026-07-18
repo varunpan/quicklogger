@@ -12,6 +12,7 @@ services:
       LUBELOGGER_URL: http://lubelogger:8080 # change to your container/host
       LUBELOGGER_API_KEY: '${LUBELOGGER_API_KEY}' # define in .env
       LUBELOGGER_VOLUME_UNIT: gallons_us
+      LUBELOGGER_DISTANCE_UNIT: miles
       LUBELOGGER_CURRENCY: USD
       FX_PROVIDERS: frankfurter,erapi,fawazahmed
       FX_CACHE_PATH: /data/fx-cache.json
