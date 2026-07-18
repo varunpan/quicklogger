@@ -23,7 +23,7 @@ function seedCache(vehicleId: number, snapshot: Record<string, unknown>) {
   localStorage.setItem(lastFuelupCacheKey(vehicleId), JSON.stringify(snapshot));
 }
 
-function seedServerInfo(dateFormat: string | null) {
+function seedServerInfo(dateFormat: string | null, overrides: Record<string, unknown> = {}) {
   const base = {
     reachable: true,
     status: 'ok',
@@ -36,7 +36,7 @@ function seedServerInfo(dateFormat: string | null) {
     dateFormat,
     lubeloggerCurrency: 'USD'
   };
-  localStorage.setItem('quicklogger-server-info', JSON.stringify(base));
+  localStorage.setItem('quicklogger-server-info', JSON.stringify({ ...base, ...overrides }));
 }
 
 let q: Queue;
@@ -145,6 +145,20 @@ describe('resolveOfflineLastFillup — happy paths', () => {
     await q.enqueue(baseInput({ volume: 50, volumeUnit: 'L', date: '2026-05-08' }), 'synced');
     const got = await resolveOfflineLastFillup(1, q);
     expect(Number(got!.fuelConsumed)).toBeCloseTo(13.21, 1);
+  });
+
+  it('converts queue volume into liters on a liters instance', async () => {
+    seedServerInfo('M/d/yyyy', { lubeloggerVolumeUnit: 'liters' });
+    await q.enqueue(baseInput({ volume: 10, volumeUnit: 'gal', date: '2026-05-08' }), 'synced');
+    const got = await resolveOfflineLastFillup(1, q);
+    expect(Number(got!.fuelConsumed)).toBeCloseTo(37.85, 1);
+  });
+
+  it('passes liters through on a liters instance', async () => {
+    seedServerInfo('M/d/yyyy', { lubeloggerVolumeUnit: 'liters' });
+    await q.enqueue(baseInput({ volume: 50, volumeUnit: 'L', date: '2026-05-08' }), 'synced');
+    const got = await resolveOfflineLastFillup(1, q);
+    expect(got!.fuelConsumed).toBe('50.00');
   });
 
   it('formats queue cost as a 2-decimal string', async () => {

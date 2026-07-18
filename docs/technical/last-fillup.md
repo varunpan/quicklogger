@@ -19,12 +19,23 @@ Related: [`offline-queue.md`](./offline-queue.md) for the IDB layer,
 interface LastFillupRecord {
   date: string; // ISO YYYY-MM-DD (post-locale-invariant-parsing)
   odometer: string; // raw integer-string of miles
-  fuelConsumed: string; // gallons (always — queue L is converted)
+  fuelConsumed: string; // instance unit (queue entries converted; upstream snapshots already are)
   cost: string | null; // stringified number: 2-decimal from queue rows, verbatim from the cache
   costCurrency: string | null; // null for upstream rows; entered currency for queue rows
   notes: string | null;
 }
 ```
+
+`fuelConsumed` basis: upstream snapshots (cache reads) are already in the
+instance volume unit — LubeLogger stores them that way and quicklogger's
+converter (`docs/technical/instance-units.md`) writes them that way. Queue
+entries are entered-unit and get converted at read-time in
+`readQueueCandidates` via `effectiveVolumeUnit()` (`$lib/client/format.ts`),
+so both sources compare 1:1 regardless of which unit the user typed in.
+`effectiveVolumeUnit()` falls back to `'gal'` on a cold `quicklogger-server-info`
+cache (SSR, first load, pre-v0.3.2 cache) — worst case a queue row briefly
+renders in gallons on a liters instance until the layout's boot refresh
+populates the cache; self-corrects on the next read, no user action needed.
 
 ## `LastFillupSource`
 
