@@ -93,3 +93,9 @@ successful `/api/vehicle/last-fuelup` call.
 - **Empty server-info cache + legacy entry = ~200ms strip flicker.** The
   legacy entry parses to null → cache miss → upstream fetch repopulates.
   Acceptable; same outcome as strict-discard.
+- **A corrupt queue entry is skipped, not fatal.** `readQueueCandidates`'s
+  unit conversion (`toLiters`/`toGallons`) throws on a negative volume or an
+  unrecognized `volumeUnit`; the caller (`+page.ts`) does not catch, so an
+  uncaught throw would fail the whole offline resolve. The per-entry
+  conversion is wrapped and skips (`continue`) that one entry instead —
+  a bad row is dropped from consideration, not a crash.

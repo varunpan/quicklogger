@@ -158,6 +158,10 @@ async function readQueueCandidates(vehicleId: number, q: Queue): Promise<Interna
     return [];
   }
   const out: InternalCandidate[] = [];
+  // Hoisted out of the loop — the instance unit can't change mid-loop, and
+  // each call is a localStorage read + JSON.parse; no reason to pay that
+  // cost once per entry.
+  const instanceUnit = effectiveVolumeUnit();
   for (const entry of entries) {
     if (entry.status === 'failed') continue;
     if (entry.input.vehicleId !== vehicleId) continue;
@@ -165,11 +169,20 @@ async function readQueueCandidates(vehicleId: number, q: Queue): Promise<Interna
     if (ts === null) continue;
     // Queue entries are entered-unit; convert into the instance unit so they
     // compare 1:1 with upstream snapshots (which are already instance-unit).
-    const instanceUnit = effectiveVolumeUnit();
-    const vol =
-      instanceUnit === 'L'
-        ? toLiters(entry.input.volume, entry.input.volumeUnit)
-        : toGallons(entry.input.volume, entry.input.volumeUnit);
+    // Unlike the old bare `/L_PER_GALLON` arithmetic, toLiters/toGallons can
+    // throw (RangeError on a negative volume, TypeError on an unrecognized
+    // unit) — the caller (`+page.ts`) does not catch, so an uncaught throw
+    // here would fail the whole offline last-fillup resolve. Invariant: a
+    // corrupt queue entry must never sink the resolve — skip it instead.
+    let vol: number;
+    try {
+      vol =
+        instanceUnit === 'L'
+          ? toLiters(entry.input.volume, entry.input.volumeUnit)
+          : toGallons(entry.input.volume, entry.input.volumeUnit);
+    } catch {
+      continue;
+    }
     out.push({
       record: {
         date: entry.input.date, // already ISO from the queue

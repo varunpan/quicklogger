@@ -161,6 +161,17 @@ describe('resolveOfflineLastFillup — happy paths', () => {
     expect(got!.fuelConsumed).toBe('50.00');
   });
 
+  it('skips a corrupt queue entry (negative volume) instead of throwing', async () => {
+    // toLiters/toGallons throw a RangeError on a negative volume — the
+    // resolver must swallow that per-entry rather than let it propagate and
+    // fail the whole offline resolve (see readQueueCandidates in last-fillup.ts).
+    await q.enqueue(baseInput({ volume: -5, date: '2026-05-09', odometer: 88000 }), 'synced');
+    await q.enqueue(baseInput({ date: '2026-05-08', odometer: 87800 }), 'synced');
+    const got = await resolveOfflineLastFillup(1, q);
+    expect(got).not.toBeNull();
+    expect(got!.odometer).toBe('87800');
+  });
+
   it('formats queue cost as a 2-decimal string', async () => {
     await q.enqueue(baseInput({ cost: 60, currency: 'CAD', date: '2026-05-08' }), 'synced');
     const got = await resolveOfflineLastFillup(1, q);

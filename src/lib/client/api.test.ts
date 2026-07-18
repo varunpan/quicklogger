@@ -31,7 +31,7 @@ function okFetch() {
       new Response(
         JSON.stringify({
           ok: true,
-          submitted: { gallons: 11.2, cost: 42.18, fxRate: 1, fxSource: 'x' }
+          submitted: { volume: 11.2, volumeUnit: 'gal', cost: 42.18, fxRate: 1, fxSource: 'x' }
         }),
         {
           status: 200,

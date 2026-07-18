@@ -205,7 +205,10 @@ describe('syncQueue', () => {
     globalThis.fetch = vi.fn(
       async () =>
         new Response(
-          JSON.stringify({ ok: true, submitted: { gallons: 11.2, cost: 47.92, currency: 'CAD' } }),
+          JSON.stringify({
+            ok: true,
+            submitted: { volume: 11.2, volumeUnit: 'gal', cost: 47.92, currency: 'CAD' }
+          }),
           { status: 200, headers: { 'content-type': 'application/json' } }
         )
     ) as unknown as typeof globalThis.fetch;
@@ -225,10 +228,13 @@ describe('syncQueue', () => {
     // than guessing the currency.
     globalThis.fetch = vi.fn(
       async () =>
-        new Response(JSON.stringify({ ok: true, submitted: { gallons: 11.2, cost: 47.92 } }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' }
-        })
+        new Response(
+          JSON.stringify({ ok: true, submitted: { volume: 11.2, volumeUnit: 'gal', cost: 47.92 } }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          }
+        )
     ) as unknown as typeof globalThis.fetch;
 
     await syncQueue(dbName);

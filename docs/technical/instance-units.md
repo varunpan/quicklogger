@@ -29,9 +29,13 @@ exposes no unit fields. Fixes #69 (fill-ups 500ing on metric instances).
 (`'gal' | 'L'`), which is derived from the env target. The fuelup response
 mirrors this (`submitted.volume` + `submitted.volumeUnit`) — a breaking wire
 rename from `submitted.gallons`, accepted because client and server ship
-together; a stale open tab shows one odd toast until reload. The service
-worker replay loop reads only `submitted.cost`/`submitted.currency`, so it is
-unaffected.
+together; a stale open tab's success-toast code dereferences the removed
+`submitted.gallons` field, throwing a `TypeError` that the submit handler's
+catch block treats as a non-`ApiError` failure — re-queuing the already-submitted
+fillup and showing a queued/error toast — but the replay dedupe (`queueReplay`)
+recognizes the resulting duplicate by `date + odometer + fuelConsumed` and drops
+the re-send, so no duplicate ever reaches LubeLogger. The service worker replay
+loop reads only `submitted.cost`/`submitted.currency`, so it is unaffected.
 
 ## Lifecycle / control flow
 
@@ -45,8 +49,13 @@ construction.
 
 ## Client plumbing
 
-The instance units also reach the client, for display purposes only — no
-client-side conversion, that stays server-side (above).
+The instance units also reach the client. The client never converts what is
+_written_ upstream — that conversion is server-side only (`convertSubmission()`,
+above). Client-side conversions exist too, but they are display/merge-only:
+the entered-volume preview (`previewVolume`/`economyPreview` in
+`+page.svelte`, below), the offline-queue merge (`readQueueCandidates` in
+`last-fillup.ts`), and the per-row unit-price re-derivation (`unit-price.ts`)
+all convert locally for rendering — none of them touch what gets submitted.
 
 - **Transport.** `env.lubeloggerVolumeUnit` / `env.lubeloggerDistanceUnit` flow
   into `ServerInfo.lubeloggerVolumeUnit` / `ServerInfo.lubeloggerDistanceUnit`
