@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { loadPrefs, savePrefs } from '$lib/client/prefs';
   import { Queue } from '$lib/client/idb';
-  import { toGallons } from '$lib/shared/units';
+  import { toGallons, toLiters } from '$lib/shared/units';
   import { SUPPORTED_CURRENCIES } from '$lib/shared/currencies';
   import {
     submitFuelup,
@@ -24,7 +24,13 @@
     OcrOdometerResult,
     OcrMode
   } from '$lib/shared/types';
-  import { formatOdometer, formatLastFillupDate, formatCost } from '$lib/client/format';
+  import {
+    formatOdometer,
+    formatLastFillupDate,
+    formatCost,
+    effectiveVolumeUnit,
+    effectiveDistanceUnit
+  } from '$lib/client/format';
   import { loadServerInfo } from '$lib/client/server-info';
   import {
     loadDismissedUpdateVersion,
@@ -446,6 +452,12 @@
   // Cached from /api/server-info; fallback to USD when cache is empty (first boot).
   const TARGET_CURRENCY = loadServerInfo()?.lubeloggerCurrency ?? 'USD';
 
+  // Instance units, cached like TARGET_CURRENCY — gal/mi fallback on a cold
+  // cache until the boot refresh lands.
+  const TARGET_UNIT = effectiveVolumeUnit(); // 'gal' | 'L'
+  const TARGET_UNIT_LABEL = TARGET_UNIT === 'L' ? 'L' : 'Gal';
+  const DIST_UNIT = effectiveDistanceUnit(); // 'mi' | 'km'
+
   // live FX rate for inline preview
   let fxRate: number | null = $state(null);
   let fxStale: boolean = $state(false);
@@ -503,10 +515,12 @@
   });
 
   // derived previews
-  const previewGallons = $derived.by(() => {
+  // Entered volume converted into the instance unit — mirrors what the server
+  // will write upstream ("Will log: 46.56 L").
+  const previewVolume = $derived.by(() => {
     const v = Number(volume);
     if (!Number.isFinite(v) || v <= 0) return null;
-    return toGallons(v, volumeUnit);
+    return TARGET_UNIT === 'L' ? toLiters(v, volumeUnit) : toGallons(v, volumeUnit);
   });
 
   const previewUsd = $derived.by(() => {
@@ -517,15 +531,23 @@
     return currency === TARGET_CURRENCY ? c : c * rate;
   });
 
-  const mpgPreview = $derived.by(() => {
+  // Economy preview: MPG on a gal+mi instance; L/100km on a liters+km instance
+  // (LubeLogger's own metric formula — 100 × L ÷ km, GasHelper.cs). Mixed
+  // combos (liters+miles, gal+km) have no conventional single figure → hidden.
+  // Simple last-fill delta: approximates whenever the prior fill wasn't full —
+  // same limitation MPG always had here.
+  const economyPreview = $derived.by(() => {
     if (!data.lastFuelup) return null;
     const od = Number(odometer);
     const last = Number(data.lastFuelup.odometer);
-    const gal = previewGallons;
-    if (!Number.isFinite(od) || !Number.isFinite(last) || gal === null) return null;
+    const vol = previewVolume;
+    if (!Number.isFinite(od) || !Number.isFinite(last) || vol === null) return null;
     const delta = od - last;
     if (delta <= 0) return null;
-    return delta / gal;
+    if (TARGET_UNIT === 'gal' && DIST_UNIT === 'mi') return { value: delta / vol, label: 'MPG' };
+    if (TARGET_UNIT === 'L' && DIST_UNIT === 'km')
+      return { value: (100 * vol) / delta, label: 'L/100km' };
+    return null;
   });
 
   // Submit gate — every fuelup must have all four required fields with
@@ -790,10 +812,9 @@
   {#if data.lastFuelup}
     <div class="text-xs text-zinc-500 mb-3 leading-relaxed">
       <div class="flex items-center gap-2">
+        <!-- prettier-ignore -->
         <span
-          >Last fill: {formatOdometer(data.lastFuelup.odometer)} mi · {formatLastFillupDate(
-            data.lastFuelup.date
-          )}</span
+          >Last fill: {formatOdometer(data.lastFuelup.odometer)} {DIST_UNIT} · {formatLastFillupDate(data.lastFuelup.date)}</span
         >
         {#if data.lastFuelupSource === 'offline'}
           <span class="badge text-amber-300 bg-amber-500/15 border border-amber-500/30">
@@ -802,7 +823,7 @@
         {/if}
       </div>
       <div>
-        {data.lastFuelup.fuelConsumed} Gal ·
+        {`${data.lastFuelup.fuelConsumed} ${TARGET_UNIT_LABEL}`} ·
         {#if data.lastFuelup.cost !== null}
           {formatCost(Number(data.lastFuelup.cost), data.lastFuelup.costCurrency)}
         {:else}
@@ -918,7 +939,7 @@
 
     {#if odoSuggestion}
       {@render suggestionCard(
-        `${formatOdometer(String(odoSuggestion.odometer))} mi`,
+        `${formatOdometer(String(odoSuggestion.odometer))} ${DIST_UNIT}`,
         null,
         applyOdoOcr,
         discardOdoOcr
@@ -934,9 +955,9 @@
           <Icon name="warning" class="text-amber-300 mt-0.5 shrink-0" />
           <div class="text-xs text-amber-300 flex-1 leading-relaxed">
             <span class="font-semibold"
-              >Detected: {formatOdometer(String(odoWarning.detected))} mi</span
+              >Detected: {formatOdometer(String(odoWarning.detected))} {DIST_UNIT}</span
             >
-            — lower than last fillup ({formatOdometer(String(data.lastFuelup?.odometer ?? ''))} mi).
+            — lower than last fillup ({`${formatOdometer(String(data.lastFuelup?.odometer ?? ''))} ${DIST_UNIT}`}).
           </div>
         </div>
         <div class="flex gap-2 mt-2 ml-6">
@@ -985,7 +1006,7 @@
       {#if odometerDelta !== null}
         <div class="text-xs text-zinc-500 mt-1 px-1">
           <span class="text-blue-400 font-semibold"
-            >{odometerDelta > 0 ? '+' : ''}{odometerDelta} mi</span
+            >{odometerDelta > 0 ? '+' : ''}{odometerDelta} {DIST_UNIT}</span
           > this tank
         </div>
       {/if}
@@ -1028,7 +1049,7 @@
           class="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 bg-blue-600/15 border border-blue-500/35 rounded-full px-3 py-1.5"
           onclick={bumpOdometer}
         >
-          <span aria-hidden="true">↑</span>+{prefs.odometerIncrementMi} mi
+          <span aria-hidden="true">↑</span>+{`${prefs.odometerIncrementMi} ${DIST_UNIT}`}
         </button>
       </div>
     {/if}
@@ -1146,14 +1167,17 @@
     />
   </label>
 
-  {#if previewUsd !== null && previewGallons !== null}
+  {#if previewUsd !== null && previewVolume !== null}
     <!-- `previewUsd` is a legacy name — value is in env.lubeloggerCurrency, not always USD. -->
     <div
       class="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300 mb-3"
     >
-      Will log: {previewGallons.toFixed(2)} Gal · {formatCost(previewUsd, TARGET_CURRENCY)}
-      {#if mpgPreview !== null}
-        &nbsp;·&nbsp; {mpgPreview.toFixed(1)} MPG since last fill
+      Will log: {`${previewVolume.toFixed(2)} ${TARGET_UNIT_LABEL}`} · {formatCost(
+        previewUsd,
+        TARGET_CURRENCY
+      )}
+      {#if economyPreview !== null}
+        &nbsp;·&nbsp; {economyPreview.value.toFixed(1)} {economyPreview.label} since last fill
       {/if}
       {#if fxStale}
         &nbsp;·&nbsp; <span class="text-amber-300">FX rate is stale</span>
