@@ -25,7 +25,10 @@ export interface FuelSubmissionInput {
 export interface FuelSubmissionResult {
   ok: true;
   submitted: {
-    gallons: number;
+    /** Volume converted into the instance unit (`volumeUnit`). Renamed from
+     *  `gallons` in v0.3.2 when liters instances became supported. */
+    volume: number;
+    volumeUnit: VolumeUnit;
     cost: number;
     /** Instance currency `cost` is denominated in (ISO 4217). Used by both
      *  snapshot write sites so the converted unit price is server-authoritative

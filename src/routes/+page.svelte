@@ -652,7 +652,7 @@
             // The response's currency is authoritative for the converted cost —
             // `null` would fall back to the cached instance currency, which is
             // wrong on a cold cache (first boot before /api/server-info lands).
-            text: `Logged: ${result.submitted.gallons.toFixed(2)} Gal · ${formatCost(result.submitted.cost, result.submitted.currency)}`
+            text: `Logged: ${result.submitted.volume.toFixed(2)} ${result.submitted.volumeUnit === 'L' ? 'L' : 'Gal'} · ${formatCost(result.submitted.cost, result.submitted.currency)}`
           };
       savePrefs({ lastVehicleId: vehicle.id });
       try {

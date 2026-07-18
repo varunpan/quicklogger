@@ -231,6 +231,70 @@ describe('POST /api/fuelup — culture-invariant write', () => {
     expect(res.status).toBe(200);
     expect(uploadCalled).toBe(false);
   });
+
+  it('converts to liters and reports volumeUnit L on a liters instance', async () => {
+    process.env.LUBELOGGER_VOLUME_UNIT = 'liters';
+    try {
+      let fuelconsumed = '';
+      upstream.use(
+        // No files attached → addGasRecord sends flat multipart FormData
+        // (key `fuelconsumed`), NOT JSON — see lubelogger.ts addGasRecord.
+        http.post('http://lubelog:8080/api/vehicle/gasrecords/add', async ({ request }) => {
+          const fd = await request.formData();
+          fuelconsumed = String(fd.get('fuelconsumed') ?? '');
+          return HttpResponse.text('OK');
+        })
+      );
+      const res = await POST(
+        event({
+          vehicleId: 1,
+          date: '2026-07-18',
+          odometer: 87432,
+          volume: 10,
+          volumeUnit: 'gal',
+          cost: 40,
+          currency: 'USD',
+          isFillToFull: true,
+          missedFuelup: false,
+          clientSubmissionId: 'liters-0001'
+        })
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(fuelconsumed).toBe('37.854');
+      expect(body.submitted.volume).toBeCloseTo(37.854, 3);
+      expect(body.submitted.volumeUnit).toBe('L');
+    } finally {
+      process.env.LUBELOGGER_VOLUME_UNIT = 'gallons_us';
+    }
+  });
+
+  it('suffixes photo filenames with the instance distance unit', async () => {
+    process.env.LUBELOGGER_DISTANCE_UNIT = 'km';
+    try {
+      let uploadName = '';
+      upstream.use(
+        http.post('http://lubelog:8080/api/documents/upload', async ({ request }) => {
+          const fd = await request.formData();
+          const f = fd.get('documents');
+          uploadName = f instanceof File ? f.name : '';
+          return HttpResponse.json([
+            { name: uploadName, location: '/documents/u.jpg', isPending: false }
+          ]);
+        }),
+        // A file IS attached → addGasRecord uses the JSON variant of the add
+        // endpoint; the handler doesn't need to parse the body for this test.
+        http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.text('OK'))
+      );
+      const res = await POST(
+        multipartEvent({ ...baseFields, clientSubmissionId: 'km-0001' }, { pumpImage: JPEG })
+      );
+      expect(res.status).toBe(200);
+      expect(uploadName).toBe('pump-87432km.jpg');
+    } finally {
+      delete process.env.LUBELOGGER_DISTANCE_UNIT;
+    }
+  });
 });
 
 describe('POST /api/fuelup — idempotency under concurrency', () => {
@@ -482,7 +546,7 @@ describe('POST /api/fuelup — replay dedupe against LubeLogger (queueReplay fla
     expect(body.deduped).toBe(true);
     // Snapshot comes from the MATCHED RECORD (cost 40.55, not the replay's
     // 42.18) so the client's synced row mirrors what's actually upstream.
-    expect(body.submitted.gallons).toBe(11.2);
+    expect(body.submitted.volume).toBe(11.2);
     expect(body.submitted.cost).toBe(40.55);
     expect(body.submitted.currency).toBe('USD');
     expect(calls.get).toBe(1);

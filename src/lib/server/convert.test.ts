@@ -18,7 +18,7 @@ describe('convertSubmission', () => {
       targetCurrency: 'USD',
       currencyService: fakeCurrency(0.73)
     });
-    expect(result.gallons).toBeCloseTo(13.2086, 4);
+    expect(result.volume).toBeCloseTo(13.2086, 4);
     expect(result.cost).toBeCloseTo(47.45, 2);
     expect(result.fxRate).toBe(0.73);
     expect(result.fxSource).toBe('frankfurter');
@@ -29,7 +29,8 @@ describe('convertSubmission', () => {
       { volume: 11.2, volumeUnit: 'gal', cost: 42.18, currency: 'USD' },
       { targetVolumeUnit: 'gallons_us', targetCurrency: 'USD', currencyService: fakeCurrency(1) }
     );
-    expect(result.gallons).toBe(11.2);
+    expect(result.volume).toBe(11.2);
+    expect(result.volumeUnit).toBe('gal');
     expect(result.cost).toBe(42.18);
     expect(result.fxRate).toBe(1);
   });
@@ -64,12 +65,21 @@ describe('convertSubmission', () => {
     expect(result.cost).toBeCloseTo(46.8, 2);
   });
 
-  it('rejects unsupported target volume unit', async () => {
-    await expect(
-      convertSubmission(
-        { volume: 50, volumeUnit: 'L', cost: 65, currency: 'CAD' },
-        { targetVolumeUnit: 'kWh', targetCurrency: 'USD', currencyService: fakeCurrency(0.73) }
-      )
-    ).rejects.toThrow(/target volume unit/i);
+  it('converts gal input to liters when target is liters', async () => {
+    const result = await convertSubmission(
+      { volume: 10, volumeUnit: 'gal', cost: 40, currency: 'USD' },
+      { targetVolumeUnit: 'liters', targetCurrency: 'USD', currencyService: fakeCurrency(1) }
+    );
+    expect(result.volume).toBeCloseTo(37.8541, 4);
+    expect(result.volumeUnit).toBe('L');
+  });
+
+  it('passes liters through when target is liters', async () => {
+    const result = await convertSubmission(
+      { volume: 50, volumeUnit: 'L', cost: 65, currency: 'CAD' },
+      { targetVolumeUnit: 'liters', targetCurrency: 'CAD', currencyService: fakeCurrency(1) }
+    );
+    expect(result.volume).toBe(50);
+    expect(result.volumeUnit).toBe('L');
   });
 });

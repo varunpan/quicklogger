@@ -30,7 +30,8 @@ test('switching currency back to the target clears a typed manual FX rate', asyn
       json: {
         ok: true,
         submitted: {
-          gallons: 11.2,
+          volume: 11.2,
+          volumeUnit: 'gal',
           cost: 42.18,
           currency: 'USD',
           fxRate: 1,

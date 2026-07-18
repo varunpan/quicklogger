@@ -1,4 +1,4 @@
-import { toGallons, type VolumeUnit } from '$lib/shared/units';
+import { toGallons, toLiters, type VolumeUnit, type LubeLoggerVolumeUnit } from '$lib/shared/units';
 import type { CurrencyService } from './currency';
 
 export interface FuelInput {
@@ -10,13 +10,16 @@ export interface FuelInput {
 }
 
 export interface ConvertOptions {
-  targetVolumeUnit: string;
+  targetVolumeUnit: LubeLoggerVolumeUnit;
   targetCurrency: string;
   currencyService: CurrencyService;
 }
 
 export interface ConvertResult {
-  gallons: number;
+  /** Volume converted into the instance unit (`volumeUnit`). */
+  volume: number;
+  /** Display form of the instance unit the conversion targeted. */
+  volumeUnit: VolumeUnit;
   cost: number;
   fxRate: number;
   fxSource: string;
@@ -28,13 +31,11 @@ export async function convertSubmission(
   input: FuelInput,
   opts: ConvertOptions
 ): Promise<ConvertResult> {
-  if (opts.targetVolumeUnit !== 'gallons_us') {
-    throw new Error(
-      `Unsupported target volume unit "${opts.targetVolumeUnit}" for v0.1.0; only gallons_us is supported`
-    );
-  }
-
-  const gallons = toGallons(input.volume, input.volumeUnit);
+  const volumeUnit: VolumeUnit = opts.targetVolumeUnit === 'liters' ? 'L' : 'gal';
+  const volume =
+    volumeUnit === 'L'
+      ? toLiters(input.volume, input.volumeUnit)
+      : toGallons(input.volume, input.volumeUnit);
 
   let fxRate: number;
   let fxSource: string;
@@ -54,5 +55,5 @@ export async function convertSubmission(
 
   const cost = input.cost * fxRate;
 
-  return { gallons, cost, fxRate, fxSource, fxFetchedAt, fxStale };
+  return { volume, volumeUnit, cost, fxRate, fxSource, fxFetchedAt, fxStale };
 }
