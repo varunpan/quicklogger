@@ -1,11 +1,6 @@
 import { formatCost } from './format';
-import { toGallons, type VolumeUnit } from '$lib/shared/units';
+import { toGallons, toLiters, type VolumeUnit } from '$lib/shared/units';
 import type { ConvertedSnapshot } from './idb';
-
-// The app's converted basis is gallons everywhere — the server rejects any
-// other LUBELOGGER_VOLUME_UNIT (convert.ts), and no instance-unit value is
-// ever sent to the client — so the converted half is always per-gallon.
-const INSTANCE_UNIT = 'gal';
 
 export interface UnitPriceInput {
   cost: number;
@@ -25,24 +20,29 @@ export interface UnitPriceDisplay {
  * Format a fillup's unit price for a /history card.
  *
  * - `actual` is pure arithmetic from the row (`cost / volume`), always shown.
- * - `converted` (per gallon) is shown only when the row differs from the
- *   instance basis:
+ * - `converted` (per instance unit) is shown only when the row differs from
+ *   the instance basis:
  *     - unit differs, currency matches → pure math (no FX, no snapshot);
  *     - currency differs → rendered from `converted` (the saved snapshot);
  *       omitted (`null`) when the snapshot is absent (pre-sync row).
  *
- * `instanceCurrency` is the LubeLogger instance currency, read by the caller
- * (the page, where `localStorage` is available) via `effectiveCurrencyCode()`.
+ * `instanceCurrency` / `instanceUnit` are the LubeLogger instance basis, read
+ * by the caller (the page, where `localStorage` is available) via
+ * `effectiveCurrencyCode()` / `effectiveVolumeUnit()`.
  */
 export function unitPriceDisplay(
   input: UnitPriceInput,
   converted: ConvertedSnapshot | undefined,
-  instanceCurrency: string
+  instanceCurrency: string,
+  instanceUnit: VolumeUnit
 ): UnitPriceDisplay {
   const actual = `${formatCost(input.cost / input.volume, input.currency)}/${input.volumeUnit}`;
 
+  const inInstanceUnit = (v: number, u: VolumeUnit): number =>
+    instanceUnit === 'L' ? toLiters(v, u) : toGallons(v, u);
+
   const currencyDiffers = input.currency !== instanceCurrency;
-  const unitDiffers = input.volumeUnit !== INSTANCE_UNIT;
+  const unitDiffers = input.volumeUnit !== instanceUnit;
 
   if (!currencyDiffers && !unitDiffers) {
     return { actual, converted: null };
@@ -50,14 +50,14 @@ export function unitPriceDisplay(
 
   // Unit differs but currency matches → pure arithmetic, no FX, no snapshot.
   if (!currencyDiffers) {
-    const perGal = input.cost / toGallons(input.volume, input.volumeUnit);
-    return { actual, converted: `${formatCost(perGal, input.currency)}/${INSTANCE_UNIT}` };
+    const perUnit = input.cost / inInstanceUnit(input.volume, input.volumeUnit);
+    return { actual, converted: `${formatCost(perUnit, input.currency)}/${instanceUnit}` };
   }
 
   // Currency differs → render from the saved snapshot; omit if absent (pre-sync).
   if (converted) {
-    const perGal = converted.cost / toGallons(input.volume, input.volumeUnit);
-    return { actual, converted: `≈ ${formatCost(perGal, converted.currency)}/${INSTANCE_UNIT}` };
+    const perUnit = converted.cost / inInstanceUnit(input.volume, input.volumeUnit);
+    return { actual, converted: `≈ ${formatCost(perUnit, converted.currency)}/${instanceUnit}` };
   }
 
   return { actual, converted: null };

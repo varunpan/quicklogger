@@ -6,6 +6,8 @@
     formatOdometer,
     formatCost,
     effectiveCurrencyCode,
+    effectiveVolumeUnit,
+    effectiveDistanceUnit,
     parseIsoLocal
   } from '$lib/client/format';
   import { unitPriceDisplay } from '$lib/client/unit-price';
@@ -17,6 +19,8 @@
   // (localStorage); SSR returns the 'USD' fallback but the {#each} only renders
   // after onMount, on the client instance.
   const instanceCurrency = effectiveCurrencyCode();
+  const instanceUnit = effectiveVolumeUnit();
+  const distUnit = effectiveDistanceUnit();
 
   let allEntries: QueueEntry[] = $state([]);
   let loading: boolean = $state(true);
@@ -89,7 +93,12 @@
 {:else}
   {#each visible as entry (entry.id)}
     {@const tagList = tagsOf(entry.input.tags)}
-    {@const unitPrice = unitPriceDisplay(entry.input, entry.converted, instanceCurrency)}
+    {@const unitPrice = unitPriceDisplay(
+      entry.input,
+      entry.converted,
+      instanceCurrency,
+      instanceUnit
+    )}
     <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-2" data-testid="fillup-card">
       <div class="flex items-center gap-2">
         {#if entry.status === 'queued'}
@@ -104,7 +113,7 @@
         <span class="text-sm text-zinc-300">{formatIsoDate(entry.input.date)}</span>
       </div>
       <div class="text-base font-semibold text-zinc-100 mt-2">
-        {formatOdometer(String(entry.input.odometer))} mi
+        {`${formatOdometer(String(entry.input.odometer))} ${distUnit}`}
       </div>
       <div class="text-sm text-zinc-300 mt-0.5">
         {fuelCostLine(entry.input)}

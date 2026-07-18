@@ -8,7 +8,8 @@ describe('unitPriceDisplay', () => {
     const d = unitPriceDisplay(
       { cost: 36.35, currency: 'USD', volume: 11.544, volumeUnit: 'gal' },
       undefined,
-      'USD'
+      'USD',
+      'gal'
     );
     expect(d.actual).toBe('$3.15/gal');
     expect(d.converted).toBeNull();
@@ -18,7 +19,8 @@ describe('unitPriceDisplay', () => {
     const d = unitPriceDisplay(
       { cost: 60.0, currency: 'CAD', volume: 40.0, volumeUnit: 'L' },
       { cost: 42.3, currency: 'USD' },
-      'USD'
+      'USD',
+      'gal'
     );
     expect(d.actual).toBe('CA$1.50/L');
   });
@@ -27,7 +29,8 @@ describe('unitPriceDisplay', () => {
     const d = unitPriceDisplay(
       { cost: 60.0, currency: 'CAD', volume: 40.0, volumeUnit: 'L' },
       { cost: 42.3, currency: 'USD' },
-      'USD'
+      'USD',
+      'gal'
     );
     // toGallons(40,'L') = 10.5669 gal; 42.30 / 10.5669 = 4.003 → $4.00
     expect(d.converted).toBe('≈ $4.00/gal');
@@ -37,7 +40,8 @@ describe('unitPriceDisplay', () => {
     const d = unitPriceDisplay(
       { cost: 42.3, currency: 'USD', volume: 40.0, volumeUnit: 'L' },
       undefined,
-      'USD'
+      'USD',
+      'gal'
     );
     expect(d.converted).toBe('$4.00/gal');
   });
@@ -46,7 +50,8 @@ describe('unitPriceDisplay', () => {
     const d = unitPriceDisplay(
       { cost: 58.0, currency: 'CAD', volume: 40.0, volumeUnit: 'L' },
       undefined,
-      'USD'
+      'USD',
+      'gal'
     );
     expect(d.actual).toBe('CA$1.45/L');
     expect(d.converted).toBeNull();
@@ -56,9 +61,43 @@ describe('unitPriceDisplay', () => {
     const d = unitPriceDisplay(
       { cost: 50.0, currency: 'CAD', volume: 12.5, volumeUnit: 'gal' },
       { cost: 36.5, currency: 'USD' },
-      'USD'
+      'USD',
+      'gal'
     );
     expect(d.actual).toBe('CA$4.00/gal');
     expect(d.converted).toBe('≈ $2.92/gal');
+  });
+
+  it('liters instance: converted half renders per liter', () => {
+    const d = unitPriceDisplay(
+      { cost: 40, currency: 'USD', volume: 10, volumeUnit: 'gal' },
+      undefined,
+      'USD',
+      'L'
+    );
+    // toLiters(10,'gal') = 37.854 L; 40 / 37.854 = 1.0567 → $1.06
+    expect(d.converted).toBe('$1.06/L');
+  });
+
+  it('liters instance: L row in the instance currency needs no converted half', () => {
+    const d = unitPriceDisplay(
+      { cost: 65, currency: 'CAD', volume: 50, volumeUnit: 'L' },
+      undefined,
+      'CAD',
+      'L'
+    );
+    expect(d.actual).toBe('CA$1.30/L');
+    expect(d.converted).toBeNull();
+  });
+
+  it('liters instance, cross-currency gal row: snapshot cost per liter with ≈', () => {
+    const d = unitPriceDisplay(
+      { cost: 40, currency: 'USD', volume: 10, volumeUnit: 'gal' },
+      { cost: 54.8, currency: 'CAD' },
+      'CAD',
+      'L'
+    );
+    // 54.80 / 37.854 L = 1.4477 → CA$1.45
+    expect(d.converted).toBe('≈ CA$1.45/L');
   });
 });
