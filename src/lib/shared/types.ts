@@ -95,6 +95,12 @@ export interface ServerInfo {
   // /api/info: it's the value the server uses when converting submissions,
   // so it's authoritative for rendering upstream-cached entries.
   lubeloggerCurrency: string | null;
+  // Instance units (v0.3.2+) — sourced from server env
+  // (LUBELOGGER_VOLUME_UNIT / LUBELOGGER_DISTANCE_UNIT), same authority
+  // story as lubeloggerCurrency. null on the unreachable fallback; absent
+  // on pre-v0.3.2 cached copies — readers fall back to gal/mi.
+  lubeloggerVolumeUnit: 'gallons_us' | 'liters' | null;
+  lubeloggerDistanceUnit: 'miles' | 'km' | null;
   // --- quicklogger self-update check (v0.2.3+) ---
   // The app's own version vs the latest quicklogger GitHub release. Deploy
   // stays manual; these only drive an informational "update available" hint.

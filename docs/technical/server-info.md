@@ -62,6 +62,8 @@ interface ServerInfo {
   decimalSeparator: string | null; // cached from /api/info
   dateFormat: string | null; // cached from /api/info
   lubeloggerCurrency: string | null; // LubeLogger instance currency (ISO); sourced from env.lubeloggerCurrency
+  lubeloggerVolumeUnit: 'gallons_us' | 'liters' | null; // instance volume unit; sourced from env.lubeloggerVolumeUnit (LUBELOGGER_VOLUME_UNIT). null on the unreachable fallback; absent on pre-v0.3.2 cached copies — readers fall back to 'gal'.
+  lubeloggerDistanceUnit: 'miles' | 'km' | null; // instance distance unit; sourced from env.lubeloggerDistanceUnit (LUBELOGGER_DISTANCE_UNIT). null on the unreachable fallback; absent on pre-v0.3.2 cached copies — readers fall back to 'mi'.
   appCurrentVersion: string | null; // __APP_VERSION__ at runtime; set even on the unreachable fallback — null only when the Vite define is absent (vitest)
   appLatestVersion: string | null; // latest GitHub release tag, v-stripped; null if unknown
   appUpdateAvailable: boolean; // _isUpdateAvailable(appCurrentVersion, appLatestVersion)
@@ -111,6 +113,17 @@ Merge rules (`_buildServerInfo`):
   server-side `env.lubeloggerCurrency` (`LUBELOGGER_CURRENCY`, default `'USD'`)
   passed into `_buildServerInfo` and surfaced verbatim. The `UNREACHABLE` path
   (outer `catch` around `loadEnv()`) emits `null` because env isn't available.
+- `lubeloggerVolumeUnit` / `lubeloggerDistanceUnit` follow the same pattern:
+  sourced from `env.lubeloggerVolumeUnit` / `env.lubeloggerDistanceUnit`
+  (`LUBELOGGER_VOLUME_UNIT` / `LUBELOGGER_DISTANCE_UNIT`, validated at startup —
+  see [`docs/technical/instance-units.md`](./instance-units.md)) and surfaced
+  verbatim, not derived from either upstream call. `null` on the `UNREACHABLE`
+  path for the same reason as `lubeloggerCurrency`. A cached copy written before
+  v0.3.2 simply lacks these keys (`undefined`, not `null`) — client readers
+  (`effectiveVolumeUnit()` / `effectiveDistanceUnit()` in
+  [`docs/technical/format.md`](./format.md)) treat anything other than
+  `'liters'` / `'km'` as the gal/mi default, so no migration or backfill is
+  needed.
 
 ## Edge cases & invariants
 

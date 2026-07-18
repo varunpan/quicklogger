@@ -80,6 +80,8 @@ describe('_buildServerInfo', () => {
         value: { currentVersion: '1.6.5', latestVersion: '1.7.0' } as LubeLoggerVersion
       },
       'USD',
+      'gallons_us',
+      'miles',
       NO_RELEASE,
       null
     );
@@ -94,11 +96,30 @@ describe('_buildServerInfo', () => {
       decimalSeparator: '.',
       dateFormat: 'M/d/yyyy',
       lubeloggerCurrency: 'USD',
+      lubeloggerVolumeUnit: 'gallons_us',
+      lubeloggerDistanceUnit: 'miles',
       appCurrentVersion: null,
       appLatestVersion: null,
       appUpdateAvailable: false,
       appReleaseUrl: null
     });
+  });
+
+  it('passes the configured instance units through', () => {
+    const out = _buildServerInfo(
+      { status: 'fulfilled', value: INFO as LubeLoggerInfo },
+      {
+        status: 'fulfilled',
+        value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion
+      },
+      'CAD',
+      'liters',
+      'km',
+      NO_RELEASE,
+      null
+    );
+    expect(out.lubeloggerVolumeUnit).toBe('liters');
+    expect(out.lubeloggerDistanceUnit).toBe('km');
   });
 
   it('release fulfilled + newer version → app fields populated, appUpdateAvailable true', () => {
@@ -109,6 +130,8 @@ describe('_buildServerInfo', () => {
         value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion
       },
       'USD',
+      'gallons_us',
+      'miles',
       { status: 'fulfilled', value: { latestVersion: '0.2.4', releaseUrl: 'https://example/r' } },
       '0.2.3'
     );
@@ -128,6 +151,8 @@ describe('_buildServerInfo', () => {
         value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion
       },
       'USD',
+      'gallons_us',
+      'miles',
       { status: 'rejected', reason: new Error('boom') },
       '0.2.3'
     );
@@ -141,6 +166,8 @@ describe('_buildServerInfo', () => {
       { status: 'fulfilled', value: INFO as LubeLoggerInfo },
       { status: 'rejected', reason: new LubeLoggerError(404, '') },
       'USD',
+      'gallons_us',
+      'miles',
       NO_RELEASE,
       null
     );
@@ -159,6 +186,8 @@ describe('_buildServerInfo', () => {
         value: { currentVersion: '1.6.5', latestVersion: '1.6.5' } as LubeLoggerVersion
       },
       'USD',
+      'gallons_us',
+      'miles',
       NO_RELEASE,
       null
     );
@@ -172,6 +201,8 @@ describe('_buildServerInfo', () => {
       { status: 'rejected', reason: new LubeLoggerError(401, '') },
       { status: 'rejected', reason: new LubeLoggerError(401, '') },
       'USD',
+      'gallons_us',
+      'miles',
       NO_RELEASE,
       null
     );
@@ -186,6 +217,8 @@ describe('_buildServerInfo', () => {
       { status: 'rejected', reason: new LubeLoggerError(404, '') },
       { status: 'rejected', reason: new LubeLoggerError(404, '') },
       'USD',
+      'gallons_us',
+      'miles',
       NO_RELEASE,
       null
     );
@@ -197,6 +230,8 @@ describe('_buildServerInfo', () => {
       { status: 'rejected', reason: new LubeLoggerError(401, '') },
       { status: 'rejected', reason: new TypeError('ECONNREFUSED') },
       'USD',
+      'gallons_us',
+      'miles',
       NO_RELEASE,
       null
     );

@@ -7,6 +7,8 @@ All client-side rendering of dates, numbers, and currency goes through
 resolves locale from the cached `/api/server-info` (`locale` field) and
 currency from the cached `lubeloggerCurrency`. Both have hardcoded fallbacks
 (`en-US` / `USD`) when the cache is empty or SSR has no `localStorage`.
+`effectiveVolumeUnit()` / `effectiveDistanceUnit()` follow the same pattern
+for the LubeLogger instance's volume/distance units (`gal` / `mi` fallback).
 
 User guide: not applicable — formatting is invisible-by-design when
 LubeLogger's locale matches the browser's. Locale source-of-truth:
@@ -14,22 +16,28 @@ LubeLogger's locale matches the browser's. Locale source-of-truth:
 
 ## Helpers
 
-| Helper                              | Input                         | Output shape                                  | Locale source                                                                                     |
-| ----------------------------------- | ----------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `formatOdometer(s)`                 | string (digits)               | locale thousands sep                          | `effectiveLocale()`                                                                               |
-| `daysAgo(iso)`                      | ISO date                      | `today` / `yesterday` / `N days ago`          | local calendar (no locale)                                                                        |
-| `formatLastFillupDate(iso)`         | ISO date                      | `Mon D, YYYY (relative)`                      | `effectiveLocale()`                                                                               |
-| `humanCountdown(n, 'days' \| 'mi')` | number \| string              | `N units to go` / `N units overdue`           | `effectiveLocale()` (mi only)                                                                     |
-| `formatDueDate(iso)`                | ISO date                      | `Mon D, YYYY`                                 | `effectiveLocale()`                                                                               |
-| `formatIsoDate(iso)`                | ISO date                      | `Mon D, YYYY · relative`                      | `effectiveLocale()`                                                                               |
-| `formatCost(n, code \| null)`       | number, ISO 4217 code or null | locale-currency format                        | `effectiveLocale()` + (code ?? `effectiveCurrencyCode()`)                                         |
-| `parseIsoLocal(iso)`                | ISO date                      | local-midnight `Date` or `null`               | none — shared strict-parse preamble of every date helper above; also keys `/history` card sorting |
-| `vehicleLabel(v)`                   | `{ year?, make?, model? }`    | `2019 Honda Civic Si` (missing parts skipped) | none                                                                                              |
+| Helper                                      | Input                         | Output shape                                  | Locale source                                                                                     |
+| ------------------------------------------- | ----------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `formatOdometer(s)`                         | string (digits)               | locale thousands sep                          | `effectiveLocale()`                                                                               |
+| `daysAgo(iso)`                              | ISO date                      | `today` / `yesterday` / `N days ago`          | local calendar (no locale)                                                                        |
+| `formatLastFillupDate(iso)`                 | ISO date                      | `Mon D, YYYY (relative)`                      | `effectiveLocale()`                                                                               |
+| `humanCountdown(n, 'days' \| 'mi' \| 'km')` | number \| string              | `N units to go` / `N units overdue`           | `effectiveLocale()` (`mi` / `km` only — `days` is unformatted)                                    |
+| `formatDueDate(iso)`                        | ISO date                      | `Mon D, YYYY`                                 | `effectiveLocale()`                                                                               |
+| `formatIsoDate(iso)`                        | ISO date                      | `Mon D, YYYY · relative`                      | `effectiveLocale()`                                                                               |
+| `formatCost(n, code \| null)`               | number, ISO 4217 code or null | locale-currency format                        | `effectiveLocale()` + (code ?? `effectiveCurrencyCode()`)                                         |
+| `parseIsoLocal(iso)`                        | ISO date                      | local-midnight `Date` or `null`               | none — shared strict-parse preamble of every date helper above; also keys `/history` card sorting |
+| `vehicleLabel(v)`                           | `{ year?, make?, model? }`    | `2019 Honda Civic Si` (missing parts skipped) | none                                                                                              |
 
 ## Resolution rules
 
 - `effectiveLocale()` — `loadServerInfo()?.locale` ?? `'en-US'`.
 - `effectiveCurrencyCode()` — `loadServerInfo()?.lubeloggerCurrency` ?? `'USD'`.
+- `effectiveVolumeUnit()` — `'L'` iff the cached `lubeloggerVolumeUnit` is
+  `'liters'`; anything else (missing field, `'gallons_us'`, `null`) yields the
+  `'gal'` default — same fallback shape as `effectiveCurrencyCode()`.
+- `effectiveDistanceUnit()` — `'km'` iff
+  `loadServerInfo()?.lubeloggerDistanceUnit === 'km'`; same fallback shape,
+  default `'mi'`.
 - `loadServerInfo()` returns `null` when `localStorage` is undefined (SSR)
   or when the cache is empty/malformed — both fall through to the hardcoded
   fallback.
@@ -55,7 +63,7 @@ an accepted trade-off — no mitigation in this branch.
 
 - **All date funcs fall back to the raw input on parse failure.** UI never
   renders "Invalid Date".
-- **`humanCountdown(0, 'days')` → `'due today'`; `(0, 'mi')` → `'due now'`.**
+- **`humanCountdown(0, 'days')` → `'due today'`; `(0, 'mi' | 'km')` → `'due now'`.**
 - **Locale lookup is per-call, not memoized.** A boot-refresh between two
   renders surfaces immediately; no cache to invalidate.
 - **`Intl.NumberFormat` output is locale-sensitive.** Test assertions for

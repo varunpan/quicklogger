@@ -1,4 +1,5 @@
 import { loadServerInfo } from '$lib/client/server-info';
+import type { VolumeUnit, DistanceUnit } from '$lib/shared/units';
 
 // --- Locale / currency resolution ---
 //
@@ -13,6 +14,17 @@ function effectiveLocale(): string {
 
 export function effectiveCurrencyCode(): string {
   return loadServerInfo()?.lubeloggerCurrency ?? 'USD';
+}
+
+// Instance units for volume/distance labels. gal/mi fallback covers SSR,
+// cold cache, and pre-v0.3.2 cached copies missing the fields — corrected
+// by the layout's boot refresh, exactly like effectiveCurrencyCode().
+export function effectiveVolumeUnit(): VolumeUnit {
+  return loadServerInfo()?.lubeloggerVolumeUnit === 'liters' ? 'L' : 'gal';
+}
+
+export function effectiveDistanceUnit(): DistanceUnit {
+  return loadServerInfo()?.lubeloggerDistanceUnit === 'km' ? 'km' : 'mi';
 }
 
 // --- Vehicle label ---
@@ -80,13 +92,13 @@ export function formatLastFillupDate(s: string): string {
 // natural-language phrases. Accepts number | string for caller flexibility —
 // dueDays is now typed `number`, but callers may still pass through string
 // inputs from other sources.
-export function humanCountdown(value: number | string, unit: 'days' | 'mi'): string {
+export function humanCountdown(value: number | string, unit: 'days' | 'mi' | 'km'): string {
   const n = typeof value === 'string' ? Number(value) : value;
   if (!Number.isFinite(n)) return '';
   if (n === 0) return unit === 'days' ? 'due today' : 'due now';
   const abs = Math.abs(n);
   const formatted =
-    unit === 'mi' ? new Intl.NumberFormat(effectiveLocale()).format(abs) : String(abs);
+    unit === 'days' ? String(abs) : new Intl.NumberFormat(effectiveLocale()).format(abs);
   return n > 0 ? `${formatted} ${unit} to go` : `${formatted} ${unit} overdue`;
 }
 
