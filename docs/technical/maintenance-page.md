@@ -105,8 +105,8 @@ returned object.
   secondary key picks the most-overdue first via the signed countdown
   field that matches `userMetric` (`dueDays` for `Date`, `dueDistance`
   for `Odometer`, `Math.min` of both for `Both` as a heuristic — comparing
-  days to miles mixes units, but the more-negative side correctly surfaces
-  the more-overdue reminder first within the `Both` subset).
+  days to distance mixes units, but the more-negative side correctly
+  surfaces the more-overdue reminder first within the `Both` subset).
 - **userMetric vs. metric:** the page uses `userMetric` to decide which
   due-side lines to render. `metric` is upstream's own pick of which
   side became urgent first when `userMetric === 'Both'`; not surfaced.
@@ -130,6 +130,13 @@ returned object.
 Date and odometer values render through [`format.ts`](./format.md), which
 reads the cached LubeLogger locale. en-US output unchanged; other locales
 get correct number / date conventions.
+
+`odometerLine()`'s unit suffix (`Due at 115,316 mi` / `… km`) resolves once
+per page load via `effectiveDistanceUnit()` (const `distUnit`, top of
+script) and is passed through to `humanCountdown(r.dueDistance, distUnit)`
+for the trailing "N to go / overdue" phrase too — same instance-unit source
+as the log page's `DIST_UNIT` and stats' odometer line (#69). Odometer
+_values_ are never converted; only this label follows the instance.
 
 ## Persistence
 

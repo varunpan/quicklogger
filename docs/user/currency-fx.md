@@ -32,13 +32,16 @@ appears above the **Log fillup** button:
 
         Will log: 11.20 Gal · $42.18  ·  28.4 MPG since last fill
 
-The line always shows the converted gallons and the cost in your
+The line always shows the converted volume (gal or L, matching your
+LubeLogger instance — see [`units.md`](units.md)) and the cost in your
 configured target currency (`LUBELOGGER_CURRENCY`, default `USD`),
 formatted with that currency's symbol — e.g. `CA$42.18` on a CAD
 instance. It optionally adds:
 
-- **MPG since last fill** — only if there is a previous fillup to
-  compare against and the form has a valid odometer reading.
+- **Fuel economy since last fill** — MPG on a gal+mi instance, L/100km on
+  a L+km instance, hidden on mixed unit pairings — only if there is a
+  previous fillup to compare against and the form has a valid odometer
+  reading.
 - **`FX rate is stale`** in amber — only when every FX provider failed
   and the server fell back to a cached rate less than 7 days old (see
   "FX freshness" below).

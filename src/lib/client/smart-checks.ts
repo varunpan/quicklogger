@@ -1,9 +1,12 @@
 import type { Prefs } from './prefs';
+import type { DistanceUnit } from '$lib/shared/units';
 
 // Threshold for the "too high" odometer jump in check E (and asserted by the
 // unit tests). The main form no longer imports it directly (#20b) — check E
-// here is the single consumer.
-export const ODOMETER_MAX_DELTA_MI = 2000;
+// here is the single consumer. Numerically 2000 in the INSTANCE distance unit
+// (2,000 km ≈ 1,243 mi): it's a fat-finger net, not a physics constant, and a
+// converted 3,218 would read as arbitrary.
+export const ODOMETER_MAX_DELTA = 2000;
 
 export type SmartCheckCode = 'A' | 'B' | 'C' | 'D' | 'E' | 'G';
 
@@ -17,6 +20,7 @@ export interface SubmissionForCheck {
   volume: number;
   volumeUnit: 'gal' | 'L';
   date: string; // ISO YYYY-MM-DD
+  distanceUnit: DistanceUnit; // labels only — values are already instance-unit
 }
 
 export interface LastFuelupForCheck {
@@ -65,7 +69,7 @@ function checkA(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssu
   if (s.date >= last.date && s.odometer < last.odometer) {
     return {
       code: 'A',
-      message: `Odometer (${formatOdo(s.odometer)} mi) is lower than the last fillup (${formatOdo(last.odometer)} mi on ${formatShortDate(last.date)}).`
+      message: `Odometer (${formatOdo(s.odometer)} ${s.distanceUnit}) is lower than the last fillup (${formatOdo(last.odometer)} ${s.distanceUnit} on ${formatShortDate(last.date)}).`
     };
   }
   return null;
@@ -75,7 +79,7 @@ function checkB(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssu
   if (s.date < last.date && s.odometer > last.odometer) {
     return {
       code: 'B',
-      message: `Older date but higher odometer than the most recent fillup (${formatOdo(last.odometer)} mi on ${formatShortDate(last.date)}).`
+      message: `Older date but higher odometer than the most recent fillup (${formatOdo(last.odometer)} ${s.distanceUnit} on ${formatShortDate(last.date)}).`
     };
   }
   return null;
@@ -85,7 +89,7 @@ function checkC(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssu
   if (s.date === last.date && Math.abs(s.odometer - last.odometer) <= 5) {
     return {
       code: 'C',
-      message: `Looks like a duplicate of the ${formatShortDate(last.date)} fillup at ${formatOdo(last.odometer)} mi.`
+      message: `Looks like a duplicate of the ${formatShortDate(last.date)} fillup at ${formatOdo(last.odometer)} ${s.distanceUnit}.`
     };
   }
   return null;
@@ -100,10 +104,10 @@ function checkD(s: SubmissionForCheck, today: string): SmartCheckIssue | null {
 
 function checkE(s: SubmissionForCheck, last: LastFuelupForCheck): SmartCheckIssue | null {
   const delta = s.odometer - last.odometer;
-  if (delta > ODOMETER_MAX_DELTA_MI) {
+  if (delta > ODOMETER_MAX_DELTA) {
     return {
       code: 'E',
-      message: `Odometer is ${formatOdo(delta)} mi above the last fillup — over 2,000 mi.`
+      message: `Odometer is ${formatOdo(delta)} ${s.distanceUnit} above the last fillup — over ${formatOdo(ODOMETER_MAX_DELTA)} ${s.distanceUnit}.`
     };
   }
   return null;

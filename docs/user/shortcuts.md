@@ -119,7 +119,8 @@ The server returns:
 {
   "ok": true,
   "submitted": {
-    "gallons": 11.2,
+    "volume": 11.2,
+    "volumeUnit": "gal",
     "cost": 42.18,
     "currency": "USD",
     "fxRate": 1,
@@ -129,9 +130,9 @@ The server returns:
 }
 ```
 
-The response also carries the target `currency` and the FX details (`fxRate`, `fxSource`, `fxStale`) used for the conversion, plus an optional `photoWarning` (a photo failed to attach) or `deduped` flag (an offline replay matched an existing record). The two fields the recipe reads — `submitted.gallons` and `submitted.cost` — are always present.
+The response also carries the target `currency` and the FX details (`fxRate`, `fxSource`, `fxStale`) used for the conversion, plus an optional `photoWarning` (a photo failed to attach) or `deduped` flag (an offline replay matched an existing record). The two fields the recipe reads — `submitted.volume` and `submitted.cost` — are always present. (`submitted.volume` is denominated in your LubeLogger instance's volume unit, per `submitted.volumeUnit` — this recipe assumes a `gal` instance; see [`units.md`](units.md).)
 
-Use `submitted.gallons` and `submitted.cost` in a final **Speak Text** action so Siri tells you what was logged (handy for verifying the conversion when you submitted in CAD/L).
+Use `submitted.volume` and `submitted.cost` in a final **Speak Text** action so Siri tells you what was logged (handy for verifying the conversion when you submitted in CAD/L).
 
 ### How Siri prompts you
 
@@ -191,7 +192,7 @@ The recipe below assumes a single-vehicle (`vehicleId=1`) `gal`/`USD` setup. Adj
       - Method: `POST`
       - Headers: `Content-Type: application/json`
       - Request Body: `JSON`, value = the Dictionary from step 7.
-   9. **Get Dictionary Value** — Get value for `submitted.gallons` in the previous result → save as `loggedGal`.
+   9. **Get Dictionary Value** — Get value for `submitted.volume` in the previous result → save as `loggedGal`.
    10. **Get Dictionary Value** — Get value for `submitted.cost` in the previous result → save as `loggedUsd`.
    11. **Speak Text** — `Logged [loggedGal] gallons, [loggedUsd] dollars`.
 
@@ -272,7 +273,7 @@ For the full walkthrough with detail on each Shortcuts UI action, see [Path 2 �
    - Method: `POST`
    - Headers: `Content-Type: application/json`
    - Request Body: `JSON`, drag the Dictionary from step 7
-9. **Get Dictionary Value** — `submitted.gallons` from previous result → save as `loggedGal`
+9. **Get Dictionary Value** — `submitted.volume` from previous result → save as `loggedGal`
 10. **Get Dictionary Value** — `submitted.cost` from previous result → save as `loggedUsd`
 11. **Speak Text** — `Logged [loggedGal] gallons, [loggedUsd] dollars`
 
