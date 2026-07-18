@@ -252,7 +252,9 @@ async function submitToLubeLogger(
     // the foreground response lost in transit. The in-memory idempotency map
     // can't catch those (60 s window, wiped on restart), so the record store
     // itself is consulted before writing. Placed after convertSubmission
-    // because the match key needs `conv.gallons`.
+    // because the match key needs `conv.volume`. Upstream `fuelConsumed` is
+    // already in the instance unit, so comparing against the instance-unit
+    // conversion is what keeps replay dedupe correct on liters instances.
     if (input.queueReplay === true) {
       let existing: GasRecord[];
       try {
@@ -275,12 +277,12 @@ async function submitToLubeLogger(
       // false match here would silently drop a real fill-up. cost is excluded
       // because it rides on the FX rate, which can drift between the original
       // attempt and a day-later replay — a true replay must keep matching.
-      const gallons = Number(conv.gallons.toFixed(3));
+      const volume = Number(conv.volume.toFixed(3));
       const match = existing.find(
         (r) =>
           r.date === input.date &&
           r.odometer === input.odometer &&
-          Math.abs(r.fuelConsumed - gallons) < 0.0005
+          Math.abs(r.fuelConsumed - volume) < 0.0005
       );
       if (match) {
         logger.info('replay dedupe: record already upstream, skipping write', {
@@ -298,7 +300,8 @@ async function submitToLubeLogger(
             ok: true,
             deduped: true,
             submitted: {
-              gallons: match.fuelConsumed,
+              volume: match.fuelConsumed,
+              volumeUnit: conv.volumeUnit,
               cost: match.cost,
               currency: env.lubeloggerCurrency,
               fxRate: conv.fxRate,
@@ -313,7 +316,7 @@ async function submitToLubeLogger(
     const payload = {
       date: input.date, // ISO YYYY-MM-DD; LubeLogger parses under culture-invariant
       odometer: String(input.odometer),
-      fuelconsumed: conv.gallons.toFixed(3),
+      fuelconsumed: conv.volume.toFixed(3),
       isfilltofull: input.isFillToFull ? 'true' : 'false',
       missedfuelup: input.missedFuelup ? 'true' : 'false',
       cost: conv.cost.toFixed(2),
@@ -328,10 +331,17 @@ async function submitToLubeLogger(
     // guard rather than push garbage upstream.
     const files: UploadedFile[] = [];
     let photoWarning: string | undefined;
+    // Filename suffix follows the instance distance unit ("odometer-12345km.jpg"
+    // on a km instance) — the odometer value itself passes through unconverted.
+    const distSuffix = env.lubeloggerDistanceUnit === 'km' ? 'km' : 'mi';
     const toUpload: Array<{ file: File; name: string }> = [];
-    if (images.pump) toUpload.push({ file: images.pump, name: `pump-${input.odometer}mi.jpg` });
+    if (images.pump)
+      toUpload.push({ file: images.pump, name: `pump-${input.odometer}${distSuffix}.jpg` });
     if (images.odometer)
-      toUpload.push({ file: images.odometer, name: `odometer-${input.odometer}mi.jpg` });
+      toUpload.push({
+        file: images.odometer,
+        name: `odometer-${input.odometer}${distSuffix}.jpg`
+      });
     dedupeFilenames(toUpload);
     for (const u of toUpload) {
       const bytes = new Uint8Array(await u.file.arrayBuffer());
@@ -360,7 +370,8 @@ async function submitToLubeLogger(
       body: JSON.stringify({
         ok: true,
         submitted: {
-          gallons: conv.gallons,
+          volume: conv.volume,
+          volumeUnit: conv.volumeUnit,
           cost: conv.cost,
           // Instance currency `conv.cost` is denominated in (the conversion's
           // targetCurrency). Carried in the response so the service-worker

@@ -8,7 +8,7 @@ import { expect, type Page } from '@playwright/test';
  * ⚠️ The `/api/fuelup` handler REIMPLEMENTS the L→gal and CAD→USD conversion so the
  * confirmation UI has input-consistent numbers to render. Those `submitted` values are
  * a fixture-side plausibility stub, NOT the app's real conversion — asserting exact
- * gallons/cost off this mock only tests this arithmetic. The real server conversion is
+ * volume/cost off this mock only tests this arithmetic. The real server conversion is
  * covered by `tests/integration/api-fuelup.test.ts`; keep number assertions there and
  * use this mock only to drive the UI flow (redirect, toast presence, snapshot write).
  */
@@ -29,7 +29,8 @@ export async function mockQuickloggerApi(page: Page) {
         ok: true,
         // Stub confirmation values only — see the ⚠️ note above. Do NOT assert these.
         submitted: {
-          gallons: body.volume * (body.volumeUnit === 'L' ? 1 / 3.785411784 : 1),
+          volume: body.volume * (body.volumeUnit === 'L' ? 1 / 3.785411784 : 1),
+          volumeUnit: 'gal',
           cost: body.cost * (body.currency === 'CAD' ? 0.73 : 1),
           currency: 'USD',
           fxRate: body.currency === 'CAD' ? 0.73 : 1,

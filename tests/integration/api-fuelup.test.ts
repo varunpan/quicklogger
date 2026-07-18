@@ -80,7 +80,8 @@ describe('POST /api/fuelup', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.submitted.gallons).toBeCloseTo(13.21, 2);
+    expect(body.submitted.volume).toBeCloseTo(13.21, 2);
+    expect(body.submitted.volumeUnit).toBe('gal');
     expect(body.submitted.cost).toBeCloseTo(47.45, 2);
 
     expect(observedForm?.get('date')).toBe('2026-05-07');
@@ -284,7 +285,7 @@ describe('POST /api/fuelup', () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.submitted.gallons).toBeCloseTo(12.3, 3);
+    expect(body.submitted.volume).toBeCloseTo(12.3, 3);
     expect(observedForm?.get('fuelconsumed')).toBe('12.300');
     expect(observedForm?.get('cost')).toBe('42.18');
   });
@@ -348,16 +349,23 @@ describe('POST /api/fuelup', () => {
   });
 
   it('unexpected server errors return a generic message, not the exception text', async () => {
-    process.env.LUBELOGGER_VOLUME_UNIT = 'liters'; // convertSubmission throws on non-gallons_us targets
-    try {
-      const res = await POST(eventFor({ ...baseInput, clientSubmissionId: 'gen-500-1' }));
-      expect(res.status).toBe(500);
-      const body = await res.json();
-      expect(body.error).toBe('unexpected server error');
-      expect(JSON.stringify(body)).not.toContain('gallons_us');
-    } finally {
-      delete process.env.LUBELOGGER_VOLUME_UNIT;
-    }
+    // A network-level failure talking to LubeLogger (not an HTTP error status)
+    // bypasses LubeLoggerError/FxUnavailableError entirely — the only path
+    // that reaches the generic 500 branch. (Before liters support, an
+    // invalid LUBELOGGER_VOLUME_UNIT reliably hit this branch via
+    // convertSubmission; that target is now valid input, and unknown units
+    // are rejected at env-load time instead — see env.test.ts — so this test
+    // needs its own trigger.)
+    upstream.use(
+      http.get('https://api.frankfurter.dev/v1/latest', () =>
+        HttpResponse.json({ rates: { USD: 0.73 } })
+      ),
+      http.post('http://lubelog:8080/api/vehicle/gasrecords/add', () => HttpResponse.error())
+    );
+    const res = await POST(eventFor({ ...baseInput, clientSubmissionId: 'gen-500-1' }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('unexpected server error');
   });
 
   it('uses manualFxRate when provided (no chain call)', async () => {

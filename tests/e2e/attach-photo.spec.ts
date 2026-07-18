@@ -9,7 +9,8 @@ const FIXTURE = path.resolve('tests/e2e/sample.jpg');
 const FUELUP_OK = {
   ok: true,
   submitted: {
-    gallons: 11.2,
+    volume: 11.2,
+    volumeUnit: 'gal',
     cost: 42.18,
     currency: 'USD',
     fxRate: 1,
