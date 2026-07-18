@@ -641,7 +641,8 @@
           odometer: input.odometer,
           volume: input.volume,
           volumeUnit: input.volumeUnit,
-          date: input.date
+          date: input.date,
+          distanceUnit: DIST_UNIT
         },
         lastFuelupForCheck(),
         { smartChecksEnabled: prefs.smartChecksEnabled }

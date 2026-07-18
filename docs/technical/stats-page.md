@@ -38,7 +38,7 @@ No new persistence — no IndexedDB store, no localStorage key, no service-worke
 1. Reached from the drawer (`Stats`) or via the picker round-trip (`/vehicles?from=stats`).
 2. Loader resolves the active vehicle via the shared `resolveSelectedVehicle()` helper (`$lib/client/vehicle-resolve.ts`): `URL ?vehicleId= → prefs.lastVehicleId → vehicles[0]` (identical to maintenance and history).
 3. With a vehicle, the loader calls `getVehicleInfo(id)`; success → `{ vehicle, info, error: null }`, failure → `{ vehicle, info: null, error: message }`. No vehicle → `error: 'no-vehicle'`.
-4. The page is a pure render of the loader result. `formatCost(x, null)` resolves the instance currency through `format.ts`; `$derived` values come from `stats.ts`.
+4. The page is a pure render of the loader result. `formatCost(x, null)` resolves the instance currency through `format.ts`; `$derived` values come from `stats.ts`. The "Last reported odometer" row resolves its unit suffix the same way, via `effectiveDistanceUnit()` (const `distUnit`, top of script) — same instance-unit source as the log page's `DIST_UNIT` and maintenance's odometer lines (#69). The odometer value itself is never converted, only the label.
 
 ## Edge cases & invariants
 

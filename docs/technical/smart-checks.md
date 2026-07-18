@@ -13,7 +13,7 @@ the bigger picture: see the `/` main-form section of
 
 - [`src/lib/client/smart-checks.ts`](../../src/lib/client/smart-checks.ts) —
   the pure module: `evaluateSmartChecks`, six per-check sub-functions, the
-  `ODOMETER_MAX_DELTA_MI` constant (consumed by check E), and the formatting helpers
+  `ODOMETER_MAX_DELTA` constant (consumed by check E), and the formatting helpers
   (`formatOdo`, `formatShortDate`, `getToday`). Unit-tested in
   `smart-checks.test.ts`.
 - [`src/lib/client/prefs.ts`](../../src/lib/client/prefs.ts) — adds
@@ -25,9 +25,12 @@ the bigger picture: see the `/` main-form section of
   logic, clear-on-edit handlers on odometer/date/volume, and the
   `submitAnyway()` bypass. Also: the OCR-side `checkOdometerRelative`
   backwards-reading guard. (The OCR-side `> 2000` check that used to import
-  and share `ODOMETER_MAX_DELTA_MI` was removed in #20b — that jump is now
-  caught once, by smart-check E — so `+page.svelte` no longer imports the
-  constant.)
+  and share `ODOMETER_MAX_DELTA_MI` (since renamed `ODOMETER_MAX_DELTA`) was
+  removed in #20b — that jump is now caught once, by smart-check E — so
+  `+page.svelte` no longer imports the constant.) The submit-handler call
+  site threads `distanceUnit: DIST_UNIT` (Task 4's instance-distance-unit
+  const) into the `evaluateSmartChecks` submission object so check A/B/C/E
+  messages label with the right unit.
 - [`src/routes/settings/+page.svelte`](../../src/routes/settings/+page.svelte)
   — new "Smart checks" toggle card.
 
@@ -53,6 +56,14 @@ export interface SmartCheckIssue {
   message: string;
 }
 
+export interface SubmissionForCheck {
+  odometer: number;
+  volume: number;
+  volumeUnit: 'gal' | 'L';
+  date: string; // ISO YYYY-MM-DD
+  distanceUnit: DistanceUnit; // labels only — values are already instance-unit
+}
+
 export function evaluateSmartChecks(
   submission: SubmissionForCheck,
   lastFuelup: LastFuelupForCheck | null,
@@ -60,6 +71,13 @@ export function evaluateSmartChecks(
   now?: Date
 ): { issues: SmartCheckIssue[] };
 ```
+
+`distanceUnit` (added alongside `LUBELOGGER_DISTANCE_UNIT` support, #69) is a
+label-only field — checks A/B/C/E interpolate it into their message strings
+next to the already-instance-unit odometer numbers; no check does unit
+conversion or comparison on it. The call site in `+page.svelte` passes
+`DIST_UNIT` (= `effectiveDistanceUnit()`, resolved once near the top of the
+script).
 
 ## Lifecycle / control flow
 
@@ -134,7 +152,7 @@ check code a clean ISO string or `null`. It stays inline in
 for display, and a one-line validator isn't worth expanding its surface.
 Promote it if a second caller appears.
 
-**Smart-checks owns `ODOMETER_MAX_DELTA_MI`, not `format.ts` or a new
+**Smart-checks owns `ODOMETER_MAX_DELTA`, not `format.ts` or a new
 constants module.** The constant is now meaningful only to smart-check E
 (the `Δ > 2000` gate); keeping it next to its one consumer is the natural
 home. Until #20b it was also imported by the OCR-confirm relative-range
@@ -142,6 +160,18 @@ check, which warned on the same threshold — a redundant double-warning.
 That OCR-side too-high check was removed (the OCR-confirm step now only
 flags a _backwards_ reading), so the constant has a single consumer and
 `+page.svelte` no longer imports it.
+
+**The threshold stays `2000` in the instance distance unit — it is not
+converted (#69).** Renamed from `ODOMETER_MAX_DELTA_MI` to
+`ODOMETER_MAX_DELTA` when distance-unit labels landed, but the numeric
+value is unchanged on a km instance: 2,000 km ≈ 1,243 mi, a different
+physical distance than 2,000 mi. That's deliberate — the check is a
+fat-finger net ("did you mean to type six more digits"), not a physics
+constant, so a round number in whichever unit the instance already
+displays reads naturally; a converted `3,218` (2,000 mi → km) would look
+arbitrary. Same reasoning applies to check C's 5-unit duplicate band and
+check G's `0.5 gal` / `2 L` volume floors — none of these thresholds
+convert across units either.
 
 **Server side runs no smart checks.** `/api/fuelup`'s `validate()`
 enforces structural validity only: eight required fields (`vehicleId`,
@@ -184,9 +214,10 @@ here; the unit suite pins the invariant across all 24 hours instead.
   the FX chain is mature enough to ground "expected $/gal" by currency.
 - **Per-check toggles in Settings.** Single master toggle for v0.2.0. If
   any one check turns noisy in real use, promote to individual switches.
-- **User-tunable thresholds.** `ODOMETER_MAX_DELTA_MI`, the C duplicate
-  band (5 mi), and the G volume floors (0.5 gal / 2 L) are all
-  hardcoded. Promote to Prefs if real travel routinely hits the bands.
+- **User-tunable thresholds.** `ODOMETER_MAX_DELTA` (2,000 in the instance
+  distance unit), the C duplicate band (5, same unit), and the G volume
+  floors (0.5 gal / 2 L) are all hardcoded. Promote to Prefs if real travel
+  routinely hits the bands.
 - **Reactive live warnings.** Chose submit-attempt-only to keep the
   form's typing-feel snappy. A live-warning mode would need debouncing
   and a quieter visual treatment.

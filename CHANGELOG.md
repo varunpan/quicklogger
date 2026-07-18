@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Added
 
+- **Full metric-instance support.** New `LUBELOGGER_DISTANCE_UNIT` (`miles` |
+  `km`, default `miles`); every volume and distance label — toast, previews,
+  last-fill strip, history, stats, maintenance, smart-check messages, settings,
+  photo filenames — now follows the instance units. Fuel-economy preview shows
+  L/100km on liters+km instances and hides on mixed unit combos. See
+  `docs/user/units.md` (#69).
+
 ### Changed
 
 ### Fixed

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatOdometer, formatCost } from '$lib/client/format';
+  import { formatOdometer, formatCost, effectiveDistanceUnit } from '$lib/client/format';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
   import VehicleIdentifiersCard from '$lib/client/VehicleIdentifiersCard.svelte';
   import {
@@ -11,6 +11,8 @@
   } from '$lib/client/stats';
 
   let { data } = $props();
+
+  const distUnit = effectiveDistanceUnit();
 
   // formatCost(value, null) resolves the LubeLogger instance currency via
   // format.ts's effectiveCurrencyCode() fallback — correct for these
@@ -97,7 +99,7 @@
     <div class="bg-zinc-800 rounded-xl px-4 py-3 mb-3 flex items-center justify-between">
       <span class="field-label">Last reported odometer</span>
       <span class="text-base font-semibold text-zinc-100 tabular-nums"
-        >{formatOdometer(String(info.lastReportedOdometer))} mi</span
+        >{formatOdometer(String(info.lastReportedOdometer))} {distUnit}</span
       >
     </div>
 

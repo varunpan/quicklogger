@@ -273,7 +273,8 @@ detected values; `[Use]` populates form fields, `[Discard]` reverts.
 
 Odometer mode runs an additional client-side relative-range check
 against `data.lastFuelup` before showing `[Use]`: rejects readings lower
-than last, or > 2000 mi above last (hardcoded `ODOMETER_MAX_DELTA_MI`).
+than last, or > 2000 (instance distance unit) above last (hardcoded
+`ODOMETER_MAX_DELTA`, renamed from `ODOMETER_MAX_DELTA_MI` in #69).
 Failure renders an amber warning chip with no `[Use]` action — only
 `[Dismiss]`.
 

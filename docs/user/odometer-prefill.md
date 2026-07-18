@@ -1,9 +1,13 @@
 # Odometer prefill & last-fillup strip
 
 quicklogger pre-fills the odometer field with your previous reading and gives
-you a one-tap chip to bump it by your typical miles-per-fillup. At the pump
+you a one-tap chip to bump it by your typical distance-per-fillup. At the pump
 you glance, tap once if your mileage was typical, type a couple of digits if
 it wasn't, and submit.
+
+Examples on this page use miles, the default. On a LubeLogger instance
+configured for km (`LUBELOGGER_DISTANCE_UNIT=km`), every odometer figure,
+chip, and label below reads km instead — see [`units.md`](units.md).
 
 ## What you'll see
 
@@ -37,9 +41,9 @@ card:
 
 - **On / Off toggle** — turn the whole feature off if you'd rather start
   with an empty field. Default: **On**.
-- **Quick increment (mi)** — the number the `+N mi` chip adds on each tap.
-  Default: **300**. Set to **0** to hide the chip entirely while keeping the
-  prefill behaviour.
+- **Quick increment (mi or km)** — the number the chip adds on each tap; the
+  field label reads your instance's distance unit. Default: **300**. Set to
+  **0** to hide the chip entirely while keeping the prefill behaviour.
 
 Settings changes apply on the next time you open the form.
 

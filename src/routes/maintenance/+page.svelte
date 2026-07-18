@@ -1,10 +1,17 @@
 <script lang="ts">
   import type { Reminder, ReminderUrgency } from '$lib/server/lubelogger';
-  import { formatOdometer, formatDueDate, humanCountdown } from '$lib/client/format';
+  import {
+    formatOdometer,
+    formatDueDate,
+    humanCountdown,
+    effectiveDistanceUnit
+  } from '$lib/client/format';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
   import VehicleIdentifiersCard from '$lib/client/VehicleIdentifiersCard.svelte';
 
   let { data } = $props();
+
+  const distUnit = effectiveDistanceUnit();
 
   const URGENCY_ORDER: Record<ReminderUrgency, number> = {
     PastDue: 0,
@@ -14,7 +21,7 @@
   };
 
   // Pick the right countdown value for within-group sort. `Both` uses
-  // min(days, distance) as a heuristic — comparing days to miles mixes
+  // min(days, distance) as a heuristic — comparing days to distance mixes
   // units, but the more-negative side correctly surfaces the more-overdue
   // reminder first within the Both subset.
   function sortValue(r: Reminder): number {
@@ -72,9 +79,9 @@
 
   function odometerLine(r: Reminder): string {
     const od = formatOdometer(String(r.dueOdometer));
-    const countdown = humanCountdown(r.dueDistance, 'mi');
-    if (!countdown) return od ? `Due at ${od} mi` : '';
-    return od ? `Due at ${od} mi · ${countdown}` : `Due ${countdown}`;
+    const countdown = humanCountdown(r.dueDistance, distUnit);
+    if (!countdown) return od ? `Due at ${od} ${distUnit}` : '';
+    return od ? `Due at ${od} ${distUnit} · ${countdown}` : `Due ${countdown}`;
   }
 </script>
 

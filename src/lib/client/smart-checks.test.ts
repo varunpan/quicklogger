@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   evaluateSmartChecks,
   localIsoDate,
-  ODOMETER_MAX_DELTA_MI,
+  ODOMETER_MAX_DELTA,
   type SubmissionForCheck,
   type LastFuelupForCheck
 } from './smart-checks';
@@ -19,6 +19,7 @@ function sub(overrides: Partial<SubmissionForCheck> = {}): SubmissionForCheck {
     volume: 11.2,
     volumeUnit: 'gal',
     date: '2026-05-14',
+    distanceUnit: 'mi',
     ...overrides
   };
 }
@@ -27,9 +28,9 @@ function last(overrides: Partial<LastFuelupForCheck> = {}): LastFuelupForCheck {
   return { odometer: 87234, date: '2026-05-07', ...overrides };
 }
 
-describe('ODOMETER_MAX_DELTA_MI', () => {
-  it('is the documented 2000 mi threshold', () => {
-    expect(ODOMETER_MAX_DELTA_MI).toBe(2000);
+describe('ODOMETER_MAX_DELTA', () => {
+  it('is the documented 2000 threshold (in the instance distance unit)', () => {
+    expect(ODOMETER_MAX_DELTA).toBe(2000);
   });
 });
 
@@ -235,6 +236,29 @@ describe('check E — odometer jump > 2000 mi', () => {
   it('skips silently when lastFuelup is null', () => {
     const r = evaluateSmartChecks(sub({ odometer: 999999 }), null, PREFS_ON, FIXED_NOW);
     expect(r.issues.find((i) => i.code === 'E')).toBeUndefined();
+  });
+});
+
+describe('distance unit in messages', () => {
+  it('labels check A/E messages in km on a km instance', () => {
+    const rA = evaluateSmartChecks(
+      sub({ odometer: 12400, date: '2026-05-14', distanceUnit: 'km' }),
+      last({ odometer: 45210, date: '2026-05-07' }),
+      PREFS_ON,
+      FIXED_NOW
+    );
+    expect(rA.issues[0].message).toBe(
+      'Odometer (12,400 km) is lower than the last fillup (45,210 km on May 7).'
+    );
+    const rE = evaluateSmartChecks(
+      sub({ odometer: 89235, distanceUnit: 'km' }),
+      last(),
+      PREFS_ON,
+      FIXED_NOW
+    );
+    expect(rE.issues[0].message).toBe(
+      'Odometer is 2,001 km above the last fillup — over 2,000 km.'
+    );
   });
 });
 

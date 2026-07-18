@@ -2,10 +2,13 @@
   import Icon from '$lib/client/Icon.svelte';
   import { loadPrefs, savePrefs, DEFAULT_PREFS } from '$lib/client/prefs';
   import { loadServerInfo } from '$lib/client/server-info';
+  import { effectiveDistanceUnit } from '$lib/client/format';
   import type { ServerInfo, VolumeUnit } from '$lib/shared/types';
   import { SUPPORTED_CURRENCIES } from '$lib/shared/currencies';
 
   let prefs = $state(loadPrefs());
+
+  const distUnit = effectiveDistanceUnit();
 
   // Reader-only — boot refresh lives in +layout.svelte so cached server-info
   // is fresh app-wide before consumers (format.ts, last-fillup.ts) run.
@@ -119,7 +122,7 @@
     </div>
 
     <label class="field">
-      <span class="field-label">Quick increment (mi)</span>
+      <span class="field-label">Quick increment ({distUnit})</span>
       <input
         class="field-input"
         type="number"
@@ -130,8 +133,8 @@
         onchange={(e) => updateIncrement((e.currentTarget as HTMLInputElement).value)}
       />
       <span class="text-xs text-zinc-500 mt-2 leading-relaxed">
-        Adds this many miles when you tap the chip below the odometer field. Set to 0 to hide the
-        chip.
+        Adds this many {distUnit === 'km' ? 'kilometers' : 'miles'} when you tap the chip below the odometer
+        field. Set to 0 to hide the chip.
       </span>
     </label>
   </div>
