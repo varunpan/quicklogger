@@ -298,3 +298,56 @@ after a `·` separator.
       is correct on a USD instance; non-USD has a known gap — issue #57.)
 - [ ] **Regression.** Rest of each card (date, odometer, volume·cost, "Missed
       fillup" badge) unchanged; `/maintenance`, `/settings`, `/stats` unaffected.
+
+## Instance units — liters & km (v0.3.2)
+
+quicklogger writes fuel volume in the unit your LubeLogger instance is configured
+for, and labels every volume/distance to match (issue #69 — metric instances used
+to **500 on submit**). Set `LUBELOGGER_VOLUME_UNIT` (`gallons_us` | `liters`) and
+`LUBELOGGER_DISTANCE_UNIT` (`miles` | `km`) to match your instance (LubeLogger →
+Settings → Imperial Calculation). The two vars are independent — a UK instance is
+`liters` + `miles`.
+
+### Startup validation
+
+- [ ] Set `LUBELOGGER_VOLUME_UNIT` to a bad value (e.g. `furlongs`) and bring the
+      stack up → server **refuses to boot** with a clear `EnvError`, not a
+      per-submit 500. Restore a valid value.
+
+### Metric instance (liters + km) — the #69 path
+
+Point quicklogger's env (and a test instance) at `liters` + `km`.
+
+- [ ] **Log-form labels.** Volume field reads **L**; odometer reads **km**.
+- [ ] **Economy preview.** The "Will log" strip shows **L/100km** (not MPG) once
+      an odometer + volume are entered against a prior fillup.
+- [ ] **Submit in L.** Log a fillup in L/km → success toast shows the volume in
+      **L**, and the record lands in LubeLogger with the same number (no gallon
+      conversion). _This is the exact submit that 500'd pre-fix._
+- [ ] **Enter gal → stored as L.** With the volume toggle on gal, enter a gallons
+      amount → toast and stored record are in **L** (converted ×3.785). Odometer
+      value is unchanged.
+- [ ] **History.** The new card's unit price reads per **L**; distance reads **km**.
+- [ ] **Last-fill strip** (home). Volume shown in **L**.
+- [ ] **Smart-check.** The big-jump nudge fires above **2,000 km** and reads km.
+- [ ] **Stats.** Distances/volumes read km / L.
+- [ ] **Photo filename** (only with an OCR provider configured). An attached photo
+      is named `odometer-<value>km.jpg`.
+
+### Gallons instance (gallons_us + miles) — regression
+
+Point back to `gallons_us` + `miles`.
+
+- [ ] Every surface above reads **gal** / **mi**; economy preview shows **MPG**.
+- [ ] Submit in gal → stored un-converted; submit in L → stored as **gal**
+      (÷3.785). Odometer unchanged.
+
+### Mixed pairing
+
+- [ ] On a `liters` + `miles` (or `gallons_us` + `km`) instance, the economy
+      preview is **hidden** — no standard single figure.
+
+### Cold cache
+
+- [ ] First visit / cleared storage: labels briefly show **gal/mi** until the
+      first `/api/server-info` refresh lands, then switch to the instance units.
