@@ -15,6 +15,25 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- **Cleared every open `npm audit` advisory ahead of the release.** Two **high**
+  severity findings were failing CI's `npm audit --audit-level=high` gate:
+  `postcss` (path traversal via `sourceMappingURL` auto-loading, leaking
+  arbitrary `.map` files —
+  [GHSA-r28c-9q8g-f849](https://github.com/advisories/GHSA-r28c-9q8g-f849)) and
+  `brace-expansion` (three DoS advisories, worst an unbounded expansion that
+  OOM-crashes the process —
+  [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg)),
+  plus a moderate `@sveltejs/kit` prototype-pollution/crash pair in the
+  remote-function form path
+  ([GHSA-866w-xmhq-wj7x](https://github.com/advisories/GHSA-866w-xmhq-wj7x),
+  [GHSA-wqjv-9729-c5q2](https://github.com/advisories/GHSA-wqjv-9729-c5q2)).
+  All three fixes fell inside the existing caret ranges, so this is a
+  lockfile-only bump — `package.json` is untouched: `@sveltejs/kit`
+  2.68.0 → 2.70.1, `postcss` 8.5.15 → 8.5.23, `brace-expansion` 5.0.5 → 5.0.8,
+  and `nanoid` 3.3.12 → 3.3.16 pulled along by postcss. `npm audit` now reports
+  **0 vulnerabilities**; the Trivy image scan was already clean at every
+  severity. Dev/build dependencies only — no runtime or behaviour change.
+
 ### Fixed
 
 - **Fill-ups no longer fail on metric LubeLogger instances.** Set
