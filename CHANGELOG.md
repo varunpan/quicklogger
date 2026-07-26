@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.3.2] — Unreleased
+## [0.3.2] — 2026-07-25
 
 ### Added
 
@@ -41,8 +41,6 @@ All notable changes to this project are documented here. Format roughly follows 
   dying with a 500; both unit vars are now validated at startup so a typo fails
   loud instead of per-submit (#69). The fuelup response field
   `submitted.gallons` is renamed `submitted.volume` (+ `submitted.volumeUnit`).
-
-### Tests
 
 ## [0.3.1] — 2026-07-14
 
