@@ -224,13 +224,15 @@ transitive SvelteKit dep). The four moderate `svelte` SSR-XSS advisories are
 cleared by upgrading to `5.56.3` (#37); see that fix's note in the CHANGELOG for
 why the bump needed a CropOverlay rework first. The **`cookie`** advisory (low)
 has since been cleared by a targeted npm `override` pinning `cookie` to `^0.7.0`
-under `@sveltejs/kit` — `npm audit` no longer reports it. One lower-severity
-advisory stays **knowingly deferred** — below the high gate, so CI stays green:
+under `@sveltejs/kit` — `npm audit` no longer reports it. The `brace-expansion`
+DoS advisory, previously deferred here while it sat below the high gate, was
+escalated to **high** and fixed upstream in `5.0.8`; it was cleared for v0.3.2
+alongside a `postcss` path-traversal high and a moderate `@sveltejs/kit`
+prototype-pollution pair. All three landed inside the existing caret ranges, so
+the fix was a `package-lock.json`-only bump with no `package.json` change.
 
-- **`brace-expansion` (moderate, build-only)** — no clean upstream fix has landed
-  yet, so it's left until one does.
-
-Dependabot will open PRs as real upstream fixes land.
+`npm audit` currently reports **0 vulnerabilities**, and no advisory is
+knowingly deferred. Dependabot will open PRs as further upstream fixes land.
 
 **Dependabot** (`.github/dependabot.yml`) opens weekly PRs for three
 ecosystems: `npm` (deps), `docker` (base image), and `github-actions`
