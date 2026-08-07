@@ -8,6 +8,31 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- **Cleared both open `npm audit` advisories and refreshed every in-range
+  dependency.** Two **high** severity findings were failing CI's
+  `npm audit --audit-level=high` gate: `undici` (five advisories, worst a
+  cross-user information disclosure and parse-time crash via degenerate private
+  cache directives —
+  [GHSA-4cwx-7wf7-3272](https://github.com/advisories/GHSA-4cwx-7wf7-3272),
+  alongside response desynchronization, CRLF injection and cookie-attribute
+  injection) and `brace-expansion` (a DoS via unbounded intermediate arrays that
+  bypasses the earlier CVE-2026-14257 mitigation —
+  [GHSA-rgw5-rvv9-x895](https://github.com/advisories/GHSA-rgw5-rvv9-x895)).
+  Both reach the tree only through dev tooling (`jsdom` → `undici`, `eslint` →
+  `minimatch` → `brace-expansion`) — neither ships in the runtime image, whose
+  sole production dependency remains `rotating-file-stream`. The `undici` fix
+  needed the `overrides.jsdom.undici` pin lifted from `^7.28.0` to `^7.29.0`;
+  everything else is lockfile-only: `undici` 7.28.0 → 7.29.0, `brace-expansion`
+  5.0.8 → 5.0.9, plus in-range refreshes of `svelte` 5.56.3 → 5.56.8, `vite`
+  8.0.16 → 8.2.1, `@sveltejs/kit` 2.70.1 → 2.70.2, `@sveltejs/adapter-node`
+  5.5.4 → 5.5.7, `eslint` 10.5.0 → 10.8.1, `@playwright/test` 1.61.0 → 1.62.1,
+  `prettier` 3.8.4 → 3.9.6, `vitest` 4.1.9 → 4.1.10 and the rest of the
+  `npm outdated` "Wanted" column. `npm audit` now reports **0 vulnerabilities**;
+  the Trivy image scan was already clean at every severity. Dev/build
+  dependencies only — no runtime or behaviour change. Major bumps available but
+  deliberately deferred: `@testing-library/jest-dom` 7, `jsdom` 30,
+  `typescript` 7.
+
 ### Fixed
 
 ### Tests

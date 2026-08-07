@@ -229,7 +229,18 @@ DoS advisory, previously deferred here while it sat below the high gate, was
 escalated to **high** and fixed upstream in `5.0.8`; it was cleared for v0.3.2
 alongside a `postcss` path-traversal high and a moderate `@sveltejs/kit`
 prototype-pollution pair. All three landed inside the existing caret ranges, so
-the fix was a `package-lock.json`-only bump with no `package.json` change.
+the fix was a `package-lock.json`-only bump with no `package.json` change. A
+**second** `brace-expansion` DoS
+([GHSA-rgw5-rvv9-x895](https://github.com/advisories/GHSA-rgw5-rvv9-x895)) later
+bypassed that mitigation via unbounded intermediate arrays and was cleared for
+v0.3.3 by `5.0.9`. The same release cleared five **`undici`** advisories — worst
+a cross-user information disclosure and parse-time crash via degenerate private
+cache directives
+([GHSA-4cwx-7wf7-3272](https://github.com/advisories/GHSA-4cwx-7wf7-3272)).
+`undici` reaches the tree only through `jsdom`, and is held on the patched line
+by an npm `override` pinning it to `^7.29.0` under `jsdom` — raised from
+`^7.28.0` so a future resolution can't settle back onto a vulnerable 7.28.x.
+Both are dev-tooling paths; neither ships in the runtime image.
 
 `npm audit` currently reports **0 vulnerabilities**, and no advisory is
 knowingly deferred. Dependabot will open PRs as further upstream fixes land.
