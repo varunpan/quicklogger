@@ -44,9 +44,10 @@ All three are free (no API key required) and use
 | `erapi`       | `https://open.er-api.com/v6/latest/${from}`                                                           | Free, no key required. Returns rates for all currencies; we pick `[to]`.  |
 | `fawazahmed`  | `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from-lowercased}.json` | jsDelivr-hosted; both currency codes are lowercased on the request.       |
 
-The page's currency dropdown is limited to USD/CAD/EUR/GBP/MXN (see
-`src/routes/+page.svelte`). The chain itself supports any code the
-upstream provider supports, but the UI doesn't expose them.
+The page's currency dropdown is limited to USD/CAD/EUR/GBP/MXN
+(`SUPPORTED_CURRENCIES` in `src/lib/shared/currencies.ts`, imported and
+iterated in `src/routes/+page.svelte`). The chain itself supports any code
+the upstream provider supports, but the UI doesn't expose them.
 
 ## Resolution flow
 
