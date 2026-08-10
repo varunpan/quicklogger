@@ -59,31 +59,38 @@ const IMG_CACHE = 'quicklogger-vehicle-images-v1';
 
 The cache name version suffix (`-v1`) is the rollback escape hatch: if the storage shape ever needs to change in a way that breaks consumers, bumping the suffix forces a clean rebuild on the next activation.
 
-## Vehicle-list API cache
+## API cache
 
-Separate from the shell cache, fixed name:
+Separate from the shell cache, fixed name, shared by two fetch branches:
 
 ```ts
 const API_CACHE = 'quicklogger-api-cache-v1';
 ```
 
-- Written exclusively by the `/api/vehicles` fetch branch (`vehiclesNetworkFirst`
-  in `src/lib/client/sw-cache.ts`), and only on a `res.ok` response.
-- Fed by the layout's one-shot warming fetch (`src/lib/client/cache-warm.ts`,
-  fired post-`serviceWorker.ready`): SSR'd full navigations serialize the
-  vehicle list into the HTML and never issue a browser `GET /api/vehicles`,
-  so without the warming request the SW would only see one on client-side
-  re-navigation and the cache could stay cold indefinitely.
+- Written by the `/api/vehicles` **and** `/api/server-info` fetch branches
+  (both call the shared `networkFirst` policy in `src/lib/client/sw-cache.ts`),
+  and only on a `res.ok` response.
+- The vehicle list is fed by the layout's one-shot warming fetch
+  (`src/lib/client/cache-warm.ts`, fired post-`serviceWorker.ready`): SSR'd
+  full navigations serialize the vehicle list into the HTML and never issue a
+  browser `GET /api/vehicles`, so without the warming request the SW would
+  only see one on client-side re-navigation and the cache could stay cold
+  indefinitely. Server-info doesn't need an equivalent warming fetch — the
+  layout's boot-refresh (`+layout.svelte` `onMount`) always issues a real
+  `GET /api/server-info`, SSR or not.
 - Survives deploys: the `activate` handler whitelists `API_CACHE` alongside the
-  current shell `CACHE` and `IMG_CACHE`. Unlike the per-version shell cache, the
-  vehicle list must outlive a deploy so an offline cold-start right after an
-  update still has a vehicle to log against.
-- Network-first: a fresh online load always refreshes it; the cached copy is
-  served when the network is unreachable **or** the server answers non-ok (a
-  502 because LubeLogger is down is strictly worse than the last good list).
-  With a cold cache, a non-ok response passes through unchanged and an
-  offline fetch returns 504 — both of which the loader treats as "no
-  vehicles".
+  current shell `CACHE` and `IMG_CACHE`. Unlike the per-version shell cache,
+  these entries must outlive a deploy so an offline cold-start right after an
+  update still has a vehicle to log against and the right instance units.
+- Network-first: a fresh online load always refreshes the cached entry; the
+  cached copy is served when the network is unreachable **or** the server
+  answers non-ok (a 502 because LubeLogger is down is strictly worse than the
+  last good response). With a cold cache, a non-ok response passes through
+  unchanged and an offline fetch returns 504 — for `/api/vehicles` the loader
+  treats that as "no vehicles"; for `/api/server-info` the client's
+  `effectiveVolumeUnit`/`effectiveDistanceUnit`/`effectiveCurrencyCode`/
+  `effectiveLocale` helpers degrade to their gal/mi/USD/en-US defaults (see
+  [`instance-units.md`](./instance-units.md)).
 
 ## Install / activate lifecycle
 
@@ -247,7 +254,7 @@ if (url.pathname === '/api/vehicles') {
   event.respondWith(
     (async () => {
       const cache = await caches.open(API_CACHE);
-      return vehiclesNetworkFirst(
+      return networkFirst(
         req,
         (r) => fetch(r),
         cache,
@@ -259,13 +266,43 @@ if (url.pathname === '/api/vehicles') {
 }
 ```
 
-Placed before the generic `/api/` branch. `vehiclesNetworkFirst`
+Placed before the generic `/api/` branch. `networkFirst`
 (`src/lib/client/sw-cache.ts`) returns the live response and refreshes
 `API_CACHE` on every 2xx; on a network failure it serves the cached copy, or a
-bare 504 if the cache is cold. This is the one data dependency the offline
-cold-start form needs. The cache write goes through `event.waitUntil` (the
-fourth argument) so the worker isn't terminated before the "last good
-response" actually persists — see the SWR note above.
+bare 504 if the cache is cold. This is one of two data dependencies the
+offline cold-start form needs (see `/api/server-info` below). The cache write
+goes through `event.waitUntil` (the fourth argument) so the worker isn't
+terminated before the "last good response" actually persists — see the SWR
+note above.
+
+### `/api/server-info` — network-first, same policy and cache
+
+```ts
+if (url.pathname === '/api/server-info') {
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(API_CACHE);
+      return networkFirst(
+        req,
+        (r) => fetch(r),
+        cache,
+        (p) => event.waitUntil(p)
+      );
+    })()
+  );
+  return;
+}
+```
+
+Also placed before the generic `/api/` branch, and also backed by `API_CACHE`
+via the same `networkFirst` policy — this branch and `/api/vehicles` above
+call the identical shared helper, just with different `Cache` handles opened
+from the same fixed cache name. `effectiveVolumeUnit`/`effectiveDistanceUnit`/
+`effectiveCurrencyCode`/`effectiveLocale` (`src/lib/client/format.ts`) all read
+the server-info blob this caches; before this branch existed, `/api/server-info`
+fell through to the uncached generic `/api/` branch below and a cold offline
+start silently rendered gal/mi/USD/en-US regardless of the instance's real
+settings. See [`instance-units.md`](./instance-units.md).
 
 ### `/api/*` — network-first
 
