@@ -388,8 +388,9 @@ existing deploy tacks cloud on at the END unless you set
 Slots explicitly named in `OCR_PROVIDER_CHAIN` whose required env
 vars are missing produce an `ocr chain slot skipped` WARN line and
 are dropped from the effective chain. The check runs each time the
-chain is built — on every `/api/ocr` request and status probe, not
-once at boot. Default-chain missing-config slots are silent-skipped. Example "fastest cloud first, local fallback":
+chain is built — at boot (so it shows up in the startup logs right
+away) and again on every `/api/ocr` request and status probe.
+Default-chain missing-config slots are silent-skipped. Example "fastest cloud first, local fallback":
 
         OCR_PROVIDER_CHAIN=ollama-cloud,ollama-local,openrouter
 

@@ -109,11 +109,14 @@ your configured slots in the default order
 preserves back-compat — adding `OLLAMA_CLOUD_API_KEY` to an existing
 deploy tacks cloud on at the END of the chain unless you override.
 
-**Boot-time warnings.** If `OCR_PROVIDER_CHAIN` lists a slot whose
-env vars aren't set, the server logs a startup WARN naming the
-missing var and drops that slot from the effective chain. Booting
-continues normally — fix the env, restart. (Default-chain slots that
-aren't configured are silent-skipped.)
+**Missing-slot warnings.** If `OCR_PROVIDER_CHAIN` lists a slot whose
+env vars aren't set, the server logs a WARN naming the missing var and
+drops that slot from the effective chain. This check runs at boot (so
+you see it right away in the startup logs) and again on every
+`/api/ocr` request and status probe — it isn't a one-time startup
+notice. Booting continues normally either way — fix the env, restart
+if you want the warning to clear immediately. (Default-chain slots
+that aren't configured are silent-skipped.)
 
 ### Ollama Cloud model selection
 
@@ -319,12 +322,14 @@ disappears the moment you change the value.
 
 ## Troubleshooting
 
-| Toast                                                | Cause                                                                    | What to do                                                                                |
-| ---------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| _Couldn't read clearly — try again or type manually_ | 422 — values failed the range check or pump cross-field check (5% drift) | Re-shoot square-on, or type the values                                                    |
-| _Couldn't read image — try a clearer photo_          | 415 — file wasn't a recognized image type                                | Re-take the photo                                                                         |
-| _OCR service unreachable — please type values_       | 502/503 — providers down, ollama crashed, or no provider configured      | Type values; check provider health later                                                  |
-| _OCR took too long — please type values_             | Client timeout (provider-chain timeout + 10 s; flat 90 s fallback)       | Type values; ollama may be loading the model — first call after a cold start is slow      |
-| _OCR rate limit reached, try again in Ns_            | 429 — > 20 calls in the last hour                                        | Wait `N` seconds; if hitting this routinely, raise `OCR_RATE_LIMIT_PER_HOUR`              |
-| _OCR budget for today reached_                       | 402 — daily $ cap exhausted                                              | Wait until UTC rollover (00:00 UTC) or raise `OCR_DAILY_BUDGET_USD`                       |
-| _Photo too large — try again_                        | 413 — file exceeds `OCR_MAX_IMAGE_MB` (default 5 MiB)                    | Should be rare; the in-browser resize keeps photos well under this. Re-take and try again |
+| Toast                                                           | Cause                                                                    | What to do                                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| _Couldn't read clearly — try again or type manually_            | 422 — values failed the range check or pump cross-field check (5% drift) | Re-shoot square-on, or type the values                                                    |
+| _Couldn't read image — try a clearer photo_                     | 415 — file wasn't a recognized image type                                | Re-take the photo                                                                         |
+| _OCR rejected photo: {message}_ (or plain _OCR rejected photo_) | 400 — the server rejected the request before running OCR                 | Type the values; re-shooting rarely helps for a 400                                       |
+| _Couldn't read photo — try again_                               | The picked file itself couldn't be read (before it's even sent for OCR)  | Try picking or shooting the photo again                                                   |
+| _OCR service unreachable — please type values_                  | 502/503 — providers down, ollama crashed, or no provider configured      | Type values; check provider health later                                                  |
+| _OCR took too long — please type values_                        | Client timeout (provider-chain timeout + 10 s; flat 90 s fallback)       | Type values; ollama may be loading the model — first call after a cold start is slow      |
+| _OCR rate limit reached, try again in Ns_                       | 429 — > 20 calls in the last hour                                        | Wait `N` seconds; if hitting this routinely, raise `OCR_RATE_LIMIT_PER_HOUR`              |
+| _OCR budget for today reached_                                  | 402 — daily $ cap exhausted                                              | Wait until UTC rollover (00:00 UTC) or raise `OCR_DAILY_BUDGET_USD`                       |
+| _Photo too large — try again_                                   | 413 — file exceeds `OCR_MAX_IMAGE_MB` (default 5 MiB)                    | Should be rare; the in-browser resize keeps photos well under this. Re-take and try again |
