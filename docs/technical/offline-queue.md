@@ -75,8 +75,11 @@ Transitions, with code refs:
   dead-lettered with `lastError: 'max attempts'` so it surfaces in History
   instead of silently reading `'queued'` forever while never replaying.
 - `'synced'` rows are also written directly by the form's success path —
-  `+page.svelte`'s `submit()` calls `q.enqueue(input, 'synced')` after a
-  200 response from `/api/fuelup`. Those rows never pass through `'queued'`.
+  `+page.svelte`'s `submit()` calls
+  `q.enqueue(input, 'synced', { cost, currency })` after a 200 response
+  from `/api/fuelup`, attaching the converted-cost snapshot from the
+  response body as the third `converted` argument (see the row-shape
+  table above). Those rows never pass through `'queued'`.
 - `'failed'` is terminal. The History page (`src/routes/history/+page.svelte`)
   surfaces failed entries for visibility, but there is no built-in
   retry button — the user has to act manually (or wait for the next
@@ -122,7 +125,10 @@ codebase (verified in `src/service-worker.ts`). Instead:
      become visible without firing `focus`.
 
 The SW's `message` handler matches `data.type === 'sync-queue'` and
-calls `event.waitUntil(syncQueue())`.
+calls `event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle))`
+— `historyKeepPerVehicle` rides in on the message itself; see
+[Pruning](#pruning) below for why the SW can't just read the preference
+locally.
 
 There is no Background Sync (`sync`) listener — iOS doesn't fire those events
 reliably, so these resume/reconnect triggers are the drain path. A reconnect
@@ -201,9 +207,10 @@ wiped on restart) was sized for double-taps and catches neither. So every
 replayed POST carries **`queueReplay: true`** — not just retries, because of
 path 2 — and the server, before writing a flagged submission, GETs the
 vehicle's gas records from LubeLogger and skips the write if a record with
-the same **`date` + `odometer` + `fuelConsumed`** (± 0.0005 gal on the
-converted volume) already exists. The record store is the source of truth,
-so the dedupe survives server restarts with no new persistent state.
+the same **`date` + `odometer` + `fuelConsumed`** (± 0.0005 on `conv.volume`,
+i.e. the volume already converted into the instance's volume unit — gallons
+or liters) already exists. The record store is the source of truth, so the
+dedupe survives server restarts with no new persistent state.
 
 Key details (rationale in
 `docs/superpowers/specs/2026-07-11-offline-replay-dedupe-design.md`):
