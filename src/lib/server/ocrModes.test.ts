@@ -375,4 +375,28 @@ describe('odometer prompt', () => {
     // Math.round(87431.6) === 87432
     expect(p).toContain('87432');
   });
+
+  it('uses miles wording by default (no distanceUnit in context)', () => {
+    const p = odo.prompt();
+    expect(p).toContain('odometer reading in miles');
+    expect(p).toContain('as an integer number of miles');
+    expect(p).not.toContain('kilometer');
+  });
+
+  it('uses kilometer wording on a km instance', () => {
+    const p = odo.prompt({ distanceUnit: 'km' });
+    expect(p).toContain('odometer reading in kilometers');
+    expect(p).toContain('as an integer number of kilometers');
+    expect(p).not.toContain(' miles');
+  });
+
+  it('renders the sanity-check hint in the instance unit', () => {
+    const p = odo.prompt({ distanceUnit: 'km', lastOdometerMi: 111074 });
+    expect(p).toContain('approximately 111074 kilometers');
+  });
+
+  it('keeps the hint gate independent of distanceUnit', () => {
+    const p = odo.prompt({ distanceUnit: 'km' });
+    expect(p).not.toContain('previous odometer reading recorded');
+  });
 });

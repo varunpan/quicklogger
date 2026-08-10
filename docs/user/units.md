@@ -27,6 +27,11 @@ clear error instead of failing on every submit.
 - **Distance**: odometer labels on the log form, history, stats, maintenance
   reminders, and smart-check warnings read mi or km. Odometer _values_ are
   never converted — your instance already stores them in its own unit.
+- **Odometer photo OCR**: the vision model is told which distance unit
+  your instance uses, so it reads a km-instance odometer photo as
+  kilometers instead of assuming miles. Pump-photo OCR reads whatever
+  unit (gal or L) is printed on the display itself and doesn't need
+  the instance setting.
 - **Fuel economy preview**: MPG on a gallons+miles instance, L/100km on a
   liters+km instance (the same figure LubeLogger shows). On mixed setups
   (liters+miles, gallons+km) there's no standard single figure, so the preview
