@@ -67,7 +67,7 @@ string. This matters for upgrades: see [Schema versioning](#schema-versioning).
 
 Transitions, with code refs:
 
-- `'queued'` → `'synced'` via `Queue.markSynced(id)` after a successful
+- `'queued'` → `'synced'` via `Queue.markSynced(id, snapshot)` after a successful
   POST in `syncQueue()` (`src/lib/client/sync-queue.ts`).
 - `'queued'` → `'failed'` via `Queue.markFailed(id, error)` when the SW
   replay sees a 4xx (`res.status >= 400 && res.status < 500`), **or** when

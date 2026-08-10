@@ -13,9 +13,11 @@ the bigger picture: see the `/` main-form section of
 
 - [`src/lib/client/smart-checks.ts`](../../src/lib/client/smart-checks.ts) —
   the pure module: `evaluateSmartChecks`, six per-check sub-functions, the
-  `ODOMETER_MAX_DELTA` constant (consumed by check E), and the formatting helpers
-  (`formatOdo`, `formatShortDate`, `getToday`). Unit-tested in
-  `smart-checks.test.ts`.
+  `ODOMETER_MAX_DELTA` constant (consumed by check E), and `localIsoDate` —
+  the module's only other export, the canonical "today" seed (see § Non-obvious
+  decisions). Three module-private helpers back it: `getToday` (a one-line
+  wrapper over `localIsoDate`), `formatOdo`, and `formatShortDate`. Unit-tested
+  in `smart-checks.test.ts`.
 - [`src/lib/client/prefs.ts`](../../src/lib/client/prefs.ts) — adds
   `smartChecksEnabled: boolean` (default `true`) to `Prefs` /
   `DEFAULT_PREFS`. Migration is free via the existing spread-merge in
@@ -106,24 +108,24 @@ script).
 
 ## Edge cases & invariants
 
-| Scenario                                                        | Behaviour                                                                                                                  | Why                                                                                      |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `smartChecksEnabled === false`                                  | Helper short-circuits to `{ issues: [] }`, chip never renders, Submit never gates                                          | Master toggle is the only check before any per-check evaluation runs                     |
-| `data.lastFuelup === null`                                      | Checks A/B/C/E skip silently; D and G still run                                                                            | Helper takes `LastFuelupForCheck \| null`; per-check sub-functions guarded by the caller |
-| `data.lastFuelup.date` unparseable                              | `lubeDateToIso` returns `null`, `lastFuelupForCheck()` returns `null`, behaviour matches the no-last-fuelup case           | Defensive against malformed upstream input                                               |
-| Multiple checks fire at once                                    | Issues appear in canonical order A → B → C → D → E → G with a single `[Submit anyway]` button                              | Aggregator pushes in fixed order; user gets one decision, not N                          |
-| Field cleared then re-typed                                     | `oninput` fires on every keystroke; chip clears on first keystroke and stays cleared                                       | Cheap idempotent assign — `clearSmartCheckIssues` no-ops on empty                        |
-| User taps Submit, edits cost (not a tracked field), taps Submit | Chip persists across the cost edit; second Submit re-evaluates and either keeps or clears the chip based on current values | Per spec — only odometer/date/volume clear; cost has no smart check today                |
-| `submit(true)` POST 4xx → error toast                           | Error toast renders; chip stays cleared                                                                                    | Server-side error is a separate signal; smart-check chip is one-shot per submit attempt  |
-| `submit(true)` POST 5xx / network error → queue                 | Submission queues; chip stays cleared                                                                                      | Same                                                                                     |
-| Check D, `submitted.date === today`                             | Does **not** fire                                                                                                          | Strict `>` comparison per spec                                                           |
-| Check E, `Δ = 2000` exact                                       | Does **not** fire                                                                                                          | Strict `>` per spec, threshold inclusive at zero side, exclusive at the upper            |
-| Check C, `\|Δ\| = 5` exact                                      | Fires                                                                                                                      | `≤ 5` inclusive per spec                                                                 |
-| Check G, volume = exactly 0.5 gal / 2 L                         | Does **not** fire                                                                                                          | Strict `<` per spec                                                                      |
-| Check G, volume < 1 (e.g. 0.49)                                 | Suggests `volume * 10`                                                                                                     | Leading zero before decimal → suggestion is signal                                       |
-| Check G, volume ≥ 1 but < floor (e.g. 1.99 L)                   | Omits "did you mean" suffix                                                                                                | No leading zero in the typed number → suggestion would mislead                           |
-| Cost field edited                                               | No chip clear, no smart-check re-run                                                                                       | Spec excludes cost from clear-on-edit                                                    |
-| `prefs` snapshot taken at mount, settings toggled mid-session   | New value picks up on next page navigation (loadPrefs re-runs)                                                             | Same pattern as `odometerPrefillEnabled` / `odometerIncrementMi` — locked by precedent   |
+| Scenario                                                                                                                                                        | Behaviour                                                                                                                  | Why                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `smartChecksEnabled === false`                                                                                                                                  | Helper short-circuits to `{ issues: [] }`, chip never renders, Submit never gates                                          | Master toggle is the only check before any per-check evaluation runs                     |
+| `data.lastFuelup === null`                                                                                                                                      | Checks A/B/C/E skip silently; D and G still run                                                                            | Helper takes `LastFuelupForCheck \| null`; per-check sub-functions guarded by the caller |
+| `data.lastFuelup.date` unparseable                                                                                                                              | `lubeDateToIso` returns `null`, `lastFuelupForCheck()` returns `null`, behaviour matches the no-last-fuelup case           | Defensive against malformed upstream input                                               |
+| Multiple checks fire at once                                                                                                                                    | Issues appear in canonical order A → B → C → D → E → G with a single `[Submit anyway]` button                              | Aggregator pushes in fixed order; user gets one decision, not N                          |
+| Field cleared then re-typed                                                                                                                                     | `oninput` fires on every keystroke; chip clears on first keystroke and stays cleared                                       | Cheap idempotent assign — `clearSmartCheckIssues` no-ops on empty                        |
+| User taps Submit, edits cost (not a tracked field), taps Submit                                                                                                 | Chip persists across the cost edit; second Submit re-evaluates and either keeps or clears the chip based on current values | Per spec — only odometer/date/volume clear; cost has no smart check today                |
+| `submit(true)` POST 4xx → error toast                                                                                                                           | Error toast renders; chip stays cleared                                                                                    | Server-side error is a separate signal; smart-check chip is one-shot per submit attempt  |
+| `submit(true)` POST 5xx / network error → queue                                                                                                                 | Submission queues; chip stays cleared                                                                                      | Same                                                                                     |
+| Check D, `submitted.date === today`                                                                                                                             | Does **not** fire                                                                                                          | Strict `>` comparison per spec                                                           |
+| Check E, `Δ = 2000` exact                                                                                                                                       | Does **not** fire                                                                                                          | Strict `>` per spec, threshold inclusive at zero side, exclusive at the upper            |
+| Check C, `\|Δ\| = 5` exact                                                                                                                                      | Fires                                                                                                                      | `≤ 5` inclusive per spec                                                                 |
+| Check G, volume = exactly 0.5 gal / 2 L                                                                                                                         | Does **not** fire                                                                                                          | Strict `<` per spec                                                                      |
+| Check G, volume < 1 (e.g. 0.49)                                                                                                                                 | Suggests `volume * 10`                                                                                                     | Leading zero before decimal → suggestion is signal                                       |
+| Check G, volume ≥ 1 but < floor (e.g. 1.99 L)                                                                                                                   | Omits "did you mean" suffix                                                                                                | No leading zero in the typed number → suggestion would mislead                           |
+| Cost field edited                                                                                                                                               | No chip clear, no smart-check re-run                                                                                       | Spec excludes cost from clear-on-edit                                                    |
+| `prefs` snapshot taken at component initialization (`const prefs = loadPrefs();`, a plain top-level const — not inside `onMount`), settings toggled mid-session | New value picks up on next page navigation (loadPrefs re-runs)                                                             | Same pattern as `odometerPrefillEnabled` / `odometerIncrementMi` — locked by precedent   |
 
 ## Non-obvious decisions
 
@@ -180,7 +182,12 @@ enforces structural validity only: eight required fields (`vehicleId`,
 `volumeUnit` enum, a 3-letter ISO-4217 `currency`, positive finite
 odometer/volume/cost, positive `manualFxRate` when present, and
 `queueReplay` normalized to a literal boolean — but none of checks
-A–G. Apple Shortcuts and direct callers bypass smart checks by design —
+A–G. Two of those eight fields carry an extra v0.3.1 gate beyond mere
+presence: `date` must be a non-empty string after `trim()` (not just
+non-null), and `clientSubmissionId` must likewise be a non-blank string —
+an empty/whitespace value would otherwise become a _shared_ idempotency
+key, letting an unrelated second submission silently receive the first's
+cached response without ever being written upstream. Apple Shortcuts and direct callers bypass smart checks by design —
 the Shortcut surface already constructs valid payloads, and server-side
 smart-checks would block legitimate scripted backfills of historical
 data (where "future date" relative to ingest time is meaningless, and

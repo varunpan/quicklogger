@@ -148,7 +148,8 @@ out). Field starts at the truth (the last reading); the user opts into
 the bump. Locked decision 2.
 
 **Helper text only after edit.** Pre-edit, the field _is_ the prefill;
-showing "0 mi this tank" would be noise. Post-edit, the delta is
+showing `0 mi this tank` / `0 km this tank` (per the instance's distance
+unit) would be noise. Post-edit, the delta is
 informative. Same affordance the form already uses for the live MPG
 preview — only renders when there's something to say.
 

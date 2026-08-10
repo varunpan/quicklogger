@@ -53,7 +53,7 @@ Separate from the shell cache, fixed name, version baked into the constant:
 const IMG_CACHE = 'quicklogger-vehicle-images-v1';
 ```
 
-- Written exclusively by the `staleWhileRevalidate` helper for `GET /api/vehicle/image` responses (200 only — 404 "no image" never enters the cache).
+- Written exclusively by the `staleWhileRevalidate` helper for `GET /api/vehicle/image` responses (2xx only, gated on `res.ok` — 404 "no image" never enters the cache).
 - Survives shell upgrades: the activate handler whitelists `IMG_CACHE` alongside the current shell `CACHE` so a new release doesn't wipe images.
 - No size budget enforcement in this version — observed bytes are ~40 KB per vehicle and the fleet size is tiny. A future eviction policy is out of scope.
 
@@ -442,10 +442,13 @@ The OCR endpoint is intentionally **not cached and not queued for replay**:
 
 - POST requests are already excluded by the SW's `req.method !== 'GET'`
   guard — image POSTs go straight to the network with no SW involvement.
-- GET probes (`getOcrStatus`) fall through the network-first `/api/`
-  branch; on failure the loader catches the rejection and treats it as
-  `enabled: false`, hiding the camera affordances. No retry, no cached
-  status.
+- GET probes (`getOcrStatus`) fall through the generic network-first `/api/`
+  branch, which on a fetch failure resolves with a synthetic `504` `Response`
+  rather than rejecting. `getOcrStatus` (`api.ts:118-122`) checks `res.ok`
+  itself and returns `{ enabled: false }` directly for any non-2xx, including
+  that 504 — hiding the camera affordances. The page loader's own `.catch()`
+  around `getOcrStatus` never fires for this path; it's belt-and-suspenders
+  for other failure modes. No retry, no cached status.
 - Image blobs are deliberately **not** stored in IndexedDB for offline
   replay. Reasons: (a) ~300 KB per image bloats IDB fast; (b) by the
   time network returns, the user has typically typed values manually;
