@@ -256,7 +256,8 @@ A few things to know:
   photo is dropped — you'll see "Saved locally — photo not attached."
 - **Your fillup always logs first.** If a photo can't be attached for any reason, the record is still
   created and you'll see "Logged — but the photo couldn't be attached." rather than losing the entry.
-- The checkbox disappears after you log (and on a fresh page) until you send another photo for OCR.
+- The checkbox disappears after you log — whether the fillup saved immediately or was queued for
+  offline sync — and on a fresh page, until you send another photo for OCR.
 
 ## Date prefill from photo (v0.2.0+)
 

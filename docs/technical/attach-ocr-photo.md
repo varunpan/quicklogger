@@ -52,9 +52,14 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
    `addGasRecord(vehicleId, payload, files)` uses the JSON variant. A gate/upload failure skips that
    file and sets `photoWarning`; `addGasRecord` failing throws and surfaces as a normal 4xx/5xx.
 6. Success: green toast, or amber "couldn't attach" toast when `photoWarning` is set.
-7. Reset clears both blobs and sets `attachPhotos = true`; the checkbox hides until the next OCR send.
+7. Success reset clears both blobs and sets `attachPhotos = true`; the checkbox hides until the next
+   OCR send.
 8. Offline (network/5xx in submit `catch`): the text-only `input` is enqueued (no bytes in IDB); the
-   toast reads "Saved locally — photo not attached." when attach was requested.
+   toast reads "Saved locally — photo not attached." when attach was requested. A queued entry can
+   never carry photos, so a successful enqueue runs the same blob reset as step 7 (both blobs clear,
+   `attachPhotos` returns to `true`) — the attach row does not survive into the next entry. If the
+   enqueue itself fails (IDB unavailable — private mode, quota), the fill-up was not saved at all and
+   the blobs are left staged, since there is no queued entry for the online-only invariant to apply to.
 
 ## Edge cases & invariants
 

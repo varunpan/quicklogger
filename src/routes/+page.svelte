@@ -717,6 +717,12 @@
         try {
           const q = await Queue.open();
           await q.enqueue(input); // text-only — no image bytes ever enter IDB (online-only attach)
+          // Photos are online-only — a queued entry can never carry them
+          // (see docs/technical/attach-ocr-photo.md). Clear the staged blobs so
+          // the attach row does not survive into the next entry.
+          attachPumpBlob = null;
+          attachOdometerBlob = null;
+          attachPhotos = true; // default-on again; checkbox stays hidden until the next OCR send (blobs cleared)
           toast = {
             kind: 'queued',
             text: wantsAttach
