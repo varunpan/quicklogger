@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { seedPrefs, gotoHomeViaClientRouter } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
 
@@ -70,5 +71,52 @@ test('changing vehicle preserves entered values and resets the odometer (#50)', 
   await expect(page.getByPlaceholder('Costco Pump 4, regular grade')).toHaveValue('Shell premium');
 
   // The odometer reset to the newly-picked vehicle's last fillup (NOT carried).
+  await expect(page.locator('#odometer')).toHaveValue('55000');
+});
+
+// Regression for the home loader (`src/routes/+page.ts`) falling straight to
+// vehicles[0] instead of going through the shared resolveSelectedVehicle
+// chain that /history, /maintenance and /stats already used. A cold, param-less
+// visit to `/` must honour the last vehicle picked, not always show the first.
+test('home page opened without a URL param shows the last-picked vehicle, not vehicles[0] (task-2)', async ({
+  page
+}) => {
+  await page.route('**/api/vehicles', (route) =>
+    route.fulfill({
+      json: [
+        { id: 1, year: 2014, make: 'Honda', model: 'Accord' },
+        { id: 2, year: 2019, make: 'VW', model: 'Atlas' }
+      ]
+    })
+  );
+  await page.route('**/api/vehicle/last-fuelup**', (route) => {
+    const id = new URL(route.request().url()).searchParams.get('vehicleId');
+    const odometer = id === '2' ? 55000 : 87234;
+    route.fulfill({
+      json: {
+        id: 999,
+        vehicleId: Number(id),
+        date: '2026-05-03',
+        odometer,
+        fuelConsumed: 10.8,
+        cost: 39.42
+      }
+    });
+  });
+  await page.route('**/api/fx**', (route) =>
+    route.fulfill({
+      json: { rate: 1, source: 'identity', fetchedAt: Date.now(), stale: false, ageHours: 0 }
+    })
+  );
+
+  // Simulate a previous pick of vehicle 2 — what the picker's savePrefs call
+  // (src/routes/vehicles/+page.svelte) leaves behind for the next cold visit.
+  await seedPrefs(page, { lastVehicleId: 2 });
+
+  // Land on `/` with no ?vehicleId= at all, as a fresh app open would.
+  await gotoHomeViaClientRouter(page);
+
+  // The form shows the last-picked vehicle (2: VW Atlas), not vehicles[0] (1: Honda Accord).
+  await expect(page.getByRole('button', { name: /VW Atlas/ })).toBeVisible();
   await expect(page.locator('#odometer')).toHaveValue('55000');
 });

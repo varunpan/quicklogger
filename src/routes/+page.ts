@@ -7,12 +7,12 @@ import {
   type LastFillupRecord,
   type LastFillupSource
 } from '$lib/client/last-fillup';
+import { resolveSelectedVehicle } from '$lib/client/vehicle-resolve';
 import type { OcrMode, OcrStatus } from '$lib/shared/types';
 
 export const load: PageLoad = async ({ fetch, url }) => {
   const vehicles = await listVehicles(fetch).catch(() => []);
-  const prefillVehicleId = Number(url.searchParams.get('vehicleId'));
-  const targetVehicle = vehicles.find((v) => v.id === prefillVehicleId) ?? vehicles[0] ?? null;
+  const targetVehicle = resolveSelectedVehicle(vehicles, url);
 
   let lastFuelupRecord: LastFillupRecord | null = null;
   let lastFuelupSource: LastFillupSource = null;
