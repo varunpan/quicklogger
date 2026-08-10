@@ -43,7 +43,7 @@ means here.
 | Field                         | What it does                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Vehicle**                   | Button-style row showing the vehicle's LubeLogger photo (when set) and year/make/model. Tap it to jump to the Vehicles page and pick a different one. The generic car icon shows as a fallback for vehicles without a photo or when the image isn't reachable.                                                                                                                                                 |
-| **Odometer**                  | Number input, pre-filled with the previous reading when prefill is on. A `prefilled` tag sits in the input until you interact.                                                                                                                                                                                                                                                                                 |
+| **Odometer**                  | Whole-number input, pre-filled with the previous reading when prefill is on — typing `.` or `,` is blocked, so you can't enter a decimal. A `prefilled` tag sits in the input until you interact. When the field is empty, the placeholder hints the previous reading, or reads **"No last fuel up"** if there isn't one yet.                                                                                  |
 | **`+N mi`/`+N km` chip**      | One-tap increment below the odometer field, labelled in your instance's distance unit. The number (`N`) reflects your **Quick increment** setting; the chip is hidden if you set it to 0 or disable prefill.                                                                                                                                                                                                   |
 | **Date**                      | Native date picker, defaults to today.                                                                                                                                                                                                                                                                                                                                                                         |
 | **Volume**                    | Decimal input + `Gal`/`L` toggle pill on the right.                                                                                                                                                                                                                                                                                                                                                            |
@@ -72,8 +72,10 @@ buttons render side by side in a single row above the odometer/date grid
 — one to read the pump display, one to read the odometer — letting you
 snap a photo to pre-fill the form. After a photo is read, a **set from
 photo** cue (or a date-missing warning) chip appears under the Date
-field, and an **Attach photo(s) to this record** checkbox row lets you
-send the original image along with the entry. See
+field, and an **Attach photo to this record** (or **Attach photos to
+this record**, when both a pump and odometer photo were sent) checkbox
+row lets you send the photo along with the entry — the OCR-resized copy
+that was actually read, not the original full-size capture. See
 [`photo-ocr.md`](photo-ocr.md) for setup and walkthrough.
 
 ## Vehicles (`/vehicles`)
@@ -91,10 +93,10 @@ Tap a tile to:
 
 1. Persist that vehicle id as your "last vehicle" in localStorage.
 2. Navigate back to the page that sent you here. By default that's
-   `/?vehicleId={id}` (Log Fuel). If you arrived from `/maintenance`
-   via its vehicle card, you land back on
-   `/maintenance?vehicleId={id}` instead — the picker honors a
-   `?from=` query so the round-trip stays in context.
+   `/?vehicleId={id}` (Log Fuel). If you arrived from `/maintenance`,
+   `/history`, or `/stats` via that page's vehicle card, you land back
+   on that same page with `?vehicleId={id}` instead — the picker
+   honors a `?from=` query so the round-trip stays in context.
 
 The vehicle list is read-only inside quicklogger — to add or edit
 vehicles, do it in LubeLogger directly.
@@ -298,7 +300,8 @@ Each card shows:
 - **Date line** — the date you logged, plus a relative phrase
   (`May 12, 2026 · yesterday`, `Apr 7, 2026 · 36 days ago`).
 - **Odometer reading**.
-- **Volume + cost line** — formatted as `14.279 gal · USD 50.96`.
+- **Volume + cost line** — formatted as `14.279 gal · $50.96` (a
+  locale-correct currency string — `CA$50.96` on a CAD entry, and so on).
 - **Unit price** — what one unit cost: the as-paid price (e.g.
   `CA$1.45/L` or `$3.15/gal`). When you paid in a different currency or
   unit than your LubeLogger instance, a second value shows the same price
@@ -307,7 +310,9 @@ Each card shows:
   value once it syncs.
 - **Fill-to-full** or **Missed fillup** when those flags were set.
 - **note:** the free-text note, when you wrote one.
-- **#tag chips** when you tagged the entry.
+- **#tag chips** when the entry has tags. The Log Fuel form has no tags
+  field — tags only reach a record via Apple Shortcuts or a direct
+  `/api/fuelup` call; see [`shortcuts.md`](shortcuts.md).
 - **error:** and **attempts:** lines on failed entries only, so you
   know why and how often it tried.
 

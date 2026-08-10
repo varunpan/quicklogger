@@ -109,9 +109,15 @@ Content-Type: application/json
   "currency": "USD",
   "isFillToFull": true,
   "missedFuelup": false,
+  "tags": "commute,winter",
   "clientSubmissionId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+`tags` is optional — a comma-separated string. This is the one place tags
+are actually usable: the Log Fuel form has no tags input, so a
+Shortcuts recipe (or any direct `/api/fuelup` caller) is the only way to
+put tags on a record.
 
 The server returns:
 
@@ -218,7 +224,7 @@ Same as Path 1 — insert a Dictionary + Choose from List + Get Dictionary Value
 ## Tips & gotchas
 
 - **Dictating decimals**: Siri's most reliable parse is `<integer> point <integer>` (e.g., "eleven point two"). Saying "and" instead of "point" works sometimes but Siri may interpret "ten dollars and fifty cents" as `10` then prompt again for the decimal.
-- **Currency conversion**: if you submit in non-USD (e.g., CAD), the server converts to USD before storing in LubeLogger. The Speak Text action announces the _converted_ USD amount, which is the actual stored value.
+- **Currency conversion**: if you submit in a currency other than your LubeLogger instance's target currency, the server converts before storing in LubeLogger. The target defaults to USD but is configurable (`LUBELOGGER_CURRENCY`) — see [`currency-fx.md`](currency-fx.md#override-the-target-currency). The Speak Text action announces the _converted_ amount in that target currency, which is the actual stored value.
 - **Offline**: Path 1 works offline (the form's IndexedDB queue handles it once Safari is open). Path 2 fails immediately — the POST has no client-side queue. Future enhancement could add one.
 - **Multi-vehicle without picking**: an alternative to a Choose-from-List is to build _two_ separate shortcuts (`log-honda`, `log-atlas`), each hardcoded to its `vehicleId`. Lower friction at the pump, more shortcuts to maintain.
 - **Apple Watch**: shortcuts published to the watch can run there. Path 2 works well on watch since there's no browser. Path 1 typically opens Safari on the paired iPhone.

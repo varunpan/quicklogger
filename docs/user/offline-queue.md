@@ -29,12 +29,12 @@ open it once on a network and you're set.
 After you tap **Log fillup**, one of these toasts appears at the bottom of
 the form:
 
-| Toast colour | Text                                    | What it means                                                                                                                                                                                                    |
-| ------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Green        | `Logged: {N.NN} Gal · {cost}`           | Posted to LubeLogger successfully. The numbers are the converted, server-side values (so you can sanity-check FX). The cost is shown in your LubeLogger instance's currency — a `$` amount only when that's USD. |
-| Amber        | `Saved locally — will sync when online` | The network call failed (offline, server down, DNS not resolving). Your submission is in the device queue and will replay automatically.                                                                         |
-| Amber        | `Saved locally — photo not attached.`   | Same save-and-queue as above, shown when you had photos attached at submit time. Only the fill-up itself is queued — photos are never queued, so they won't be attached when it syncs.                           |
-| Red          | `Submission rejected: {message}`        | The submission got a 4xx — either quicklogger's own validation (missing field, bad value, unknown currency/unit) or LubeLogger rejecting it. The submission is **not** queued; fix it and resubmit.              |
+| Toast colour | Text                                                              | What it means                                                                                                                                                                                       |
+| ------------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Green        | `Logged: {N.NN} Gal · {cost}` (or `... L ·` on a liters instance) | Posted to LubeLogger successfully. The numbers are the converted, server-side values (so you can sanity-check FX). The volume unit and cost currency both match your LubeLogger instance.           |
+| Amber        | `Saved locally — will sync when online`                           | The network call failed (offline, server down, DNS not resolving). Your submission is in the device queue and will replay automatically.                                                            |
+| Amber        | `Saved locally — photo not attached.`                             | Same save-and-queue as above, shown when you had photos attached at submit time. Only the fill-up itself is queued — photos are never queued, so they won't be attached when it syncs.              |
+| Red          | `Submission rejected: {message}`                                  | The submission got a 4xx — either quicklogger's own validation (missing field, bad value, unknown currency/unit) or LubeLogger rejecting it. The submission is **not** queued; fix it and resubmit. |
 
 The form does not need to know in advance whether you are offline. It
 always tries the POST first and falls back to the queue on network or 5xx
@@ -45,7 +45,9 @@ failure.
 Open the drawer → **History**. Every fill-up logged on this device for the
 selected vehicle appears in a single list, newest date first — synced,
 pending, and failed entries together. Each card shows the date, odometer,
-volume and cost, the price per unit, plus any tags and notes you entered.
+volume and cost, the price per unit, any notes you entered, and tag chips
+if the entry has tags (only possible for entries logged via Shortcuts or
+a direct API call — the Log Fuel form has no tags field).
 
 Cards that haven't reached LubeLogger yet carry a badge:
 

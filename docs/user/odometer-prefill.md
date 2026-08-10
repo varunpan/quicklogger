@@ -24,7 +24,11 @@ appear:
 
 2.  **Odometer field** opens already filled with the last reading (e.g.
     `87234`). The text is muted and a small **`prefilled`** tag sits in the
-    corner of the input, signalling "this is a guess, double-check it."
+    corner of the input, signalling "this is a guess, double-check it." The
+    field only accepts whole numbers — typing `.` or `,` does nothing, so
+    there's no way to enter a decimal reading. If the field is empty (no
+    previous fillup, or prefill is off), the placeholder text hints the
+    last reading, or reads **"No last fuel up"** if there isn't one yet.
 
 3.  **`+300 mi` chip** sits just below the odometer field. One tap adds 300
     miles to the value. Tap twice for 600. The number on the chip reflects
