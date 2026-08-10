@@ -7,7 +7,7 @@ import {
   OpenRouterOcrProvider
 } from './ocrProviders';
 import { MODES } from './ocrModes';
-import type { ModeContract } from './ocrModes';
+import type { ModeContract, PromptContext } from './ocrModes';
 import type { OcrMode, OcrResult } from '$lib/shared/types';
 import type { Logger } from './logger';
 
@@ -301,12 +301,13 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
     };
   }
 
-  // Build the prompt context. Defensive on both hint fields — only forward
-  // when finite positive; otherwise drop so the prompt builder never emits
-  // a "previous reading was NaN" hint. The result is undefined (no
-  // context) when neither hint passes the gate, so old callers that pass
-  // nothing observe identical behaviour to v0.2.0+.
-  const ctx: { lastOdometerMi?: number; lastPricePerUnit?: number } = {};
+  // Build the prompt context. The instance distance unit is always present so
+  // odometer-mode prompts name the right unit. Both hint fields stay
+  // defensive — only forward when finite positive, so the prompt builder
+  // never emits a "previous reading was NaN" hint. The hint gates live inside
+  // the builders and key off their own fields, so a caller passing no hints
+  // observes the same prompt text as before this context became non-optional.
+  const ctx: PromptContext = { distanceUnit: input.env.lubeloggerDistanceUnit };
   if (
     typeof input.lastOdometerMi === 'number' &&
     Number.isFinite(input.lastOdometerMi) &&
@@ -321,8 +322,7 @@ export async function runOcrPipeline(input: PipelineInput): Promise<PipelineOutc
   ) {
     ctx.lastPricePerUnit = input.lastPricePerUnit;
   }
-  const promptCtx = Object.keys(ctx).length > 0 ? ctx : undefined;
-  const promptStr = contract.prompt(promptCtx);
+  const promptStr = contract.prompt(ctx);
 
   let raw: unknown;
   try {

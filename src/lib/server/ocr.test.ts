@@ -491,6 +491,26 @@ describe('runOcrPipeline', () => {
     }
   });
 
+  it('odometer: threads the instance distance unit into the prompt', async () => {
+    let seenPrompt = '';
+    const recordingProvider: OcrProvider = {
+      name: 'ollama-local',
+      estimateCostCents: () => 0,
+      extract: async (_bytes, prompt) => {
+        seenPrompt = prompt;
+        return { odometer: 111120 };
+      }
+    };
+    const r = await runOcrPipeline({
+      bytes: JPEG,
+      mode: 'odometer',
+      provider: recordingProvider,
+      env: envOverrides({ ollamaVisionUrl: 'x', lubeloggerDistanceUnit: 'km' })
+    });
+    expect(r.ok).toBe(true);
+    expect(seenPrompt).toContain('kilometers');
+  });
+
   it('pump: no hint when lastPricePerUnit is unset', async () => {
     let seenPrompt = '';
     const recordingProvider: OcrProvider = {

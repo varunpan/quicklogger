@@ -192,6 +192,11 @@ Full env-var reference:
    - a screenshot of a phone app showing the mileage (Carfax,
      FuelEconomy.gov, your car's companion app — anything that displays
      the number).
+
+   The model is told which unit your instance uses — miles or km — so
+   it reads a km cluster correctly on a metric instance instead of
+   assuming miles.
+
 3. The **preview screen** opens. Rotate or retake if the image isn't
    right; tap **Send for OCR** when it is.
 4. A blue chip appears in the feedback zone under the capture row:
