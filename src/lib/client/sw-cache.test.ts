@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { navigationFallback, precacheShell, vehiclesNetworkFirst } from './sw-cache';
+import { navigationFallback, precacheShell, networkFirst } from './sw-cache';
 
 // Minimal Cache double: a Map keyed on the request URL (or a raw string key).
 function fakeCache() {
@@ -80,7 +80,7 @@ describe('navigationFallback', () => {
   });
 });
 
-describe('vehiclesNetworkFirst', () => {
+describe('networkFirst', () => {
   // Collects promises the policy hands to event.waitUntil so tests can
   // settle the background cache write before asserting on the cache.
   function fakeWaitUntil() {
@@ -93,7 +93,7 @@ describe('vehiclesNetworkFirst', () => {
     const { waitUntil, pending } = fakeWaitUntil();
     const req = new Request('http://x/api/vehicles');
     const net = new Response(JSON.stringify([{ id: 1 }]), { status: 200 });
-    const res = await vehiclesNetworkFirst(req, async () => net, cache, waitUntil);
+    const res = await networkFirst(req, async () => net, cache, waitUntil);
     expect(res.status).toBe(200);
     await Promise.all(pending);
     const cached = await cache.match(req);
@@ -108,12 +108,7 @@ describe('vehiclesNetworkFirst', () => {
     const cache = fakeCache();
     const { waitUntil, pending } = fakeWaitUntil();
     const req = new Request('http://x/api/vehicles');
-    await vehiclesNetworkFirst(
-      req,
-      async () => new Response('[]', { status: 200 }),
-      cache,
-      waitUntil
-    );
+    await networkFirst(req, async () => new Response('[]', { status: 200 }), cache, waitUntil);
     expect(pending).toHaveLength(1);
   });
 
@@ -121,7 +116,7 @@ describe('vehiclesNetworkFirst', () => {
     const cache = fakeCache();
     const { waitUntil, pending } = fakeWaitUntil();
     const req = new Request('http://x/api/vehicles');
-    const res = await vehiclesNetworkFirst(
+    const res = await networkFirst(
       req,
       async () => new Response('err', { status: 500 }),
       cache,
@@ -136,7 +131,7 @@ describe('vehiclesNetworkFirst', () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
     await cache.put(req, new Response(JSON.stringify([{ id: 7 }]), { status: 200 }));
-    const res = await vehiclesNetworkFirst(
+    const res = await networkFirst(
       req,
       async () => {
         throw new Error('offline');
@@ -152,7 +147,7 @@ describe('vehiclesNetworkFirst', () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
     await cache.put(req, new Response(JSON.stringify([{ id: 7 }]), { status: 200 }));
-    const res = await vehiclesNetworkFirst(
+    const res = await networkFirst(
       req,
       async () => new Response('upstream down', { status: 502 }),
       cache,
@@ -165,7 +160,7 @@ describe('vehiclesNetworkFirst', () => {
   it('returns 504 when offline with a cold cache', async () => {
     const cache = fakeCache();
     const req = new Request('http://x/api/vehicles');
-    const res = await vehiclesNetworkFirst(
+    const res = await networkFirst(
       req,
       async () => {
         throw new Error('offline');
@@ -174,5 +169,56 @@ describe('vehiclesNetworkFirst', () => {
       fakeWaitUntil().waitUntil
     );
     expect(res.status).toBe(504);
+  });
+
+  // Exercised against a second, unrelated endpoint (/api/server-info) to prove
+  // the policy carries no vehicles-specific knowledge — it was generalised from
+  // vehiclesNetworkFirst so the /api/server-info SW branch could reuse it
+  // instead of a near-duplicate helper.
+  describe('applied to /api/server-info', () => {
+    it('serves cached server-info when the network fails', async () => {
+      const cache = fakeCache();
+      const req = new Request('https://x/api/server-info');
+      await cache.put(
+        req,
+        new Response(JSON.stringify({ volumeUnit: 'liters', distanceUnit: 'km' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      );
+      const res = await networkFirst(
+        req,
+        async () => {
+          throw new Error('offline');
+        },
+        cache,
+        fakeWaitUntil().waitUntil
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ volumeUnit: 'liters' });
+    });
+
+    it('returns 504 when offline with no cached server-info', async () => {
+      const cache = fakeCache();
+      const req = new Request('https://x/api/server-info');
+      const res = await networkFirst(
+        req,
+        async () => {
+          throw new Error('offline');
+        },
+        cache,
+        fakeWaitUntil().waitUntil
+      );
+      expect(res.status).toBe(504);
+    });
+
+    it('does not cache a non-ok server-info response', async () => {
+      const cache = fakeCache();
+      const req = new Request('https://x/api/server-info');
+      const { waitUntil, pending } = fakeWaitUntil();
+      await networkFirst(req, async () => new Response('boom', { status: 502 }), cache, waitUntil);
+      await Promise.all(pending);
+      expect(await cache.match(req)).toBeUndefined();
+    });
   });
 });

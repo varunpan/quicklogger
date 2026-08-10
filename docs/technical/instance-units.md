@@ -68,9 +68,20 @@ all convert locally for rendering — none of them touch what gets submitted.
   writes the probe response into the `quicklogger-server-info` localStorage
   cache, same single-writer as every other `ServerInfo` field.
 - **Read side.** `effectiveVolumeUnit()` / `effectiveDistanceUnit()`
-  (`src/lib/client/format.ts`) read the cache and degrade to `'gal'` / `'mi'`
-  on anything other than `'liters'` / `'km'`. See
+  (`src/lib/client/format.ts`) read the `localStorage` cache and degrade to
+  `'gal'` / `'mi'` on anything other than `'liters'` / `'km'`. See
   [`docs/technical/format.md`](./format.md) for the exact resolution rules.
+- **Offline warm-up.** The layout's boot-refresh (`+layout.svelte`'s
+  `fetch('/api/server-info')`) is what feeds `localStorage`, and that fetch is
+  itself service-worker-cached: `/api/server-info` is a network-first branch in
+  `src/service-worker.ts` backed by the fixed `API_CACHE` bucket (same policy
+  and cache as `/api/vehicles`; see
+  [`docs/technical/service-worker.md`](./service-worker.md)). So an offline
+  reload with a warm SW cache still gets a real `res.ok` response and
+  `localStorage` stays current — the read side above never has to fall back to
+  gal/mi/USD/en-US just because the device is offline. Only a device that has
+  **never** completed an online load (both `localStorage` and `API_CACHE`
+  cold) still degrades to those defaults.
 - **Offline merge.** The offline last-fillup resolver also converts queued
   volumes into the instance unit at read-time via `effectiveVolumeUnit()` —
   see [`docs/technical/last-fillup.md`](./last-fillup.md) for the

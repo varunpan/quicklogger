@@ -47,14 +47,19 @@ export async function navigationFallback(
 }
 
 /**
- * Vehicle-list policy: network-first, refreshing `cache` on every successful
+ * Generic network-first API policy: refreshing `cache` on every successful
  * (`res.ok`) response and serving the cached copy when the network fails or
  * the server answers non-ok. A cold cache offline yields a bare 504, which
- * the home loader treats as "no vehicles" (same as a live upstream failure).
- * `fetcher` is the second arg to match `navigationFallback` — the shared
- * dependency sits in the same slot.
+ * callers treat as "no data" (same as a live upstream failure). `fetcher` is
+ * the second arg to match `navigationFallback` — the shared dependency sits
+ * in the same slot.
+ *
+ * Shared by the `/api/vehicles` and `/api/server-info` fetch branches in
+ * `service-worker.ts` — each opens its own `Cache` handle (both currently
+ * point at the same fixed `API_CACHE`) and passes it in, so this stays a
+ * pure policy with no endpoint-specific knowledge.
  */
-export async function vehiclesNetworkFirst(
+export async function networkFirst(
   req: Request,
   fetcher: (req: Request) => Promise<Response>,
   cache: Cache,

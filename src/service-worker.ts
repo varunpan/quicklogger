@@ -6,7 +6,7 @@
 import { build, files, version, prerendered } from '$service-worker';
 import { syncQueue } from '$lib/client/sync-queue';
 import { SW_VERSION_REQUEST } from '$lib/client/sw-update';
-import { navigationFallback, precacheShell, vehiclesNetworkFirst } from '$lib/client/sw-cache';
+import { navigationFallback, precacheShell, networkFirst } from '$lib/client/sw-cache';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -63,7 +63,28 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(API_CACHE);
-        return vehiclesNetworkFirst(
+        return networkFirst(
+          req,
+          (r) => fetch(r),
+          cache,
+          (p) => event.waitUntil(p)
+        );
+      })()
+    );
+    return;
+  }
+
+  // Server-info — network-first, same policy and cache as /api/vehicles above.
+  // effectiveVolumeUnit/effectiveDistanceUnit/effectiveCurrencyCode/effectiveLocale
+  // all read this blob; without SW caching it fell through to the generic /api/
+  // branch's uncached 504, so a cold offline start silently rendered gal/mi/USD/
+  // en-US regardless of the instance's real settings. Before the generic /api/
+  // branch for the same reason as /api/vehicles.
+  if (url.pathname === '/api/server-info') {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(API_CACHE);
+        return networkFirst(
           req,
           (r) => fetch(r),
           cache,
