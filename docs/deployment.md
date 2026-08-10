@@ -303,11 +303,11 @@ restarts.
 The build workflow tags every release multiple ways on GHCR. Pick
 the one that matches your tolerance for surprise:
 
-| Tag              | Behaviour                                                                                                                                              | When to use                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `:0.3.2` (exact) | Frozen until you edit compose.                                                                                                                         | Production where you want bit-for-bit reproducibility.                       |
-| `:0.3` (minor)   | Auto-picks up patches in 0.3.x on `pull`. Won't jump to 0.4.x.                                                                                         | Most fork users — patches land automatically, breaking changes are gated.    |
-| `:latest`        | Points at the most recent tagged release — re-stamped on every tag build, not on bare merges to main (see "Release workflow": only a tag push builds). | Owners who always want the newest release and accept auto-updates on `pull`. |
+| Tag              | Behaviour                                                                                                                                                                                                                   | When to use                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `:0.3.2` (exact) | Frozen until you edit compose.                                                                                                                                                                                              | Production where you want bit-for-bit reproducibility.                       |
+| `:0.3` (minor)   | Auto-picks up patches in 0.3.x on `pull`. Won't jump to 0.4.x.                                                                                                                                                              | Most fork users — patches land automatically, breaking changes are gated.    |
+| `:latest`        | Points at the most recent build — re-stamped unconditionally on every workflow run (tag push or manual `workflow_dispatch`), never on bare merges to main (see "Release workflow": only a tag push or a manual run builds). | Owners who always want the newest release and accept auto-updates on `pull`. |
 
 `docker compose pull && docker compose up -d` is the release ritual
 either way — updates are opt-in, so you pull when you're ready.

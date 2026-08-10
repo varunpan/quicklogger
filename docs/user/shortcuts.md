@@ -46,7 +46,7 @@ The home page (`/`) accepts query params. The shortcut just builds a URL and ope
 | `date`       | `YYYY-MM-DD`      | Defaults to today; ignored if not a valid ISO date                    |
 | `notes`      | text              | Free text — note / station / grade                                    |
 
-All params are optional — anything you don't pass uses the form's normal defaults (the first vehicle in your LubeLogger list, today's date, your Settings defaults for unit/currency).
+All params are optional — anything you don't pass uses the form's normal defaults (omitting `vehicleId` falls back to the vehicle you last picked, or the first vehicle in your LubeLogger list if you haven't picked one yet; today's date; your Settings defaults for unit/currency).
 
 ### Build it on iPhone
 

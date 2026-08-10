@@ -59,13 +59,23 @@ The fastest path to running quicklogger — standalone container, single host, n
 git clone https://github.com/varunpan/quicklogger.git
 cd quicklogger
 cp compose.example.yml docker-compose.yml
-# Edit docker-compose.yml — set LUBELOGGER_URL to your LubeLogger container/host
+# Edit docker-compose.yml — set LUBELOGGER_URL to your LubeLogger container/host,
+# and ORIGIN to the URL you'll actually open the app from (see note below)
 cp .env.example .env
 # Edit .env — set LUBELOGGER_API_KEY
 docker compose up -d
 ```
 
-quicklogger now serves on `http://localhost:3000`. Open it on your phone (same network), confirm your fleet appears under **Vehicles**, log a small dummy fill, and you're done.
+quicklogger now serves on port `3000`. Open `http://<your-host's-LAN-IP>:3000` on
+your phone (same network — a phone can't resolve `localhost` on another
+machine), confirm your fleet appears under **Vehicles**, log a small dummy
+fill, and you're done.
+
+> **`ORIGIN` must match the URL you open the app from.** SvelteKit rejects a
+> mismatched `Origin` on submit with a 403 — GETs (like the Vehicles check
+> above) still work, so a wrong `ORIGIN` looks like a bad API key until you
+> try to log a fill. See [Reverse proxy](#reverse-proxy) below for the
+> HTTPS-fronted version of this.
 
 For deployment behind a reverse proxy alongside an existing LubeLogger stack, see [Self-hosting](#self-hosting) below.
 
@@ -219,22 +229,22 @@ npm run dev   # http://localhost:5173
 
 ### Scripts
 
-| Command                | Purpose                                                                                                                                      |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`          | Vite dev server with hot reload (localhost only)                                                                                             |
-| `npm run dev:lan`      | Same, exposed on the LAN — for testing on a real phone                                                                                       |
-| `npm run build`        | Production build (adapter-node → `build/`)                                                                                                   |
-| `npm run preview`      | Run the production build locally                                                                                                             |
-| `npm run preview:lan`  | Same, exposed on the LAN — for testing the production bundle on a real phone                                                                 |
-| `npm run uat`          | Production-mirror server (`node --env-file=.env build`) — rebuilds until precompressed assets are complete, smoke-tests, then prints the URL |
-| `npm run uat:docker`   | Build + run the real production image locally (`compose.dev.yml`) — prod-mirror UAT with the service worker live on `localhost`              |
-| `npm test`             | Vitest — unit + route handler tests                                                                                                          |
-| `npm run test:watch`   | Vitest watch mode                                                                                                                            |
-| `npm run test:e2e`     | Playwright (mobile-Safari profile)                                                                                                           |
-| `npm run lint`         | ESLint flat config                                                                                                                           |
-| `npm run check`        | `svelte-kit sync` + svelte-check                                                                                                             |
-| `npm run format`       | Prettier across the tree (config in `.prettierrc`)                                                                                           |
-| `npm run format:check` | Prettier in check mode — the CI format gate                                                                                                  |
+| Command                | Purpose                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run dev`          | Vite dev server with hot reload (localhost only)                                                                                                                                                                                                                                                             |
+| `npm run dev:lan`      | Same, exposed on the LAN — for testing on a real phone                                                                                                                                                                                                                                                       |
+| `npm run build`        | Production build (adapter-node → `build/`)                                                                                                                                                                                                                                                                   |
+| `npm run preview`      | Run the production build locally                                                                                                                                                                                                                                                                             |
+| `npm run preview:lan`  | Same, exposed on the LAN — for testing the production bundle on a real phone                                                                                                                                                                                                                                 |
+| `npm run uat`          | Production-mirror server (`node --env-file=.env build`) — rebuilds until precompressed assets are complete, smoke-tests, then prints the URL. **macOS only** — `scripts/uat.sh` detects the LAN IP via `ipconfig getifaddr`; on Linux it exits 1 after a successful build. Use `npm run uat:docker` instead. |
+| `npm run uat:docker`   | Build + run the real production image locally (`compose.dev.yml`) — prod-mirror UAT with the service worker live on `localhost`                                                                                                                                                                              |
+| `npm test`             | Vitest — unit + route handler tests                                                                                                                                                                                                                                                                          |
+| `npm run test:watch`   | Vitest watch mode                                                                                                                                                                                                                                                                                            |
+| `npm run test:e2e`     | Playwright (mobile-Safari profile)                                                                                                                                                                                                                                                                           |
+| `npm run lint`         | ESLint flat config                                                                                                                                                                                                                                                                                           |
+| `npm run check`        | `svelte-kit sync` + svelte-check                                                                                                                                                                                                                                                                             |
+| `npm run format`       | Prettier across the tree (config in `.prettierrc`)                                                                                                                                                                                                                                                           |
+| `npm run format:check` | Prettier in check mode — the CI format gate                                                                                                                                                                                                                                                                  |
 
 ### Testing layers
 

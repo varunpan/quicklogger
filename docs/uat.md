@@ -2,6 +2,11 @@
 
 Run after each release before tagging stable.
 
+Examples throughout this checklist assume a `gallons_us`/`miles`/`USD`
+instance unless a section says otherwise — e.g. the dedicated
+**Metric instance (liters + km)** section below, which repeats the relevant
+checks for a `liters`/`km` instance.
+
 ## Setup
 
 - [ ] Latest tag pulled: `docker compose pull && docker compose up -d`
@@ -32,7 +37,7 @@ Run after each release before tagging stable.
       drawer — `/` shows vehicle B too, not the first vehicle in the list
 - [ ] Enter odometer, volume in gallons, cost in USD, fill-to-full = on
 - [ ] Tap "Log fillup"
-- [ ] Toast shows "Logged: X.XX gal · $YY.YY"
+- [ ] Toast shows "Logged: X.XX Gal · $YY.YY"
 - [ ] Verify the entry appears in LubeLogger UI within 5 seconds
 
 ## Unit / currency conversion
@@ -40,13 +45,13 @@ Run after each release before tagging stable.
 - [ ] Switch volume to L, enter 50
 - [ ] Switch currency to CAD, enter 65
 - [ ] Tap "Log fillup"
-- [ ] Toast confirms ~13.2 gal · ~$47 USD
+- [ ] Toast confirms ~13.2 Gal · ~$47 USD
 - [ ] LubeLogger record matches (US gal / USD)
 
 ## Offline + queue
 
 - [ ] Enable airplane mode
-- [ ] Submit a fillup → toast shows "Saved locally — will sync"
+- [ ] Submit a fillup → toast shows "Saved locally — will sync when online"
 - [ ] Disable airplane mode
 - [ ] Tap away and return to the app (focus event triggers sync)
 - [ ] /history shows pending count drops to 0
@@ -56,7 +61,7 @@ Run after each release before tagging stable.
 
 - [ ] Run `quicklog-fuelup` shortcut from home screen
 - [ ] Voice prompts complete (vehicle, volume, cost)
-- [ ] Shortcut shows "Logged: X gal · $Y"
+- [ ] Shortcut speaks "Logged X gallons, Y dollars"
 - [ ] LubeLogger receives the entry
 
 ## Apple Shortcut — URL deep link
@@ -170,7 +175,7 @@ device while online (so the local cache is populated).
       amber `offline copy` chip next to the days-ago text.
 - [ ] Odometer field is prefilled with the last reading.
 - [ ] `+N mi` chip increments work as normal.
-- [ ] Submit a fillup — toast shows "Saved locally — will sync".
+- [ ] Submit a fillup — toast shows "Saved locally — will sync when online".
 
 ### Queue-derived fallback (upstream down, no cache)
 

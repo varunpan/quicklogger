@@ -140,7 +140,9 @@ Merge rules (`_buildServerInfo`):
   already v1.6.5 via the vehicle-images feature).
 - **Cache is separate from `prefs`.** Distinct writer (network refresh vs Settings
   UI) and lifecycle. A garbage or absent value parses to `null`; SSR (no
-  `localStorage`) returns `null`. New key, no IDB version bump, no SW cache change.
+  `localStorage`) returns `null`. New key, no IDB version bump. `/api/server-info`
+  also gained a dedicated service-worker cache branch later (see
+  [`service-worker.md`](./service-worker.md)) — not part of this original change.
 
 ## Non-obvious decisions
 

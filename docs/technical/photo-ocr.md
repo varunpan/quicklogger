@@ -185,7 +185,7 @@ ctx.drawImage(sx, sy, sw, sh, 0, 0, baseW, baseH)` using the same
   top of the original `<img>`. The display↔source conversion runs
   once at commit time inside `OcrPreview`, via `cropCoords`.
   Cumulative rotation + (sanitized) crop are handed to
-  `resizeForOcr({ rotation, crop })` on `[Send for OCR]`. Object URL
+  `resizeForOcr(file, { rotation, crop })` on `[Send for OCR]`. Object URL
   revoked on unmount; the cached `ImageBitmap` closed on unmount.
   **Focus management (a11y):** the modal is `role="dialog"
 aria-modal="true"`; on mount focus moves to the first control (Cancel),
@@ -775,7 +775,7 @@ ergonomics.
 The preview screen rotates visually via CSS `transform: rotate(deg)` on
 an `<img>` while the user is fiddling — cheap, instant, no re-encode.
 On `[Send for OCR]`, the cumulative rotation is handed to
-`resizeForOcr({ rotation })` so EXIF-orient → rotate → resize → JPEG
+`resizeForOcr(file, { rotation })` so EXIF-orient → rotate → resize → JPEG
 encode all happen in one canvas pass. One pixel-encoding event total,
 not two — keeps the existing performance profile.
 
