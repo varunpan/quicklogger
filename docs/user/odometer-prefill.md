@@ -25,8 +25,8 @@ appear:
 2.  **Odometer field** opens already filled with the last reading (e.g.
     `87234`). The text is muted and a small **`prefilled`** tag sits in the
     corner of the input, signalling "this is a guess, double-check it." The
-    field only accepts whole numbers — typing `.` or `,` does nothing, so
-    there's no way to enter a decimal reading. If the field is empty (no
+    field is meant for whole-number readings — typing `.` or `,` does
+    nothing. If the field is empty (no
     previous fillup, or prefill is off), the placeholder text hints the
     last reading, or reads **"No last fuel up"** if there isn't one yet.
 
