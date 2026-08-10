@@ -42,7 +42,7 @@ All env vars in one table, ordered by area. Photo OCR is feature-gated
 | `OCR_PUMP_VOLUME_MAX`          | number                   | no       | `200`                               | Range bound on detected pump volume (raw value in gal or L).                                                                                                                                                                   |
 | `OCR_PUMP_COST_MAX`            | number                   | no       | `500`                               | Range bound on detected pump cost (raw pump-display number).                                                                                                                                                                   |
 | `OCR_PUMP_PRICE_PER_UNIT_MAX`  | number                   | no       | `20`                                | Range bound on detected price per unit.                                                                                                                                                                                        |
-| `OCR_ODOMETER_MAX_MI`          | int                      | no       | `1000000`                           | Absolute upper bound on odometer reading, miles.                                                                                                                                                                               |
+| `OCR_ODOMETER_MAX_MI`          | int                      | no       | `1000000`                           | Absolute upper bound on odometer reading, in your instance's distance unit (name is historical — see below).                                                                                                                   |
 | `OCR_MAX_IMAGE_MB`             | int (1–50)               | no       | `5`                                 | Max accepted upload size, MiB. Sole size gate — oversized images get a clean 413. See note below.                                                                                                                              |
 | `OLLAMA_CLOUD_API_KEY`         | string                   | no       | —                                   | If set, enables the `ollama-cloud` provider slot (Ollama Cloud free-tier). Activates Photo OCR.                                                                                                                                |
 | `OLLAMA_CLOUD_URL`             | URL                      | no       | `https://ollama.com`                | Base URL of the Ollama Cloud API (override only for compatible proxies).                                                                                                                                                       |
@@ -301,10 +301,16 @@ high-octane / diesel pricing with margin.
 
 #### `OCR_ODOMETER_MAX_MI`
 
-Absolute upper bound on a detected odometer reading, in miles.
-Server-side hard reject (separate from the client-side advisory range
-check against the last fillup). Default `1000000` is a safety stop,
-not a typical-usage check.
+Absolute upper bound on a detected odometer reading, in your instance's
+configured distance unit — the vision model is told to read (and this bound
+is applied to) miles or kilometers depending on `LUBELOGGER_DISTANCE_UNIT`.
+The env var keeps its historical `_MI` name from before metric-instance
+support shipped (same reasoning as the `odometerIncrementMi` preference — see
+[`odometer-prefill.md`](../technical/odometer-prefill.md)); renaming it would
+silently reset self-hosters who've already set it. Server-side hard reject
+(separate from the client-side advisory range check against the last
+fillup). Default `1000000` is a safety stop, not a typical-usage check — on
+a km instance, lower it if you want a tighter bound in kilometers.
 
 #### `OCR_MAX_IMAGE_MB`
 

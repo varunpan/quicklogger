@@ -205,9 +205,10 @@ and that seeding a cached locale (en-GB) changes the absolute-date shape.
 - **Per-vehicle increments.** Single global setting for v1; per-vehicle is
   meaningful (commuter vs road-trip vehicle) but a UX redesign for the
   Settings page. Deferred.
-- **Toggle pills missing `aria-pressed`.** Pre-existing pattern gap across
-  every toggle in the app, not specific to this feature. Worth a holistic
-  a11y pass rather than a one-off fix.
+- **Toggle pills missing `aria-pressed`.** Was a pre-existing pattern gap
+  across some toggles in the app; the attach-photos toggle (see
+  [`attach-ocr-photo.md`](./attach-ocr-photo.md)) now has it. Worth
+  auditing the rest holistically rather than one-off fixes.
 - **`daysAgo` DST edge case.** The diff uses `(todayStart - then) / 86_400_000`
   rounded to the nearest integer. On year-spanning boundaries that cross a
   DST transition, the calendar-day count can drift by one. Acceptable for

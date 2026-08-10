@@ -19,8 +19,8 @@ services:
       ORIGIN: https://quicklog.example.com # set to whatever URL you serve from
       PORT: 3000
       # --- Photo OCR (v0.2.0+, optional) -----------------------------------
-      # Feature activates iff at least one provider is configured. UI hides
-      # the camera affordances when neither is set.
+      # Feature activates iff at least one of the four provider slots below
+      # is configured. UI hides the camera affordances when none is set.
       #
       # OLLAMA_VISION_URL: http://ollama:11434
       # OLLAMA_VISION_MODEL: qwen2.5vl:7b
@@ -30,6 +30,18 @@ services:
       # OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"
       # OPENROUTER_VISION_MODEL: google/gemini-2.5-flash-lite
       # OPENROUTER_VISION_TIMEOUT_MS: 30000
+      #
+      # OLLAMA_CLOUD_API_KEY: "${OLLAMA_CLOUD_API_KEY}" # Ollama Cloud free-tier
+      # OLLAMA_CLOUD_URL: https://ollama.com
+      # OLLAMA_CLOUD_MODEL: gemma4:31b
+      # OLLAMA_CLOUD_TIMEOUT_MS: 30000
+      #
+      # OPENAI_COMPATIBLE_URL: https://api.groq.com/openai/v1/chat/completions
+      # OPENAI_COMPATIBLE_API_KEY: "${OPENAI_COMPATIBLE_API_KEY}"
+      # OPENAI_COMPATIBLE_MODEL: llama-3.2-90b-vision-preview
+      # OPENAI_COMPATIBLE_TIMEOUT_MS: 30000
+      #
+      # OCR_PROVIDER_CHAIN: ollama-cloud,ollama-local,openrouter # override fallback order
       #
       # OCR_DAILY_BUDGET_USD: "1.00"
       # OCR_RATE_LIMIT_PER_HOUR: 20
@@ -42,7 +54,8 @@ services:
       # OCR_PUMP_VOLUME_MAX: 200
       # OCR_PUMP_COST_MAX: 500
       # OCR_PUMP_PRICE_PER_UNIT_MAX: 20
-      # OCR_ODOMETER_MAX_MI: 1000000
+      # OCR_ODOMETER_MAX_MI: 1000000          # in your instance's distance unit
+      # OCR_MAX_IMAGE_MB: 5
       # --- Logging (v0.2.3+) -----------------------------------------------
       # Default is JSON to stdout at info level. Uncomment to tune.
       #

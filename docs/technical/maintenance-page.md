@@ -159,9 +159,10 @@ The surrounding page furniture does lean on shared storage, though. The
 loader resolves the active vehicle through `resolveSelectedVehicle()`,
 which reads `prefs.lastVehicleId` from `localStorage`
 (`$lib/client/vehicle-resolve.ts`). The vehicle card's label and photo
-come from the service worker's vehicle-list cache (`API_CACHE`) and
-image cache (`IMG_CACHE`), so the card still paints offline even though
-the reminder area below it cannot.
+come from the service worker's `API_CACHE` (shared with `/api/server-info`,
+see [`service-worker.md`](./service-worker.md)) and image cache
+(`IMG_CACHE`), so the card still paints offline even though the reminder
+area below it cannot.
 
 ## Cross-references
 
@@ -171,5 +172,5 @@ the reminder area below it cannot.
   Plate + VIN card mounted between the picker and the reminders.
 - [`service-worker.md`](./service-worker.md) — note that the
   reminders endpoint is NOT cached; the SW does serve the app shell,
-  the vehicle list (`API_CACHE`), and vehicle images (`IMG_CACHE`)
-  offline.
+  the vehicle list and server info (both `API_CACHE`), and vehicle
+  images (`IMG_CACHE`) offline.

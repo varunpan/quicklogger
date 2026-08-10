@@ -322,8 +322,9 @@ stay in memory (`attachPumpBlob` / `attachOdometerBlob`) and, by
 default, are attached to the LubeLogger record on submit: the page POSTs
 `multipart/form-data` with `pumpImage` / `odometerImage` parts instead
 of JSON, which `/api/fuelup` parses and forwards via
-`LubeLoggerClient.uploadDocument()`. A checkbox (default on) lets the
-user opt out per-submit once at least one photo has been sent to OCR.
+`LubeLoggerClient.uploadDocument()`. A toggle button (`aria-pressed`,
+default on) lets the user opt out per-submit once at least one photo has
+been sent to OCR.
 Attach is online-only: a submission that falls back to the offline queue
 never carries photo bytes — the staged blobs are cleared once the
 IndexedDB enqueue succeeds, and deliberately left in place (for a retry)
@@ -344,6 +345,6 @@ End-to-end walkthrough of a fillup submission — the most useful "data flow" le
 4. **User taps "Log fillup".** Submit is additionally gated by smart checks (see _Smart checks_ above) — if `evaluateSmartChecks` returns any issues, the button stays disabled and an amber chip lists them until the user edits a field or taps "Submit anyway". Once clear, the page POSTs `FuelSubmissionInput` (with a fresh client-side UUID) to `/api/fuelup` — as `multipart/form-data` with `pumpImage`/`odometerImage` parts when a staged OCR photo is being attached (see _Photo attachment_ above), otherwise as JSON.
 5. **Server-side processing.** `/api/fuelup` validates required fields, calls `convertSubmission()` (units + FX), then `LubeLoggerClient.addGasRecord()` which POSTs form-data to LubeLogger's `POST /api/vehicle/gasrecords/add`. The in-process idempotency map drops duplicate `clientSubmissionId` POSTs: a pending marker is registered _before_ the upstream write, so two concurrent in-flight duplicates (a double-tap, or the SW queue replay racing this submit) share one write rather than both creating a record; a completed success is then cached for 60s to absorb a later resubmit. When both containers are co-located in one compose stack, this hop stays on the internal Docker network.
 6. **Response.** 200 with `{ ok: true, submitted: { volume, volumeUnit, cost, currency, fxRate, fxSource, fxStale } }`, plus a top-level `photoWarning` string if an attached photo failed to upload (the record is still written). The page shows a success toast and appends a `'synced'` row to the IndexedDB queue — a permanent local trail used by the offline resolver on future loads.
-7. **If `/api/fuelup` fails.** A 4xx is a terminal rejection (the page shows a rejection toast and does _not_ queue — won't fix itself). Any other failure (network, 5xx) enqueues the submission to IndexedDB with status `'queued'` and shows "Saved locally — will sync". The service worker drains the queue on next app focus, visibility change, or `onMount`, marking each entry `'synced'` on success or `'failed'` on a 4xx replay response.
+7. **If `/api/fuelup` fails.** A 4xx is a terminal rejection (the page shows a rejection toast and does _not_ queue — won't fix itself). Any other failure (network, 5xx) enqueues the submission to IndexedDB with status `'queued'` and shows "Saved locally — will sync when online". The service worker drains the queue on next app focus, visibility change, or `onMount`, marking each entry `'synced'` on success or `'failed'` on a 4xx replay response.
 
 Cross-cutting details — per-endpoint shapes in [`docs/technical/idb-and-api.md`](./technical/idb-and-api.md); offline queue mechanics in [`docs/technical/offline-queue.md`](./technical/offline-queue.md).

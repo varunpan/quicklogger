@@ -706,7 +706,7 @@
       smartCheckIssues = [];
       attachPumpBlob = null;
       attachOdometerBlob = null;
-      attachPhotos = true; // default-on again; checkbox stays hidden until the next OCR send (blobs cleared)
+      attachPhotos = true; // default-on again; toggle button stays hidden until the next OCR send (blobs cleared)
       // eslint-disable-next-line svelte/no-navigation-without-resolve
       void goto(`/maintenance?vehicleId=${vehicle.id}`).catch(() => {});
     } catch (err) {
@@ -722,7 +722,7 @@
           // the attach row does not survive into the next entry.
           attachPumpBlob = null;
           attachOdometerBlob = null;
-          attachPhotos = true; // default-on again; checkbox stays hidden until the next OCR send (blobs cleared)
+          attachPhotos = true; // default-on again; toggle button stays hidden until the next OCR send (blobs cleared)
           toast = {
             kind: 'queued',
             text: wantsAttach
