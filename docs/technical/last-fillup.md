@@ -6,8 +6,10 @@
 page renders — pulling from the per-vehicle localStorage cache
 (`quicklogger.lastFuelup.<id>`) and the IDB queue, picking the freshest, and
 returning a single `LastFillupRecord`. The cache writer is `+page.ts`'s
-`load`, which writes the upstream snapshot verbatim after each successful
-`/api/vehicle/last-fuelup` fetch.
+`load`, which writes a five-field projection of the upstream response
+(`date`, `odometer`, `fuelConsumed`, `cost`, `notes`) — not the raw
+`GasRecord` — after each successful `/api/vehicle/last-fuelup` fetch. See
+§ _Writer_ for why.
 
 Related: [`offline-queue.md`](./offline-queue.md) for the IDB layer,
 [`idb-and-api.md`](./idb-and-api.md) for the upstream wire shape,
@@ -18,7 +20,7 @@ Related: [`offline-queue.md`](./offline-queue.md) for the IDB layer,
 ```ts
 interface LastFillupRecord {
   date: string; // ISO YYYY-MM-DD (post-locale-invariant-parsing)
-  odometer: string; // raw integer-string of miles
+  odometer: string; // raw integer-string, in the instance distance unit
   fuelConsumed: string; // instance unit (queue entries converted; upstream snapshots already are)
   cost: string | null; // stringified number: 2-decimal from queue rows, verbatim from the cache
   costCurrency: string | null; // null for upstream rows; entered currency for queue rows
@@ -73,11 +75,15 @@ successful `/api/vehicle/last-fuelup` call.
 
 ## Lifecycle
 
-1. `+page.ts` load fetches `/api/vehicle/last-fuelup` and writes the raw
-   GasRecord into `quicklogger.lastFuelup.<id>` on success.
+1. `+page.ts` load fetches `/api/vehicle/last-fuelup` and writes the
+   five-field projection (`date`, `odometer`, `fuelConsumed`, `cost`,
+   `notes` — see § _Writer_) into `quicklogger.lastFuelup.<id>` on success.
 2. Home page mounts; if upstream succeeded, `LastFillupRecord` is built
-   from the fresh response. If upstream failed, the page falls back to
-   `resolveOfflineLastFillup` (which reads cache + queue).
+   from the fresh response. If upstream failed, the fallback to
+   `resolveOfflineLastFillup` (cache + queue) is `browser`-gated
+   (`+page.ts:51`) — during SSR there is no fallback and `lastFuelup`
+   resolves to `null`, which is why the strip can flash empty on a cold
+   SSR load.
 3. Cache reads pass through `parseDateForCache` (fast or slow path).
 4. Queue entries are typed `FuelSubmissionInput` with ISO date — no
    parsing needed.
@@ -87,7 +93,12 @@ successful `/api/vehicle/last-fuelup` call.
 - **`status === 'failed'` queue entries are excluded.** Failed offline
   submissions don't represent a real recorded fillup.
 - **Tie-break on identical dates favors the most recently enqueued.**
-  Enqueue order is the only reliable signal at day-resolution.
+  Enqueue order is the only reliable signal at day-resolution. The
+  asymmetry: the cache candidate is stamped `tiebreak: 0`, while queue
+  candidates use their `enqueuedAt` timestamp, and the sort is `b.ts - a.ts
+|| b.tiebreak - a.tiebreak`. Consequence: on an identical date a queued
+  row always beats the upstream cache snapshot, since any real
+  `enqueuedAt` is greater than `0`.
 - **SSR safe.** `typeof localStorage === 'undefined'` returns null from
   `readCacheCandidate` and from `loadServerInfo`.
 - **Empty server-info cache + legacy entry = ~200ms strip flicker.** The

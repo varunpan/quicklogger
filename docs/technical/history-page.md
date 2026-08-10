@@ -17,9 +17,11 @@ All card content comes from `Queue.list()` in `onMount`. User-facing copy:
 
 ## Files touched
 
-- `src/routes/history/+page.ts` — vehicle resolution via the shared `resolveSelectedVehicle()` (`$lib/client/vehicle-resolve.ts`, URL → prefs → vehicles[0]).
+- `src/routes/history/+page.ts` — vehicle resolution via the shared `resolveSelectedVehicle()` (`$lib/client/vehicle-resolve.ts`, URL → prefs → vehicles[0]); returns `{ vehicle, vehicles }`.
 - `src/routes/history/+page.svelte` — single-file page: state, derivation, render.
-- `src/lib/client/format.ts` — `formatIsoDate(iso)` helper used for the card date line.
+- `src/lib/client/format.ts` — seven helpers: `formatIsoDate`, `formatOdometer`, `formatCost`, `effectiveCurrencyCode`, `effectiveVolumeUnit`, `effectiveDistanceUnit`, `parseIsoLocal` — used across the card date, odometer, and unit-price lines.
+- `src/lib/client/unit-price.ts` — `unitPriceDisplay()`, the per-card unit-price line (see § _Locale-dynamic rendering_ and [`fillup-unit-price.md`](./fillup-unit-price.md)).
+- `src/lib/client/VehicleCard.svelte` — the shared vehicle picker card rendered at the top of the page.
 - `src/routes/vehicles/+page.svelte` — `RETURN_TO` allowlist entry so the picker round-trips back.
 
 ## Data model
@@ -46,14 +48,17 @@ lives in the spec
 
 Page-local state:
 
-| Variable      | Type                     | Role                                                                                                                           |
-| ------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `allEntries`  | `QueueEntry[]`           | Set once on mount from `Queue.list()`.                                                                                         |
-| `loading`     | `boolean`                | True until `onMount` finishes.                                                                                                 |
-| `error`       | `string \| null`         | Set if `Queue.open()` or `Queue.list()` throws.                                                                                |
-| `visible`     | `QueueEntry[]` (derived) | `allEntries` filtered by active vehicle + sorted.                                                                              |
-| (picker card) | —                        | Rendered by the shared `<VehicleCard>` (`$lib/client/VehicleCard.svelte`), which labels via `vehicleLabel()` from `format.ts`. |
-| `emptyCopy`   | `string` (derived)       | Picks between two empty-state strings.                                                                                         |
+| Variable           | Type                     | Role                                                                                                                           |
+| ------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `instanceCurrency` | `string`                 | Read once via `effectiveCurrencyCode()`; feeds the unit-price line's conversion comparison.                                    |
+| `instanceUnit`     | `'gal' \| 'L'`           | Read once via `effectiveVolumeUnit()`; passed into `unitPriceDisplay()`.                                                       |
+| `distUnit`         | `'mi' \| 'km'`           | Read once via `effectiveDistanceUnit()`; suffixes the odometer line.                                                           |
+| `allEntries`       | `QueueEntry[]`           | Set once on mount from `Queue.list()`.                                                                                         |
+| `loading`          | `boolean`                | True until `onMount` finishes.                                                                                                 |
+| `error`            | `string \| null`         | Set if `Queue.open()` or `Queue.list()` throws.                                                                                |
+| `visible`          | `QueueEntry[]` (derived) | `allEntries` filtered by active vehicle + sorted.                                                                              |
+| (picker card)      | —                        | Rendered by the shared `<VehicleCard>` (`$lib/client/VehicleCard.svelte`), which labels via `vehicleLabel()` from `format.ts`. |
+| `emptyCopy`        | `string` (derived)       | Picks between two empty-state strings.                                                                                         |
 
 ## Lifecycle / control flow
 
@@ -81,6 +86,8 @@ Page-local state:
 | Same date, two rows                         | Both render; later `enqueuedAt` first.                                                                                        | Real case — two stops in one day.                                                                                                                                                                                                                                                                                             |
 | `notes` is whitespace-only                  | "note:" line is suppressed.                                                                                                   | `notes.trim().length > 0` guard. Avoids an empty `note:` line.                                                                                                                                                                                                                                                                |
 | `tags` is `"costco,,shell"`                 | Renders `#costco` and `#shell`.                                                                                               | Inline split / trim / filter drops empties.                                                                                                                                                                                                                                                                                   |
+| `entry.input.isFillToFull === true`         | Card shows a "Fill-to-full" line.                                                                                             | Echoes the toggle set on the log-fuel form (`+page.svelte:1141-1150`); no other page renders it.                                                                                                                                                                                                                              |
+| `entry.input.missedFuelup === true`         | Card shows a "Missed fillup" line.                                                                                            | Echoes the toggle set on the log-fuel form (`+page.svelte:1151-1161`); no other page renders it.                                                                                                                                                                                                                              |
 | `status === 'failed'` but `attempts === 0`  | Error line renders; attempts line doesn't.                                                                                    | The two are independent — `attempts > 0` gate is on the attempts line only.                                                                                                                                                                                                                                                   |
 | Notes contain HTML tags                     | Rendered as literal text.                                                                                                     | Svelte's `{}` escapes by default; no `{@html}` anywhere on this page.                                                                                                                                                                                                                                                         |
 | IDB unavailable (private browsing, quota)   | Rose notice; picker still tappable.                                                                                           | Page degrades gracefully — the picker doesn't depend on IDB.                                                                                                                                                                                                                                                                  |
@@ -123,12 +130,27 @@ is byte-identical to the pre-branch behaviour. Non-en-US users see locale-
 correct thousands separators, currency symbols / placement, and abbreviated
 month names.
 
+Three instance consts are resolved once at module top —
+`effectiveCurrencyCode()`, `effectiveVolumeUnit()`, and
+`effectiveDistanceUnit()` (`+page.svelte:21-23`, `instanceCurrency` /
+`instanceUnit` / `distUnit`). The odometer line appends the instance
+distance unit — `` `${formatOdometer(String(entry.input.odometer))}
+${distUnit}` `` (`:116`) — same instance-unit source as the log page's
+`DIST_UNIT`, maintenance's due-distance lines, and stats' odometer line
+(#69). The unit-price line (`unitPriceDisplay()`, `$lib/client/unit-price.ts`)
+compares each entry's own volume unit and currency against
+`instanceUnit` / `instanceCurrency` to decide whether a converted half
+renders alongside the actual figure.
+
 ## Future considerations
 
 - Retry / dismiss controls for `failed` entries (currently the only
   way out is dev tools).
-- MPG / fuel-economy line — would require fill-to-full chain tracking
-  and unit-aware computation. Out of scope for v0.1.4.
+- Per-card fuel-economy line — the home page now computes a unit-aware
+  last-fill delta (MPG on a `mi`+`gal` instance, L/100km on a `km`+`L`
+  instance; mixed unit combos hide the figure), but History itself still
+  has no per-card figure — that would need fill-to-full chain tracking
+  across cards, not yet implemented.
 - Merging IDB rows with LubeLogger's `GasRecord[]` for a complete
   history view across devices and the web UI.
 - Smarter relative wording — `"36 days ago"` → `"5 weeks ago"`,
