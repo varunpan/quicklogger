@@ -99,6 +99,14 @@ page or the service worker, and the server-side LubeLogger key
 (`LUBELOGGER_API_KEY`, loaded via `loadEnv()`) authenticates the
 upstream calls.
 
+A global CSRF guard in `hooks.server.ts` runs before every route handler:
+any `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` header is present and
+differs from the app's own origin gets `403 { "error": "origin not
+allowed" }` without ever reaching the handler below. This applies to
+every mutating endpoint in this document (`POST /api/fuelup`,
+`POST /api/ocr`, `POST /api/log`); GET endpoints are unaffected. See
+[`logging.md`](./logging.md) for the guard's log line and edge cases.
+
 ### `GET /healthz`
 
 Source: `src/routes/healthz/+server.ts`. Liveness + LubeLogger
@@ -141,7 +149,7 @@ Source: `src/routes/api/vehicle/image/+server.ts`. Proxies the LubeLogger `/imag
 | Field        | Value                                                                                                                                                            |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Request      | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()` in `$lib/server/lubeloggerProxy.ts`, same rule as `/api/fuelup`).                     |
-| Cache        | The shared in-memory `TtlCache<Vehicle[]>` in `src/lib/server/vehicleCache.ts`, keyed on `'vehicles'`, 5-minute TTL (same cache as `/api/vehicles` — see below). |
+| Cache        | The shared in-memory `TtlCache<Vehicle[]>` in `src/lib/server/vehicleCache.ts`, keyed on `'vehicles'`, 5-minute TTL (same cache as `/api/vehicles` — see above). |
 | Response 200 | Streamed image bytes with the upstream `content-type` (`image/jpeg` or `image/png`) and `cache-control: no-store`.                                               |
 | Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`.                                                                                           |
 | Response 404 | `{ error: 'no image' }` — vehicle id not found, or `imageLocation` is empty / not a string / not under `/images/` (defensive path guard).                        |
@@ -290,7 +298,7 @@ IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-
 | Required fields | `vehicleId`, `date`, `odometer`, `volume`, `volumeUnit`, `cost`, `currency`, `clientSubmissionId`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Numeric guard   | `vehicleId` must coerce to a positive integer (coerced onto the body before use — the JSON path would otherwise pass a raw string into the authenticated upstream URL). `odometer`, `volume`, `cost` must be finite and `> 0`, and are coerced onto the body (JSON numeric strings are accepted). `volumeUnit` must be exactly `'gal'` or `'L'`. `currency` must be a 3-letter ISO-4217 code (normalized to uppercase). `date` must be a non-empty string. `clientSubmissionId` must be a non-empty, non-whitespace string — it keys the idempotency window, so an empty value would collide unrelated submissions onto one shared key (the second would get the first's cached 200 and never reach upstream). |
 | Idempotency     | 60-second in-memory window keyed on `clientSubmissionId`. Repeat POSTs in the window return the original cached response. **Only successes are cached** — a failed submit evicts its marker on completion so a genuine retry reaches upstream (the offline-queue replay depends on this after a 502). Entries past the window are swept on the next POST — but only **settled** entries: an entry whose submission is still in flight is never evicted however old, so a late duplicate dedups against it instead of re-submitting concurrently.                                                                                                                                                               |
-| Replay dedupe   | When the body carries `queueReplay: true` (SW replay loop only), the server GETs the vehicle's gas records from LubeLogger before writing and skips the write if a record with the same `date` + `odometer` + `fuelConsumed` (± 0.0005 gal) already exists — returning a normal 200 with `deduped: true` and a `submitted` snapshot mirroring the **matched record**. A failed pre-check GET returns 503 (never write on uncertainty). Covers day-later replays the 60 s window can't. Full rationale: [`offline-queue.md`](./offline-queue.md#replay-dedupe).                                                                                                                                                 |
+| Replay dedupe   | When the body carries `queueReplay: true` (SW replay loop only), the server GETs the vehicle's gas records from LubeLogger before writing and skips the write if a record with the same `date` + `odometer` + `fuelConsumed` (± 0.0005 in the instance volume unit — 0.0005 gal on a gallons instance, 0.0005 L on a liters instance) already exists — returning a normal 200 with `deduped: true` and a `submitted` snapshot mirroring the **matched record**. A failed pre-check GET returns 503 (never write on uncertainty). Covers day-later replays the 60 s window can't. Full rationale: [`offline-queue.md`](./offline-queue.md#replay-dedupe).                                                       |
 
 #### Success response (200)
 
@@ -298,7 +306,8 @@ IndexedDB or the SW cache — attach is online-only (see `docs/technical/attach-
 {
   "ok": true,
   "submitted": {
-    "gallons": 11.23,
+    "volume": 11.23,
+    "volumeUnit": "gal",
     "cost": 42.18,
     "currency": "USD",
     "fxRate": 1.0,
@@ -317,7 +326,7 @@ from otherwise (see [`fillup-unit-price.md`](./fillup-unit-price.md), issue #57)
 was still created).
 
 `deduped?: boolean` — present (literal `true`) iff a `queueReplay`-flagged submit matched a record
-already in LubeLogger. No new write happened; `submitted.gallons`/`submitted.cost` mirror the
+already in LubeLogger. No new write happened; `submitted.volume`/`submitted.cost` mirror the
 matched record (what's actually upstream), while the `fx*` fields describe this request's unused
 conversion (kept for response-shape parity).
 
@@ -333,6 +342,7 @@ conversion (kept for response-shape parity).
 | 502    | `{ error: string }`                                                           | `LubeLoggerError` with upstream 5xx — re-emitted as 502. Generic message only.                                                                                                                                                                                                                                                                            |
 | 503    | `{ error: 'exchange rate unavailable — retry later or enter a manual rate' }` | `FxUnavailableError` (chain dry, no manual rate). 5xx so a queued replay stays `'queued'`.                                                                                                                                                                                                                                                                |
 | 500    | `{ error: 'unexpected server error' }`                                        | Any other thrown error. The exception detail is logged server-side (`fuelup submit failed`), never echoed to the client.                                                                                                                                                                                                                                  |
+| 403    | `{ error: 'origin not allowed' }`                                             | Global CSRF guard (`hooks.server.ts`) — `Origin` header present and ≠ the app's own origin on this mutating request. Runs before the handler above; see [`logging.md`](./logging.md).                                                                                                                                                                     |
 
 The 4xx-passthrough is what the SW replay loop relies on: it marks the
 queue entry `'failed'` exactly when the response is `>= 400 && < 500`.
@@ -397,16 +407,17 @@ or
 
 **Error matrix:**
 
-| Status | Cause                                                              | Headers              |
-| ------ | ------------------------------------------------------------------ | -------------------- |
-| 400    | mode missing, unknown mode, multipart parse failure, missing image | —                    |
-| 402    | daily $ budget exhausted                                           | —                    |
-| 413    | image > `OCR_MAX_IMAGE_MB` (default 5 MiB)                         | —                    |
-| 415    | magic-byte sniff failed (not JPEG/PNG/WebP/HEIC)                   | —                    |
-| 422    | per-mode range failure OR cross-field drift > 5% (pump)            | —                    |
-| 429    | per-IP rate limit                                                  | `Retry-After: <sec>` |
-| 502    | all providers failed, or returned malformed JSON                   | —                    |
-| 503    | no provider configured (UI should hide camera via `GET /api/ocr`)  | —                    |
+| Status | Cause                                                                                            | Headers              |
+| ------ | ------------------------------------------------------------------------------------------------ | -------------------- |
+| 400    | mode missing, unknown mode, multipart parse failure, missing image, empty image (0 bytes)        | —                    |
+| 402    | daily $ budget exhausted                                                                         | —                    |
+| 413    | image > `OCR_MAX_IMAGE_MB` (default 5 MiB)                                                       | —                    |
+| 415    | magic-byte sniff failed (not JPEG/PNG/WebP/HEIC)                                                 | —                    |
+| 422    | per-mode range failure OR cross-field drift > 5% (pump)                                          | —                    |
+| 429    | per-IP rate limit                                                                                | `Retry-After: <sec>` |
+| 502    | all providers failed, or returned malformed JSON                                                 | —                    |
+| 503    | no provider configured (UI should hide camera via `GET /api/ocr`)                                | —                    |
+| 403    | CSRF origin mismatch — global guard, runs before this handler (see [`logging.md`](./logging.md)) | —                    |
 
 Failed-but-billed attempts (the provider responded, then parse / schema /
 range validation failed) still debit the daily budget with their token-cost
@@ -442,11 +453,11 @@ is a successful result). Merges LubeLogger's `/api/info` and `/api/version` via
 localStorage under `quicklogger-server-info` (`src/lib/client/server-info.ts`)
 for instant SWR paint.
 
-| Field        | Value                                                                     |
-| ------------ | ------------------------------------------------------------------------- |
-| Request      | No params.                                                                |
-| Cache        | None server-side. Client caches the body under `quicklogger-server-info`. |
-| Response 200 | `ServerInfo` (`src/lib/shared/types.ts`) — see below. Always 200.         |
+| Field        | Value                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Request      | No params.                                                                                                                                                                                                                                                                                                                                                                                        |
+| Cache        | None server-side. Client: the service worker caches the last good 2xx response in `quicklogger-api-cache-v1` (network-first via the shared `networkFirst` helper — same policy and cache bucket as `/api/vehicles`, see [`service-worker.md`](./service-worker.md)), so an offline reload still gets real instance settings. Also cached in `quicklogger-server-info` (localStorage) — see below. |
+| Response 200 | `ServerInfo` (`src/lib/shared/types.ts`) — see below. Always 200.                                                                                                                                                                                                                                                                                                                                 |
 
 ```ts
 interface ServerInfo {

@@ -10,12 +10,11 @@ Backed by `GET /api/server-info`, a **health probe** that merges LubeLogger's
 [`docs/user/app-pages.md`](../user/app-pages.md#lubelogger-server). HTTP-API
 inventory: [`docs/technical/idb-and-api.md`](./idb-and-api.md).
 
-This is **branch 1 of a two-branch effort**. The `locale` / `currencySymbol` /
-`decimalSeparator` / `dateFormat` fields are fetched and cached for branch 2
-(this branch), which consumes them for locale-driven display formatting. The
-`lubeloggerCurrency` field (added in branch 2) carries the server-side
-`LUBELOGGER_CURRENCY` env value through the same cache so client-side cost
-rendering knows the instance currency without re-reading env on every paint.
+The `locale` / `currencySymbol` / `decimalSeparator` / `dateFormat` fields are
+fetched and cached for locale-driven display formatting on the client. The
+`lubeloggerCurrency` field carries the server-side `LUBELOGGER_CURRENCY` env
+value through the same cache so client-side cost rendering knows the instance
+currency without re-reading env on every paint.
 
 ## Files touched
 
@@ -150,11 +149,12 @@ Merge rules (`_buildServerInfo`):
   probe on either failure.
 - **Both endpoints, not one.** `/api/version` is the only one carrying
   `latestVersion` (update check); `/api/info` carries the locale/format fields
-  (cached for the follow-up). `/api/info` repeats `currentVersion` as a fallback.
-- **Boot refresh in +layout.svelte, not Settings.** Branch 2 needs locale
-  and currency fresh app-wide (format.ts, last-fillup.ts read the cache on
-  every page), not only when the user visits Settings. Moving the writer
-  to the layout keeps the single-writer invariant intact.
+  (cached for locale-driven display formatting — see § _Locale-driven
+  consumption_ below). `/api/info` repeats `currentVersion` as a fallback.
+- **Boot refresh in +layout.svelte, not Settings.** Locale and currency need
+  to be fresh app-wide (format.ts, last-fillup.ts read the cache on every
+  page), not only when the user visits Settings. Moving the writer to the
+  layout keeps the single-writer invariant intact.
 - **No new env var.** Same `LubeLoggerClient` from the existing
   `LUBELOGGER_URL` + `LUBELOGGER_API_KEY` as every other upstream route.
 
@@ -191,11 +191,15 @@ releaseR.value : null`). A GitHub failure therefore cannot disturb the
   running _ahead_ of latest, a non-integer version part, or a missing version all
   yield `false`.
 
-## Follow-up consumption (branch 2)
+## Locale-driven consumption
 
 The cached `locale` / `currencySymbol` / `decimalSeparator` / `dateFormat` fields
-and the new env-sourced `lubeloggerCurrency` are consumed by branch 2: adopting
-the `culture-invariant` header on read/write, refactoring `GasRecord` /
-`Reminder` parsing to the invariant shape, locale-driven `Intl` display
-formatting (numbers, dates, currency for upstream-cached entries), and moving
-the `/api/server-info` fetch to a root-layout boot refresh.
+and the env-sourced `lubeloggerCurrency` are consumed app-wide: every upstream
+request unconditionally sends the `culture-invariant` header
+(`LubeLoggerClient.request()` in `src/lib/server/lubelogger.ts`); `GasRecord` /
+`Reminder` are typed under that invariant shape (same file); locale-driven
+`Intl` display formatting (numbers, dates, currency for upstream-cached
+entries) reads the cache via `src/lib/client/format.ts`; and the
+`/api/server-info` fetch runs as the root-layout boot refresh described above
+(`src/routes/+layout.svelte`'s `onMount`), keeping these values fresh
+app-wide before any consumer renders.
