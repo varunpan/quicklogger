@@ -402,13 +402,6 @@ Point back to `gallons_us` + `miles`.
 - [ ] First visit / cleared storage, **online**: labels briefly show **gal/mi**
       until the first `/api/server-info` refresh lands, then switch to the
       instance units.
-- [ ] Load `/` once while online (this warms the service worker's cached copy
-      of `/api/server-info`), then enable airplane mode and fully close the
-      app (swipe it away in the app switcher) so no in-memory state survives.
-      Reopen from the home-screen icon: labels show the real instance units
-      **immediately** — no gal/mi/USD/en-US flash — because `/api/server-info`
-      now serves from the service worker's cache instead of falling through
-      to an uncached offline failure.
 
 ## Smart checks at submit (v0.2.0)
 

@@ -43,9 +43,9 @@ clear error instead of failing on every submit.
 
 - On a device that hasn't talked to the server yet (first visit, cleared
   storage), labels briefly show gal/mi until the first refresh lands — the
-  same warm-up the currency display has. This warm-up now survives being
-  offline: once a device has loaded the app online at least once, its cached
-  units keep working through an offline reload too, so gal/mi/USD/en-US only
-  shows up on that very first-ever load, not on every offline cold-start.
+  same warm-up the currency display has. Once a device has loaded the app
+  online at least once, its units/currency/locale are remembered locally and
+  keep working through an offline reload too — gal/mi/USD/en-US only shows up
+  on that very first-ever load, never on a later offline cold-start.
 - The smart-check "big odometer jump" warning fires above 2,000 in your
   distance unit (2,000 mi or 2,000 km).

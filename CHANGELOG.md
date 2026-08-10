@@ -41,9 +41,10 @@ All notable changes to this project are documented here. Format roughly follows 
 - **The Log Fuel form opens on the vehicle you last picked.** It used to always
   fall back to the first vehicle in your list, while History, Maintenance and
   Stats correctly remembered your choice.
-- **Units, currency and dates survive a cold offline start.** Opening the app
-  offline for the first time no longer falls back to gallons, miles and USD
-  regardless of how your instance is configured.
+- **The app no longer makes a failing network request for server settings when
+  offline.** The instance's units, currency and locale were already remembered
+  between sessions; the boot refresh now reads them from the offline cache
+  instead of failing silently.
 - **Photos staged for attachment are cleared after an offline save.** The next
   fill-up no longer inherits the previous entry's photos.
 - **Documentation corrected throughout.** The README quick start, the deployment

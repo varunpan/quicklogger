@@ -76,10 +76,15 @@ self.addEventListener('fetch', (event) => {
 
   // Server-info — network-first, same policy and cache as /api/vehicles above.
   // effectiveVolumeUnit/effectiveDistanceUnit/effectiveCurrencyCode/effectiveLocale
-  // all read this blob; without SW caching it fell through to the generic /api/
-  // branch's uncached 504, so a cold offline start silently rendered gal/mi/USD/
-  // en-US regardless of the instance's real settings. Before the generic /api/
-  // branch for the same reason as /api/vehicles.
+  // (src/lib/client/format.ts) read localStorage, not this cache directly, and the
+  // layout's boot refresh already left localStorage's last-known values alone on a
+  // failed fetch — so units/currency/locale already survived an offline reload
+  // before this branch existed. What this branch actually fixes: without it, the
+  // boot refresh's /api/server-info request fell through to the generic /api/
+  // branch's uncached 504 on every offline load, so fields the layout reads
+  // straight from the response (e.g. appUpdateAvailable) never refreshed and
+  // localStorage was never rewarmed. Before the generic /api/ branch for the same
+  // reason as /api/vehicles.
   if (url.pathname === '/api/server-info') {
     event.respondWith(
       (async () => {

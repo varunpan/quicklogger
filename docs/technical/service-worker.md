@@ -298,11 +298,16 @@ Also placed before the generic `/api/` branch, and also backed by `API_CACHE`
 via the same `networkFirst` policy — this branch and `/api/vehicles` above
 call the identical shared helper, just with different `Cache` handles opened
 from the same fixed cache name. `effectiveVolumeUnit`/`effectiveDistanceUnit`/
-`effectiveCurrencyCode`/`effectiveLocale` (`src/lib/client/format.ts`) all read
-the server-info blob this caches; before this branch existed, `/api/server-info`
-fell through to the uncached generic `/api/` branch below and a cold offline
-start silently rendered gal/mi/USD/en-US regardless of the instance's real
-settings. See [`instance-units.md`](./instance-units.md).
+`effectiveCurrencyCode`/`effectiveLocale` (`src/lib/client/format.ts`) read the
+`quicklogger-server-info` `localStorage` cache, not this SW cache directly —
+and the layout's boot refresh already left that `localStorage` value alone on
+a failed fetch, so units/currency/locale already survived an offline reload
+before this branch existed. What this branch fixes: without it, the boot
+refresh's `/api/server-info` request fell through to the uncached generic
+`/api/` branch below and failed on every offline load, so fields the layout
+reads straight from the response (e.g. `appUpdateAvailable`) never refreshed
+and `localStorage` was never rewarmed. See
+[`instance-units.md`](./instance-units.md).
 
 ### `/api/*` — network-first
 
