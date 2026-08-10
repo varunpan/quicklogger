@@ -17,7 +17,7 @@ export type LastFillupSource = 'upstream' | 'offline' | null;
 // queue-derived records (we don't FX offline). `formatCost` consumes both.
 export interface LastFillupRecord {
   date: string; // ISO YYYY-MM-DD
-  odometer: string; // raw integer-string of miles
+  odometer: string; // raw integer-string, in the instance distance unit
   fuelConsumed: string; // instance unit (queue entries converted; upstream snapshots already are)
   cost: string | null;
   costCurrency: string | null;

@@ -82,21 +82,26 @@ loader returns { vehicle, reminders, error }
 
 ## Error handling
 
-| Case                                                                  | What the user sees                                                                                                                                |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LubeLogger returned 5xx (timeout, down)                               | Page renders the header. Amber banner: `Couldn't reach LubeLogger right now.` Empty reminder area below.                                          |
-| LubeLogger returned 4xx (e.g. bad vehicle id)                         | Same amber banner. The 4xx is collapsed to a 502 server-side (matching `last-fuelup`), so the client-side message reads the same as the 5xx case. |
-| `vehicleId` couldn't be resolved (no prefs, no vehicles)              | Red banner: `Pick a vehicle first.` Link to `/vehicles`.                                                                                          |
-| Active vehicle has zero not-OK reminders                              | Muted line: `Looks good — no upcoming maintenance for this vehicle.`                                                                              |
-| Network entirely offline (page reached via drawer while disconnected) | Same as 5xx case — the fetch fails, banner explains. No local cache.                                                                              |
-| Post-submit redirect when offline                                     | Doesn't happen. The submit path is `queued` (amber), not green, so `goto` never fires.                                                            |
+| Case                                                                  | What the user sees                                                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LubeLogger returned 5xx (timeout, down)                               | Page renders the header. Amber banner: `Couldn't reach LubeLogger right now.` Empty reminder area below.                                                                                                                                                                         |
+| LubeLogger returned 4xx (e.g. bad vehicle id)                         | Same amber banner. The 4xx is collapsed to a 502 server-side (matching `last-fuelup`), so the client-side message reads the same as the 5xx case.                                                                                                                                |
+| `vehicleId` query param malformed (missing or non-positive-integer)   | Same amber banner. `parseVehicleId` (`lubeloggerProxy.ts:23-30`) returns a `400 {"error":"vehicleId required"}` / `400 {"error":"invalid vehicleId"}` before reaching LubeLogger; `throwIfNotOk` throws the same way it would for a 5xx, so the client can't tell the two apart. |
+| `vehicleId` couldn't be resolved (no prefs, no vehicles)              | Red banner: `Pick a vehicle first.` Link to `/vehicles?from=maintenance`.                                                                                                                                                                                                        |
+| Active vehicle has zero not-OK reminders                              | Muted line: `Looks good — no upcoming maintenance for this vehicle.`                                                                                                                                                                                                             |
+| Network entirely offline (page reached via drawer while disconnected) | Same as 5xx case — the fetch fails, banner explains. No local cache.                                                                                                                                                                                                             |
+| Post-submit redirect when offline                                     | Doesn't happen. The submit path is `queued` (amber), not green, so `goto` never fires.                                                                                                                                                                                           |
 
-Server-side mapping in `+server.ts` matches the pattern used by
-`last-fuelup/+server.ts`: any `LubeLoggerError` (4xx or 5xx) becomes
+Server-side mapping lives in `src/lib/server/lubeloggerProxy.ts`'s
+`withLubeLogger()` helper, shared by every LubeLogger GET proxy —
+`api/vehicle/reminders/+server.ts` itself has no mapping of its own,
+just a 16-line delegation. Any `LubeLoggerError` (4xx or 5xx) becomes
 a 502 on the quicklogger side; anything else thrown becomes a 500.
-The client helper turns non-200 into a thrown `Error` with
-`{ status, message }` so the loader can populate `error` in the
-returned object.
+The client helper (`listReminders` in `$lib/client/api.ts`, via
+`throwIfNotOk`) turns non-200 into a thrown `ApiError` — an `Error`
+subclass carrying `.status` — but the loader (`src/routes/maintenance/+page.ts`)
+keeps only `(err as Error).message` when populating `error`, so the
+HTTP status never reaches the page.
 
 ## Render details
 
@@ -106,7 +111,10 @@ returned object.
   field that matches `userMetric` (`dueDays` for `Date`, `dueDistance`
   for `Odometer`, `Math.min` of both for `Both` as a heuristic — comparing
   days to distance mixes units, but the more-negative side correctly
-  surfaces the more-overdue reminder first within the `Both` subset).
+  surfaces the more-overdue reminder first within the `Both` subset). A
+  non-finite `dueDays`/`dueDistance` is coerced to `Infinity` by
+  `sortValue`, so that reminder sorts last within its urgency group
+  instead of skewing the comparison.
 - **userMetric vs. metric:** the page uses `userMetric` to decide which
   due-side lines to render. `metric` is upstream's own pick of which
   side became urgent first when `userMetric === 'Both'`; not surfaced.
