@@ -35,6 +35,20 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Fixed
 
+- **Photo OCR now reads kilometer odometers correctly.** On an instance
+  configured for kilometers, the vision model is now told the reading is in
+  kilometers instead of miles.
+- **The Log Fuel form opens on the vehicle you last picked.** It used to always
+  fall back to the first vehicle in your list, while History, Maintenance and
+  Stats correctly remembered your choice.
+- **Units, currency and dates survive a cold offline start.** Opening the app
+  offline for the first time no longer falls back to gallons, miles and USD
+  regardless of how your instance is configured.
+- **Photos staged for attachment are cleared after an offline save.** The next
+  fill-up no longer inherits the previous entry's photos.
+- **Documentation corrected throughout.** The README quick start, the deployment
+  and UAT guides, and the technical and user guides now match the shipped app.
+
 ### Tests
 
 ## [0.3.2] — 2026-07-25
