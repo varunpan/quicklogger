@@ -128,4 +128,10 @@ test('offline + attach: queues text-only and shows the "photo not attached" toas
   await expect(
     page.getByRole('status').filter({ hasText: 'Saved locally — photo not attached.' })
   ).toBeVisible();
+
+  // Photos are online-only — a queued entry can never carry them. The
+  // staged attach row must not survive a queued save into the next entry.
+  await expect(page.getByRole('button', { name: /Attach photo(s)? to this record/i })).toHaveCount(
+    0
+  );
 });
