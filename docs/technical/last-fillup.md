@@ -58,7 +58,9 @@ quota truncation.
 
 ## Tolerant-read migration
 
-Cache entries are written verbatim from the wire. Post-this-branch the wire
+This section is about the `date` field only — see § _Writer_ for which
+fields are cached at all. The `date` field is written verbatim from the
+wire, with no locale-reformatting at write time. Post-this-branch the wire
 shape is typed-ISO. Entries written BEFORE this branch hold LubeLogger's
 instance-locale date string (e.g. `4/7/2024` for en-US). The resolver
 migrates these in place using cached `/api/info` `dateFormat`:
