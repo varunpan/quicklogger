@@ -4,8 +4,8 @@
 
 When a user sends a pump and/or odometer photo to OCR during a session, quicklogger retains the
 exact resized JPEG bytes it sent to `/api/ocr` and, by default, attaches them to the LubeLogger gas
-record created on submit. A single checkbox (default on) appears once ≥1 OCR send has happened this
-session and offers a one-tap, per-submit opt-out. Attach is **online-only** — an offline submit
+record created on submit. A single checkbox-styled toggle (default on) appears once ≥1 OCR send has
+happened this session and offers a one-tap, per-submit opt-out. Attach is **online-only** — an offline submit
 queues the text-only fuelup and drops the bytes, telling the user. Introduced in v0.2.6 as an
 adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-ocr.md`).
 
@@ -30,8 +30,14 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
 - **Upstream:** `POST /api/documents/upload` (multipart field `documents`) → `UploadedFile`
   (`{ name, location, isPending }`); `POST /api/vehicle/gasrecords/add` JSON variant with a nested
   `files: UploadedFile[]` array. `location` is a server-assigned GUID path; `name` is display-only.
-- **Filenames:** `pump-<odometer>mi.jpg` / `odometer-<odometer>mi.jpg`, odometer taken from the
-  validated form value (always finite `> 0`).
+- **Filenames:** `pump-<odometer><unit>.jpg` / `odometer-<odometer><unit>.jpg`, where `<unit>` is
+  the instance distance unit (`mi` or `km` — `+server.ts:336` computes `distSuffix` from
+  `env.lubeloggerDistanceUnit`), so a km instance uploads `pump-12345km.jpg`, not `…mi.jpg`.
+  Odometer is taken from the validated form value (always finite `> 0`) and passes through
+  unconverted. Before upload, `dedupeFilenames` (`+server.ts:205-220`) walks the name list and
+  rewrites any collision to `<base>-2<ext>`; the `pump-` / `odometer-` prefixes already differ, so
+  per its own doc comment this never actually fires for the two photos in this feature — it's a
+  belt-and-suspenders invariant guard, not an active dedup path.
 
 ## Lifecycle / control flow
 
@@ -40,7 +46,7 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
    the picker leaves the retained photo (and the attach row) intact.
 2. User picks a photo → `OcrPreview` → "Send for OCR" → `runOcr` resizes to a `Blob` and **retains it
    in the mode's slot before the OCR call** (so a misread still attaches).
-3. The checkbox renders iff `attachPumpBlob || attachOdometerBlob`; label/sublabel reflect which
+3. The checkbox-styled toggle renders iff `attachPumpBlob || attachOdometerBlob`; label/sublabel reflect which
    photos are present. `attachPhotos` defaults to `true`.
 4. On submit, `wantsAttach = attachPhotos && (≥1 blob)`:
    - `wantsAttach` → `submitFuelupWithPhotos` (multipart).
@@ -68,7 +74,9 @@ adjacent feature on the existing OCR capture trigger (see `docs/technical/photo-
   `handlePumpCamera` / `handleOdoCamera` on a real pick — not when the picker merely opens —
   re-set in `runOcr`).
 - **Record-first** — no photo failure (gate, upload, partial) ever fails the fuelup; the record is
-  created and `photoWarning` flags the shortfall. Both-fail → record with `files: []` + warning.
+  created and `photoWarning` flags the shortfall. Both-fail → record via the flat-multipart path with
+  no `files` key at all (`lubelogger.ts:278` gates the JSON `files` variant on a non-empty array), the
+  same outcome as the no-photo case — see the "JSON add variant only when files exist" decision below.
 - **`addGasRecord` failure after a successful upload** — the record genuinely isn't created → normal
   error surfaced; the uploaded temp file orphans (harmless ~22 KB GUID temp; `/api/cleanup?deepClean=true`
   is the operator sweep). Accepted.

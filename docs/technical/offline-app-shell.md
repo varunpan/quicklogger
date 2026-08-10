@@ -17,16 +17,16 @@ network fails.
 
 ## Files touched
 
-| File                              | Role                                                                                                           |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `src/routes/offline/+page.ts`     | `prerender=true; ssr=false` — emits the route-agnostic shell at build time.                                    |
-| `src/routes/offline/+page.svelte` | Minimal carrier copy; shown only on a direct `/offline` visit.                                                 |
-| `src/hooks.server.ts`             | `building` guard short-circuits `handle` during prerender (no env, no boot).                                   |
-| `svelte.config.js`                | `paths.relative = false` — absolute `/_app/…` asset URLs.                                                      |
-| `src/service-worker.ts`           | Precaches `...prerendered`; navigation + `/api/vehicles` + `/api/server-info` branches; `API_CACHE` whitelist. |
-| `src/lib/client/sw-cache.ts`      | Pure, unit-tested `navigationFallback` + `networkFirst`.                                                       |
-| `src/lib/client/cache-warm.ts`    | Post-`ready` one-shot `GET /api/vehicles` so SSR'd page loads still warm `API_CACHE`.                          |
-| `src/routes/+page.svelte`         | Reactive `online` flag → offline banner + `Save offline` button label.                                         |
+| File                              | Role                                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/routes/offline/+page.ts`     | `prerender=true; ssr=false` — emits the route-agnostic shell at build time.                                                                                  |
+| `src/routes/offline/+page.svelte` | Minimal carrier copy; shown only on a direct `/offline` visit.                                                                                               |
+| `src/hooks.server.ts`             | `building` guard short-circuits `handle` during prerender (no env, no boot).                                                                                 |
+| `svelte.config.js`                | `paths.relative = false` — absolute `/_app/…` asset URLs.                                                                                                    |
+| `src/service-worker.ts`           | Precaches `...prerendered`; navigation + `/api/vehicles` + `/api/server-info` branches; `API_CACHE` whitelist.                                               |
+| `src/lib/client/sw-cache.ts`      | Pure, unit-tested `navigationFallback` + `networkFirst` + `precacheShell` (install-time; a rejection propagates so a failed precache aborts the new worker). |
+| `src/lib/client/cache-warm.ts`    | Post-`ready` one-shot `GET /api/vehicles` so SSR'd page loads still warm `API_CACHE`.                                                                        |
+| `src/routes/+page.svelte`         | Reactive `online` flag → offline banner + `Save offline` button label.                                                                                       |
 
 ## Data model
 
@@ -59,8 +59,9 @@ OFFLINE cold-start
                                         • listVehicles(fetch) → SW /api/vehicles branch
                                               → networkFirst: fetch throws → API_CACHE hit ✓
                                         • lastFuelup     → /api/* 504 → offline resolver (localStorage/IDB)
-                                        • getOcrStatus   → /api/* 504 → catch → camera hidden
-                                        • FX             → currency===target → no fetch
+                                        • getOcrStatus   → /api/* 504 (synthetic, not a throw) →
+                                              api.ts checks res.ok → {enabled:false} → camera hidden
+                                  └─► page component mounts: FX $effect → currency===target → no fetch
                                   └─► layout onMount also re-fetches /api/server-info → SW branch
                                         → networkFirst: fetch throws → API_CACHE hit ✓ → saveServerInfo()
                                         refreshes the localStorage blob effectiveVolumeUnit() etc. read
@@ -159,13 +160,16 @@ resolves and the SSR'd page is returned unchanged.
 
 ## Testing
 
-- **Unit** — the two cache policies are pure and fully unit-tested in
-  `src/lib/client/sw-cache.test.ts`: navigation fallback (online passthrough,
-  offline `/offline`-shell fallback, cold-cache 504) and the shared
-  `networkFirst` policy (refresh on 2xx, no-cache on non-2xx, cached serve
-  offline, cold-cache 504), exercised against both `/api/vehicles` and
-  `/api/server-info` requests to confirm it carries no endpoint-specific
-  knowledge.
+- **Unit** — all three of `sw-cache.ts`'s exports are pure and fully
+  unit-tested in `src/lib/client/sw-cache.test.ts`: navigation fallback
+  (online passthrough, offline `/offline`-shell fallback, cold-cache 504),
+  the shared `networkFirst` policy (refresh on 2xx, no-cache on non-2xx,
+  cached serve offline, cold-cache 504), exercised against both
+  `/api/vehicles` and `/api/server-info` requests to confirm it carries no
+  endpoint-specific knowledge, and `precacheShell` (successful `cache.addAll`,
+  plus the propagate-and-rethrow-on-failure behaviour that lets `install`'s
+  `waitUntil` abort a bad new worker so the previous, intact shell keeps
+  serving).
 - **No Playwright e2e.** The offline cold-start can't be exercised through the
   project's only e2e browser (WebKit / `mobile-safari`): `context.setOffline(true)`
   makes WebKit fail every navigation with an internal error before the SW can
