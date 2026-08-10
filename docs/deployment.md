@@ -40,7 +40,7 @@ docker run --rm -p 3000:3000 \
 
 `compose.dev.yml` builds and runs the **real production image** locally so you
 test the exact artifact that ships — not a `node build` host preview. It differs
-from `compose.example.yml` (the self-host path) in one key way:
+from `compose.example.yml` (the self-host path) in a few key ways:
 
 |         | `compose.example.yml`                               | `compose.dev.yml`                             |
 | ------- | --------------------------------------------------- | --------------------------------------------- |
@@ -123,9 +123,10 @@ host-side log read works the same as the `node build` UAT path.
 
 ## CI workflow
 
-`.github/workflows/ci.yml` runs on every push and pull request.
-Concurrent runs on the same ref cancel the superseded one
-(`concurrency` with `cancel-in-progress`):
+`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests —
+not on every push. A push to a `feature/*`, `fix/*`, or `release/*` branch
+with no open PR triggers no CI run at all. Concurrent runs on the same ref
+cancel the superseded one (`concurrency` with `cancel-in-progress`):
 
 1. Audit dependencies (`npm audit --audit-level=high` — runs first, over the full dependency tree; fails on high/critical)
 2. Lint (`npm run lint` — ESLint flat config)
@@ -135,11 +136,14 @@ Concurrent runs on the same ref cancel the superseded one
 6. Build (`npm run build`)
 7. E2E (`npm run test:e2e` — Playwright on mobile-Safari profile) — gated; runs only when `tests/e2e/*.spec.ts` files exist
 
-Node 24 with npm cache. ~3-minute pipeline. There's no mechanical
-trigger linking the two workflows — `build.yml` fires on a tag push
-regardless of CI — so "CI green before release" is enforced procedurally
-by the `release-ship` flow, which runs the full sweep before pushing the
-tag.
+Node 24 with npm cache. ~3-minute pipeline. There's no mechanical trigger
+linking the two workflows — `build.yml` fires on a tag push regardless of
+CI — and because `ci.yml` doesn't run on release-branch pushes by itself,
+"CI green before release" isn't something that's already true by the time
+you're ready to tag. It's `release-ship`'s job to make it true: opening the
+PR from the release branch into `main` is what actually triggers `ci.yml`
+(the `pull_request` event), and `release-ship` also runs its own full local
+sweep before pushing the tag.
 
 ## Release workflow (multi-arch GHCR)
 
@@ -281,7 +285,7 @@ To run quicklogger against your own LubeLogger:
 
 1. `cp compose.example.yml docker-compose.yml`
 2. Edit `LUBELOGGER_URL` to point at your LubeLogger container/host.
-3. Create an Editor-scope API key in LubeLogger (Settings → API keys).
+3. Create an Editor-scope API key in LubeLogger (Settings → API Keys).
 4. Put it in `.env` as `LUBELOGGER_API_KEY=...` (the compose file
    reads `${LUBELOGGER_API_KEY}` from the environment / `.env`).
 5. Pick a pin strategy — see "Image pin strategies" below.
@@ -301,8 +305,8 @@ the one that matches your tolerance for surprise:
 
 | Tag              | Behaviour                                                                                                                                              | When to use                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `:0.1.2` (exact) | Frozen until you edit compose.                                                                                                                         | Production where you want bit-for-bit reproducibility.                       |
-| `:0.1` (minor)   | Auto-picks up patches in 0.1.x on `pull`. Won't jump to 0.2.x.                                                                                         | Most fork users — patches land automatically, breaking changes are gated.    |
+| `:0.3.2` (exact) | Frozen until you edit compose.                                                                                                                         | Production where you want bit-for-bit reproducibility.                       |
+| `:0.3` (minor)   | Auto-picks up patches in 0.3.x on `pull`. Won't jump to 0.4.x.                                                                                         | Most fork users — patches land automatically, breaking changes are gated.    |
 | `:latest`        | Points at the most recent tagged release — re-stamped on every tag build, not on bare merges to main (see "Release workflow": only a tag push builds). | Owners who always want the newest release and accept auto-updates on `pull`. |
 
 `docker compose pull && docker compose up -d` is the release ritual
@@ -319,12 +323,14 @@ to be browser-accessible just for the backend's API calls.
 ```yaml
 # Inside your existing LubeLogger compose stack
 quicklogger:
-  image: ghcr.io/varunpan/quicklogger:0.1.2
+  image: ghcr.io/varunpan/quicklogger:0.3.2
   container_name: quicklogger
   restart: unless-stopped
   environment:
     - LUBELOGGER_URL=http://<lubelog-service-name>:8080 # the LubeLogger service's name on this network
     - LUBELOGGER_API_KEY=${LUBELOGGER_API_KEY} # in the stack's .env
+    - LUBELOGGER_VOLUME_UNIT=gallons_us # or liters — match your LubeLogger instance
+    - LUBELOGGER_DISTANCE_UNIT=miles # or km — match your LubeLogger instance
     - ORIGIN=https://quicklog.example.com # the URL you'll serve from
     - PORT=3000
   volumes:
@@ -348,8 +354,10 @@ existing services stay untouched.
 
 ## Hardening the runtime
 
-The base image (`node:24-alpine`) already runs as the unprivileged
-`node` user (UID 1000). The compose-side directives below take that
+The `node:24-alpine` base image defaults to root. The Dockerfile's
+`USER node` directive — placed after the `apk upgrade` step, which needs
+root — is what drops the container to the unprivileged `node` user
+(UID 1000) before `CMD` runs. The compose-side directives below take that
 further by removing privileges the runtime never needs.
 
 | Directive                                | What it does                                                                 | Why it's safe for quicklogger                                                                                                    |
