@@ -30,19 +30,27 @@ validate union values, no DB version bump. Existing `'queued'`/`'failed'`
 rows on devices upgrading from prior versions persist exactly. The DB
 version stays at `1`.
 
-`Queue.enqueue(input, status?)` accepts an optional status (default
-`'queued'`) so the form's success path can record `'synced'` directly.
-`Queue.markSynced(id)` transitions an existing entry to `'synced'`; used by
-the service worker after a successful replay POST. `markSynced` is a
+`Queue.enqueue(input, status?, converted?)` accepts an optional status
+(default `'queued'`) so the form's success path can record `'synced'`
+directly, plus an optional third `converted: ConvertedSnapshot` argument —
+the server-derived `{ cost, currency }` snapshot (see
+[`offline-queue.md`](./offline-queue.md) for `ConvertedSnapshot`).
+`Queue.markSynced(id: number, converted?: ConvertedSnapshot)` transitions
+an existing entry to `'synced'`, optionally attaching that same snapshot;
+used by the replay loop after a successful replay POST. `markSynced` is a
 no-op when the id doesn't exist (matches `markFailed` semantics).
 
 Two writers create `'synced'` rows:
 
 1. **Form success path** in `+page.svelte` — after `submitFuelup()` returns
-   200, the page calls `q.enqueue(input, 'synced')`.
-2. **Service worker replay** in `service-worker.ts` — after a queued entry
-   posts successfully, the worker calls `q.markSynced(entry.id)` instead of
-   `q.remove(entry.id)`. The entry stays in the queue as a synced record.
+   200, the page calls
+   `q.enqueue(input, 'synced', { cost: result.submitted.cost, currency: result.submitted.currency })`.
+2. **Replay loop** in `sync-queue.ts` — after a queued entry posts
+   successfully, `syncQueue()` calls `q.markSynced(entry.id, snapshot)`
+   instead of `q.remove(entry.id)`, where `snapshot` is the `{ cost,
+currency }` read off the replay response body (see the _Service
+   worker_ section below). The entry stays in the queue as a synced
+   record.
 
 ## Resolver (`src/lib/client/last-fillup.ts`)
 
@@ -76,14 +84,27 @@ The output shape mirrors `GasRecord` so the page-side render path
 
 ### Normalization
 
-| Field          | Upstream cache                                                                                             | Queue entry                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `date`         | passes through (already ISO `YYYY-MM-DD`; legacy locale-format snapshots are migrated on read — see below) | passes through (already ISO `YYYY-MM-DD`)                                             |
-| `odometer`     | passes through (string)                                                                                    | `String(Math.round(input.odometer))`                                                  |
-| `fuelConsumed` | passes through (gallons string)                                                                            | `(volume / 3.785411784).toFixed(2)` if `volumeUnit === 'L'`, else `volume.toFixed(2)` |
-| `cost`         | `String(cost)` or `null`                                                                                   | `input.cost.toFixed(2)`                                                               |
-| `costCurrency` | always `null`                                                                                              | `input.currency`                                                                      |
-| `notes`        | `String(notes)` or `null`                                                                                  | `input.notes ?? null`                                                                 |
+| Field          | Upstream cache                                                                                             | Queue entry                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `date`         | passes through (already ISO `YYYY-MM-DD`; legacy locale-format snapshots are migrated on read — see below) | passes through (already ISO `YYYY-MM-DD`)                                                  |
+| `odometer`     | passes through (string, instance distance unit)                                                            | `String(Math.round(input.odometer))`                                                       |
+| `fuelConsumed` | passes through — already instance-unit (`TARGET_UNIT_LABEL` renders it on the strip)                       | converted into the **instance** volume unit via `toLiters`/`toGallons`, then `.toFixed(2)` |
+| `cost`         | `String(cost)` or `null`                                                                                   | `input.cost.toFixed(2)`                                                                    |
+| `costCurrency` | always `null`                                                                                              | `input.currency`                                                                           |
+| `notes`        | `String(notes)` or `null`                                                                                  | `input.notes ?? null`                                                                      |
+
+The `fuelConsumed` conversion is instance-driven, not a hardcoded gallons
+divisor: `readQueueCandidates()` (`src/lib/client/last-fillup.ts`) hoists
+`const instanceUnit = effectiveVolumeUnit();` once per resolve, then per
+entry converts the user-entered volume into that instance unit —
+`toLiters(entry.input.volume, entry.input.volumeUnit)` on a liters
+instance, `toGallons(...)` otherwise. On a liters instance, an entry
+already entered in `'L'` isn't divided by anything; the old bare
+`/ 3.785411784` gallons arithmetic no longer exists anywhere in this path.
+`toLiters`/`toGallons` can throw (`RangeError` on a negative volume,
+`TypeError` on an unrecognized unit) — the per-entry loop catches that and
+`continue`s past the entry rather than letting it sink the whole resolve;
+a corrupt queue entry is dropped, not fatal.
 
 ### Legacy-date migration
 
@@ -147,8 +168,14 @@ Two changes:
 
 1. **Strip rendering** — when `data.lastFuelupSource === 'offline'`, an
    amber-tinted `offline copy` chip appears next to the days-ago text. The
-   second line picks `<currency> <cost>` (when `costCurrency` is non-null)
-   over the historical `$<cost>` to avoid implying FX conversion happened.
+   second line always calls
+   `formatCost(Number(data.lastFuelup.cost), data.lastFuelup.costCurrency)` —
+   there's no separate branch for the offline case. `formatCost` itself
+   does the currency selection (`currencyCode ?? effectiveCurrencyCode()`),
+   so a queue-derived record's entered `costCurrency` naturally wins over
+   the cached instance currency, and an upstream-cached record's `null`
+   falls back to it — see _`LastFillupRecord` vs upstream `GasRecord`_
+   above for why that avoids implying an FX conversion happened.
 2. **Submit success path** — after `submitFuelup` returns 200 and prefs are
    saved, the input is appended to the queue with `status: 'synced'`. This
    is fire-and-forget; IDB failures are swallowed and don't affect the
@@ -158,12 +185,24 @@ Two changes:
    On the next page navigation / PWA relaunch, the resolver has this row
    available as a fallback when upstream is unreachable.
 
-## Service worker (`src/service-worker.ts`)
+## Service worker (`src/service-worker.ts`) / replay loop (`src/lib/client/sync-queue.ts`)
+
+The replay loop itself lives in `syncQueue()` in `sync-queue.ts`, not in
+`service-worker.ts` — it was extracted so it's unit-testable independent
+of the SW runtime. `service-worker.ts` only imports `syncQueue` and
+invokes it from its `message` handler
+(`event.waitUntil(syncQueue(undefined, data.historyKeepPerVehicle))`); see
+[`offline-queue.md`](./offline-queue.md) for the full trigger/message
+plumbing.
 
 The replay loop's success branch was `q.remove(entry.id)`. It is now
-`q.markSynced(entry.id)`. Net behaviour difference for an upgraded device:
-in-flight `'queued'` rows that previously _disappeared_ on successful
-replay now become `'synced'` rows. Growth is bounded: `syncQueue()` ends
-every drain with `Queue.pruneSynced(keep)` (`sync-queue.ts` / `idb.ts`),
-deleting all but the newest `historyKeepPerVehicle` (default 200)
-`'synced'` rows per vehicle — see the Storage section above.
+`q.markSynced(entry.id, snapshot)` — note the second argument: `snapshot`
+is the `ConvertedSnapshot` (`{ cost, currency }`) parsed from the replay
+response body, so a replayed submission's converted cost survives into
+the synced row exactly like the form's own success-path `enqueue` call
+above. Net behaviour difference for an upgraded device: in-flight
+`'queued'` rows that previously _disappeared_ on successful replay now
+become `'synced'` rows. Growth is bounded: `syncQueue()` ends every drain
+with `Queue.pruneSynced(keep)` (`sync-queue.ts` / `idb.ts`), deleting all
+but the newest `historyKeepPerVehicle` (default 200) `'synced'` rows per
+vehicle — see the Storage section above.
