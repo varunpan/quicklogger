@@ -41,7 +41,11 @@ upgrading in-place see the feature on with a 300 mi chip on first open.
 
 ## Lifecycle
 
-1. `+page.ts` `load` returns `data.lastFuelup` — a snapshot taken at the
+1. `+page.ts` `load` picks the active vehicle via the shared
+   `resolveSelectedVehicle` (`$lib/client/vehicle-resolve`) — the same
+   `?vehicleId=` → `prefs.lastVehicleId` → `vehicles[0]` chain `/history`,
+   `/maintenance` and `/stats` use — then fetches that vehicle's last
+   fillup and returns it as `data.lastFuelup`, a snapshot taken at the
    server-side load, never mutated client-side.
 2. `+page.svelte` calls `loadPrefs()` once at mount; `prefs` is a plain
    constant from then on (not reactive).

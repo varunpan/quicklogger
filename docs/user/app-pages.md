@@ -18,8 +18,10 @@ picture.
 
 ## Log Fuel (`/`)
 
-The home page. Everything that follows assumes a vehicle is selected; on
-first open quicklogger picks the first vehicle returned by LubeLogger.
+The home page. Everything that follows assumes a vehicle is selected: the
+page picks the vehicle from the `?vehicleId=` query param if present,
+otherwise the vehicle you last picked (`lastVehicleId`, see below), and
+otherwise the first vehicle returned by LubeLogger.
 
 ### Last-fillup strip
 
