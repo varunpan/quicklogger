@@ -2,9 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.3.3] — Unreleased
-
-### Added
+## [0.3.3] — 2026-08-11
 
 ### Changed
 
@@ -56,8 +54,6 @@ All notable changes to this project are documented here. Format roughly follows 
   real fill-up.
 - **Documentation corrected throughout.** The README quick start, the deployment
   and UAT guides, and the technical and user guides now match the shipped app.
-
-### Tests
 
 ## [0.3.2] — 2026-07-25
 
