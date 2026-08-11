@@ -717,18 +717,42 @@
         try {
           const q = await Queue.open();
           await q.enqueue(input); // text-only — no image bytes ever enter IDB (online-only attach)
-          // Photos are online-only — a queued entry can never carry them
-          // (see docs/technical/attach-ocr-photo.md). Clear the staged blobs so
-          // the attach row does not survive into the next entry.
-          attachPumpBlob = null;
-          attachOdometerBlob = null;
-          attachPhotos = true; // default-on again; toggle button stays hidden until the next OCR send (blobs cleared)
           toast = {
             kind: 'queued',
             text: wantsAttach
               ? 'Saved locally — photo not attached.'
               : 'Saved locally — will sync when online'
           };
+          // Reset + navigate, mirroring the success path above — reached only
+          // on a SUCCESSFUL enqueue (the catch below keeps the user on a
+          // populated form so they can retry). Previously this branch did
+          // neither: the form stayed full, `submitting = false` re-enabled the
+          // button, and the only feedback was a transient toast — so users
+          // tapped again and queued a second identical fill-up.
+          //
+          // Photos are online-only — a queued entry can never carry them
+          // (see docs/technical/attach-ocr-photo.md). Clearing the staged blobs
+          // stops the attach row surviving into the next entry.
+          odometer = initialOdometer();
+          odometerEdited = false;
+          volume = '';
+          cost = '';
+          pumpSuggestion = null;
+          photoDateCue = null;
+          photoDatePickSeq++; // invalidate any in-flight readPhotoDate
+          odoSuggestion = null;
+          odoWarning = null;
+          smartCheckIssues = [];
+          attachPumpBlob = null;
+          attachOdometerBlob = null;
+          attachPhotos = true; // default-on again; toggle button stays hidden until the next OCR send (blobs cleared)
+          // /history, NOT /maintenance: it renders straight out of IndexedDB,
+          // so the amber Queued badge is durable proof the fill-up landed and
+          // the page works with no network. /maintenance fetches reminders and
+          // would meet an offline user with its "couldn't reach LubeLogger"
+          // banner instead.
+          // eslint-disable-next-line svelte/no-navigation-without-resolve
+          void goto(`/history?vehicleId=${vehicle.id}`).catch(() => {});
         } catch {
           // IDB unavailable (Safari private mode, quota): the offline fallback
           // itself failed. Unguarded, this rejection escaped the submit handler

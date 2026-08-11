@@ -47,6 +47,13 @@ All notable changes to this project are documented here. Format roughly follows 
   instead of failing silently.
 - **Photos staged for attachment are cleared after an offline save.** The next
   fill-up no longer inherits the previous entry's photos.
+- **Saving a fill-up offline no longer leaves you on a full form, so it can't be
+  queued twice.** The save now clears the form and takes you to History, where
+  the entry sits under an amber `Queued` badge as proof it landed — previously
+  only a brief toast changed, so a second tap queued an identical fill-up. If a
+  duplicate ever does reach the server, it's marked with a grey `Skipped` badge
+  ("Already in LubeLogger — not written twice") instead of showing as a second
+  real fill-up.
 - **Documentation corrected throughout.** The README quick start, the deployment
   and UAT guides, and the technical and user guides now match the shipped app.
 

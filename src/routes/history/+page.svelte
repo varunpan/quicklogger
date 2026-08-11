@@ -109,6 +109,14 @@
           <span class="badge border shrink-0 text-rose-300 bg-rose-500/15 border-rose-500/30">
             Failed
           </span>
+        {:else if entry.deduped}
+          <!-- Synced, but the server found the record already upstream and
+               skipped the write. Muted zinc, not amber/rose: this is
+               informative, not a problem — a replay of a POST that landed
+               with its response lost is the ordinary cause. -->
+          <span class="badge border shrink-0 text-zinc-300 bg-zinc-700/40 border-zinc-600">
+            Skipped
+          </span>
         {/if}
         <span class="text-sm text-zinc-300">{formatIsoDate(entry.input.date)}</span>
       </div>
@@ -123,6 +131,9 @@
             · {unitPrice.converted}</span
           >{/if}
       </div>
+      {#if entry.deduped && entry.status === 'synced'}
+        <div class="text-xs text-zinc-500 mt-1">Already in LubeLogger — not written twice.</div>
+      {/if}
       {#if entry.input.isFillToFull}
         <div class="text-xs text-zinc-400 mt-1">Fill-to-full</div>
       {/if}

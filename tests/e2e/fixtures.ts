@@ -160,6 +160,7 @@ export async function seedQueueEntry(
     attempts?: number;
     lastError?: string;
     converted?: { cost: number; currency: string };
+    deduped?: boolean;
   }
 ) {
   await page.addInitScript(async (e) => {
@@ -186,6 +187,7 @@ export async function seedQueueEntry(
         };
         if (e.lastError !== undefined) row.lastError = e.lastError;
         if (e.converted !== undefined) row.converted = e.converted;
+        if (e.deduped !== undefined) row.deduped = e.deduped;
         tx.objectStore('pendingSubmissions').add(row);
         tx.oncomplete = () => {
           db.close();
