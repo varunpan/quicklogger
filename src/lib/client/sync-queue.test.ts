@@ -317,4 +317,69 @@ describe('syncQueue', () => {
     const [entry] = await q.list();
     expect(entry.status).toBe('synced');
   });
+
+  it('carries the server deduped flag onto the row', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    // The server skipped the write because a matching record was already in
+    // LubeLogger. Without this flag the row would be indistinguishable from a
+    // real fill-up on /history — two cards for one upstream record.
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            deduped: true,
+            submitted: { volume: 11.2, volumeUnit: 'gal', cost: 47.92, currency: 'USD' }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+    expect(entry.deduped).toBe(true);
+    expect(entry.converted).toEqual({ cost: 47.92, currency: 'USD' });
+  });
+
+  it('leaves deduped unset on an ordinary 2xx', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            submitted: { volume: 11.2, volumeUnit: 'gal', cost: 47.92, currency: 'USD' }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [entry] = await q.list();
+    expect(entry.deduped).toBeUndefined();
+  });
+
+  it('ignores a non-boolean deduped value', async () => {
+    const q = await Queue.open(dbName);
+    await q.enqueue(baseInput);
+    // Strict `=== true`: a truthy string must not flag the row.
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: true, deduped: 'yes' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [entry] = await q.list();
+    expect(entry.status).toBe('synced');
+    expect(entry.deduped).toBeUndefined();
+  });
 });

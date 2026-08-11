@@ -43,7 +43,7 @@ means here.
 | Field                         | What it does                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Vehicle**                   | Button-style row showing the vehicle's LubeLogger photo (when set) and year/make/model. Tap it to jump to the Vehicles page and pick a different one. The generic car icon shows as a fallback for vehicles without a photo or when the image isn't reachable.                                                                                                                                                 |
-| **Odometer**                  | Whole-number input, pre-filled with the previous reading when prefill is on — typing `.` or `,` does nothing. A `prefilled` tag sits in the input until you interact. When the field is empty, the placeholder hints the previous reading, or reads **"No last fuel up"** if there isn't one yet.                                                                                  |
+| **Odometer**                  | Whole-number input, pre-filled with the previous reading when prefill is on — typing `.` or `,` does nothing. A `prefilled` tag sits in the input until you interact. When the field is empty, the placeholder hints the previous reading, or reads **"No last fuel up"** if there isn't one yet.                                                                                                              |
 | **`+N mi`/`+N km` chip**      | One-tap increment below the odometer field, labelled in your instance's distance unit. The number (`N`) reflects your **Quick increment** setting; the chip is hidden if you set it to 0 or disable prefill.                                                                                                                                                                                                   |
 | **Date**                      | Native date picker, defaults to today.                                                                                                                                                                                                                                                                                                                                                                         |
 | **Volume**                    | Decimal input + `Gal`/`L` toggle pill on the right.                                                                                                                                                                                                                                                                                                                                                            |
@@ -207,8 +207,9 @@ The page is reachable two ways:
   against (same `lastVehicleId` the form uses).
 - **After a successful fuel submit** — the app auto-navigates here
   from the Log Fuel page so you see the heads-up without having to
-  reach for the menu. Queued (offline) submits do NOT redirect —
-  there's no live data to show.
+  reach for the menu. Queued (offline) submits go to **History**
+  instead — Maintenance needs live data it can't reach, while History
+  is stored on the device and shows your entry with its `Queued` badge.
 
 Tap the **vehicle card** at the top to switch which vehicle's
 reminders you're looking at. The picker (`/vehicles`) returns you
@@ -295,8 +296,9 @@ picker returns you straight back to History after you pick.
 Each card shows:
 
 - **Status badge** when relevant. Amber `Queued` means the entry is
-  waiting to sync; rose `Failed` means LubeLogger rejected it. No
-  badge means the entry posted successfully.
+  waiting to sync; rose `Failed` means LubeLogger rejected it; grey
+  `Skipped` means it synced but was already in LubeLogger, so it wasn't
+  written twice. No badge means the entry posted successfully.
 - **Date line** — the date you logged, plus a relative phrase
   (`May 12, 2026 · yesterday`, `Apr 7, 2026 · 36 days ago`).
 - **Odometer reading**.

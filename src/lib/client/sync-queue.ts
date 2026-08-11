@@ -77,7 +77,15 @@ export async function syncQueue(dbName?: string, historyKeepPerVehicle?: number)
           // 'synced'; the converted half just stays absent. Both fields are
           // required — a body missing either one yields no snapshot rather than
           // a guessed currency.
+          //
+          // The same body carries `deduped: true` when the server found the
+          // record already upstream and skipped the write (replay dedupe).
+          // Without carrying that onto the row, a duplicate entry syncs to a
+          // plain 'synced' row and /history shows two fill-ups for one real
+          // record, permanently. Strict `=== true` — a truthy non-boolean
+          // must not flag the row.
           let snapshot: ConvertedSnapshot | undefined;
+          let deduped = false;
           try {
             const body = await res.json();
             const cost = body?.submitted?.cost;
@@ -85,10 +93,11 @@ export async function syncQueue(dbName?: string, historyKeepPerVehicle?: number)
             if (typeof cost === 'number' && typeof currency === 'string') {
               snapshot = { cost, currency };
             }
+            deduped = body?.deduped === true;
           } catch {
             // Non-JSON / empty body → advance status without a snapshot.
           }
-          await q.markSynced(entry.id, snapshot);
+          await q.markSynced(entry.id, snapshot, deduped);
         } else if (res.status >= 400 && res.status < 500) {
           await q.markFailed(entry.id, `${res.status}`);
         }

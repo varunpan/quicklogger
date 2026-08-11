@@ -107,4 +107,36 @@ describe('Queue', () => {
     expect(entry.status).toBe('synced');
     expect(entry.converted).toBeUndefined();
   });
+
+  it('markSynced flags a deduped replay while keeping the status synced', async () => {
+    const id = await q.enqueue(baseInput);
+    await q.markSynced(id, { cost: 47.92, currency: 'USD' }, true);
+    const [entry] = await q.list();
+    // 'synced' — NOT a new status value. pruneSynced and the byStatus index
+    // both key on 'synced', so a 'deduped' status would silently exempt these
+    // rows from retention pruning.
+    expect(entry.status).toBe('synced');
+    expect(entry.deduped).toBe(true);
+    expect(entry.converted).toEqual({ cost: 47.92, currency: 'USD' });
+  });
+
+  it('markSynced leaves deduped undefined for an ordinary sync', async () => {
+    const id = await q.enqueue(baseInput);
+    await q.markSynced(id, { cost: 47.92, currency: 'USD' });
+    const [entry] = await q.list();
+    expect(entry.deduped).toBeUndefined();
+  });
+
+  it('a deduped row is still pruned by pruneSynced', async () => {
+    // Regression guard for the status-vs-flag decision: rows carrying the
+    // deduped marker must stay inside the retention bound.
+    const older = await q.enqueue(baseInput, 'synced');
+    const newer = await q.enqueue(baseInput, 'synced');
+    await q.markSynced(older, undefined, true);
+    await q.markSynced(newer, undefined, true);
+    await q.pruneSynced(1);
+    const rows = await q.list();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(newer);
+  });
 });

@@ -37,6 +37,7 @@ Source: `src/lib/client/idb.ts`.
 | `enqueuedAt` | `number` (ms epoch)                | Set by `enqueue()` via `Date.now()`.                                                                                                                                                                                                                                                                       |
 | `lastError`  | `string` (optional)                | Populated by `markFailed` with the response status.                                                                                                                                                                                                                                                        |
 | `converted`  | `ConvertedSnapshot` (optional)     | Server-derived `{ cost, currency }` snapshot saved onto the row at sync time (`markSynced` / the form's success-path `enqueue`) so `/history` can render the converted cost fully offline. Not part of `FuelSubmissionInput` — it is not user input. See [`fillup-unit-price.md`](./fillup-unit-price.md). |
+| `deduped`    | `boolean` (optional)               | Set (literal `true`, never `false`) by `markSynced` when the replay response carried `deduped: true` — the record was already upstream and the server skipped the write. The row still ends `'synced'`; `/history` renders a muted **Skipped** badge. See [Replay dedupe](#replay-dedupe).                 |
 
 The `QueueStatus` union is exported from `idb.ts`:
 
@@ -67,8 +68,13 @@ string. This matters for upgrades: see [Schema versioning](#schema-versioning).
 
 Transitions, with code refs:
 
-- `'queued'` → `'synced'` via `Queue.markSynced(id, snapshot)` after a successful
-  POST in `syncQueue()` (`src/lib/client/sync-queue.ts`).
+- `'queued'` → `'synced'` via `Queue.markSynced(id, snapshot, deduped)` after a
+  successful POST in `syncQueue()` (`src/lib/client/sync-queue.ts`).
+  A response carrying `deduped: true` takes the same transition — it is a 200 —
+  and additionally sets the `deduped` flag on the row. It is deliberately **not**
+  a fourth status value: `pruneSynced` and the `byStatus` index both key on
+  `'synced'`, so a `'deduped'` status would silently exempt those rows from
+  retention pruning.
 - `'queued'` → `'failed'` via `Queue.markFailed(id, error)` when the SW
   replay sees a 4xx (`res.status >= 400 && res.status < 500`), **or** when
   the replay loop encounters an entry already at the 5-attempt cap — it's
@@ -94,6 +100,31 @@ transition, but the attempt is consumed (the server was reached). Network
 errors during replay (the `catch` in `syncQueue`) also leave the entry
 `'queued'`, and additionally **revert the attempt bump** — see the
 per-entry loop below.
+
+### What the form does after a successful enqueue
+
+The queued branch of `submit()` (`src/routes/+page.svelte`) mirrors the online
+success path: it resets the same pump/odometer fields and then
+`goto('/history?vehicleId=N')`.
+
+Both halves matter. Until v0.3.3 this branch only set a toast — the form stayed
+fully populated and `submitting = false` re-enabled the button, so with nothing
+durable on screen saying the save took, users tapped again and queued a second
+identical fill-up (confirmed on a real device). LubeLogger survived that via
+[Replay dedupe](#replay-dedupe), but the local history diverged permanently:
+both rows drained to plain `'synced'` and read as two real fill-ups.
+
+`/history` rather than `/maintenance` (the online path's target) because it
+renders straight out of IndexedDB, so the amber **Queued** badge is durable
+proof the entry landed and the page works with no network at all. `/maintenance`
+fetches reminders and would meet an offline user with its "couldn't reach
+LubeLogger" banner. The loader's `/api/vehicles` call is served network-first
+**from the SW cache** offline (`src/service-worker.ts`) — the same cache the
+offline form already depends on for its vehicle list.
+
+Navigation is reached only on a **successful** enqueue. If IDB itself fails
+(private mode, quota) the user stays on the populated form with the explicit
+"NOT saved" toast so they can retry — see [Quota errors](#quota-errors).
 
 ## Replay path
 
@@ -166,7 +197,7 @@ For every entry returned by `Queue.list()`:
    only — the stored entry keeps the unmodified user payload). See
    [Replay dedupe](#replay-dedupe) below.
 5. Branching on the response:
-   - `res.ok` (2xx) → `Queue.markSynced(entry.id, snapshot)`, where `snapshot`
+   - `res.ok` (2xx) → `Queue.markSynced(entry.id, snapshot, deduped)`, where `snapshot`
      is `{ cost, currency }` — **both** read from the response body
      (`submitted.cost` / `submitted.currency`). The currency is carried in the
      response because this loop runs in the service worker, which has no
@@ -174,6 +205,9 @@ For every entry returned by `Queue.list()`:
      fix). Both fields are required — a body missing either one yields no
      snapshot rather than a guessed currency. A non-JSON / empty body is
      non-fatal — the row still advances to `'synced'`, just without the snapshot.
+     `deduped` is read from the **same** parsed body (`body.deduped === true`,
+     strict — a truthy non-boolean must not flag the row) and forwarded as
+     `markSynced`'s third argument.
    - `res.status >= 400 && res.status < 500` → `Queue.markFailed(entry.id, ${res.status})`.
    - Anything else (5xx) → no transition; entry stays `'queued'` for
      the next trigger. The attempt is consumed — the server was reached
@@ -223,8 +257,11 @@ Key details (rationale in
   keep matching.
 - **A match returns a normal 200** with `deduped: true` and a `submitted`
   snapshot mirroring the matched record, so the replay loop marks the entry
-  `'synced'` with the cost that's actually upstream. No client-side special
-  case.
+  `'synced'` with the cost that's actually upstream. The client's only special
+  case is cosmetic: the flag is copied onto the row so `/history` can badge it
+  **Skipped** instead of showing two identical fill-ups for one upstream
+  record. LubeLogger stays correct either way — this is about the local
+  history view being honest.
 - **A failed pre-check GET returns 503** — never write on uncertainty. The
   entry stays `'queued'` and retries on a later drain; the 5-attempt cap
   dead-letters it if upstream stays broken.

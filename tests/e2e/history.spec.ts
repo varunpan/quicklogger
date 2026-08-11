@@ -85,6 +85,7 @@ test('synced card renders without badge, with all optional lines', async ({ page
   // No badge.
   await expect(page.getByText('Queued', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Failed', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Skipped', { exact: true })).toHaveCount(0);
   // Date + relative.
   await expect(page.getByText('Apr 7, 2026 · 36 days ago')).toBeVisible();
   // Odometer.
@@ -122,6 +123,34 @@ test('queued card renders amber badge', async ({ page }) => {
   await expect(badge).toBeVisible();
   await expect(badge).toHaveClass(/text-amber-300/);
   await expect(page.getByText('May 12, 2026 · yesterday')).toBeVisible();
+});
+
+test('deduped card renders muted Skipped badge and explanation', async ({ page }) => {
+  await pinClock(page, '2026-05-13T10:00:00');
+  await mockVehiclesOnly(page);
+  await seedQueueEntry(page, {
+    input: {
+      vehicleId: 1,
+      date: '2026-05-11',
+      odometer: 105300,
+      volume: 12.4,
+      volumeUnit: 'gal',
+      cost: 44.2,
+      currency: 'USD',
+      isFillToFull: true,
+      missedFuelup: false,
+      clientSubmissionId: 'd'
+    },
+    status: 'synced',
+    deduped: true
+  });
+  await gotoHistoryViaDrawer(page);
+
+  const badge = page.getByText('Skipped', { exact: true });
+  await expect(badge).toBeVisible();
+  // Muted zinc, not amber/rose — the row is informative, not a failure.
+  await expect(badge).toHaveClass(/text-zinc-300/);
+  await expect(page.getByText('Already in LubeLogger — not written twice.')).toBeVisible();
 });
 
 test('failed card renders rose badge, error line, attempts line', async ({ page }) => {

@@ -38,6 +38,7 @@ interface QueueEntry {
   enqueuedAt: number;
   lastError?: string;
   converted?: ConvertedSnapshot; // converted-cost snapshot, see fillup-unit-price.md
+  deduped?: boolean; // replay matched a record already upstream; see offline-queue.md
 }
 ```
 
@@ -95,6 +96,7 @@ Page-local state:
 | Pre-v0.1.3 submissions                      | Don't appear.                                                                                                                 | They never landed in IDB — footer disclaimer sets expectation.                                                                                                                                                                                                                                                                |
 | LubeLogger-direct submissions               | Don't appear.                                                                                                                 | Same disclaimer. Merging with upstream `GasRecord[]` is an explicit non-goal.                                                                                                                                                                                                                                                 |
 | Failed rows with no retry UI                | The card surfaces `lastError` and `attempts`; user must dismiss via dev tools.                                                | Retry / dismiss controls are an explicit out-of-scope follow-up.                                                                                                                                                                                                                                                              |
+| Row synced with `deduped: true`             | Muted zinc **Skipped** badge + "Already in LubeLogger — not written twice." caption.                                          | The replay matched a record already upstream, so no write happened. Without the marker the card would read as a second real fill-up. Status stays `'synced'` so retention pruning still covers it.                                                                                                                            |
 | Cross-currency row, not yet synced          | Actual unit price only; converted half appears after sync.                                                                    | The snapshot is written at sync time; a queued row has none yet.                                                                                                                                                                                                                                                              |
 
 ## Non-obvious decisions
@@ -118,9 +120,18 @@ Page-local state:
    through. One canonical definition of "today" / "yesterday" /
    "N days ago" across the app — the home-page strip
    (`formatLastFillupDate`) and the card date line share it.
-4. **No status badge for `synced`.** The mockup intentionally drops the
+4. **No status badge for `synced`** — with one exception, `deduped`.
+   The mockup intentionally drops the
    badge for synced entries so the eye reaches the date and odometer
    first. The synced state is the default; only deviations are flagged.
+   A `deduped` row _is_ a deviation: the server found the record already in
+   LubeLogger and skipped the write, so without a marker the card would claim
+   a fill-up that this row didn't actually create. It gets a muted zinc
+   **Skipped** badge plus one caption line, _"Already in LubeLogger — not
+   written twice."_ Zinc rather than amber/rose deliberately: dedupe fires
+   legitimately whenever a request lands and its response is lost, so the copy
+   is informative, not accusatory. See
+   [`offline-queue.md` § Replay dedupe](./offline-queue.md#replay-dedupe).
 
 ## Locale-dynamic rendering
 

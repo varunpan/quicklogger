@@ -40,6 +40,14 @@ The form does not need to know in advance whether you are offline. It
 always tries the POST first and falls back to the queue on network or 5xx
 failure.
 
+When the fill-up goes into the queue, quicklogger clears the form and takes you
+straight to **History**, where your entry is sitting at the top with an amber
+**Queued** badge. That's your proof it was saved — you don't have to trust the
+toast, and there's no half-filled form tempting you into a second tap. (The one
+exception: if your device refuses to store anything at all — Private Browsing,
+or a full disk — you stay on the form with the red "NOT saved" message so you
+can try again.)
+
 ## The History page — what queued submissions look like
 
 Open the drawer → **History**. Every fill-up logged on this device for the
@@ -57,6 +65,15 @@ Cards that haven't reached LubeLogger yet carry a badge:
   attempts (shown as `error: max attempts`). To clear it, open the row
   in your browser's devtools → IndexedDB store and delete it, or accept
   that the entry won't reach LubeLogger.
+
+One more badge shows up on entries that _did_ finish syncing:
+
+- **Skipped** (grey) — the fill-up was already in LubeLogger, so quicklogger
+  didn't write it a second time. Nothing is wrong and nothing was lost. The
+  usual cause is a submission that reached the server while the reply got lost
+  on the way back, so the app retried something that had in fact already
+  landed. The card carries the line _"Already in LubeLogger — not written
+  twice."_ so you know which of two similar-looking entries is the real record.
 
 Cards without a badge have already posted successfully. These synced
 fill-ups are kept as local history so the offline odometer prefill has

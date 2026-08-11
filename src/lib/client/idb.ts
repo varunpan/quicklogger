@@ -26,6 +26,16 @@ export interface QueueEntry {
   enqueuedAt: number;
   lastError?: string;
   converted?: ConvertedSnapshot;
+  /**
+   * Set when the replay POST came back `deduped: true` — the record was
+   * already in LubeLogger, so the server skipped the write. Deliberately a
+   * flag on a still-`'synced'` row rather than a fourth status value:
+   * `pruneSynced` and the `byStatus` index both key on `'synced'`, so a new
+   * status would silently exempt these rows from retention pruning. Optional,
+   * so no IDB version bump is needed for existing rows. /history renders it as
+   * a muted "Skipped" badge.
+   */
+  deduped?: boolean;
 }
 
 const STORE = 'pendingSubmissions';
@@ -77,11 +87,14 @@ export class Queue {
     await this.db.put(STORE, entry);
   }
 
-  async markSynced(id: number, converted?: ConvertedSnapshot): Promise<void> {
+  async markSynced(id: number, converted?: ConvertedSnapshot, deduped?: boolean): Promise<void> {
     const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
     if (!entry) return;
     entry.status = 'synced';
     if (converted) entry.converted = converted;
+    // Only ever set, never cleared: an ordinary sync leaves the field absent
+    // rather than writing `deduped: false` onto every row.
+    if (deduped) entry.deduped = true;
     await this.db.put(STORE, entry);
   }
 
