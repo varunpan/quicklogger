@@ -23,7 +23,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "rotating-file-stream": "^3.2.6"
+    "rotating-file-stream": "^3.2.10"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
