@@ -36,6 +36,9 @@ All notable changes to this project are documented here. Format roughly follows 
   restructuring the toolchain, not bumping a version. Revisit once the
   toolchain declares TypeScript 7 peer support.
 - CI: `actions/setup-node` v6 → v7.
+- Dependabot now ignores Node **major** base-image bumps. The runtime image
+  stays on `node:24-alpine` (LTS to 2028-04-30); node 25 was already EOL when
+  it was proposed. Patch/minor base-image PRs still arrive.
 
 ### Fixed
 
