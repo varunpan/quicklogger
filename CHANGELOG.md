@@ -8,6 +8,14 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- In-range dependency refresh: `@sveltejs/kit` 2.70.2 → 2.70.3,
+  `@sveltejs/vite-plugin-svelte` 7.2.0 → 7.3.0, `@vitest/coverage-v8` 4.1.10 →
+  4.1.11, `eslint` 10.8.1 → 10.9.1, `eslint-plugin-svelte` 3.22.0 → 3.23.0,
+  `rotating-file-stream` 3.2.9 → 3.2.10, `svelte` 5.56.8 → 5.56.10,
+  `svelte-check` 4.7.5 → 4.7.6, `svelte-eslint-parser` 1.8.0 → 1.8.1,
+  `typescript-eslint` 8.66.0 → 8.68.0, `vite` 8.2.1 → 8.2.2 and `vitest` 4.1.10
+  → 4.1.11.
+
 ### Fixed
 
 ### Tests
