@@ -8,37 +8,52 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
-- In-range dependency refresh: `@sveltejs/kit` 2.70.2 → 2.70.3,
-  `@sveltejs/vite-plugin-svelte` 7.2.0 → 7.3.0, `@vitest/coverage-v8` 4.1.10 →
-  4.1.11, `eslint` 10.8.1 → 10.9.1, `eslint-plugin-svelte` 3.22.0 → 3.23.0,
-  `rotating-file-stream` 3.2.9 → 3.2.10, `svelte` 5.56.8 → 5.56.10,
-  `svelte-check` 4.7.5 → 4.7.6, `svelte-eslint-parser` 1.8.0 → 1.8.1,
-  `typescript-eslint` 8.66.0 → 8.68.0, `vite` 8.2.1 → 8.2.2 and `vitest` 4.1.10
-  → 4.1.11.
-- Dropped the redundant `devalue` npm `override`. Kept the `jsdom` → `undici`
-  (`^7.29.0`) and `@sveltejs/kit` → `cookie` (`^0.7.0`) pins, which are still
-  load-bearing security floors.
-- `jsdom` 29.1.1 → 30.0.1 (test environment only — jsdom never ships in the
-  runtime image). The `jsdom` → `undici` override had to be **raised** from
-  `^7.29.0` to `^8.9.0`: jsdom 30 depends on `undici` `^8.9.0` itself, so the
-  old pin had quietly stopped being a security floor and become a _downgrade_,
-  holding `undici` at 7.29.0 under a jsdom that wanted 8. It now resolves to
-  8.10.0 — comfortably above every `undici` advisory v0.3.3 cleared.
-- `@testing-library/jest-dom` 6.9.1 → 7.0.1 (test matchers only). No matcher
-  migration was needed — the unit suite's only jest-dom matcher is
-  `toBeInTheDocument`, which v7 keeps.
-- **Deferred again:** `typescript` 7. It stays on 6.0.3. Both compiler-facing
-  gates refuse TypeScript 7 outright at startup — `typescript-eslint` 8.68.0
-  aborts `npm run lint` with _"typescript-eslint does not support TS 7.0"_, and
+- **Stay-current dependency sweep.** Unlike v0.3.3 this one clears no
+  advisories — `npm audit` reported **0 vulnerabilities** and Trivy found **0
+  findings at any severity** on `ghcr.io/varunpan/quicklogger:latest` (alpine
+  3.24.1) before any of it — so the job was staying current and clearing six
+  Dependabot PRs that had been open against `main` since 2026-07-17. In range:
+  `@sveltejs/kit` 2.70.2 → 2.70.3, `@sveltejs/vite-plugin-svelte` 7.2.0 →
+  7.3.0, `@vitest/coverage-v8` 4.1.10 → 4.1.11, `eslint` 10.8.1 → 10.9.1,
+  `eslint-plugin-svelte` 3.22.0 → 3.23.0, `rotating-file-stream` 3.2.9 →
+  3.2.10, `svelte` 5.56.8 → 5.56.10, `svelte-check` 4.7.5 → 4.7.6,
+  `svelte-eslint-parser` 1.8.0 → 1.8.1, `typescript-eslint` 8.66.0 → 8.68.0,
+  `vite` 8.2.1 → 8.2.2 and `vitest` 4.1.10 → 4.1.11 — `rotating-file-stream`
+  the only one of them that ships at runtime. Of the three majors v0.3.3
+  deferred, two landed: `jsdom` 29.1.1 → 30.0.1 and
+  `@testing-library/jest-dom` 6.9.1 → 7.0.1, both test-only. **`typescript` 7
+  is deferred again** — it stays on 6.0.3, because both compiler-facing gates
+  refuse it outright at startup: `typescript-eslint` 8.68.0 aborts
+  `npm run lint` with _"typescript-eslint does not support TS 7.0"_, and
   `svelte-check` 4.7.6 aborts `npm run check` demanding TypeScript 6 and 7 be
   installed side by side under an npm alias and driven with a `--tsgo` flag.
-  Neither is a type error an annotation could fix; clearing them would mean
-  restructuring the toolchain, not bumping a version. Revisit once the
-  toolchain declares TypeScript 7 peer support.
+  Neither is a type error an annotation could fix, so clearing them means
+  restructuring the toolchain rather than bumping a version.
+- **The `jsdom` → `undici` override had silently become a downgrade, and was
+  raised to `^8.9.0`.** It was introduced as a security _floor_ — v0.3.3 lifted
+  it to `^7.29.0` to clear five `undici` advisories, worst a cross-user
+  information disclosure ([GHSA-4cwx-7wf7-3272](https://github.com/advisories/GHSA-4cwx-7wf7-3272)).
+  But `jsdom` 30 depends on `undici` `^8.9.0` itself, so on the old pin the
+  bump would have held `undici` a whole major _below_ what jsdom asked for,
+  quietly re-opening what v0.3.3 closed. `undici` now resolves to 8.10.0.
+  `docs/deployment.md` carries a standing note to re-check this override's
+  direction after every `jsdom` major.
+- **Dropped the redundant `devalue` npm `override`.** `@sveltejs/kit` and
+  `svelte` both request `^5.8.1` themselves now, so the pin no longer changed
+  resolution and would have become a `^6` ceiling the day upstream moved. Two
+  checks confirm it was dead config: removing it left `package-lock.json`
+  byte-identical, and a from-scratch install resolved `devalue` _higher_ than
+  the pinned version, never lower. The `@sveltejs/kit` → `cookie` (`^0.7.0`)
+  pin stays — still a load-bearing CVE fix.
+- **The runtime image stays on `node:24-alpine`, and Dependabot now ignores
+  Node major base-image bumps.** Dependabot proposed `node:25-alpine` (#73),
+  which would have been a downgrade in support terms: node 25 is not LTS and
+  reached EOL on 2026-06-01, ~3 months before it was proposed, while node 24 is
+  supported to 2028-04-30. Node 26 is not LTS until 2026-10-28. Patch and minor
+  base-image PRs still arrive — those are the ones carrying the Alpine security
+  fixes — but LTS major moves are now human-initiated.
 - CI: `actions/setup-node` v6 → v7.
-- Dependabot now ignores Node **major** base-image bumps. The runtime image
-  stays on `node:24-alpine` (LTS to 2028-04-30); node 25 was already EOL when
-  it was proposed. Patch/minor base-image PRs still arrive.
+- No behaviour, UI or persistence change — this is a dependency sweep.
 
 ### Fixed
 
