@@ -27,6 +27,14 @@ All notable changes to this project are documented here. Format roughly follows 
 - `@testing-library/jest-dom` 6.9.1 → 7.0.1 (test matchers only). No matcher
   migration was needed — the unit suite's only jest-dom matcher is
   `toBeInTheDocument`, which v7 keeps.
+- **Deferred again:** `typescript` 7. It stays on 6.0.3. Both compiler-facing
+  gates refuse TypeScript 7 outright at startup — `typescript-eslint` 8.68.0
+  aborts `npm run lint` with _"typescript-eslint does not support TS 7.0"_, and
+  `svelte-check` 4.7.6 aborts `npm run check` demanding TypeScript 6 and 7 be
+  installed side by side under an npm alias and driven with a `--tsgo` flag.
+  Neither is a type error an annotation could fix; clearing them would mean
+  restructuring the toolchain, not bumping a version. Revisit once the
+  toolchain declares TypeScript 7 peer support.
 
 ### Fixed
 
