@@ -35,6 +35,7 @@ All notable changes to this project are documented here. Format roughly follows 
   Neither is a type error an annotation could fix; clearing them would mean
   restructuring the toolchain, not bumping a version. Revisit once the
   toolchain declares TypeScript 7 peer support.
+- CI: `actions/setup-node` v6 → v7.
 
 ### Fixed
 
