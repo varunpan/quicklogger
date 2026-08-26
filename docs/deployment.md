@@ -247,9 +247,15 @@ a cross-user information disclosure and parse-time crash via degenerate private
 cache directives
 ([GHSA-4cwx-7wf7-3272](https://github.com/advisories/GHSA-4cwx-7wf7-3272)).
 `undici` reaches the tree only through `jsdom`, and is held on the patched line
-by an npm `override` pinning it to `^7.29.0` under `jsdom` — raised from
-`^7.28.0` so a future resolution can't settle back onto a vulnerable 7.28.x.
-Both are dev-tooling paths; neither ships in the runtime image.
+by an npm `override` under `jsdom` — first `^7.28.0`, raised to `^7.29.0` in
+v0.3.3 so a future resolution couldn't settle back onto a vulnerable 7.28.x,
+and raised again to **`^8.9.0`** in v0.3.4. That last raise matters: `jsdom` 30
+asks for `undici@^8.9.0` on its own, so the old `^7.29.0` pin had silently
+flipped from a _floor_ into a _ceiling_ — it would have held `undici` a whole
+major below what jsdom wanted. **Re-check this override's direction after every
+`jsdom` major**: compare `require('jsdom/package.json').dependencies.undici`
+against the pin, and raise the pin to match jsdom's own floor whenever jsdom
+moves above it. Both are dev-tooling paths; neither ships in the runtime image.
 
 `npm audit` currently reports **0 vulnerabilities**, and no advisory is
 knowingly deferred. Dependabot will open PRs as further upstream fixes land.

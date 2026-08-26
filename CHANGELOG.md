@@ -18,6 +18,12 @@ All notable changes to this project are documented here. Format roughly follows 
 - Dropped the redundant `devalue` npm `override`. Kept the `jsdom` → `undici`
   (`^7.29.0`) and `@sveltejs/kit` → `cookie` (`^0.7.0`) pins, which are still
   load-bearing security floors.
+- `jsdom` 29.1.1 → 30.0.1 (test environment only — jsdom never ships in the
+  runtime image). The `jsdom` → `undici` override had to be **raised** from
+  `^7.29.0` to `^8.9.0`: jsdom 30 depends on `undici` `^8.9.0` itself, so the
+  old pin had quietly stopped being a security floor and become a _downgrade_,
+  holding `undici` at 7.29.0 under a jsdom that wanted 8. It now resolves to
+  8.10.0 — comfortably above every `undici` advisory v0.3.3 cleared.
 
 ### Fixed
 

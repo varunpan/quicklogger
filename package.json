@@ -39,7 +39,7 @@
     "eslint-plugin-svelte": "^3.23.0",
     "fake-indexeddb": "^6.2.5",
     "idb": "^8.0.3",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "msw": "^2.14.6",
     "prettier": "^3.8.4",
     "prettier-plugin-svelte": "^4.1.0",
@@ -54,7 +54,7 @@
   },
   "overrides": {
     "jsdom": {
-      "undici": "^7.29.0"
+      "undici": "^8.9.0"
     },
     "@sveltejs/kit": {
       "cookie": "^0.7.0"
