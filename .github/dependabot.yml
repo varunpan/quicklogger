@@ -24,6 +24,16 @@ updates:
     directory: '/'
     schedule:
       interval: weekly
+    ignore:
+      # We track Node LTS majors only, and move on our own schedule rather than
+      # on release day. Left unfiltered, Dependabot proposes every major — and
+      # odd-numbered majors are never LTS: node 25 reached EOL 2026-06-01, months
+      # before it was proposed here (#73), while node 24 is supported to
+      # 2028-04-30. Patch/minor base-image PRs still arrive, and those are the
+      # ones that carry the Alpine security fixes.
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
 
   # The GitHub Actions pinned in .github/workflows/*.yml.
   - package-ecosystem: github-actions

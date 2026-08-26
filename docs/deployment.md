@@ -206,7 +206,13 @@ trails Alpine's package index, so OpenSSL (`libssl3`/`libcrypto3`) and
 friends can ship with already-fixed CVEs. The runtime stage runs
 `apk upgrade --no-cache` at build time to pull these up to the latest
 Alpine patch, and Dependabot's `docker` ecosystem opens a PR when a newer
-base is available. It also removes the base image's bundled **npm/npx** —
+base is available. **Base-image policy: Node LTS majors only.** Odd-numbered
+Node majors are never LTS — node 25 reached EOL on 2026-06-01, months before
+Dependabot proposed it — so `.github/dependabot.yml` ignores
+`version-update:semver-major` for `node`. Patch and minor base-image PRs still
+arrive, and those are the ones carrying the Alpine security fixes; the LTS
+major bump (node 26, LTS from 2026-10-28) is taken deliberately in a release
+cycle of its own. It also removes the base image's bundled **npm/npx** —
 the production container only runs `node build` and never invokes npm, so
 dropping it clears CVEs carried in npm's _own_ bundled dependencies (a
 `picomatch` ReDoS surfaced this way in #31's scan) and trims attack
