@@ -15,6 +15,9 @@ All notable changes to this project are documented here. Format roughly follows 
   `svelte-check` 4.7.5 → 4.7.6, `svelte-eslint-parser` 1.8.0 → 1.8.1,
   `typescript-eslint` 8.66.0 → 8.68.0, `vite` 8.2.1 → 8.2.2 and `vitest` 4.1.10
   → 4.1.11.
+- Dropped the redundant `devalue` npm `override`. Kept the `jsdom` → `undici`
+  (`^7.29.0`) and `@sveltejs/kit` → `cookie` (`^0.7.0`) pins, which are still
+  load-bearing security floors.
 
 ### Fixed
 

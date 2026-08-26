@@ -53,7 +53,6 @@
     "vitest": "^4.1.11"
   },
   "overrides": {
-    "devalue": "^5.8.1",
     "jsdom": {
       "undici": "^7.29.0"
     },

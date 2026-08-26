@@ -222,9 +222,14 @@ into the `build/` bundle (Svelte's SSR runtime, `@sveltejs/kit`,
 **full** dependency tree on every PR and fails on **high/critical**
 advisories. It deliberately does _not_ use `--omit=dev` — that would
 re-open the blind spot, since those compiled-in packages are
-devDependencies. A high-severity `devalue` DoS is fixed by pinning it to
-the patched `5.8.1` via an npm `override` in `package.json` (it's a
-transitive SvelteKit dep). The four moderate `svelte` SSR-XSS advisories are
+devDependencies. A high-severity `devalue` DoS was originally fixed by pinning it to the
+patched `5.8.1` via an npm `override` in `package.json` (it's a transitive
+SvelteKit dep). That pin was **dropped in v0.3.4** — `@sveltejs/kit` and
+`svelte` now both request `^5.8.1` themselves, so the override no longer
+changed resolution and would have become a `^6` ceiling the day upstream
+moved. Removing it left `package-lock.json` byte-identical, and a clean
+install resolves `devalue` no lower than before; that pair of checks is the
+acceptance gate if the pin is ever reconsidered. The four moderate `svelte` SSR-XSS advisories are
 cleared by upgrading to `5.56.3` (#37); see that fix's note in the CHANGELOG for
 why the bump needed a CropOverlay rework first. The **`cookie`** advisory (low)
 has since been cleared by a targeted npm `override` pinning `cookie` to `^0.7.0`
