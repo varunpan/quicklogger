@@ -24,6 +24,9 @@ All notable changes to this project are documented here. Format roughly follows 
   old pin had quietly stopped being a security floor and become a _downgrade_,
   holding `undici` at 7.29.0 under a jsdom that wanted 8. It now resolves to
   8.10.0 — comfortably above every `undici` advisory v0.3.3 cleared.
+- `@testing-library/jest-dom` 6.9.1 → 7.0.1 (test matchers only). No matcher
+  migration was needed — the unit suite's only jest-dom matcher is
+  `toBeInTheDocument`, which v7 keeps.
 
 ### Fixed
 
