@@ -28,7 +28,9 @@ All notable changes to this project are documented here. Format roughly follows 
   `svelte-check` 4.7.6 aborts `npm run check` demanding TypeScript 6 and 7 be
   installed side by side under an npm alias and driven with a `--tsgo` flag.
   Neither is a type error an annotation could fix, so clearing them means
-  restructuring the toolchain rather than bumping a version.
+  restructuring the toolchain rather than bumping a version. Re-checked on
+  2026-09-26 against `typescript` 7.0.2, `typescript-eslint` 8.70.1 and
+  `svelte-check` 4.7.6: both still refuse it with the same errors.
 - **Second pass (2026-09-26) cleared a new `devalue` advisory and took the
   next round of in-range bumps.** `npm audit` had picked up one **moderate**
   finding a month after the first pass — `devalue` <5.9.1, a DoS via malformed
