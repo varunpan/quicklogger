@@ -42,6 +42,9 @@ All notable changes to this project are documented here. Format roughly follows 
   `prettier` 3.9.6 → 3.9.9, `prettier-plugin-svelte` → 4.1.1, `svelte`
   5.56.10 → 5.57.1, `typescript-eslint` 8.68.0 → 8.70.1 and `vite` 8.2.2 →
   8.3.1. `npm audit` is back to **0 vulnerabilities**.
+- **`vitest` 4 → 5** (with `@vitest/coverage-v8` 4.1.11 → 5.0.2), test-only.
+  No config or test changes needed — all 840 unit/integration tests and the
+  coverage run pass unchanged.
 - **The `jsdom` → `undici` override had silently become a downgrade, and was
   raised to `^8.9.0`.** It was introduced as a security _floor_ — v0.3.3 lifted
   it to `^7.29.0` to clear five `undici` advisories, worst a cross-user
