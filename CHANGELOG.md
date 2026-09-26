@@ -29,6 +29,19 @@ All notable changes to this project are documented here. Format roughly follows 
   installed side by side under an npm alias and driven with a `--tsgo` flag.
   Neither is a type error an annotation could fix, so clearing them means
   restructuring the toolchain rather than bumping a version.
+- **Second pass (2026-09-26) cleared a new `devalue` advisory and took the
+  next round of in-range bumps.** `npm audit` had picked up one **moderate**
+  finding a month after the first pass — `devalue` <5.9.1, a DoS via malformed
+  input — and unlike the dev-only advisories v0.3.3 cleared, this one ships:
+  `@sveltejs/kit` and `svelte` both use `devalue` at runtime. Both already ask
+  for `^5.8.1`, so a lockfile refresh fixed it with no override; `devalue`
+  5.9.0 → 5.9.4. Alongside it: `@playwright/test` 1.62.1 → 1.63.0,
+  `@sveltejs/adapter-node` → 5.5.7, `@sveltejs/vite-plugin-svelte` 7.3.0 →
+  7.3.1, `@tailwindcss/vite` → 4.3.3, `@testing-library/svelte` → 5.4.2,
+  `eslint` 10.9.1 → 10.11.0, `jsdom` 30.0.1 → 30.1.1, `msw` → 2.15.0,
+  `prettier` 3.9.6 → 3.9.9, `prettier-plugin-svelte` → 4.1.1, `svelte`
+  5.56.10 → 5.57.1, `typescript-eslint` 8.68.0 → 8.70.1 and `vite` 8.2.2 →
+  8.3.1. `npm audit` is back to **0 vulnerabilities**.
 - **The `jsdom` → `undici` override had silently become a downgrade, and was
   raised to `^8.9.0`.** It was introduced as a security _floor_ — v0.3.3 lifted
   it to `^7.29.0` to clear five `undici` advisories, worst a cross-user
