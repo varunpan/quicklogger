@@ -235,7 +235,11 @@ SvelteKit dep). That pin was **dropped in v0.3.4** — `@sveltejs/kit` and
 changed resolution and would have become a `^6` ceiling the day upstream
 moved. Removing it left `package-lock.json` byte-identical, and a clean
 install resolves `devalue` no lower than before; that pair of checks is the
-acceptance gate if the pin is ever reconsidered. The four moderate `svelte` SSR-XSS advisories are
+acceptance gate if the pin is ever reconsidered. A later **moderate** `devalue` DoS
+(`<5.9.1`, malformed input) was cleared in v0.3.4's second pass by a plain
+lockfile refresh to `5.9.4` — both parents' `^5.8.1` range already allowed it,
+so no pin came back. Moderate findings sit below the CI gate, so they surface
+through Dependabot alerts and the manual dependency sweeps, not a red build. The four moderate `svelte` SSR-XSS advisories are
 cleared by upgrading to `5.56.3` (#37); see that fix's note in the CHANGELOG for
 why the bump needed a CropOverlay rework first. The **`cookie`** advisory (low)
 has since been cleared by a targeted npm `override` pinning `cookie` to `^0.7.0`
@@ -255,7 +259,8 @@ cache directives
 `undici` reaches the tree only through `jsdom`, and is held on the patched line
 by an npm `override` under `jsdom` — first `^7.28.0`, raised to `^7.29.0` in
 v0.3.3 so a future resolution couldn't settle back onto a vulnerable 7.28.x,
-and raised again to **`^8.9.0`** in v0.3.4. That last raise matters: `jsdom` 30
+and raised again to `^8.9.0` and then **`^8.10.2`** in v0.3.4 (tracking
+`jsdom` 30.0 → 30.1). The first v0.3.4 raise matters most: `jsdom` 30
 asks for `undici@^8.9.0` on its own, so the old `^7.29.0` pin had silently
 flipped from a _floor_ into a _ceiling_ — it would have held `undici` a whole
 major below what jsdom wanted. **Re-check this override's direction after every
