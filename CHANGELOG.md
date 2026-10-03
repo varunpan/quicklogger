@@ -2,14 +2,12 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.3.4] — Unreleased
-
-### Added
+## [0.3.4] — 2026-10-03
 
 ### Changed
 
-- **Stay-current dependency sweep.** Unlike v0.3.3 this one clears no
-  advisories — `npm audit` reported **0 vulnerabilities** and Trivy found **0
+- **Stay-current dependency sweep.** Unlike v0.3.3 the first pass
+  cleared no advisories — `npm audit` reported **0 vulnerabilities** and Trivy found **0
   findings at any severity** on `ghcr.io/varunpan/quicklogger:latest` (alpine
   3.24.1) before any of it — so the job was staying current and clearing six
   Dependabot PRs that had been open against `main` since 2026-07-17. In range:
@@ -75,10 +73,6 @@ All notable changes to this project are documented here. Format roughly follows 
   fixes — but LTS major moves are now human-initiated.
 - CI: `actions/setup-node` v6 → v7.
 - No behaviour, UI or persistence change — this is a dependency sweep.
-
-### Fixed
-
-### Tests
 
 ## [0.3.3] — 2026-08-11
 
