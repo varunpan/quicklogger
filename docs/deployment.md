@@ -259,8 +259,8 @@ cache directives
 `undici` reaches the tree only through `jsdom`, and is held on the patched line
 by an npm `override` under `jsdom` — first `^7.28.0`, raised to `^7.29.0` in
 v0.3.3 so a future resolution couldn't settle back onto a vulnerable 7.28.x,
-and raised again to `^8.9.0` and then **`^8.10.2`** in v0.3.4 (tracking
-`jsdom` 30.0 → 30.1). The first v0.3.4 raise matters most: `jsdom` 30
+and raised again to `^8.9.0`, then `^8.10.2`, then **`^8.11.2`** in v0.3.4
+(tracking `jsdom` 30.0 → 30.1.1 → 30.1.2). The first v0.3.4 raise matters most: `jsdom` 30
 asks for `undici@^8.9.0` on its own, so the old `^7.29.0` pin had silently
 flipped from a _floor_ into a _ceiling_ — it would have held `undici` a whole
 major below what jsdom wanted. **Re-check this override's direction after every
