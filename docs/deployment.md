@@ -259,14 +259,22 @@ cache directives
 `undici` reaches the tree only through `jsdom`, and is held on the patched line
 by an npm `override` under `jsdom` — first `^7.28.0`, raised to `^7.29.0` in
 v0.3.3 so a future resolution couldn't settle back onto a vulnerable 7.28.x,
-and raised again to `^8.9.0`, then `^8.10.2`, then **`^8.11.2`** in v0.3.4
-(tracking `jsdom` 30.0 → 30.1.1 → 30.1.2). The first v0.3.4 raise matters most: `jsdom` 30
+and raised again to `^8.9.0`, then `^8.10.2`, then `^8.11.2` in v0.3.4
+(tracking `jsdom` 30.0 → 30.1.1 → 30.1.2), and to **`^8.12.1`** in v0.3.5
+(tracking `jsdom` 30.1.3). The first v0.3.4 raise matters most: `jsdom` 30
 asks for `undici@^8.9.0` on its own, so the old `^7.29.0` pin had silently
 flipped from a _floor_ into a _ceiling_ — it would have held `undici` a whole
 major below what jsdom wanted. **Re-check this override's direction after every
 `jsdom` major**: compare `require('jsdom/package.json').dependencies.undici`
 against the pin, and raise the pin to match jsdom's own floor whenever jsdom
 moves above it. Both are dev-tooling paths; neither ships in the runtime image.
+v0.3.5 cleared two more **high** advisories in build tooling: `source-map-js`
+below 1.2.2
+([GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q), an
+event-loop DoS, reached through Tailwind, PostCSS, `css-tree` and the coverage
+reporter) and `vite` 8.3.0–8.3.2, whose bundled `launch-editor` carried three
+advisories. Both fixes (`1.2.2`, `8.3.5`) sat inside the existing caret ranges,
+so an in-range lockfile refresh cleared them with no override.
 
 `npm audit` currently reports **0 vulnerabilities**, and no advisory is
 knowingly deferred. Dependabot will open PRs as further upstream fixes land.

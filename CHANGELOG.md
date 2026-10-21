@@ -8,7 +8,41 @@ All notable changes to this project are documented here. Format roughly follows 
 
 ### Changed
 
+- **In-range dependency sweep.** Every patch/minor in `npm outdated`'s Wanted
+  column: `@playwright/test` 1.63.0 → 1.64.1, `@vitest/coverage-v8` + `vitest`
+  5.0.3 → 5.0.5, `eslint` 10.12.0 → 10.13.0, `eslint-plugin-svelte` 3.23.0 →
+  3.23.1, `fake-indexeddb` 6.2.5 → 6.2.6, `idb` 8.0.3 → 8.0.4, `jsdom` 30.1.2 →
+  30.1.3, `prettier` 3.9.9 → 3.9.10, `svelte` 5.57.1 → 5.57.2, `svelte-check`
+  4.7.6 → 4.7.7, `svelte-eslint-parser` 1.8.1 → 1.9.0, `typescript-eslint`
+  8.71.0 → 8.72.0 and `vite` 8.3.2 → 8.3.5. `svelte` and `idb` compile into the
+  client bundle; the rest is build, test and lint tooling. The `jsdom` →
+  `undici` override follows `jsdom` 30.1.3's own floor up from `^8.11.2` to
+  `^8.12.1` (`undici` 8.11.2 → 8.12.3), per the standing re-check rule in
+  `docs/deployment.md`.
+- **Four majors deferred.** `@sveltejs/kit` 3 and `@sveltejs/adapter-node` 6
+  are one framework major that has to move together (adapter-node 6 requires
+  kit 3); `typescript` 7 waits on it, since even kit 3.1.0 still peers
+  `typescript` `^6`; `msw` 3, the mock layer behind the route-handler tests, is
+  left for a pass of its own.
+- No behaviour, UI or persistence change — this is a dependency sweep.
+
 ### Fixed
+
+- **Two high-severity `npm audit` advisories that blocked CI are cleared.**
+  `source-map-js` 1.2.1 → 1.2.2
+  ([GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q),
+  an event-loop DoS via indexed source-map section offsets), and `vite` 8.3.2 →
+  8.3.5, whose bundled `launch-editor` carried three advisories
+  ([GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv),
+  [GHSA-r825-w8mm-5pxw](https://github.com/advisories/GHSA-r825-w8mm-5pxw),
+  [GHSA-587h-7wmj-h5pm](https://github.com/advisories/GHSA-587h-7wmj-h5pm)).
+  Both are build tooling and neither runs in the container, but CI's `npm audit`
+  gate fails on high, so every PR was red until they moved. Both fixes sat
+  inside existing caret ranges, so a lockfile refresh cleared them with no
+  override; `npm audit` is back to **0 vulnerabilities**. The rebuilt image
+  also clears a medium `zlib` CVE (CVE-2026-85091) that Trivy reported on the
+  published v0.3.4 image — the runtime stage's `apk upgrade` pulls `zlib`
+  1.3.2-r1.
 
 ### Tests
 
