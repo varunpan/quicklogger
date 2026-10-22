@@ -25,6 +25,19 @@ All notable changes to this project are documented here. Format roughly follows 
   `typescript` `^6`; `msw` 3, the mock layer behind the route-handler tests, is
   left for a pass of its own.
 - No behaviour, UI or persistence change — this is a dependency sweep.
+- **npm installs are hardened against compromised packages.** `.npmrc` now
+  sets `ignore-scripts=true` (dependency install hooks never run),
+  `min-release-age=7` (npm only resolves versions at least a week old, so a
+  hijacked release has time to be caught and pulled; versions already in the
+  lockfile still install) and `allow-git=none` / `allow-remote=none` (registry
+  packages only). The Dockerfile passes `--ignore-scripts` to `npm ci` itself,
+  because the image's install stage doesn't copy `.npmrc`, and Dependabot's npm
+  version-update PRs now wait the same 7 days (security updates aren't held
+  back). This is prevention, not cleanup: every package version in every
+  `package-lock.json` in the repo's history, and in open PRs, was checked
+  against OSV's malicious-package records and none matched. See
+  `docs/deployment.md` § _Supply-chain hardening_, including how to take an
+  urgent fix that's inside the 7-day window.
 
 ### Fixed
 
@@ -43,8 +56,30 @@ All notable changes to this project are documented here. Format roughly follows 
   also clears a medium `zlib` CVE (CVE-2026-85091) that Trivy reported on the
   published v0.3.4 image — the runtime stage's `apk upgrade` pulls `zlib`
   1.3.2-r1.
+- **The image now runs Node 24.22.1, picking up the 2026-10-21 Node security
+  release.** v0.3.4 shipped Node 24.21.0, which that release fixes for four
+  high-severity CVEs: an out-of-bounds write in the Brotli decoder that can
+  lead to remote code execution (CVE-2026-111497) — reachable here, since the
+  exchange-rate lookups' server-side `fetch()` receives Brotli-encoded
+  responses — two TLS hostname-check bypasses (CVE-2026-105483,
+  CVE-2026-106069) and a `dns.resolve` NUL-byte truncation (CVE-2026-105482),
+  plus three mediums (CVE-2026-105481, CVE-2026-106072, CVE-2026-106074). It
+  was missed because the Dockerfile used the floating `node:24-alpine` tag:
+  Dependabot can only propose a newer tag than the one written down, and
+  against a bare major that means majors only, which are ignored — while
+  Trivy doesn't flag the Node runtime itself. Every stage now pins the exact
+  version (`node:24.22.1-alpine`), so each future Node 24 patch arrives as a
+  Dependabot PR. `docs/deployment.md` and `.github/dependabot.yml` no longer
+  claim patch/minor base-image PRs were already arriving.
 
 ### Tests
+
+- **`tests/integration/build-supply-chain.test.ts`** reads the shipped
+  `Dockerfile` and `.npmrc` and fails if a `node` stage uses a floating tag
+  instead of an exact `MAJOR.MINOR.PATCH`, if the stages disagree on the Node
+  version, if `npm ci` drops `--ignore-scripts`, or if `.npmrc` loses
+  `ignore-scripts=true`, `min-release-age` or the git/URL bans. It fails
+  against the v0.3.4 files.
 
 ## [0.3.4] — 2026-10-03
 

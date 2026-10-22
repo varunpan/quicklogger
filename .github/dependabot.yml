@@ -9,6 +9,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # Hold version-update PRs until a release is 7 days old — the same window as
+    # `min-release-age=7` in .npmrc. Security updates ignore the cooldown and
+    # still open straight away. See docs/deployment.md § "Supply-chain hardening".
+    cooldown:
+      default-days: 7
     groups:
       # Batch routine dev-tooling minor/patch bumps into one PR to keep the noise
       # down; production deps and any security update still arrive on their own.
@@ -18,8 +23,10 @@ updates:
           - minor
           - patch
 
-  # The Docker base image (node:24-alpine) — where the OpenSSL CVEs in #31 came
-  # from. Opens a PR when a newer base is available.
+  # The Docker base image — where the OpenSSL CVEs in #31 came from. The
+  # Dockerfile pins the exact Node version (node:24.x.y-alpine); a floating
+  # node:24-alpine tag gives Dependabot no newer non-major tag to propose, so
+  # Node's own security releases never surfaced as PRs.
   - package-ecosystem: docker
     directory: '/'
     schedule:
@@ -29,8 +36,8 @@ updates:
       # on release day. Left unfiltered, Dependabot proposes every major — and
       # odd-numbered majors are never LTS: node 25 reached EOL 2026-06-01, months
       # before it was proposed here (#73), while node 24 is supported to
-      # 2028-04-30. Patch/minor base-image PRs still arrive, and those are the
-      # ones that carry the Alpine security fixes.
+      # 2028-04-30. Patch/minor (24.x) PRs still arrive — they carry Node's own
+      # security releases — because the Dockerfile pins the exact version.
       - dependency-name: node
         update-types:
           - version-update:semver-major
