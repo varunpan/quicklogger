@@ -2,7 +2,7 @@
 
 Mobile-first PWA for logging fuel fill-ups to a self-hosted [LubeLogger](https://lubelogger.com) instance.
 
-> **Status:** v0.3.4 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
+> **Status:** v0.3.5 — stable. Single-user homelab tool, daily-driven. Public repo so anyone can fork and self-host.
 
 ## Built with Claude Code
 
@@ -207,12 +207,12 @@ The app ships a single runtime npm `dependency` — `rotating-file-stream` (log 
 |                              | [`msw`](https://mswjs.io) ^2.15                                                                                                                                                    | Mock LubeLogger upstream in route-handler tests                                                      |
 |                              | [`jsdom`](https://github.com/jsdom/jsdom) ^30.1                                                                                                                                    | Browser DOM shim for Node-side unit tests                                                            |
 |                              | [`fake-indexeddb`](https://github.com/dumbmatter/fakeIndexedDB) ^6.2                                                                                                               | IndexedDB shim for tests of the offline queue                                                        |
-| **E2E tests**                | [`@playwright/test`](https://playwright.dev) ^1.63                                                                                                                                 | Mobile-Safari profile against the production build                                                   |
-| **Lint / format**            | [`eslint`](https://eslint.org) ^10.12 + [`@eslint/js`](https://eslint.org/docs/latest/use/configure/configuration-files) ^10.0                                                     | Linter (flat config)                                                                                 |
-|                              | [`eslint-plugin-svelte`](https://sveltejs.github.io/eslint-plugin-svelte/) ^3.23 + [`svelte-eslint-parser`](https://github.com/sveltejs/svelte-eslint-parser) ^1.8                 | Svelte ESLint integration                                                                            |
-|                              | [`typescript-eslint`](https://typescript-eslint.io) ^8.71                                                                                                                          | TypeScript-aware ESLint rules                                                                        |
+| **E2E tests**                | [`@playwright/test`](https://playwright.dev) ^1.64                                                                                                                                 | Mobile-Safari profile against the production build                                                   |
+| **Lint / format**            | [`eslint`](https://eslint.org) ^10.13 + [`@eslint/js`](https://eslint.org/docs/latest/use/configure/configuration-files) ^10.0                                                     | Linter (flat config)                                                                                 |
+|                              | [`eslint-plugin-svelte`](https://sveltejs.github.io/eslint-plugin-svelte/) ^3.23 + [`svelte-eslint-parser`](https://github.com/sveltejs/svelte-eslint-parser) ^1.9                 | Svelte ESLint integration                                                                            |
+|                              | [`typescript-eslint`](https://typescript-eslint.io) ^8.72                                                                                                                          | TypeScript-aware ESLint rules                                                                        |
 |                              | [`prettier`](https://prettier.io) ^3.9 + [`prettier-plugin-svelte`](https://github.com/sveltejs/prettier-plugin-svelte) ^4.1                                                       | Code formatter                                                                                       |
-| **Runtime**                  | `node:24-alpine` (Docker)                                                                                                                                                          | Dockerfile switches to the unprivileged `node` user (UID 1000) via `USER node` before the app starts |
+| **Runtime**                  | `node:24.22.1-alpine` (Docker)                                                                                                                                                     | Dockerfile switches to the unprivileged `node` user (UID 1000) via `USER node` before the app starts |
 
 ### Setup
 

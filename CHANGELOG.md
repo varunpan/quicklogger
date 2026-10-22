@@ -2,9 +2,7 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
-## [0.3.5] — Unreleased
-
-### Added
+## [0.3.5] — 2026-10-21
 
 ### Changed
 
