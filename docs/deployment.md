@@ -3,9 +3,11 @@
 ## Image build
 
 Multi-stage `Dockerfile` produces a slim runtime image based on
-`node:24-alpine`:
+`node:24.22.1-alpine` — an exact Node version, pinned on purpose (see
+§ _Vulnerability scanning_):
 
-1. `deps` — installs production + dev deps from lockfile
+1. `deps` — installs production + dev deps from lockfile with
+   `npm ci --ignore-scripts` (see § _Supply-chain hardening_)
 2. `build` — runs `npm run build`, then `npm prune --omit=dev`
 3. `runtime` — runs `apk upgrade --no-cache` to patch OS packages
    (libssl3/libcrypto3, etc.) and removes the base image's bundled
@@ -201,18 +203,32 @@ the `aquasec/trivy` container, so no local Trivy install is needed — just
 Docker. Keep the Trivy version in `scripts/scan.sh` in lockstep with the
 `trivy-action` version in `build.yml`.
 
-**Why most findings are OS-level.** The base image (`node:24-alpine`)
-trails Alpine's package index, so OpenSSL (`libssl3`/`libcrypto3`) and
+**Why most findings are OS-level.** The Node Alpine base image trails
+Alpine's package index, so OpenSSL (`libssl3`/`libcrypto3`) and
 friends can ship with already-fixed CVEs. The runtime stage runs
 `apk upgrade --no-cache` at build time to pull these up to the latest
-Alpine patch, and Dependabot's `docker` ecosystem opens a PR when a newer
-base is available. **Base-image policy: Node LTS majors only.** Odd-numbered
-Node majors are never LTS — node 25 reached EOL on 2026-06-01, months before
-Dependabot proposed it — so `.github/dependabot.yml` ignores
-`version-update:semver-major` for `node`. Patch and minor base-image PRs still
-arrive, and those are the ones carrying the Alpine security fixes; the LTS
-major bump (node 26, LTS from 2026-10-28) is taken deliberately in a release
-cycle of its own. It also removes the base image's bundled **npm/npx** —
+Alpine patch. **Base-image policy: an exact Node version, LTS majors only.**
+Every `FROM` line pins the full version (`node:24.22.1-alpine`), so
+Dependabot's `docker` ecosystem opens a PR for each 24.x patch or minor
+release. Odd-numbered Node majors are never LTS — node 25 reached EOL on
+2026-06-01, months before Dependabot proposed it — so `.github/dependabot.yml`
+ignores `version-update:semver-major` for `node`; the LTS major bump (node 26,
+LTS from 2026-10-28) is taken deliberately in a release cycle of its own.
+
+**Why the exact pin matters.** Through v0.3.4 the Dockerfile used the floating
+`node:24-alpine` tag. Dependabot can only propose a newer tag than the one
+written down, and against a bare major the only newer tags are majors — which
+are ignored — so it never opened a Node patch PR (its only `docker` PRs were
+the majors #39 and #73). Trivy doesn't fill the gap: it doesn't flag the Node
+runtime itself, only OS packages and npm packages. Node patches reached the
+image only when a rebuild happened to pull a fresher tag, so v0.3.4 shipped
+Node 24.21.0 and missed the 2026-10-21 Node security release (a Brotli decoder
+RCE and TLS hostname-check bypasses, fixed in 24.22.1). With the exact pin, a
+Node security release shows up as a Dependabot PR, and
+`tests/integration/build-supply-chain.test.ts` fails CI if any stage drifts
+back to a floating tag or the stages disagree on the version.
+
+The runtime stage also removes the base image's bundled **npm/npx** —
 the production container only runs `node build` and never invokes npm, so
 dropping it clears CVEs carried in npm's _own_ bundled dependencies (a
 `picomatch` ReDoS surfaced this way in #31's scan) and trims attack
@@ -290,6 +306,50 @@ in the bundle, and `docker` is the runtime base image — both warrant a human a
 ride a tagged release. GitHub's Dependabot _security_ updates and secret
 scanning + push protection are enabled at the repo level (Settings → Code
 security and analysis).
+
+## Supply-chain hardening
+
+`npm audit` and Trivy only know about _disclosed_ vulnerabilities. These
+settings defend against the other failure mode — a hijacked maintainer account
+publishing a malicious version of a real package:
+
+| Setting                               | Where                            | What it does                                                                                                                                                                                                                        |
+| ------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ignore-scripts=true`                 | `.npmrc`                         | npm never runs a dependency's `preinstall`/`install`/`postinstall` hook — the usual way a malicious package executes on install. `npm test` and `npm run <x>` still run; only their `pre`/`post` hooks are skipped (none are used). |
+| `npm ci --ignore-scripts`             | `Dockerfile`                     | The same for the image build. The `deps` stage copies only `package.json` and `package-lock.json`, not `.npmrc`, so the flag has to be explicit.                                                                                    |
+| `min-release-age=7`                   | `.npmrc`                         | npm only resolves versions published at least 7 days ago, so a bad release has time to be caught and pulled first. Versions already recorded in `package-lock.json` still install, so `npm ci` is unaffected.                       |
+| `cooldown: default-days: 7`           | `.github/dependabot.yml` (`npm`) | Dependabot version-update PRs wait out the same 7 days. Security updates aren't subject to the cooldown.                                                                                                                            |
+| `allow-git=none`, `allow-remote=none` | `.npmrc`                         | Registry packages only — no git or tarball-URL dependencies anywhere in the tree.                                                                                                                                                   |
+
+`ignore-scripts` costs nothing today: the tree's only packages with install
+scripts are `msw` (its postinstall only copies the mock service worker when
+`msw.workerDirectory` is set, which it isn't) and `fsevents` (macOS-only, never
+installed on Linux). `min-release-age`, `allow-git` and `allow-remote` need
+npm 11 — Node 24's bundled npm, which CI uses; npm 10 silently ignores them.
+The image's `deps` stage never sees `.npmrc` (the later `build` stage copies
+the whole tree but only prunes), but `npm ci` installs exactly what
+`package-lock.json` records, which CI has already installed under these
+settings. `tests/integration/build-supply-chain.test.ts` fails if
+`ignore-scripts`, `min-release-age` or the git/URL bans go missing, or if the
+Dockerfile's `npm ci` drops `--ignore-scripts`.
+
+**Taking an urgent fix inside the window.** A version younger than 7 days is
+invisible to `npm install`, `npm update` and `npm audit fix`. The refusal reads
+like a typo — `ETARGET … No matching version found for <pkg>@<version> with a
+date before <date>` — and `npm audit fix` instead warns that the fix was blocked
+and exits non-zero. Exempt just that package with
+`npm install <pkg>@<version> --min-release-age-exclude=<pkg>` (or a temporary
+`min-release-age-exclude[]=<pkg>` line in `.npmrc`; npm ≥ 11.17), or lift the
+window for one command with `--min-release-age=0`. Prefer the exemption:
+`--min-release-age=0` also lifts the window for every transitive dependency
+resolved in that run. A Dependabot security PR skips the cooldown but may still
+fail to refresh the lockfile for the same reason — take it by hand the same way.
+
+**Audit on adoption (2026-10-21).** Every package version in every
+`package-lock.json` in the repo's history, and in open PRs, was checked against
+OSV's malicious-package records: none matched. `npm audit` reported 0
+vulnerabilities and `npm audit signatures` verified the registry signatures of
+all 337 installed packages.
 
 ## GitHub repository setup
 
