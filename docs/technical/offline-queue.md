@@ -20,7 +20,7 @@ Source: `src/lib/client/idb.ts`.
 | Property         | Value                                                                     |
 | ---------------- | ------------------------------------------------------------------------- |
 | Database name    | `quicklogger` (default; `Queue.open(name)` accepts an override for tests) |
-| Database version | `1`                                                                       |
+| Database version | `2` (v2 added the `pendingOdometer` store — see below)                    |
 | Object store     | `pendingSubmissions`                                                      |
 | `keyPath`        | `id`                                                                      |
 | `autoIncrement`  | `true`                                                                    |
@@ -276,9 +276,18 @@ consumers can't accidentally bolt the extra upstream GET onto their submits.
 
 ## Schema versioning
 
-The database version is `1` (the literal `openDB<DbSchema>(name, 1, ...)`
-in `idb.ts`). The v0.1.3 `'synced'` status addition was **not** a version
-bump.
+The database version is `2` (`DB_VERSION` in `idb.ts`). v2 (#97) added the
+`pendingOdometer` object store for odometer-only readings from `/odometer`;
+`upgrade()` is version-gated (`oldVersion < 1` creates `pendingSubmissions`,
+`oldVersion < 2` creates `pendingOdometer`), so existing fuel rows survive the
+upgrade untouched. A `blocking` handler closes an older connection so a newer
+build's upgrade isn't stalled behind it. `pendingOdometer` rows
+(`OdometerQueueEntry`) follow the same status machine, attempt budget and
+retention as fuel rows and drain in the same `syncQueue` run, after the fuel
+rows; replays carry `queueReplay: true` and are deduped upstream on
+`date` + `odometer`. Details: [`odometer-entry.md`](./odometer-entry.md).
+
+The v0.1.3 `'synced'` status addition was **not** a version bump.
 
 Reasoning: IndexedDB stores `status` as a plain string and doesn't enforce
 the TypeScript union at runtime. Adding a third allowed string doesn't

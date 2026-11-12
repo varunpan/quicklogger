@@ -15,15 +15,34 @@ All notable changes to this project are documented here. Format roughly follows 
   `prefilled` badge as the fuel form; currently-equipped items start ticked.
   Backed by two new routes, `GET /api/vehicle/equipment` and
   `POST /api/odometer`, over LubeLogger's `equipmentrecords` and
-  `odometerrecords/add`. Online-only — not part of the offline queue. See
+  `odometerrecords/add`. Flows like a fill-up: a lower-than-last reading
+  needs **Submit anyway**, success lands on Maintenance, and offline the
+  reading queues and syncs with the same replay dedupe — see below. See
   `docs/technical/odometer-entry.md`.
+- **Odometer readings work offline.** A new IndexedDB store,
+  `pendingOdometer` (database version 1 → 2; the upgrade only adds the store,
+  existing fill-up rows are untouched), holds queued readings; the service
+  worker drains it in the same `syncQueue` pass as fill-ups, with the same
+  attempt budget and status machine. Replays carry `queueReplay: true`, and
+  `/api/odometer` checks LubeLogger for a record with the same date +
+  odometer before writing. The equipment list and last odometer are kept in
+  a per-vehicle localStorage snapshot so the page still works with no
+  signal. History shows odometer readings alongside fill-ups.
+
+### Changed
+
+- History's footer now reads "Only fillups and odometer readings logged
+  through this PWA appear here."
 
 ### Tests
 
 - Route tests for `/api/vehicle/equipment` and `/api/odometer`,
   `LubeLoggerClient.listEquipment` / `addOdometerRecord` and the client
-  wrappers, plus `tests/e2e/odometer-entry.spec.ts` (prefill, pre-checked
-  equipment, submit payload, empty state, upstream failure).
+  wrappers, `OdometerQueue` (including the v1 → v2 upgrade keeping fuel
+  rows), the odometer replay drain, the snapshot cache, plus
+  `tests/e2e/odometer-entry.spec.ts` (prefill, pre-checked equipment, submit
+  payload and Maintenance landing, lower-reading check, empty state, 4xx
+  rejection, queued-offline → History, offline snapshot fallback).
 
 ## [0.3.5] — 2026-10-21
 
