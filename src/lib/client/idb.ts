@@ -1,5 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
-import type { FuelSubmissionInput } from '$lib/shared/types';
+import type { FuelSubmissionInput, OdometerSubmissionInput } from '$lib/shared/types';
 
 // 'queued' = pending replay; 'failed' = 4xx, won't retry; 'synced' = posted
 // successfully, kept as local history for the offline-prefill resolver and
@@ -38,7 +38,30 @@ export interface QueueEntry {
   deduped?: boolean;
 }
 
+/** One odometer-only entry (`/odometer`). Lives in its own object store so
+ *  the fuel queue's consumers (History pricing, offline odometer prefill,
+ *  replay dedupe) never see a row without fuel fields. Same status machine
+ *  and attempt budget as `QueueEntry`. See docs/technical/odometer-entry.md. */
+export interface OdometerQueueEntry {
+  id: number;
+  input: OdometerSubmissionInput;
+  status: QueueStatus;
+  attempts: number;
+  enqueuedAt: number;
+  lastError?: string;
+  /** Display snapshot of the ticked equipment's names, so /history can label
+   *  the row offline. Not part of the input — the server only takes ids. */
+  equipmentNames?: string[];
+  /** Same meaning as `QueueEntry.deduped`. */
+  deduped?: boolean;
+}
+
 const STORE = 'pendingSubmissions';
+const ODOMETER_STORE = 'pendingOdometer';
+
+// v1: pendingSubmissions. v2 (#97): + pendingOdometer. Existing fuel rows are
+// untouched by the upgrade — it only adds a store.
+const DB_VERSION = 2;
 
 interface DbSchema {
   pendingSubmissions: {
@@ -46,17 +69,36 @@ interface DbSchema {
     value: Omit<QueueEntry, 'id'> & { id?: number };
     indexes: { byStatus: string };
   };
+  pendingOdometer: {
+    key: number;
+    value: Omit<OdometerQueueEntry, 'id'> & { id?: number };
+    indexes: { byStatus: string };
+  };
+}
+
+function openQuickloggerDb(name: string): Promise<IDBPDatabase<DbSchema>> {
+  return openDB<DbSchema>(name, DB_VERSION, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('byStatus', 'status');
+      }
+      if (oldVersion < 2) {
+        const store = db.createObjectStore(ODOMETER_STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('byStatus', 'status');
+      }
+    },
+    // A newer build (page or SW) is upgrading the schema: let go so it isn't
+    // blocked behind this connection. The next Queue.open() reconnects.
+    blocking(_currentVersion, _blockedVersion, event) {
+      (event.target as IDBDatabase).close();
+    }
+  });
 }
 
 export class Queue {
   static async open(name = 'quicklogger'): Promise<Queue> {
-    const db = await openDB<DbSchema>(name, 1, {
-      upgrade(db) {
-        const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('byStatus', 'status');
-      }
-    });
-    return new Queue(db);
+    return new Queue(await openQuickloggerDb(name));
   }
 
   private constructor(private readonly db: IDBPDatabase<DbSchema>) {}
@@ -129,6 +171,88 @@ export class Queue {
     }
     for (const rows of byVehicle.values()) {
       // Same-ms enqueuedAt ties are broken by id (auto-increment ⇒ insertion order).
+      rows.sort((a, b) => b.enqueuedAt - a.enqueuedAt || b.id - a.id);
+      for (const stale of rows.slice(keepPerVehicle)) await this.remove(stale.id);
+    }
+  }
+}
+
+/** Queue for odometer-only entries — the `/odometer` page's counterpart of
+ *  `Queue`. Shares the `quicklogger` database (store `pendingOdometer`). */
+export class OdometerQueue {
+  static async open(name = 'quicklogger'): Promise<OdometerQueue> {
+    return new OdometerQueue(await openQuickloggerDb(name));
+  }
+
+  private constructor(private readonly db: IDBPDatabase<DbSchema>) {}
+
+  async enqueue(
+    input: OdometerSubmissionInput,
+    status: QueueStatus = 'queued',
+    equipmentNames?: string[]
+  ): Promise<number> {
+    const entry: Omit<OdometerQueueEntry, 'id'> = {
+      input,
+      status,
+      attempts: 0,
+      enqueuedAt: Date.now()
+    };
+    if (equipmentNames && equipmentNames.length > 0) entry.equipmentNames = equipmentNames;
+    return (await this.db.add(ODOMETER_STORE, entry)) as number;
+  }
+
+  async list(): Promise<OdometerQueueEntry[]> {
+    return (await this.db.getAll(ODOMETER_STORE)) as OdometerQueueEntry[];
+  }
+
+  private async update(id: number, fn: (e: OdometerQueueEntry) => void): Promise<void> {
+    const entry = (await this.db.get(ODOMETER_STORE, id)) as OdometerQueueEntry | undefined;
+    if (!entry) return;
+    fn(entry);
+    await this.db.put(ODOMETER_STORE, entry);
+  }
+
+  async remove(id: number): Promise<void> {
+    await this.db.delete(ODOMETER_STORE, id);
+  }
+
+  markFailed(id: number, error: string): Promise<void> {
+    return this.update(id, (e) => {
+      e.status = 'failed';
+      e.lastError = error;
+    });
+  }
+
+  markSynced(id: number, deduped?: boolean): Promise<void> {
+    return this.update(id, (e) => {
+      e.status = 'synced';
+      if (deduped) e.deduped = true;
+    });
+  }
+
+  incrementAttempts(id: number): Promise<void> {
+    return this.update(id, (e) => {
+      e.attempts += 1;
+    });
+  }
+
+  decrementAttempts(id: number): Promise<void> {
+    return this.update(id, (e) => {
+      e.attempts = Math.max(0, e.attempts - 1);
+    });
+  }
+
+  /** Same retention rule as `Queue.pruneSynced`: newest `keepPerVehicle`
+   *  'synced' rows per vehicle; 'queued' / 'failed' rows are never pruned. */
+  async pruneSynced(keepPerVehicle: number): Promise<void> {
+    const byVehicle = new Map<number, OdometerQueueEntry[]>();
+    for (const e of await this.list()) {
+      if (e.status !== 'synced') continue;
+      const rows = byVehicle.get(e.input.vehicleId) ?? [];
+      rows.push(e);
+      byVehicle.set(e.input.vehicleId, rows);
+    }
+    for (const rows of byVehicle.values()) {
       rows.sort((a, b) => b.enqueuedAt - a.enqueuedAt || b.id - a.id);
       for (const stale of rows.slice(keepPerVehicle)) await this.remove(stale.id);
     }

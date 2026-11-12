@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Queue } from './idb';
+import { openDB } from 'idb';
+import { Queue, OdometerQueue } from './idb';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 const baseInput: FuelSubmissionInput = {
@@ -138,5 +139,90 @@ describe('Queue', () => {
     const rows = await q.list();
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(newer);
+  });
+});
+
+describe('OdometerQueue', () => {
+  const odoInput = { vehicleId: 1, date: '2026-11-12', odometer: 45320, equipmentIds: [7] };
+  let oq: OdometerQueue;
+  beforeEach(async () => {
+    oq = await OdometerQueue.open(`oq-${Math.random()}`);
+  });
+
+  it('enqueues with equipment names and lists', async () => {
+    await oq.enqueue(odoInput, 'queued', ['Off-road trailer']);
+    const [e] = await oq.list();
+    expect(e.input).toEqual(odoInput);
+    expect(e.status).toBe('queued');
+    expect(e.attempts).toBe(0);
+    expect(e.equipmentNames).toEqual(['Off-road trailer']);
+  });
+
+  it('omits equipmentNames when none were ticked', async () => {
+    await oq.enqueue(odoInput, 'queued', []);
+    const [e] = await oq.list();
+    expect('equipmentNames' in e).toBe(false);
+  });
+
+  it('transitions failed / synced (+deduped) and counts attempts', async () => {
+    const a = await oq.enqueue(odoInput);
+    const b = await oq.enqueue({ ...odoInput, odometer: 45400 });
+    await oq.incrementAttempts(a);
+    await oq.incrementAttempts(a);
+    await oq.decrementAttempts(a);
+    await oq.markFailed(a, '400');
+    await oq.markSynced(b, true);
+    const rows = await oq.list();
+    const ra = rows.find((r) => r.id === a)!;
+    const rb = rows.find((r) => r.id === b)!;
+    expect(ra).toMatchObject({ status: 'failed', lastError: '400', attempts: 1 });
+    expect(rb).toMatchObject({ status: 'synced', deduped: true });
+  });
+
+  it('pruneSynced keeps the newest N synced rows per vehicle and never prunes queued', async () => {
+    for (let i = 0; i < 4; i++) await oq.enqueue({ ...odoInput, odometer: 100 + i }, 'synced');
+    await oq.enqueue({ ...odoInput, odometer: 999 });
+    await oq.pruneSynced(2);
+    const rows = await oq.list();
+    expect(rows.filter((r) => r.status === 'synced').map((r) => r.input.odometer)).toEqual([
+      102, 103
+    ]);
+    expect(rows.some((r) => r.status === 'queued')).toBe(true);
+  });
+
+  it('shares the database with Queue without touching fuel rows', async () => {
+    const name = `shared-${Math.random()}`;
+    const q = await Queue.open(name);
+    await q.enqueue(baseInput);
+    const o = await OdometerQueue.open(name);
+    await o.enqueue(odoInput);
+    expect(await q.list()).toHaveLength(1);
+    expect(await o.list()).toHaveLength(1);
+  });
+
+  it('upgrades an existing v1 database, keeping its fuel rows', async () => {
+    const name = `upgrade-${Math.random()}`;
+    const v1 = await openDB(name, 1, {
+      upgrade(db) {
+        const store = db.createObjectStore('pendingSubmissions', {
+          keyPath: 'id',
+          autoIncrement: true
+        });
+        store.createIndex('byStatus', 'status');
+      }
+    });
+    await v1.add('pendingSubmissions', {
+      input: baseInput,
+      status: 'queued',
+      attempts: 0,
+      enqueuedAt: 1
+    });
+    v1.close();
+
+    const q = await Queue.open(name);
+    expect(await q.list()).toHaveLength(1);
+    const o = await OdometerQueue.open(name);
+    await o.enqueue(odoInput);
+    expect(await o.list()).toHaveLength(1);
   });
 });
