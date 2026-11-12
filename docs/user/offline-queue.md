@@ -48,6 +48,13 @@ exception: if your device refuses to store anything at all — Private Browsing,
 or a full disk — you stay on the form with the red "NOT saved" message so you
 can try again.)
 
+## Odometer readings
+
+Readings from **Log Odometer** queue and sync exactly like fill-ups — same
+banner, same **Save offline** button, same Queued / Failed / Skipped badges
+on History (odometer rows carry an extra blue **Odometer** badge and the
+equipment they were logged with). They sync in the same pass as fill-ups.
+
 ## The History page — what queued submissions look like
 
 Open the drawer → **History**. Every fill-up logged on this device for the

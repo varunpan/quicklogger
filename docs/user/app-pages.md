@@ -98,12 +98,19 @@ equipment's total, so its service reminders stay accurate.
   equipment under the vehicle's **Equipment** tab in LubeLogger.
 - **Note** — optional.
 
-On success a green toast confirms the reading and the equipment it was
-logged with, and the odometer field refills with the new reading.
+If the reading is lower than the last one, an amber **1 issue found**
+box asks you to confirm with **Submit anyway** — same as a fill-up.
 
-Odometer entries are online-only — unlike fill-ups, they aren't queued
-when you have no signal. Your LubeLogger API key needs edit access (the
-same key that logs fill-ups already has it).
+On success a green toast confirms the reading and the equipment it was
+logged with, and you land on **Maintenance**, just like after a fill-up,
+so any service the new miles just made due shows up.
+
+Works offline, like Log Fuel: the button reads **Save offline**, the
+reading is queued on the device, you land on **History** with an amber
+**Queued** badge, and it syncs when you reconnect. The equipment list and
+current odometer are remembered from your last online visit, so the
+trailer checkbox is still there with no signal. Your LubeLogger API key
+needs edit access (the same key that logs fill-ups already has it).
 
 Like the other pages, the **vehicle card** at the top switches vehicles
 and the picker brings you straight back here.
