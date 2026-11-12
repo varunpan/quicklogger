@@ -241,6 +241,76 @@ describe('LubeLoggerClient', () => {
     await expect(client().getVehicleInfo(1)).rejects.toMatchObject({ name: 'LubeLoggerError' });
   });
 
+  it('listEquipment normalizes the all-string upstream records', async () => {
+    let observedQs = '';
+    server.use(
+      http.get(`${BASE}/api/vehicle/equipmentrecords`, ({ request }) => {
+        observedQs = new URL(request.url).searchParams.toString();
+        return HttpResponse.json([
+          {
+            id: '7',
+            vehicleId: '1',
+            description: 'Off-road trailer',
+            isEquipped: 'True',
+            distanceTraveled: '1240',
+            notes: '',
+            tags: ''
+          }
+        ]);
+      })
+    );
+    const eq = await client().listEquipment(1);
+    expect(observedQs).toBe('vehicleId=1');
+    expect(eq).toEqual([
+      { id: 7, description: 'Off-road trailer', isEquipped: true, distanceTraveled: 1240 }
+    ]);
+  });
+
+  it('addOdometerRecord posts JSON with space-joined equipment ids and returns the record id', async () => {
+    let observedQs = '';
+    let observedType = '';
+    let observedBody: Record<string, string> = {};
+    server.use(
+      http.post(`${BASE}/api/vehicle/odometerrecords/add`, async ({ request }) => {
+        observedQs = new URL(request.url).searchParams.toString();
+        observedType = request.headers.get('content-type') ?? '';
+        observedBody = (await request.json()) as Record<string, string>;
+        return HttpResponse.json({
+          success: true,
+          message: 'Odometer Record Added',
+          additionalData: { recordId: 42 }
+        });
+      })
+    );
+    const out = await client().addOdometerRecord(1, {
+      date: '2026-11-12',
+      odometer: 45320,
+      notes: 'Moab',
+      equipmentIds: [7, 8]
+    });
+    expect(observedQs).toBe('vehicleId=1');
+    expect(observedType).toContain('application/json');
+    expect(observedBody).toEqual({
+      date: '2026-11-12',
+      odometer: '45320',
+      notes: 'Moab',
+      tags: '',
+      equipmentRecordId: '7 8'
+    });
+    expect(out).toEqual({ recordId: 42 });
+  });
+
+  it('addOdometerRecord throws LubeLoggerError on a 2xx body with success: false', async () => {
+    server.use(
+      http.post(`${BASE}/api/vehicle/odometerrecords/add`, () =>
+        HttpResponse.json({ success: false, message: 'Input object invalid' })
+      )
+    );
+    await expect(
+      client().addOdometerRecord(1, { date: '2026-11-12', odometer: 1 })
+    ).rejects.toMatchObject({ name: 'LubeLoggerError', status: 400 });
+  });
+
   it('fetches an image with x-api-key + culture-invariant and returns the raw Response', async () => {
     let observedKey = '';
     let observedCulture = '';

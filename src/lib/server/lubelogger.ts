@@ -118,6 +118,46 @@ export interface UploadedFile {
   isPending: boolean;
 }
 
+/** Raw shape of one element of GET /api/vehicle/equipmentrecords. LubeLogger
+ *  serializes every scalar as a string (`id: "3"`, `isEquipped: "True"`). */
+export interface EquipmentRecordRaw {
+  id: string;
+  vehicleId: string;
+  description: string;
+  isEquipped: string;
+  distanceTraveled: string;
+  notes: string;
+  tags: string;
+}
+
+/** Normalized equipment item (a trailer, a set of tires, ...) attached to a
+ *  vehicle. Odometer records tagged with its id accrue distance to it. */
+export interface Equipment {
+  id: number;
+  description: string;
+  isEquipped: boolean;
+  distanceTraveled: number;
+}
+
+/** Input for POST /api/vehicle/odometerrecords/add. `equipmentIds` become the
+ *  space-separated `equipmentRecordId` field upstream. */
+export interface AddOdometerRecordPayload {
+  date: string;
+  odometer: number;
+  notes?: string;
+  tags?: string;
+  equipmentIds?: number[];
+}
+
+export function normalizeEquipment(raw: EquipmentRecordRaw): Equipment {
+  return {
+    id: Number(raw.id),
+    description: raw.description ?? '',
+    isEquipped: String(raw.isEquipped).toLowerCase() === 'true',
+    distanceTraveled: Number(raw.distanceTraveled) || 0
+  };
+}
+
 export class LubeLoggerError extends Error {
   constructor(
     public readonly status: number,
@@ -302,6 +342,42 @@ export class LubeLoggerClient {
       method: 'POST',
       body: fd
     });
+  }
+
+  async listEquipment(vehicleId: number): Promise<Equipment[]> {
+    const res = await this.request(`/api/vehicle/equipmentrecords?vehicleId=${vehicleId}`);
+    const arr = (await res.json()) as EquipmentRecordRaw[];
+    return Array.isArray(arr) ? arr.map(normalizeEquipment) : [];
+  }
+
+  /** Add an odometer-only record (no fuel). Returns the new record id when
+   *  LubeLogger reports one. A `success: false` body is treated as an error
+   *  even on a 2xx, so a rejected record never looks like a logged one. */
+  async addOdometerRecord(
+    vehicleId: number,
+    payload: AddOdometerRecordPayload
+  ): Promise<{ recordId?: number }> {
+    const body = {
+      date: payload.date,
+      odometer: String(payload.odometer),
+      notes: payload.notes ?? '',
+      tags: payload.tags ?? '',
+      equipmentRecordId: (payload.equipmentIds ?? []).join(' ')
+    };
+    const res = await this.request(`/api/vehicle/odometerrecords/add?vehicleId=${vehicleId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const out = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      message?: string;
+      additionalData?: { recordId?: number };
+    };
+    if (out.success === false) {
+      throw new LubeLoggerError(400, out.message ?? 'odometer record rejected');
+    }
+    return { recordId: out.additionalData?.recordId };
   }
 
   async fetchImage(path: string): Promise<Response> {
