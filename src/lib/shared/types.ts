@@ -109,3 +109,13 @@ export interface ServerInfo {
   appUpdateAvailable: boolean; // _isUpdateAvailable(appCurrentVersion, appLatestVersion)
   appReleaseUrl: string | null; // GitHub release html_url; null if unknown
 }
+
+/** Body accepted by POST /api/odometer — an odometer-only entry (no fuel),
+ *  optionally tagged with the equipment (e.g. a trailer) that was attached. */
+export interface OdometerSubmissionInput {
+  vehicleId: number;
+  date: string; // ISO YYYY-MM-DD
+  odometer: number;
+  notes?: string;
+  equipmentIds?: number[];
+}
