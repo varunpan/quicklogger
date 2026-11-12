@@ -13,6 +13,7 @@
   const RETURN_TO: Record<string, string> = {
     home: '/',
     maintenance: '/maintenance',
+    odometer: '/odometer',
     history: '/history',
     stats: '/stats'
   };
