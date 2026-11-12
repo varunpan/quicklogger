@@ -1,0 +1,237 @@
+<script lang="ts">
+  import { untrack } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
+  import { invalidateAll } from '$app/navigation';
+  import { submitOdometer } from '$lib/client/api';
+  import { formatOdometer, effectiveDistanceUnit } from '$lib/client/format';
+  import { localIsoDate } from '$lib/client/smart-checks';
+  import VehicleCard from '$lib/client/VehicleCard.svelte';
+
+  let { data } = $props();
+
+  const DIST_UNIT = effectiveDistanceUnit();
+
+  // Prefilled with LubeLogger's current mileage (max across all record types),
+  // shown greyed with a "prefilled" badge like the fuel form until edited.
+  let odometer = $state<number | ''>(untrack(() => data.lastOdometer ?? ''));
+  let odometerEdited = $state(false);
+  let isoDate = $state(localIsoDate());
+  let notes = $state('');
+  // Pre-check whatever LubeLogger marks as currently equipped (e.g. the
+  // trailer is hitched), mirroring LubeLogger's own odometer form.
+  const selected = new SvelteSet<number>(
+    untrack(() => data.equipment.filter((e) => e.isEquipped).map((e) => e.id))
+  );
+  let submitting = $state(false);
+  let toast = $state<{ kind: 'success' | 'error'; text: string } | null>(null);
+
+  const delta = $derived(
+    odometerEdited && typeof odometer === 'number' && data.lastOdometer
+      ? odometer - data.lastOdometer
+      : null
+  );
+  // An untouched prefill would log 0 miles, so the user must enter a reading.
+  const canSubmit = $derived(
+    !submitting &&
+      odometerEdited &&
+      data.vehicle !== null &&
+      typeof odometer === 'number' &&
+      Number.isInteger(odometer) &&
+      odometer >= 0 &&
+      isoDate !== ''
+  );
+
+  function toggle(id: number) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+  }
+
+  async function submit() {
+    if (!canSubmit || !data.vehicle) return;
+    submitting = true;
+    toast = null;
+    try {
+      await submitOdometer({
+        vehicleId: data.vehicle.id,
+        date: isoDate,
+        odometer: odometer as number,
+        notes: notes.trim() || undefined,
+        equipmentIds: [...selected]
+      });
+      const names = data.equipment.filter((e) => selected.has(e.id)).map((e) => e.description);
+      toast = {
+        kind: 'success',
+        text: `Logged ${formatOdometer(String(odometer))} ${DIST_UNIT}${
+          names.length ? ` with ${names.join(', ')}` : ''
+        }`
+      };
+      notes = '';
+      await invalidateAll();
+      // Re-prefill from the refreshed current mileage (now this reading).
+      odometer = data.lastOdometer ?? '';
+      odometerEdited = false;
+    } catch (err) {
+      toast = {
+        kind: 'error',
+        text: navigator.onLine
+          ? `Couldn't log odometer: ${(err as Error).message}`
+          : "You're offline — odometer entries need a connection."
+      };
+    } finally {
+      submitting = false;
+    }
+  }
+</script>
+
+<div class="mb-4">
+  <h1 class="text-xl font-bold text-zinc-100">Log odometer</h1>
+  <p class="text-xs text-zinc-500 mt-1">Odometer entry only — no fuel.</p>
+</div>
+
+{#if data.error === 'no-vehicle'}
+  <div class="rounded-xl px-3 py-2 text-sm text-rose-300 bg-rose-500/15 border border-rose-500/30">
+    Pick a vehicle first.
+  </div>
+  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+  <a href="/vehicles?from=odometer" class="block text-sm text-blue-400 mt-6">→ Pick vehicle</a>
+{:else}
+  {#if data.vehicle}
+    <VehicleCard vehicle={data.vehicle} href="/vehicles?from=odometer" />
+  {/if}
+
+  {#if data.error}
+    <div
+      class="rounded-xl px-3 py-2 text-sm text-amber-300 bg-amber-500/15 border border-amber-500/30 flex items-center gap-2 mb-3"
+    >
+      <span aria-hidden="true">⚠</span>
+      <span>Couldn't reach LubeLogger right now.</span>
+    </div>
+  {/if}
+
+  <div class="grid grid-cols-2 gap-2 mb-3">
+    <div class="field min-w-0">
+      <label for="odo-only" class="field-label">Odometer</label>
+      <div class="relative">
+        <input
+          id="odo-only"
+          class="field-input min-w-0"
+          type="number"
+          inputmode="numeric"
+          step="1"
+          min="0"
+          onkeydown={(e) => {
+            if (e.key === '.' || e.key === ',') e.preventDefault();
+          }}
+          bind:value={odometer}
+          oninput={() => (odometerEdited = true)}
+          class:text-zinc-400={!odometerEdited && odometer !== ''}
+        />
+        {#if !odometerEdited && odometer !== ''}
+          <span class="badge absolute top-1.5 right-2 text-zinc-500 bg-zinc-700/60">
+            prefilled
+          </span>
+        {/if}
+      </div>
+      {#if delta !== null}
+        <div class="text-xs text-zinc-500 mt-1 px-1" class:text-amber-300={delta < 0}>
+          <span class="font-semibold" class:text-blue-400={delta >= 0}
+            >{delta > 0 ? '+' : ''}{delta} {DIST_UNIT}</span
+          > since last reading
+        </div>
+      {/if}
+    </div>
+    <label class="field min-w-0">
+      <span class="field-label">Date</span>
+      <input class="field-input min-w-0 appearance-none" type="date" bind:value={isoDate} />
+    </label>
+  </div>
+
+  <div class="field mb-3">
+    <span class="field-label">Equipment</span>
+    {#if data.equipment.length === 0}
+      <p class="text-xs text-zinc-500 px-1 py-2">
+        No equipment on this vehicle. Add some (e.g. a trailer) under the vehicle's Equipment tab in
+        LubeLogger.
+      </p>
+    {:else}
+      {#each data.equipment as e (e.id)}
+        {@const on = selected.has(e.id)}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={on}
+          data-testid="equipment-{e.id}"
+          class="flex items-center gap-3 w-full rounded-xl px-3 py-3 mb-2 bg-zinc-800/60 border border-zinc-700/60 text-left"
+          onclick={() => toggle(e.id)}
+        >
+          {#if on}
+            <span
+              class="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shrink-0"
+              aria-hidden="true"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+              >
+            </span>
+          {:else}
+            <span
+              class="w-5 h-5 rounded-md border-2 border-zinc-600 bg-transparent shrink-0"
+              aria-hidden="true"
+            ></span>
+          {/if}
+          <span class="flex-1 min-w-0">
+            <span
+              class="block text-sm font-semibold"
+              class:text-zinc-100={on}
+              class:text-zinc-300={!on}>{e.description}</span
+            >
+            <span class="block text-xs text-zinc-500 mt-0.5">
+              {formatOdometer(String(e.distanceTraveled))}
+              {DIST_UNIT} logged{e.isEquipped ? ' · equipped' : ''}
+            </span>
+          </span>
+        </button>
+      {/each}
+    {/if}
+  </div>
+
+  <label class="field mb-3">
+    <span class="field-label">Note</span>
+    <input
+      class="field-input text-base"
+      type="text"
+      bind:value={notes}
+      placeholder="Trip to the trailhead"
+    />
+  </label>
+
+  <button
+    type="button"
+    disabled={!canSubmit}
+    class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
+    onclick={submit}
+  >
+    {submitting ? 'Logging…' : 'Log odometer'}
+  </button>
+
+  {#if toast}
+    <div
+      role={toast.kind === 'error' ? 'alert' : 'status'}
+      class="mt-4 rounded-xl px-4 py-3 text-sm"
+      class:bg-emerald-600={toast.kind === 'success'}
+      class:bg-rose-600={toast.kind === 'error'}
+    >
+      {toast.text}
+    </div>
+  {/if}
+
+  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+  <a href="/" class="block text-sm text-blue-400 mt-6">← Back to Log Fuel</a>
+{/if}
