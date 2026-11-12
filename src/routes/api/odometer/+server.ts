@@ -45,6 +45,34 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   try {
     const { client } = lubeloggerFromEnv(locals.logger);
+
+    // Replay dedupe — same contract as /api/fuelup (docs/technical/offline-queue.md
+    // § Replay dedupe). Only literal `true` is honored. A replayed entry may be
+    // a re-send of a POST that already landed (SW killed before markSynced, or
+    // the foreground response lost), so check LubeLogger first and never write
+    // on uncertainty. Match key: date + odometer — an odometer reading is
+    // unique per vehicle per day, so there's no third field to disambiguate.
+    if (valid.queueReplay === true) {
+      let existing;
+      try {
+        existing = await client.listOdometerRecords(valid.vehicleId);
+      } catch (err) {
+        locals.logger.warn('odometer replay dedupe pre-check failed', { err });
+        return json(
+          { error: 'could not verify replay against LubeLogger — retry later' },
+          { status: 503 }
+        );
+      }
+      const match = existing.find((r) => r.date === valid.date && r.odometer === valid.odometer);
+      if (match) {
+        locals.logger.info('odometer replay dedupe: record already upstream, skipping write', {
+          vehicleId: valid.vehicleId,
+          recordId: match.id
+        });
+        return json({ ok: true, recordId: match.id, deduped: true });
+      }
+    }
+
     const { recordId } = await client.addOdometerRecord(valid.vehicleId, {
       date: valid.date,
       odometer: valid.odometer,

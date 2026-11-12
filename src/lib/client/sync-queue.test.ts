@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Queue } from './idb';
+import { Queue, OdometerQueue } from './idb';
 import { syncQueue } from './sync-queue';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
@@ -381,5 +381,96 @@ describe('syncQueue', () => {
     const [entry] = await q.list();
     expect(entry.status).toBe('synced');
     expect(entry.deduped).toBeUndefined();
+  });
+});
+
+describe('syncQueue — odometer entries', () => {
+  const odoInput = { vehicleId: 1, date: '2026-11-12', odometer: 45320, equipmentIds: [7] };
+  let dbName: string;
+  let realFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    dbName = `sync-odo-${Math.random()}`;
+    realFetch = globalThis.fetch;
+    localStorage.clear();
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it('replays to /api/odometer with queueReplay and marks synced', async () => {
+    const oq = await OdometerQueue.open(dbName);
+    await oq.enqueue(odoInput);
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ ok: true, recordId: 3 }), { status: 200 })
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/odometer');
+    expect(JSON.parse(init!.body as string)).toEqual({ ...odoInput, queueReplay: true });
+    const [e] = await oq.list();
+    expect(e.status).toBe('synced');
+    expect(e.deduped).toBeUndefined();
+  });
+
+  it('carries deduped: true from the response onto the row', async () => {
+    const oq = await OdometerQueue.open(dbName);
+    await oq.enqueue(odoInput);
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ ok: true, deduped: true }), { status: 200 })
+    ) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [e] = await oq.list();
+    expect(e).toMatchObject({ status: 'synced', deduped: true });
+  });
+
+  it('marks failed on a 4xx and leaves queued on a 5xx', async () => {
+    const oq = await OdometerQueue.open(dbName);
+    const bad = await oq.enqueue(odoInput);
+    const flaky = await oq.enqueue({ ...odoInput, odometer: 45400 });
+    globalThis.fetch = vi.fn(async (_u: string, init?: RequestInit) => {
+      const body = JSON.parse(init!.body as string);
+      return new Response(null, { status: body.odometer === 45320 ? 400 : 502 });
+    }) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const rows = await oq.list();
+    expect(rows.find((r) => r.id === bad)).toMatchObject({ status: 'failed', lastError: '400' });
+    expect(rows.find((r) => r.id === flaky)).toMatchObject({ status: 'queued', attempts: 1 });
+  });
+
+  it('reverts the attempt on a network error', async () => {
+    const oq = await OdometerQueue.open(dbName);
+    await oq.enqueue(odoInput);
+    globalThis.fetch = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    const [e] = await oq.list();
+    expect(e).toMatchObject({ status: 'queued', attempts: 0 });
+  });
+
+  it('dead-letters an entry at the 5-attempt cap without fetching', async () => {
+    const oq = await OdometerQueue.open(dbName);
+    const id = await oq.enqueue(odoInput);
+    for (let i = 0; i < 5; i++) await oq.incrementAttempts(id);
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const [e] = await oq.list();
+    expect(e).toMatchObject({ status: 'failed', lastError: 'max attempts' });
   });
 });

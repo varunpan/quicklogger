@@ -138,4 +138,66 @@ describe('POST /api/odometer', () => {
     } as unknown as Parameters<typeof POST>[0]);
     expect(res.status).toBe(413);
   });
+
+  describe('queueReplay dedupe', () => {
+    it('skips the write and returns deduped when the same date + odometer is upstream', async () => {
+      let posted = false;
+      upstream.use(
+        http.get('http://lubelog:8080/api/vehicle/odometerrecords', () =>
+          HttpResponse.json([
+            { id: 41, date: '2026-11-12', initialOdometer: 45100, odometer: 45210 }
+          ])
+        ),
+        http.post('http://lubelog:8080/api/vehicle/odometerrecords/add', () => {
+          posted = true;
+          return HttpResponse.json({ success: true });
+        })
+      );
+      const res = await POST(postEvent({ ...VALID, queueReplay: true }));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true, recordId: 41, deduped: true });
+      expect(posted).toBe(false);
+    });
+
+    it('writes when no matching record exists', async () => {
+      upstream.use(
+        http.get('http://lubelog:8080/api/vehicle/odometerrecords', () =>
+          HttpResponse.json([{ id: 41, date: '2026-11-11', initialOdometer: 0, odometer: 45210 }])
+        ),
+        http.post('http://lubelog:8080/api/vehicle/odometerrecords/add', () =>
+          HttpResponse.json({ success: true, additionalData: { recordId: 42 } })
+        )
+      );
+      const res = await POST(postEvent({ ...VALID, queueReplay: true }));
+      expect(await res.json()).toEqual({ ok: true, recordId: 42 });
+    });
+
+    it('returns 503 (never writes) when the pre-check GET fails', async () => {
+      let posted = false;
+      upstream.use(
+        http.get(
+          'http://lubelog:8080/api/vehicle/odometerrecords',
+          () => new HttpResponse('down', { status: 500 })
+        ),
+        http.post('http://lubelog:8080/api/vehicle/odometerrecords/add', () => {
+          posted = true;
+          return HttpResponse.json({ success: true });
+        })
+      );
+      const res = await POST(postEvent({ ...VALID, queueReplay: true }));
+      expect(res.status).toBe(503);
+      expect(posted).toBe(false);
+    });
+
+    it('ignores a non-boolean queueReplay (no pre-check GET)', async () => {
+      upstream.use(
+        http.post('http://lubelog:8080/api/vehicle/odometerrecords/add', () =>
+          HttpResponse.json({ success: true, additionalData: { recordId: 5 } })
+        )
+      );
+      // onUnhandledRequest: 'error' fails the test if the GET is attempted.
+      const res = await POST(postEvent({ ...VALID, queueReplay: 'yes' }));
+      expect(res.status).toBe(200);
+    });
+  });
 });

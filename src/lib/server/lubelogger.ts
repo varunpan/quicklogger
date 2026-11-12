@@ -149,6 +149,16 @@ export interface AddOdometerRecordPayload {
   equipmentIds?: number[];
 }
 
+/** One element of GET /api/vehicle/odometerrecords under `culture-invariant:
+ *  true` — ISO `YYYY-MM-DD` date, numeric odometers. Only the fields the
+ *  replay dedupe needs are modelled. */
+export interface OdometerRecord {
+  id: number;
+  date: string; // ISO YYYY-MM-DD
+  initialOdometer: number;
+  odometer: number;
+}
+
 export function normalizeEquipment(raw: EquipmentRecordRaw): Equipment {
   return {
     id: Number(raw.id),
@@ -348,6 +358,20 @@ export class LubeLoggerClient {
     const res = await this.request(`/api/vehicle/equipmentrecords?vehicleId=${vehicleId}`);
     const arr = (await res.json()) as EquipmentRecordRaw[];
     return Array.isArray(arr) ? arr.map(normalizeEquipment) : [];
+  }
+
+  async listOdometerRecords(vehicleId: number): Promise<OdometerRecord[]> {
+    const res = await this.request(`/api/vehicle/odometerrecords?vehicleId=${vehicleId}`);
+    const arr = (await res.json()) as Record<string, unknown>[];
+    if (!Array.isArray(arr)) return [];
+    // Number() tolerates either typed numbers (culture-invariant) or the
+    // string-typed export model, so the dedupe match never silently misses.
+    return arr.map((r) => ({
+      id: Number(r.id),
+      date: String(r.date ?? ''),
+      initialOdometer: Number(r.initialOdometer),
+      odometer: Number(r.odometer)
+    }));
   }
 
   /** Add an odometer-only record (no fuel). Returns the new record id when
