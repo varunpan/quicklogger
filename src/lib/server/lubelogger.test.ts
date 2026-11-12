@@ -266,6 +266,27 @@ describe('LubeLoggerClient', () => {
     ]);
   });
 
+  it('listOdometerRecords returns typed date + odometer for replay dedupe', async () => {
+    server.use(
+      http.get(`${BASE}/api/vehicle/odometerrecords`, () =>
+        HttpResponse.json([
+          { id: 3, vehicleId: 1, date: '2026-11-12', initialOdometer: 45100, odometer: 45320 },
+          {
+            id: '4',
+            vehicleId: '1',
+            date: '2026-11-13',
+            initialOdometer: '45320',
+            odometer: '45400'
+          }
+        ])
+      )
+    );
+    expect(await client().listOdometerRecords(1)).toEqual([
+      { id: 3, date: '2026-11-12', initialOdometer: 45100, odometer: 45320 },
+      { id: 4, date: '2026-11-13', initialOdometer: 45320, odometer: 45400 }
+    ]);
+  });
+
   it('addOdometerRecord posts JSON with space-joined equipment ids and returns the record id', async () => {
     let observedQs = '';
     let observedType = '';

@@ -118,4 +118,7 @@ export interface OdometerSubmissionInput {
   odometer: number;
   notes?: string;
   equipmentIds?: number[];
+  /** Set only by the SW replay loop — asks the server to check LubeLogger for
+   *  an already-landed record before writing (same as FuelSubmissionInput). */
+  queueReplay?: boolean;
 }

@@ -1,6 +1,6 @@
-import { Queue, type ConvertedSnapshot } from './idb';
+import { Queue, OdometerQueue, type ConvertedSnapshot } from './idb';
 import { loadPrefs, DEFAULT_PREFS } from './prefs';
-import type { FuelSubmissionInput } from '$lib/shared/types';
+import type { FuelSubmissionInput, OdometerSubmissionInput } from '$lib/shared/types';
 
 /**
  * Drain the offline submission queue: walk every `'queued'` entry and POST it
@@ -112,6 +112,11 @@ export async function syncQueue(dbName?: string, historyKeepPerVehicle?: number)
         await q.decrementAttempts(entry.id);
       }
     }
+    // Odometer-only entries (/odometer) drain right after fuel, under the same
+    // lock, budget and status rules — see drainOdometer below.
+    const oq = await OdometerQueue.open(dbName);
+    await drainOdometer(oq);
+
     // Bound the synced-history trail. The form's success path appends a
     // 'synced' row per submit, so without pruning every fillup ever made is
     // re-iterated on every drain. These rows ARE the History page's data,
@@ -123,7 +128,50 @@ export async function syncQueue(dbName?: string, historyKeepPerVehicle?: number)
       sanitizeKeep(loadPrefs().historyKeepPerVehicle) ??
       DEFAULT_PREFS.historyKeepPerVehicle;
     await q.pruneSynced(keep);
+    await oq.pruneSynced(keep);
   } finally {
     syncing = false;
+  }
+}
+
+/**
+ * Replay queued odometer-only entries to `/api/odometer`. Same state machine
+ * as the fuel loop above: 2xx → synced (carrying `deduped`), 4xx → failed,
+ * 5xx → left queued, network error → attempt reverted, 5-attempt cap →
+ * dead-lettered as failed. `queueReplay: true` makes the server check
+ * LubeLogger for an already-landed record (same date + odometer) first.
+ */
+async function drainOdometer(q: OdometerQueue): Promise<void> {
+  for (const entry of await q.list()) {
+    if (entry.status !== 'queued') continue;
+    if (entry.attempts >= 5) {
+      await q.markFailed(entry.id, 'max attempts');
+      continue;
+    }
+    await q.incrementAttempts(entry.id);
+    try {
+      const res = await fetch('/api/odometer', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...entry.input,
+          queueReplay: true
+        } satisfies OdometerSubmissionInput)
+      });
+      if (res.ok) {
+        let deduped = false;
+        try {
+          deduped = (await res.json())?.deduped === true;
+        } catch {
+          // Non-JSON / empty body → still synced, just not flagged.
+        }
+        await q.markSynced(entry.id, deduped);
+      } else if (res.status >= 400 && res.status < 500) {
+        await q.markFailed(entry.id, `${res.status}`);
+      }
+      // else: leave queued for next sync
+    } catch (_err) {
+      await q.decrementAttempts(entry.id);
+    }
   }
 }
