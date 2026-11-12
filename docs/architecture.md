@@ -23,7 +23,9 @@ The system has three surfaces:
     ├── /api/vehicle/reminders
     ├── /api/vehicle/info
     ├── /api/vehicle/image
+    ├── /api/vehicle/equipment
     ├── /api/fuelup       ←──── form submits land here
+    ├── /api/odometer     ←──── odometer-only entries (+ equipment)
     ├── /api/fx
     ├── /api/ocr          ←──── photo OCR extraction
     ├── /api/log          ←──── client + sw error forwarding
@@ -33,7 +35,8 @@ The system has three surfaces:
             │ HTTP (Docker internal network when co-located)
             ▼
     LubeLogger container
-    └── /api/vehicle/gasrecords/add  ←──── fillups stored here
+    ├── /api/vehicle/gasrecords/add       ←──── fillups stored here
+    └── /api/vehicle/odometerrecords/add  ←──── odometer entries stored here
 ```
 
 ## Server modules
@@ -250,7 +253,7 @@ These are intentionally separated: prefs are sync + tiny, the queue is async + s
 
 ## Frontend pages
 
-Six pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), **History** (`/history`), **Maintenance** (`/maintenance`), and **Stats** (`/stats`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md); internals for the maintenance route in [`docs/technical/maintenance-page.md`](./technical/maintenance-page.md) and the stats route in [`docs/technical/stats-page.md`](./technical/stats-page.md). A seventh route, `/offline`, sits outside the drawer: it's the prerendered carrier for the service worker's offline shell, only ever seen directly if someone navigates to `/offline` by hand.
+Seven pages live behind the slide-in drawer in `+layout.svelte`: **Log Fuel** (`/`), **Log Odometer** (`/odometer`), **Vehicles** (`/vehicles`), **Settings** (`/settings`), **History** (`/history`), **Maintenance** (`/maintenance`), and **Stats** (`/stats`). User-facing tour: [`docs/user/app-pages.md`](./user/app-pages.md); internals for the maintenance route in [`docs/technical/maintenance-page.md`](./technical/maintenance-page.md) the stats route in [`docs/technical/stats-page.md`](./technical/stats-page.md), and the odometer route in [`docs/technical/odometer-entry.md`](./technical/odometer-entry.md). An eighth route, `/offline`, sits outside the drawer: it's the prerendered carrier for the service worker's offline shell, only ever seen directly if someone navigates to `/offline` by hand.
 
 ### `/` — main form
 

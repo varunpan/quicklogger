@@ -16,6 +16,7 @@ LubeLogger's web UI is great for review and analytics, but entering a fill-up at
 - Volume in gallons or liters, cost in any major currency — converted server-side
 - Live MPG-since-last-fill preview as you type
 - Last-fillup strip above the form + odometer prefill + one-tap `+300 mi` chip — see [`docs/user/odometer-prefill.md`](docs/user/odometer-prefill.md)
+- Odometer-only entries tagged with LubeLogger Equipment (e.g. a trailer) — see [`docs/user/app-pages.md`](docs/user/app-pages.md#log-odometer-odometer)
 - Offline queue that auto-syncs when signal returns
 - iOS Shortcut integration (voice + deep-link)
 - Stays on your network — backend talks to LubeLogger over the internal Docker network, not the public internet
@@ -297,7 +298,7 @@ compose_.
 
 **User guides:**
 
-- [`docs/user/app-pages.md`](docs/user/app-pages.md) — tour of the six app pages (Log Fuel / History / Maintenance / Stats / Vehicles / Settings)
+- [`docs/user/app-pages.md`](docs/user/app-pages.md) — tour of the seven app pages (Log Fuel / Log Odometer / History / Maintenance / Stats / Vehicles / Settings)
 - [`docs/user/configuration.md`](docs/user/configuration.md) — full env-var reference
 - [`docs/user/currency-fx.md`](docs/user/currency-fx.md) — entering cost in any currency, server-side conversion
 - [`docs/user/odometer-prefill.md`](docs/user/odometer-prefill.md) — odometer prefill + last-fillup strip
@@ -321,6 +322,7 @@ compose_.
 - [`docs/technical/logging.md`](docs/technical/logging.md) — structured JSON logger, request IDs, secret redaction, rotating-file sink
 - [`docs/technical/lubelogger-car-images.md`](docs/technical/lubelogger-car-images.md) — proxying and caching each vehicle's LubeLogger photo
 - [`docs/technical/maintenance-page.md`](docs/technical/maintenance-page.md) — `/maintenance` page lifecycle, data flow, error handling
+- [`docs/technical/odometer-entry.md`](docs/technical/odometer-entry.md) — `/odometer` page: odometer-only records + LubeLogger Equipment
 - [`docs/technical/odometer-prefill.md`](docs/technical/odometer-prefill.md) — odometer prefill internals (state model, lifecycle, edge cases)
 - [`docs/technical/offline-app-shell.md`](docs/technical/offline-app-shell.md) — SPA-shell precache that keeps the app usable on an offline cold-start
 - [`docs/technical/offline-odometer-prefill.md`](docs/technical/offline-odometer-prefill.md) — odometer prefill behaviour while offline (cache + queue resolution)
