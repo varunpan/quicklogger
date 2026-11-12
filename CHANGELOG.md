@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
+## [Unreleased]
+
+### Added
+
+- **Log Odometer page (`/odometer`) — odometer entries without a fill-up,
+  tagged with LubeLogger Equipment (#97).** A new drawer page logs an
+  odometer-only record and shows the vehicle's Equipment as checkboxes, the
+  same way LubeLogger's own odometer form does — so a towed trailer (or any
+  other equipment) accrues distance toward its service reminders. The
+  odometer prefills from LubeLogger's current mileage with the same
+  `prefilled` badge as the fuel form; currently-equipped items start ticked.
+  Backed by two new routes, `GET /api/vehicle/equipment` and
+  `POST /api/odometer`, over LubeLogger's `equipmentrecords` and
+  `odometerrecords/add`. Online-only — not part of the offline queue. See
+  `docs/technical/odometer-entry.md`.
+
+### Tests
+
+- Route tests for `/api/vehicle/equipment` and `/api/odometer`,
+  `LubeLoggerClient.listEquipment` / `addOdometerRecord` and the client
+  wrappers, plus `tests/e2e/odometer-entry.spec.ts` (prefill, pre-checked
+  equipment, submit payload, empty state, upstream failure).
+
 ## [0.3.5] — 2026-10-21
 
 ### Changed
