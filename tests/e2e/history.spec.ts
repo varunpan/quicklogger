@@ -32,7 +32,9 @@ test('empty IDB shows "No fillups logged on this device yet"', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
   await expect(page.getByText(/2014 Honda Accord/)).toBeVisible();
   await expect(page.getByText('No fillups logged on this device yet.')).toBeVisible();
-  await expect(page.getByText(/Only fillups logged through this PWA/)).toBeVisible();
+  await expect(
+    page.getByText(/Only fillups and odometer readings logged through this PWA/)
+  ).toBeVisible();
 });
 
 test('rows for other vehicles only → "No fillups logged for this vehicle yet"', async ({
