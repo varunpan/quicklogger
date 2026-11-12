@@ -1,8 +1,14 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import { invalidateAll } from '$app/navigation';
-  import { submitOdometer } from '$lib/client/api';
+  import { browser } from '$app/environment';
+  import { goto } from '$app/navigation';
+  import { submitOdometer, ApiError } from '$lib/client/api';
+  import { OdometerQueue } from '$lib/client/idb';
+  import { saveOdometerSnapshot } from '$lib/client/odometer-snapshot';
+  import { savePrefs } from '$lib/client/prefs';
+  import Icon from '$lib/client/Icon.svelte';
+  import type { OdometerSubmissionInput } from '$lib/shared/types';
   import { formatOdometer, effectiveDistanceUnit } from '$lib/client/format';
   import { localIsoDate } from '$lib/client/smart-checks';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
@@ -23,17 +29,37 @@
     untrack(() => data.equipment.filter((e) => e.isEquipped).map((e) => e.id))
   );
   let submitting = $state(false);
-  let toast = $state<{ kind: 'success' | 'error'; text: string } | null>(null);
+  let toast = $state<{ kind: 'success' | 'queued' | 'error'; text: string } | null>(null);
+
+  // Live connectivity for the offline banner + button label — same wiring as
+  // the Log Fuel form.
+  let online = $state(browser ? navigator.onLine : true);
+  onMount(() => {
+    const goOnline = () => (online = true);
+    const goOffline = () => (online = false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  });
 
   const delta = $derived(
     odometerEdited && typeof odometer === 'number' && data.lastOdometer
       ? odometer - data.lastOdometer
       : null
   );
+  // Smart-check parity with Log Fuel: a reading below the last known one is
+  // usually a typo, so it needs an explicit "Submit anyway". Cleared on edit.
+  let lowerAcknowledged = $state(false);
+  const lowerThanLast = $derived(delta !== null && delta < 0 && !lowerAcknowledged);
+
   // An untouched prefill would log 0 miles, so the user must enter a reading.
   const canSubmit = $derived(
     !submitting &&
       odometerEdited &&
+      !lowerThanLast &&
       data.vehicle !== null &&
       typeof odometer === 'number' &&
       Number.isInteger(odometer) &&
@@ -48,35 +74,62 @@
 
   async function submit() {
     if (!canSubmit || !data.vehicle) return;
+    const vehicleId = data.vehicle.id;
+    const input: OdometerSubmissionInput = {
+      vehicleId,
+      date: isoDate,
+      odometer: odometer as number,
+      notes: notes.trim() || undefined,
+      equipmentIds: [...selected]
+    };
+    const names = data.equipment.filter((e) => selected.has(e.id)).map((e) => e.description);
     submitting = true;
     toast = null;
     try {
-      await submitOdometer({
-        vehicleId: data.vehicle.id,
-        date: isoDate,
-        odometer: odometer as number,
-        notes: notes.trim() || undefined,
-        equipmentIds: [...selected]
-      });
-      const names = data.equipment.filter((e) => selected.has(e.id)).map((e) => e.description);
+      await submitOdometer(input);
       toast = {
         kind: 'success',
-        text: `Logged ${formatOdometer(String(odometer))} ${DIST_UNIT}${
+        text: `Logged ${formatOdometer(String(input.odometer))} ${DIST_UNIT}${
           names.length ? ` with ${names.join(', ')}` : ''
         }`
       };
+      saveOdometerSnapshot(vehicleId, { lastOdometer: input.odometer });
+      savePrefs({ lastVehicleId: vehicleId });
+      // Local history trail for /history, like the fuel form's synced row.
+      try {
+        await (await OdometerQueue.open()).enqueue(input, 'synced', names);
+      } catch {
+        // IDB unavailable (private mode, quota); ignore.
+      }
       notes = '';
-      await invalidateAll();
-      // Re-prefill from the refreshed current mileage (now this reading).
-      odometer = data.lastOdometer ?? '';
       odometerEdited = false;
+      // Same landing as a logged fill-up: /maintenance, so any reminder the
+      // new distance just tipped into due (e.g. the trailer's bearings) shows.
+      // eslint-disable-next-line svelte/no-navigation-without-resolve
+      void goto(`/maintenance?vehicleId=${vehicleId}`).catch(() => {});
     } catch (err) {
-      toast = {
-        kind: 'error',
-        text: navigator.onLine
-          ? `Couldn't log odometer: ${(err as Error).message}`
-          : "You're offline — odometer entries need a connection."
-      };
+      const status = err instanceof ApiError ? err.status : undefined;
+      if (status && status >= 400 && status < 500) {
+        toast = { kind: 'error', text: `Submission rejected: ${(err as Error).message}` };
+      } else {
+        // Network error / 5xx: queue it for the service worker to replay, then
+        // reset and land on /history (renders from IndexedDB, so the Queued
+        // badge is visible offline) — same flow as the fuel form.
+        try {
+          await (await OdometerQueue.open()).enqueue(input, 'queued', names);
+          saveOdometerSnapshot(vehicleId, { lastOdometer: input.odometer });
+          toast = { kind: 'queued', text: 'Saved locally — will sync when online' };
+          notes = '';
+          odometerEdited = false;
+          // eslint-disable-next-line svelte/no-navigation-without-resolve
+          void goto(`/history?vehicleId=${vehicleId}`).catch(() => {});
+        } catch {
+          toast = {
+            kind: 'error',
+            text: "Couldn't save — device storage unavailable. This reading was NOT saved."
+          };
+        }
+      }
     } finally {
       submitting = false;
     }
@@ -99,12 +152,23 @@
     <VehicleCard vehicle={data.vehicle} href="/vehicles?from=odometer" />
   {/if}
 
-  {#if data.error}
+  {#if !online}
+    <div
+      role="status"
+      data-testid="offline-banner"
+      class="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 mb-3 flex items-start gap-2"
+    >
+      <Icon name="warning" size={15} class="text-amber-300 mt-0.5 shrink-0" />
+      <span class="text-sm text-amber-200 leading-relaxed"
+        >You're offline — this reading will be saved and synced when you reconnect.</span
+      >
+    </div>
+  {:else if data.error}
     <div
       class="rounded-xl px-3 py-2 text-sm text-amber-300 bg-amber-500/15 border border-amber-500/30 flex items-center gap-2 mb-3"
     >
       <span aria-hidden="true">⚠</span>
-      <span>Couldn't reach LubeLogger right now.</span>
+      <span>Couldn't reach LubeLogger right now — readings will be saved and synced later.</span>
     </div>
   {/if}
 
@@ -123,7 +187,10 @@
             if (e.key === '.' || e.key === ',') e.preventDefault();
           }}
           bind:value={odometer}
-          oninput={() => (odometerEdited = true)}
+          oninput={() => {
+            odometerEdited = true;
+            lowerAcknowledged = false;
+          }}
           class:text-zinc-400={!odometerEdited && odometer !== ''}
         />
         {#if !odometerEdited && odometer !== ''}
@@ -212,13 +279,41 @@
     />
   </label>
 
+  {#if lowerThanLast && data.lastOdometer}
+    <div
+      class="rounded-xl px-4 py-3 mb-3 border border-amber-500/30 bg-amber-500/15 text-amber-300 text-sm leading-relaxed"
+      role="alert"
+      data-testid="smart-check-chip"
+    >
+      <div class="flex items-center gap-2 font-semibold mb-2">
+        <span aria-hidden="true">⚠</span>
+        <span>1 issue found</span>
+      </div>
+      <ul class="list-disc pl-5 space-y-1 mb-3">
+        <li>
+          Odometer is lower than the last reading ({`${formatOdometer(String(data.lastOdometer))} ${DIST_UNIT}`}).
+        </li>
+      </ul>
+      <button
+        type="button"
+        class="w-full rounded-lg py-2 px-3 text-sm font-semibold border border-amber-500/40 text-amber-200"
+        onclick={() => {
+          lowerAcknowledged = true;
+          void submit();
+        }}
+      >
+        Submit anyway
+      </button>
+    </div>
+  {/if}
+
   <button
     type="button"
     disabled={!canSubmit}
     class="bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-xl py-4 text-base font-semibold text-white w-full"
     onclick={submit}
   >
-    {submitting ? 'Logging…' : 'Log odometer'}
+    {submitting ? 'Logging…' : online ? 'Log odometer' : 'Save offline'}
   </button>
 
   {#if toast}
@@ -226,6 +321,7 @@
       role={toast.kind === 'error' ? 'alert' : 'status'}
       class="mt-4 rounded-xl px-4 py-3 text-sm"
       class:bg-emerald-600={toast.kind === 'success'}
+      class:bg-amber-600={toast.kind === 'queued'}
       class:bg-rose-600={toast.kind === 'error'}
     >
       {toast.text}
