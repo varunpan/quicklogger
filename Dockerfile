@@ -9,7 +9,7 @@
 # as a Dependabot PR. Keep all three stages on the same version;
 # tests/integration/build-supply-chain.test.ts enforces both rules. See
 # docs/deployment.md § "Vulnerability scanning".
-FROM node:24.22.1-alpine AS deps
+FROM node:24.22.2-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 # --ignore-scripts: never run dependency install hooks (preinstall/install/
@@ -18,13 +18,13 @@ COPY package.json package-lock.json ./
 # docs/deployment.md § "Supply-chain hardening".
 RUN npm ci --ignore-scripts --no-audit --no-fund
 
-FROM node:24.22.1-alpine AS build
+FROM node:24.22.2-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24.22.1-alpine AS runtime
+FROM node:24.22.2-alpine AS runtime
 WORKDIR /app
 # Patch OS packages (notably libssl3/libcrypto3) to the latest Alpine release and
 # drop the base image's bundled npm/npx. The Node Alpine base trails Alpine's
