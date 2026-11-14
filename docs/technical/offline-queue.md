@@ -276,9 +276,18 @@ consumers can't accidentally bolt the extra upstream GET onto their submits.
 
 ## Schema versioning
 
-The database version is `1` (the literal `openDB<DbSchema>(name, 1, ...)`
-in `idb.ts`). The v0.1.3 `'synced'` status addition was **not** a version
-bump.
+The database version is `1` (the literal `openDB(name, 1, ...)` in `idb.ts`).
+
+Odometer-only readings (`/odometer`, #97) deliberately did **not** bump it:
+they live in a separate database, `quicklogger-odometer` (version 1, store
+`pendingOdometer`). A version change has to wait for every open connection
+to the old version to close, and v1 connections in the wild (old-build tabs,
+the outgoing SW) never do, so a bump could hang both queues. Both databases
+share one queue implementation (`RecordQueue`), and `syncQueue` drains them
+together in the order entries were made through one `replayEntry` state
+machine. Details: [`odometer-entry.md`](./odometer-entry.md).
+
+The v0.1.3 `'synced'` status addition was **not** a version bump.
 
 Reasoning: IndexedDB stores `status` as a plain string and doesn't enforce
 the TypeScript union at runtime. Adding a third allowed string doesn't

@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   submitFuelupWithPhotos,
   getVehicleInfo,
+  listEquipment,
+  submitOdometer,
   postOcr,
   getFx,
   lastFuelup,
@@ -242,5 +244,62 @@ describe('silent-degradation contracts', () => {
     await expect(listReminders(3, f as unknown as typeof fetch)).rejects.toMatchObject({
       status: 502
     });
+  });
+});
+
+describe('listEquipment', () => {
+  it('requests /api/vehicle/equipment with the vehicle id', async () => {
+    const f = vi.fn(
+      async () =>
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    );
+    await listEquipment(3, f as unknown as typeof fetch);
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe('/api/vehicle/equipment?vehicleId=3');
+  });
+
+  it('throws ApiError with .status on a non-ok response', async () => {
+    const f = vi.fn(async () => new Response('nope', { status: 502 }));
+    await expect(listEquipment(3, f as unknown as typeof fetch)).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 502
+    });
+  });
+});
+
+describe('submitOdometer', () => {
+  it('POSTs the JSON body to /api/odometer', async () => {
+    const f = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: true, recordId: 9 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    );
+    const body = {
+      vehicleId: 3,
+      date: '2026-11-12',
+      odometer: 45320,
+      equipmentIds: [7],
+      clientSubmissionId: 'c1'
+    };
+    const out = await submitOdometer(body, f as unknown as typeof fetch);
+    const [url, init] = f.mock.calls[0] as unknown as Parameters<typeof fetch>;
+    expect(url).toBe('/api/odometer');
+    expect((init as RequestInit).method).toBe('POST');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(body);
+    expect(out).toEqual({ ok: true, recordId: 9 });
+  });
+
+  it('throws ApiError with .status on a non-ok response', async () => {
+    const f = vi.fn(async () => new Response('bad', { status: 400 }));
+    await expect(
+      submitOdometer(
+        { vehicleId: 3, date: '2026-11-12', odometer: 1, clientSubmissionId: 'c2' },
+        f as unknown as typeof fetch
+      )
+    ).rejects.toBeInstanceOf(ApiError);
   });
 });

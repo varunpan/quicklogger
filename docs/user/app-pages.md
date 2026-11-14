@@ -1,7 +1,7 @@
 # App pages
 
-quicklogger has six pages, reachable from the drawer (top-right
-hamburger): **Log Fuel**, **History**, **Maintenance**, **Stats**,
+quicklogger has seven pages, reachable from the drawer (top-right
+hamburger): **Log Fuel**, **Log Odometer**, **History**, **Maintenance**, **Stats**,
 **Vehicles**, **Settings**. The active page is highlighted in the drawer. This
 page walks through each one.
 
@@ -78,6 +78,46 @@ row lets you send the photo along with the entry — the OCR-resized copy
 that was actually read, not the original full-size capture. See
 [`photo-ocr.md`](photo-ocr.md) for setup and walkthrough.
 
+## Log Odometer (`/odometer`)
+
+Log an odometer reading **without a fill-up** — for example after a trip
+where you towed a trailer. If the vehicle has **Equipment** in LubeLogger
+(a trailer, a roof tent, a set of tires), each one shows as a checkbox; tick
+what was attached and LubeLogger adds the trip's distance to that
+equipment's total, so its service reminders stay accurate.
+
+- **Odometer** — starts filled with the vehicle's current mileage from
+  LubeLogger, greyed with a `prefilled` badge. Type the new reading; a
+  `+220 mi since last reading` line shows the trip distance. The **Log
+  odometer** button stays disabled until you change the number, so you
+  can't log a zero-distance entry by accident.
+- **Date** — today by default.
+- **Equipment** — one checkbox per item, with its distance so far.
+  Anything LubeLogger marks as currently equipped starts ticked. No
+  equipment? The page says so and you can still log a plain reading. Add
+  equipment under the vehicle's **Equipment** tab in LubeLogger.
+- **Note** — optional.
+
+If the reading is lower than the last one, an amber **1 issue found**
+box asks you to confirm with **Submit anyway** — same as a fill-up.
+
+On success a green toast confirms the reading and the equipment it was
+logged with, and you land on **Maintenance**, just like after a fill-up,
+so any service the new miles just made due shows up.
+
+Works offline, like Log Fuel: the button reads **Save offline**, the
+reading is queued on the device, you land on **History** with an amber
+**Queued** badge, and it syncs when you reconnect. The equipment list and
+current odometer are remembered from your last online visit, so the
+trailer checkbox is still there with no signal. If the page has never been
+opened online on this phone, it says the equipment list isn't loaded yet,
+and anything marked **Equipped** in LubeLogger is attached when the reading
+syncs. Your LubeLogger API key
+needs edit access (the same key that logs fill-ups already has it).
+
+Like the other pages, the **vehicle card** at the top switches vehicles
+and the picker brings you straight back here.
+
 ## Vehicles (`/vehicles`)
 
 A flat list of every vehicle LubeLogger knows about. Each tile shows:
@@ -93,7 +133,7 @@ Tap a tile to:
 
 1. Persist that vehicle id as your "last vehicle" in localStorage.
 2. Navigate back to the page that sent you here. By default that's
-   `/?vehicleId={id}` (Log Fuel). If you arrived from `/maintenance`,
+   `/?vehicleId={id}` (Log Fuel). If you arrived from `/odometer`, `/maintenance`,
    `/history`, or `/stats` via that page's vehicle card, you land back
    on that same page with `?vehicleId={id}` instead — the picker
    honors a `?from=` query so the round-trip stays in context.

@@ -118,6 +118,64 @@ export interface UploadedFile {
   isPending: boolean;
 }
 
+/** Raw shape of one element of GET /api/vehicle/equipmentrecords. LubeLogger
+ *  serializes every scalar as a string (`id: "3"`, `isEquipped: "True"`). */
+export interface EquipmentRecordRaw {
+  id: string;
+  vehicleId: string;
+  description: string;
+  isEquipped: string;
+  distanceTraveled: string;
+  notes: string;
+  tags: string;
+}
+
+/** Normalized equipment item (a trailer, a set of tires, ...) attached to a
+ *  vehicle. Odometer records tagged with its id accrue distance to it. */
+export interface Equipment {
+  id: number;
+  description: string;
+  isEquipped: boolean;
+  distanceTraveled: number;
+}
+
+/** Input for POST /api/vehicle/odometerrecords/add. `equipmentIds` become the
+ *  space-separated `equipmentRecordId` field upstream. */
+export interface AddOdometerRecordPayload {
+  date: string;
+  /** Start of the trip this reading closes. Sent explicitly: left blank,
+   *  LubeLogger uses the vehicle's HIGHEST odometer record regardless of
+   *  date, which credits equipment a zero or negative distance whenever a
+   *  higher record already exists (an auto-inserted fill-up record, an
+   *  out-of-order replay). */
+  initialOdometer: number;
+  odometer: number;
+  notes?: string;
+  tags?: string;
+  equipmentIds?: number[];
+}
+
+/** One element of GET /api/vehicle/odometerrecords under `culture-invariant:
+ *  true` — ISO `YYYY-MM-DD` date, numeric odometers. Only the fields the
+ *  replay dedupe needs are modelled. */
+export interface OdometerRecord {
+  id: number;
+  date: string; // ISO YYYY-MM-DD
+  initialOdometer: number;
+  odometer: number;
+  equipmentIds: number[];
+  notes: string;
+}
+
+export function normalizeEquipment(raw: EquipmentRecordRaw): Equipment {
+  return {
+    id: Number(raw.id),
+    description: raw.description ?? '',
+    isEquipped: String(raw.isEquipped).toLowerCase() === 'true',
+    distanceTraveled: Number(raw.distanceTraveled) || 0
+  };
+}
+
 export class LubeLoggerError extends Error {
   constructor(
     public readonly status: number,
@@ -302,6 +360,78 @@ export class LubeLoggerClient {
       method: 'POST',
       body: fd
     });
+  }
+
+  async listEquipment(vehicleId: number): Promise<Equipment[]> {
+    const res = await this.request(`/api/vehicle/equipmentrecords?vehicleId=${vehicleId}`);
+    const arr = (await res.json()) as EquipmentRecordRaw[];
+    return Array.isArray(arr) ? arr.map(normalizeEquipment) : [];
+  }
+
+  async listOdometerRecords(vehicleId: number): Promise<OdometerRecord[]> {
+    const res = await this.request(`/api/vehicle/odometerrecords?vehicleId=${vehicleId}`);
+    const arr = (await res.json()) as Record<string, unknown>[];
+    if (!Array.isArray(arr)) return [];
+    // Number() tolerates either typed numbers (culture-invariant) or the
+    // string-typed export model, so the dedupe match never silently misses.
+    return arr.map((r) => ({
+      id: Number(r.id),
+      date: String(r.date ?? ''),
+      initialOdometer: Number(r.initialOdometer),
+      odometer: Number(r.odometer),
+      // Space-separated on the wire (`"7 8"`), like the add endpoint takes.
+      equipmentIds: String(r.equipmentRecordId ?? '')
+        .split(' ')
+        .filter((t) => t !== '')
+        .map(Number),
+      notes: typeof r.notes === 'string' ? r.notes : ''
+    }));
+  }
+
+  /** Add an odometer-only record (no fuel). Returns the new record id.
+   *  Only a 2xx JSON body with `success: true` counts as logged, so a
+   *  rejected record never looks like a logged one:
+   *  - a non-JSON 2xx (e.g. an auth proxy's HTML page) → 502, retryable;
+   *  - `success: false` on a 2xx → LubeLogger's permission filters answer
+   *    "Access Denied" this way (status 200), which is permanent → 403;
+   *    anything else is unexpected → 502, retryable. Validation and storage
+   *    failures arrive as real 400 / 500 statuses via `request()`. */
+  async addOdometerRecord(
+    vehicleId: number,
+    payload: AddOdometerRecordPayload
+  ): Promise<{ recordId?: number }> {
+    const body = {
+      date: payload.date,
+      odometer: String(payload.odometer),
+      notes: payload.notes ?? '',
+      tags: payload.tags ?? '',
+      initialOdometer: String(payload.initialOdometer),
+      equipmentRecordId: (payload.equipmentIds ?? []).join(' ')
+    };
+    const res = await this.request(`/api/vehicle/odometerrecords/add?vehicleId=${vehicleId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const path = '/api/vehicle/odometerrecords/add';
+    let out: { success?: unknown; message?: unknown; additionalData?: { recordId?: number } };
+    try {
+      out = await res.json();
+    } catch {
+      this.logger.warn('lubelogger non-json success body', { upstream_path: path });
+      throw new LubeLoggerError(502, 'odometer add returned a non-JSON body');
+    }
+    if (out?.success !== true) {
+      const message = typeof out?.message === 'string' ? out.message : '';
+      const status = message === 'Access Denied' ? 403 : 502;
+      this.logger.warn('lubelogger rejected record', {
+        upstream_path: path,
+        upstream_message: message.slice(0, 200),
+        mapped_status: status
+      });
+      throw new LubeLoggerError(status, message || 'odometer record rejected');
+    }
+    return { recordId: out.additionalData?.recordId };
   }
 
   async fetchImage(path: string): Promise<Response> {

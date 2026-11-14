@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { contentLengthExceeds } from '$lib/server/contentLength';
 import type { RequestHandler } from './$types';
 import { loadEnv, type Env, type OcrSlotName } from '$lib/server/env';
 import { selectProvider, runOcrPipeline, modelForSlot } from '$lib/server/ocr';
@@ -237,10 +238,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 // post-parse `file.size` check. Underscore-prefixed so SvelteKit's endpoint
 // export validation permits it (test-only export, same as `_resetForTests`).
 export function _contentLengthExceeds(header: string | null, maxImageBytes: number): boolean {
-  if (header === null) return false;
-  const n = Number(header);
-  if (!Number.isFinite(n) || n <= 0) return false;
-  return n > maxImageBytes + MULTIPART_OVERHEAD_BYTES;
+  return contentLengthExceeds(header, maxImageBytes + MULTIPART_OVERHEAD_BYTES);
 }
 
 function parseCropFields(form: FormData): { x: number; y: number; w: number; h: number } | null {

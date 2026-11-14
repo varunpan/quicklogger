@@ -3,9 +3,10 @@ import type {
   FuelSubmissionResult,
   OcrResult,
   OcrStatus,
-  OcrMode
+  OcrMode,
+  OdometerSubmissionInput
 } from '$lib/shared/types';
-import type { Vehicle, GasRecord, Reminder, VehicleInfo } from '$lib/server/lubelogger';
+import type { Vehicle, GasRecord, Reminder, VehicleInfo, Equipment } from '$lib/server/lubelogger';
 import type { Rotation, NormalizedRect } from './image';
 
 /** Error thrown for a non-ok response from quicklogger's own API. `status`
@@ -200,5 +201,24 @@ export async function postOcr(
     }
     throw err;
   }
+  return res.json();
+}
+
+export async function listEquipment(vehicleId: number, fetchImpl = fetch): Promise<Equipment[]> {
+  const res = await fetchImpl(`/api/vehicle/equipment?vehicleId=${vehicleId}`);
+  await throwIfNotOk(res, 'equipment');
+  return res.json();
+}
+
+export async function submitOdometer(
+  input: OdometerSubmissionInput,
+  fetchImpl = fetch
+): Promise<{ ok: true; recordId: number | null }> {
+  const res = await fetchImpl('/api/odometer', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+  await throwIfNotOk(res, 'odometer');
   return res.json();
 }

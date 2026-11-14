@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Queue } from './idb';
+import { openDB } from 'idb';
+import { Queue, OdometerQueue, ODOMETER_DB_SUFFIX } from './idb';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 const baseInput: FuelSubmissionInput = {
@@ -138,5 +139,118 @@ describe('Queue', () => {
     const rows = await q.list();
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(newer);
+  });
+});
+
+describe('OdometerQueue', () => {
+  const odoInput = {
+    vehicleId: 1,
+    date: '2026-11-12',
+    odometer: 45320,
+    equipmentIds: [7],
+    clientSubmissionId: 'odo-1'
+  };
+  let oq: OdometerQueue;
+  beforeEach(async () => {
+    oq = await OdometerQueue.open(`oq-${Math.random()}`);
+  });
+
+  it('enqueues with equipment names and lists', async () => {
+    await oq.enqueue(odoInput, 'queued', ['Off-road trailer']);
+    const [e] = await oq.list();
+    expect(e.input).toEqual(odoInput);
+    expect(e.status).toBe('queued');
+    expect(e.attempts).toBe(0);
+    expect(e.equipmentNames).toEqual(['Off-road trailer']);
+  });
+
+  it('omits equipmentNames when none were ticked', async () => {
+    await oq.enqueue(odoInput, 'queued', []);
+    const [e] = await oq.list();
+    expect('equipmentNames' in e).toBe(false);
+  });
+
+  it('transitions failed / synced (+deduped) and counts attempts', async () => {
+    const a = await oq.enqueue(odoInput);
+    const b = await oq.enqueue({ ...odoInput, odometer: 45400 });
+    await oq.incrementAttempts(a);
+    await oq.incrementAttempts(a);
+    await oq.decrementAttempts(a);
+    await oq.markFailed(a, '400');
+    await oq.markSynced(b, true);
+    const rows = await oq.list();
+    const ra = rows.find((r) => r.id === a)!;
+    const rb = rows.find((r) => r.id === b)!;
+    expect(ra).toMatchObject({ status: 'failed', lastError: '400', attempts: 1 });
+    expect(rb).toMatchObject({ status: 'synced', deduped: true });
+  });
+
+  it('pruneSynced keeps the newest N synced rows per vehicle and never prunes queued', async () => {
+    for (let i = 0; i < 4; i++) await oq.enqueue({ ...odoInput, odometer: 100 + i }, 'synced');
+    await oq.enqueue({ ...odoInput, odometer: 999 });
+    await oq.pruneSynced(2);
+    const rows = await oq.list();
+    expect(rows.filter((r) => r.status === 'synced').map((r) => r.input.odometer)).toEqual([
+      102, 103
+    ]);
+    expect(rows.some((r) => r.status === 'queued')).toBe(true);
+  });
+
+  it('keeps odometer rows in their own database, apart from fuel rows', async () => {
+    const name = `shared-${Math.random()}`;
+    const q = await Queue.open(name);
+    await q.enqueue(baseInput);
+    const o = await OdometerQueue.open(name);
+    await o.enqueue(odoInput);
+    expect(await q.list()).toHaveLength(1);
+    expect(await o.list()).toHaveLength(1);
+    const dbs = (await indexedDB.databases()).map((d) => d.name);
+    expect(dbs).toContain(name);
+    expect(dbs).toContain(`${name}${ODOMETER_DB_SUFFIX}`);
+  });
+
+  it('never upgrades or blocks on an existing v1 fuel database (review #4)', async () => {
+    const name = `v1-${Math.random()}`;
+    // An old-build connection that is never closed — the case that would
+    // block a version bump forever.
+    const oldConnection = await openDB(name, 1, {
+      upgrade(db) {
+        const store = db.createObjectStore('pendingSubmissions', {
+          keyPath: 'id',
+          autoIncrement: true
+        });
+        store.createIndex('byStatus', 'status');
+      }
+    });
+    await oldConnection.add('pendingSubmissions', {
+      input: baseInput,
+      status: 'queued',
+      attempts: 0,
+      enqueuedAt: 1
+    });
+
+    const o = await OdometerQueue.open(name);
+    await o.enqueue(odoInput);
+    expect(await o.list()).toHaveLength(1);
+    const q = await Queue.open(name);
+    expect(await q.list()).toHaveLength(1);
+    expect(oldConnection.version).toBe(1);
+    oldConnection.close();
+  });
+
+  it('close() releases the connection', async () => {
+    const name = `close-${Math.random()}`;
+    const o = await OdometerQueue.open(name);
+    o.close();
+    // A version change only succeeds once no connection holds the database.
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open(`${name}${ODOMETER_DB_SUFFIX}`, 2);
+      req.onblocked = () => reject(new Error('blocked'));
+      req.onsuccess = () => {
+        req.result.close();
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
   });
 });

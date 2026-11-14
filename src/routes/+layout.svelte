@@ -20,6 +20,7 @@
 
   const navItems = [
     { href: '/', label: 'Log Fuel' },
+    { href: '/odometer', label: 'Log Odometer' },
     { href: '/history', label: 'History' },
     { href: '/maintenance', label: 'Maintenance' },
     { href: '/stats', label: 'Stats' },

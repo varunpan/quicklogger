@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { LubeLoggerClient } from './lubelogger';
@@ -239,6 +239,169 @@ describe('LubeLoggerClient', () => {
   it('getVehicleInfo throws LubeLoggerError when upstream returns an empty array', async () => {
     server.use(http.get(`${BASE}/api/vehicle/info`, () => HttpResponse.json([])));
     await expect(client().getVehicleInfo(1)).rejects.toMatchObject({ name: 'LubeLoggerError' });
+  });
+
+  it('listEquipment normalizes the all-string upstream records', async () => {
+    let observedQs = '';
+    server.use(
+      http.get(`${BASE}/api/vehicle/equipmentrecords`, ({ request }) => {
+        observedQs = new URL(request.url).searchParams.toString();
+        return HttpResponse.json([
+          {
+            id: '7',
+            vehicleId: '1',
+            description: 'Off-road trailer',
+            isEquipped: 'True',
+            distanceTraveled: '1240',
+            notes: '',
+            tags: ''
+          }
+        ]);
+      })
+    );
+    const eq = await client().listEquipment(1);
+    expect(observedQs).toBe('vehicleId=1');
+    expect(eq).toEqual([
+      { id: 7, description: 'Off-road trailer', isEquipped: true, distanceTraveled: 1240 }
+    ]);
+  });
+
+  it('listOdometerRecords returns typed records with equipment ids and notes', async () => {
+    server.use(
+      http.get(`${BASE}/api/vehicle/odometerrecords`, () =>
+        HttpResponse.json([
+          {
+            id: 3,
+            vehicleId: 1,
+            date: '2026-11-12',
+            initialOdometer: 45100,
+            odometer: 45320,
+            equipmentRecordId: '7 8',
+            notes: 'Moab'
+          },
+          {
+            id: '4',
+            vehicleId: '1',
+            date: '2026-11-13',
+            initialOdometer: '45320',
+            odometer: '45400',
+            equipmentRecordId: '',
+            notes: null
+          }
+        ])
+      )
+    );
+    expect(await client().listOdometerRecords(1)).toEqual([
+      {
+        id: 3,
+        date: '2026-11-12',
+        initialOdometer: 45100,
+        odometer: 45320,
+        equipmentIds: [7, 8],
+        notes: 'Moab'
+      },
+      {
+        id: 4,
+        date: '2026-11-13',
+        initialOdometer: 45320,
+        odometer: 45400,
+        equipmentIds: [],
+        notes: ''
+      }
+    ]);
+  });
+
+  it('addOdometerRecord posts JSON with the trip start and space-joined equipment ids', async () => {
+    let observedQs = '';
+    let observedType = '';
+    let observedBody: Record<string, string> = {};
+    server.use(
+      http.post(`${BASE}/api/vehicle/odometerrecords/add`, async ({ request }) => {
+        observedQs = new URL(request.url).searchParams.toString();
+        observedType = request.headers.get('content-type') ?? '';
+        observedBody = (await request.json()) as Record<string, string>;
+        return HttpResponse.json({
+          success: true,
+          message: 'Odometer Record Added',
+          additionalData: { recordId: 42 }
+        });
+      })
+    );
+    const out = await client().addOdometerRecord(1, {
+      date: '2026-11-12',
+      initialOdometer: 45100,
+      odometer: 45320,
+      notes: 'Moab',
+      equipmentIds: [7, 8]
+    });
+    expect(observedQs).toBe('vehicleId=1');
+    expect(observedType).toContain('application/json');
+    expect(observedBody).toEqual({
+      date: '2026-11-12',
+      initialOdometer: '45100',
+      odometer: '45320',
+      notes: 'Moab',
+      tags: '',
+      equipmentRecordId: '7 8'
+    });
+    expect(out).toEqual({ recordId: 42 });
+  });
+
+  const ADD = { date: '2026-11-12', initialOdometer: 0, odometer: 1 };
+
+  it('addOdometerRecord maps a 2xx "Access Denied" body to a permanent 403 (review #8)', async () => {
+    server.use(
+      http.post(`${BASE}/api/vehicle/odometerrecords/add`, () =>
+        HttpResponse.json({ success: false, message: 'Access Denied' })
+      )
+    );
+    await expect(client().addOdometerRecord(1, ADD)).rejects.toMatchObject({
+      name: 'LubeLoggerError',
+      status: 403
+    });
+  });
+
+  it('addOdometerRecord maps any other 2xx success:false to a retryable 502 (review #8)', async () => {
+    server.use(
+      http.post(`${BASE}/api/vehicle/odometerrecords/add`, () =>
+        HttpResponse.json({ success: false, message: 'database is locked' })
+      )
+    );
+    await expect(client().addOdometerRecord(1, ADD)).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('addOdometerRecord treats a non-JSON 2xx body as a failure, not success (review #7)', async () => {
+    server.use(
+      http.post(
+        `${BASE}/api/vehicle/odometerrecords/add`,
+        () => new HttpResponse('<html>Sign in</html>', { headers: { 'content-type': 'text/html' } })
+      )
+    );
+    await expect(client().addOdometerRecord(1, ADD)).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('addOdometerRecord logs the reason LubeLogger gave for a rejection (review #12)', async () => {
+    const warn = vi.fn();
+    const logger = {
+      debug: () => {},
+      info: () => {},
+      warn,
+      error: () => {},
+      child() {
+        return this;
+      }
+    } as unknown as Logger;
+    server.use(
+      http.post(`${BASE}/api/vehicle/odometerrecords/add`, () =>
+        HttpResponse.json({ success: false, message: 'Access Denied' })
+      )
+    );
+    const c = new LubeLoggerClient({ baseUrl: BASE, apiKey: KEY, logger });
+    await expect(c.addOdometerRecord(1, ADD)).rejects.toBeTruthy();
+    expect(warn).toHaveBeenCalledWith(
+      'lubelogger rejected record',
+      expect.objectContaining({ upstream_message: 'Access Denied', mapped_status: 403 })
+    );
   });
 
   it('fetches an image with x-api-key + culture-invariant and returns the raw Response', async () => {

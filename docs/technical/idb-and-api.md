@@ -263,6 +263,41 @@ but are intentionally not modelled. Page-side display math (TCO sum, zero-row
 drop, reminder summary) lives in `src/lib/client/stats.ts` — see
 [`stats-page.md`](./stats-page.md).
 
+### `GET /api/vehicle/equipment?vehicleId=<id>`
+
+Source: `src/routes/api/vehicle/equipment/+server.ts`. Backs the `/odometer`
+page — see [`odometer-entry.md`](./odometer-entry.md).
+
+| Field        | Value                                                                                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
+| Request      | Query: `vehicleId` (required, positive integer — shared `parseVehicleId()`).                          |
+| Cache        | None — every request hits LubeLogger.                                                                 |
+| Response 200 | `Equipment[]` — `{ id: number, description: string, isEquipped: boolean, distanceTraveled: number }`. |
+| Response 400 | `{ error: 'vehicleId required' }` or `{ error: 'invalid vehicleId' }`.                                |
+| Response 502 | `{ error: 'Could not fetch equipment from LubeLogger' }` — any `LubeLoggerError`.                     |
+| Response 500 | `{ error: string }` — anything else thrown.                                                           |
+
+LubeLogger returns every field as a string (`isEquipped: "True"`); the server
+normalizes to the typed shape above.
+
+### `POST /api/odometer`
+
+Source: `src/routes/api/odometer/+server.ts`. Odometer-only record (no fuel),
+optionally tagged with equipment. Queued offline in the `quicklogger-odometer` IndexedDB database and replayed by the SW — see [`odometer-entry.md`](./odometer-entry.md).
+
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Request body  | `application/json` — `OdometerSubmissionInput` (`src/lib/shared/types.ts`).                                                                                                                                                                                                                                                                                                   |
+| Fields        | `vehicleId` (positive integer), `date` (`YYYY-MM-DD`), `odometer` (non-negative integer), optional `notes` (string), optional `equipmentIds` (positive integers), `clientSubmissionId` (required, non-empty string — keys the 60 s duplicate guard shared with `/api/fuelup`), optional `includeEquipped` and `queueReplay` (literal `true` only — anything else is ignored). |
+| Pre-check     | Every write first GETs the vehicle's odometer records (and, with `includeEquipped`, its equipment). They give the trip start sent as `initialOdometer` — the record just before this one by date, then odometer — and the replay match. A failed pre-check returns 503 (never write on uncertainty).                                                                          |
+| Replay dedupe | With `queueReplay: true` (SW replay loop only) the write is skipped when a record with the same date, odometer, equipment set and notes exists.                                                                                                                                                                                                                               |
+| Response 200  | `{ ok: true, recordId: number \| null }`, plus `deduped: true` when a replay matched an existing record.                                                                                                                                                                                                                                                                      |
+| Response 503  | `{ error: string }` — the pre-check GET failed; a queued entry stays `'queued'`.                                                                                                                                                                                                                                                                                              |
+| Response 413  | Advertised `Content-Length` over 16 KiB (pre-parse guard, same pattern as `/api/fuelup`).                                                                                                                                                                                                                                                                                     |
+| Response 4xx  | `{ error: string }` — validation failure (400), or LubeLogger's 4xx passed through (a 2xx `success: false` "Access Denied" maps to 403).                                                                                                                                                                                                                                      |
+| Response 502  | `{ error: 'Could not add odometer record to LubeLogger' }` — upstream 5xx, a non-JSON 2xx, or an unexplained `success: false`.                                                                                                                                                                                                                                                |
+| Response 500  | `{ error: string }` — anything else thrown.                                                                                                                                                                                                                                                                                                                                   |
+
 ### `GET /api/fx?from=<code>&to=<code>`
 
 Source: `src/routes/api/fx/+server.ts`. Backed by `CurrencyService` —
@@ -515,17 +550,20 @@ regardless of LubeLogger's instance locale. Set once in
 `LubeLoggerClient` (instantiated per request inside each route
 handler) exposes the following methods mapped to LubeLogger's REST API:
 
-| quicklogger method                         | LubeLogger endpoint                                                                  | Returns                                                         |
-| ------------------------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `listVehicles()`                           | `GET /api/vehicles`                                                                  | `Vehicle[]`                                                     |
-| `listGasRecords(vehicleId)`                | `GET /api/vehicle/gasrecords?vehicleId=N`                                            | `GasRecord[]`                                                   |
-| `listReminders(vehicleId)`                 | `GET /api/vehicle/reminders?vehicleId=N`                                             | `Reminder[]`                                                    |
-| `getVehicleInfo(vehicleId)`                | `GET /api/vehicle/info?vehicleId=N`                                                  | `VehicleInfo` (unwrapped from a 1-element array)                |
-| `uploadDocument(bytes, filename)`          | `POST /api/documents/upload`                                                         | `UploadedFile` (`{ name, location, isPending }`)                |
-| `addGasRecord(vehicleId, payload, files?)` | `POST .../gasrecords/add` — JSON variant when `files` non-empty, else flat multipart | `void`                                                          |
-| `fetchImage(path)`                         | `GET <path>` (expects `/images/<uuid>.<ext>`)                                        | raw `Response` — caller streams the body, copies `content-type` |
-| `getInfo()`                                | `GET /api/info`                                                                      | `LubeLoggerInfo` (version + locale/format fields)               |
-| `getVersion()`                             | `GET /api/version`                                                                   | `LubeLoggerVersion` (`currentVersion` + `latestVersion`)        |
+| quicklogger method                         | LubeLogger endpoint                                                                  | Returns                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `listVehicles()`                           | `GET /api/vehicles`                                                                  | `Vehicle[]`                                                              |
+| `listGasRecords(vehicleId)`                | `GET /api/vehicle/gasrecords?vehicleId=N`                                            | `GasRecord[]`                                                            |
+| `listReminders(vehicleId)`                 | `GET /api/vehicle/reminders?vehicleId=N`                                             | `Reminder[]`                                                             |
+| `getVehicleInfo(vehicleId)`                | `GET /api/vehicle/info?vehicleId=N`                                                  | `VehicleInfo` (unwrapped from a 1-element array)                         |
+| `listEquipment(vehicleId)`                 | `GET /api/vehicle/equipmentrecords?vehicleId=N`                                      | `Equipment[]` (normalized from LubeLogger's all-string records)          |
+| `listOdometerRecords(vehicleId)`           | `GET /api/vehicle/odometerrecords?vehicleId=N`                                       | `OdometerRecord[]` (`id`, ISO `date`, numeric odometers) — replay dedupe |
+| `addOdometerRecord(vehicleId, payload)`    | `POST /api/vehicle/odometerrecords/add?vehicleId=N` (JSON)                           | `{ recordId? }`; throws on a `success: false` body                       |
+| `uploadDocument(bytes, filename)`          | `POST /api/documents/upload`                                                         | `UploadedFile` (`{ name, location, isPending }`)                         |
+| `addGasRecord(vehicleId, payload, files?)` | `POST .../gasrecords/add` — JSON variant when `files` non-empty, else flat multipart | `void`                                                                   |
+| `fetchImage(path)`                         | `GET <path>` (expects `/images/<uuid>.<ext>`)                                        | raw `Response` — caller streams the body, copies `content-type`          |
+| `getInfo()`                                | `GET /api/info`                                                                      | `LubeLoggerInfo` (version + locale/format fields)                        |
+| `getVersion()`                             | `GET /api/version`                                                                   | `LubeLoggerVersion` (`currentVersion` + `latestVersion`)                 |
 
 ### Timeout
 

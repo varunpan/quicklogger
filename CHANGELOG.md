@@ -2,6 +2,63 @@
 
 All notable changes to this project are documented here. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows [SemVer](https://semver.org/) (pre-1.0 minor bumps may include breaking changes — read the entry).
 
+## [0.4.0] — Unreleased
+
+### Added
+
+- **Log Odometer page (`/odometer`) — odometer entries without a fill-up,
+  tagged with LubeLogger Equipment (#97).** A new drawer page logs an
+  odometer-only record and shows the vehicle's Equipment as checkboxes, the
+  same way LubeLogger's own odometer form does — so a towed trailer (or any
+  other equipment) accrues distance toward its service reminders. The
+  odometer prefills from LubeLogger's current mileage with the same
+  `prefilled` badge as the fuel form; currently-equipped items start ticked.
+  Backed by two new routes, `GET /api/vehicle/equipment` and
+  `POST /api/odometer`, over LubeLogger's `equipmentrecords` and
+  `odometerrecords/add`. Flows like a fill-up: a lower-than-last reading
+  needs **Submit anyway**, success lands on Maintenance, and offline the
+  reading queues and syncs with the same replay dedupe — see below. See
+  `docs/technical/odometer-entry.md`.
+- **Odometer readings work offline.** Queued readings live in their own
+  IndexedDB database, `quicklogger-odometer`, so the fill-up database is not
+  upgraded. The service worker drains both queues in one `syncQueue` pass,
+  in the order entries were made, through the same replay state machine.
+  Replays carry `queueReplay: true`, and `/api/odometer` skips the write when
+  a record with the same date, odometer, equipment and notes is already in
+  LubeLogger; it also shares `/api/fuelup`'s 60-second `clientSubmissionId`
+  duplicate guard. A per-vehicle localStorage snapshot of LubeLogger's
+  equipment list and last odometer keeps the page usable with no signal; if
+  the list has never loaded, the reading asks LubeLogger to include whatever
+  is marked equipped. History shows odometer readings alongside fill-ups.
+- **Equipment gets the right distance.** `/api/odometer` sends each record's
+  trip start (`initialOdometer`) explicitly, taken from the record just
+  before it by date. Left blank, LubeLogger starts from the vehicle's highest
+  record, so a reading entered after a later fill-up credited the trailer a
+  zero or negative distance.
+
+### Changed
+
+- `/api/fuelup`'s duplicate guard and the Content-Length pre-check used by
+  `/api/fuelup` and `/api/ocr` moved to shared modules
+  (`$lib/server/idempotency.ts`, `$lib/server/contentLength.ts`) so
+  `/api/odometer` reuses them. No behaviour change; the existing tests are
+  unchanged.
+- History's footer now reads "Only fillups and odometer readings logged
+  through this PWA appear here."
+
+### Tests
+
+- Route tests for `/api/vehicle/equipment` and `/api/odometer`,
+  `LubeLoggerClient.listEquipment` / `addOdometerRecord` and the client
+  wrappers, `OdometerQueue` (separate database, never blocked by an open v1
+  connection), the shared replay drain (including cross-queue order), the
+  trip-start and replay-match helpers, the duplicate guard, the snapshot
+  cache, plus `tests/e2e/odometer-entry.spec.ts` (prefill, refused readings
+  not sticking, queued readings raising the prefill, vehicle switch
+  re-seeding, never-loaded equipment, submit → Maintenance, lower-reading
+  check, 4xx rejection, queued-offline → History, offline snapshot fallback,
+  seeded History rows). New `seedOdometerEntry` e2e fixture.
+
 ## [0.3.5] — 2026-10-21
 
 ### Changed
