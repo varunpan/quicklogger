@@ -38,10 +38,9 @@ export interface QueueEntry {
   deduped?: boolean;
 }
 
-/** One odometer-only entry (`/odometer`). Lives in its own object store so
- *  the fuel queue's consumers (History pricing, offline odometer prefill,
- *  replay dedupe) never see a row without fuel fields. Same status machine
- *  and attempt budget as `QueueEntry`. See docs/technical/odometer-entry.md. */
+/** One odometer-only entry (`/odometer`). Same row shape and status machine
+ *  as `QueueEntry`, minus the fuel-only `converted` snapshot, plus a display
+ *  snapshot of the ticked equipment's names. See docs/technical/odometer-entry.md. */
 export interface OdometerQueueEntry {
   id: number;
   input: OdometerSubmissionInput;
@@ -56,177 +55,70 @@ export interface OdometerQueueEntry {
   deduped?: boolean;
 }
 
-const STORE = 'pendingSubmissions';
-const ODOMETER_STORE = 'pendingOdometer';
-
-// v1: pendingSubmissions. v2 (#97): + pendingOdometer. Existing fuel rows are
-// untouched by the upgrade — it only adds a store.
-const DB_VERSION = 2;
-
-interface DbSchema {
-  pendingSubmissions: {
-    key: number;
-    value: Omit<QueueEntry, 'id'> & { id?: number };
-    indexes: { byStatus: string };
-  };
-  pendingOdometer: {
-    key: number;
-    value: Omit<OdometerQueueEntry, 'id'> & { id?: number };
-    indexes: { byStatus: string };
-  };
+/** Fields every queue row shares — what the generic queue operations touch. */
+interface BaseEntry {
+  id: number;
+  input: { vehicleId: number };
+  status: QueueStatus;
+  attempts: number;
+  enqueuedAt: number;
+  lastError?: string;
+  deduped?: boolean;
 }
 
-function openQuickloggerDb(name: string): Promise<IDBPDatabase<DbSchema>> {
-  return openDB<DbSchema>(name, DB_VERSION, {
-    upgrade(db, oldVersion) {
-      if (oldVersion < 1) {
-        const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('byStatus', 'status');
-      }
-      if (oldVersion < 2) {
-        const store = db.createObjectStore(ODOMETER_STORE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('byStatus', 'status');
-      }
-    },
-    // A newer build (page or SW) is upgrading the schema: let go so it isn't
-    // blocked behind this connection. The next Queue.open() reconnects.
-    blocking(_currentVersion, _blockedVersion, event) {
-      (event.target as IDBDatabase).close();
+const STORE = 'pendingSubmissions';
+
+/**
+ * Odometer readings live in their OWN database (`<name>-odometer`, version 1)
+ * rather than a second store in `quicklogger`. Adding a store to `quicklogger`
+ * would need a version bump, and every v1 connection already in the wild (an
+ * old-build tab, the outgoing SW) never closes, so the upgrade could block
+ * indefinitely — hanging both queues. A separate database never upgrades the
+ * fuel one, so the two can't block each other.
+ */
+export const ODOMETER_DB_SUFFIX = '-odometer';
+
+/** Open (creating on first use) a one-store, version-1 queue database. */
+function openQueueDb(name: string, store: string): Promise<IDBPDatabase> {
+  return openDB(name, 1, {
+    upgrade(db) {
+      const s = db.createObjectStore(store, { keyPath: 'id', autoIncrement: true });
+      s.createIndex('byStatus', 'status');
     }
   });
 }
 
-export class Queue {
-  static async open(name = 'quicklogger'): Promise<Queue> {
-    return new Queue(await openQuickloggerDb(name));
+/** The operations both queues share — one implementation, so a fix to attempt
+ *  counting, dead-lettering or retention reaches fuel and odometer alike. */
+class RecordQueue<E extends BaseEntry> {
+  protected constructor(
+    protected readonly db: IDBPDatabase,
+    protected readonly store: string
+  ) {}
+
+  protected async add(entry: Omit<E, 'id'>): Promise<number> {
+    return (await this.db.add(this.store, entry)) as number;
   }
 
-  private constructor(private readonly db: IDBPDatabase<DbSchema>) {}
-
-  async enqueue(
-    input: FuelSubmissionInput,
-    status: QueueStatus = 'queued',
-    converted?: ConvertedSnapshot
-  ): Promise<number> {
-    const entry: Omit<QueueEntry, 'id'> = { input, status, attempts: 0, enqueuedAt: Date.now() };
-    if (converted) entry.converted = converted;
-    return (await this.db.add(STORE, entry)) as number;
-  }
-
-  async list(): Promise<QueueEntry[]> {
-    return (await this.db.getAll(STORE)) as QueueEntry[];
-  }
-
-  async remove(id: number): Promise<void> {
-    await this.db.delete(STORE, id);
-  }
-
-  async markFailed(id: number, error: string): Promise<void> {
-    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
-    if (!entry) return;
-    entry.status = 'failed';
-    entry.lastError = error;
-    await this.db.put(STORE, entry);
-  }
-
-  async markSynced(id: number, converted?: ConvertedSnapshot, deduped?: boolean): Promise<void> {
-    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
-    if (!entry) return;
-    entry.status = 'synced';
-    if (converted) entry.converted = converted;
-    // Only ever set, never cleared: an ordinary sync leaves the field absent
-    // rather than writing `deduped: false` onto every row.
-    if (deduped) entry.deduped = true;
-    await this.db.put(STORE, entry);
-  }
-
-  async incrementAttempts(id: number): Promise<void> {
-    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
-    if (!entry) return;
-    entry.attempts += 1;
-    await this.db.put(STORE, entry);
-  }
-
-  async decrementAttempts(id: number): Promise<void> {
-    const entry = (await this.db.get(STORE, id)) as QueueEntry | undefined;
-    if (!entry) return;
-    entry.attempts = Math.max(0, entry.attempts - 1);
-    await this.db.put(STORE, entry);
-  }
-
-  /**
-   * Delete all but the newest `keepPerVehicle` 'synced' rows per vehicle.
-   * The offline-prefill resolver only ever consumes the newest synced row
-   * for a vehicle, so older ones are dead weight that `syncQueue` would
-   * otherwise iterate forever. 'queued' and 'failed' rows are never pruned.
-   */
-  async pruneSynced(keepPerVehicle: number): Promise<void> {
-    const all = await this.list();
-    const byVehicle = new Map<number, QueueEntry[]>();
-    for (const e of all) {
-      if (e.status !== 'synced') continue;
-      const rows = byVehicle.get(e.input.vehicleId) ?? [];
-      rows.push(e);
-      byVehicle.set(e.input.vehicleId, rows);
-    }
-    for (const rows of byVehicle.values()) {
-      // Same-ms enqueuedAt ties are broken by id (auto-increment ⇒ insertion order).
-      rows.sort((a, b) => b.enqueuedAt - a.enqueuedAt || b.id - a.id);
-      for (const stale of rows.slice(keepPerVehicle)) await this.remove(stale.id);
-    }
-  }
-}
-
-/** Queue for odometer-only entries — the `/odometer` page's counterpart of
- *  `Queue`. Shares the `quicklogger` database (store `pendingOdometer`). */
-export class OdometerQueue {
-  static async open(name = 'quicklogger'): Promise<OdometerQueue> {
-    return new OdometerQueue(await openQuickloggerDb(name));
-  }
-
-  private constructor(private readonly db: IDBPDatabase<DbSchema>) {}
-
-  async enqueue(
-    input: OdometerSubmissionInput,
-    status: QueueStatus = 'queued',
-    equipmentNames?: string[]
-  ): Promise<number> {
-    const entry: Omit<OdometerQueueEntry, 'id'> = {
-      input,
-      status,
-      attempts: 0,
-      enqueuedAt: Date.now()
-    };
-    if (equipmentNames && equipmentNames.length > 0) entry.equipmentNames = equipmentNames;
-    return (await this.db.add(ODOMETER_STORE, entry)) as number;
-  }
-
-  async list(): Promise<OdometerQueueEntry[]> {
-    return (await this.db.getAll(ODOMETER_STORE)) as OdometerQueueEntry[];
-  }
-
-  private async update(id: number, fn: (e: OdometerQueueEntry) => void): Promise<void> {
-    const entry = (await this.db.get(ODOMETER_STORE, id)) as OdometerQueueEntry | undefined;
+  protected async update(id: number, fn: (e: E) => void): Promise<void> {
+    const entry = (await this.db.get(this.store, id)) as E | undefined;
     if (!entry) return;
     fn(entry);
-    await this.db.put(ODOMETER_STORE, entry);
+    await this.db.put(this.store, entry);
+  }
+
+  async list(): Promise<E[]> {
+    return (await this.db.getAll(this.store)) as E[];
   }
 
   async remove(id: number): Promise<void> {
-    await this.db.delete(ODOMETER_STORE, id);
+    await this.db.delete(this.store, id);
   }
 
   markFailed(id: number, error: string): Promise<void> {
     return this.update(id, (e) => {
       e.status = 'failed';
       e.lastError = error;
-    });
-  }
-
-  markSynced(id: number, deduped?: boolean): Promise<void> {
-    return this.update(id, (e) => {
-      e.status = 'synced';
-      if (deduped) e.deduped = true;
     });
   }
 
@@ -242,19 +134,94 @@ export class OdometerQueue {
     });
   }
 
-  /** Same retention rule as `Queue.pruneSynced`: newest `keepPerVehicle`
-   *  'synced' rows per vehicle; 'queued' / 'failed' rows are never pruned. */
+  /** Release the connection. Callers that open a queue for one read or one
+   *  drain close it afterwards so connections don't pile up. */
+  close(): void {
+    this.db.close();
+  }
+
+  /**
+   * Delete all but the newest `keepPerVehicle` 'synced' rows per vehicle.
+   * The offline-prefill resolver only ever consumes the newest synced row
+   * for a vehicle, so older ones are dead weight that `syncQueue` would
+   * otherwise iterate forever. 'queued' and 'failed' rows are never pruned.
+   */
   async pruneSynced(keepPerVehicle: number): Promise<void> {
-    const byVehicle = new Map<number, OdometerQueueEntry[]>();
-    for (const e of await this.list()) {
+    const all = await this.list();
+    const byVehicle = new Map<number, E[]>();
+    for (const e of all) {
       if (e.status !== 'synced') continue;
       const rows = byVehicle.get(e.input.vehicleId) ?? [];
       rows.push(e);
       byVehicle.set(e.input.vehicleId, rows);
     }
     for (const rows of byVehicle.values()) {
+      // Same-ms enqueuedAt ties are broken by id (auto-increment ⇒ insertion order).
       rows.sort((a, b) => b.enqueuedAt - a.enqueuedAt || b.id - a.id);
       for (const stale of rows.slice(keepPerVehicle)) await this.remove(stale.id);
     }
+  }
+}
+
+export class Queue extends RecordQueue<QueueEntry> {
+  static async open(name = 'quicklogger'): Promise<Queue> {
+    return new Queue(await openQueueDb(name, STORE), STORE);
+  }
+
+  enqueue(
+    input: FuelSubmissionInput,
+    status: QueueStatus = 'queued',
+    converted?: ConvertedSnapshot
+  ): Promise<number> {
+    const entry: Omit<QueueEntry, 'id'> = { input, status, attempts: 0, enqueuedAt: Date.now() };
+    if (converted) entry.converted = converted;
+    return this.add(entry);
+  }
+
+  markSynced(id: number, converted?: ConvertedSnapshot, deduped?: boolean): Promise<void> {
+    return this.update(id, (e) => {
+      e.status = 'synced';
+      if (converted) e.converted = converted;
+      // Only ever set, never cleared: an ordinary sync leaves the field absent
+      // rather than writing `deduped: false` onto every row.
+      if (deduped) e.deduped = true;
+    });
+  }
+}
+
+/** Queue for odometer-only readings — `Queue`'s counterpart for `/odometer`,
+ *  in its own database (see ODOMETER_DB_SUFFIX). */
+export class OdometerQueue extends RecordQueue<OdometerQueueEntry> {
+  static readonly STORE = 'pendingOdometer';
+
+  /** `name` is the base database name (default `quicklogger`); the odometer
+   *  database is `<name>-odometer`. */
+  static async open(name = 'quicklogger'): Promise<OdometerQueue> {
+    return new OdometerQueue(
+      await openQueueDb(`${name}${ODOMETER_DB_SUFFIX}`, OdometerQueue.STORE),
+      OdometerQueue.STORE
+    );
+  }
+
+  enqueue(
+    input: OdometerSubmissionInput,
+    status: QueueStatus = 'queued',
+    equipmentNames?: string[]
+  ): Promise<number> {
+    const entry: Omit<OdometerQueueEntry, 'id'> = {
+      input,
+      status,
+      attempts: 0,
+      enqueuedAt: Date.now()
+    };
+    if (equipmentNames && equipmentNames.length > 0) entry.equipmentNames = equipmentNames;
+    return this.add(entry);
+  }
+
+  markSynced(id: number, deduped?: boolean): Promise<void> {
+    return this.update(id, (e) => {
+      e.status = 'synced';
+      if (deduped) e.deduped = true;
+    });
   }
 }
