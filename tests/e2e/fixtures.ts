@@ -201,6 +201,60 @@ export async function seedQueueEntry(
 }
 
 /**
+ * Seed one row into the odometer-reading queue (`/odometer`). Mirrors
+ * seedQueueEntry, but against the separate `quicklogger-odometer` database
+ * (version 1, store `pendingOdometer`) — see ODOMETER_DB_SUFFIX in idb.ts.
+ */
+export async function seedOdometerEntry(
+  page: Page,
+  entry: {
+    input: Record<string, unknown>;
+    status: 'queued' | 'failed' | 'synced';
+    enqueuedAt?: number;
+    attempts?: number;
+    lastError?: string;
+    equipmentNames?: string[];
+    deduped?: boolean;
+  }
+) {
+  await page.addInitScript(async (e) => {
+    const open = indexedDB.open('quicklogger-odometer', 1);
+    await new Promise<void>((resolve, reject) => {
+      open.onupgradeneeded = () => {
+        const db = open.result;
+        if (!db.objectStoreNames.contains('pendingOdometer')) {
+          const store = db.createObjectStore('pendingOdometer', {
+            keyPath: 'id',
+            autoIncrement: true
+          });
+          store.createIndex('byStatus', 'status');
+        }
+      };
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction('pendingOdometer', 'readwrite');
+        const row: Record<string, unknown> = {
+          input: e.input,
+          status: e.status,
+          attempts: e.attempts ?? 0,
+          enqueuedAt: e.enqueuedAt ?? Date.now()
+        };
+        if (e.lastError !== undefined) row.lastError = e.lastError;
+        if (e.equipmentNames !== undefined) row.equipmentNames = e.equipmentNames;
+        if (e.deduped !== undefined) row.deduped = e.deduped;
+        tx.objectStore('pendingOdometer').add(row);
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+      open.onerror = () => reject(open.error);
+    });
+  }, entry);
+}
+
+/**
  * Seed the per-vehicle localStorage cache the offline resolver reads.
  */
 export async function seedLastFuelupCache(

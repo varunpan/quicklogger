@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { seedOdometerEntry, seedPrefs } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
 
@@ -141,4 +142,122 @@ test('falls back to the cached equipment + odometer when LubeLogger is unreachab
   await expect(page.getByText('readings will be saved and synced later')).toBeVisible();
   await expect(page.getByTestId('equipment-7')).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('#odo-only')).toHaveValue('45100');
+});
+
+test('a mistyped reading that LubeLogger refused does not stick in the prefill (review #1)', async ({
+  page
+}) => {
+  await baseStubs(page);
+  // 1,234,560 instead of 123,456 — queued offline, then refused with a 4xx.
+  await seedOdometerEntry(page, {
+    input: { vehicleId: 1, date: '2026-11-10', odometer: 1234560, clientSubmissionId: 'bad' },
+    status: 'failed',
+    lastError: '400'
+  });
+  await gotoOdometerViaDrawer(page);
+  await expect(page.locator('#odo-only')).toHaveValue('45100');
+});
+
+test('a reading still waiting to sync raises the prefill', async ({ page }) => {
+  await baseStubs(page);
+  await seedOdometerEntry(page, {
+    input: { vehicleId: 1, date: '2026-11-12', odometer: 45320, clientSubmissionId: 'q' },
+    status: 'queued'
+  });
+  await gotoOdometerViaDrawer(page);
+  await expect(page.locator('#odo-only')).toHaveValue('45320');
+});
+
+test('switching vehicle on the reused page re-seeds the form (review #6)', async ({ page }) => {
+  const TRUCK = { id: 1, year: 2021, make: 'Toyota', model: 'Tacoma' };
+  const JEEP = { id: 2, year: 2019, make: 'Jeep', model: 'Wrangler' };
+  await page.route('**/api/vehicles', (route) => route.fulfill({ json: [TRUCK, JEEP] }));
+  await page.route('**/api/vehicle/last-fuelup**', (route) => route.fulfill({ json: null }));
+  await page.route('**/api/vehicle/equipment**', (route) => {
+    const vid = new URL(route.request().url()).searchParams.get('vehicleId');
+    return route.fulfill({
+      json:
+        vid === '2'
+          ? [{ id: 20, description: 'Jeep rack', isEquipped: true, distanceTraveled: 0 }]
+          : EQUIPMENT
+    });
+  });
+  await page.route('**/api/vehicle/info**', (route) => {
+    const vid = new URL(route.request().url()).searchParams.get('vehicleId');
+    return route.fulfill({ json: { lastReportedOdometer: vid === '2' ? 88000 : 45100 } });
+  });
+  await seedPrefs(page, { lastVehicleId: 1 });
+
+  // Land on /odometer?vehicleId=2 client-side, via the picker.
+  await gotoOdometerViaDrawer(page);
+  await page.getByRole('link', { name: /Tacoma/ }).click();
+  await page.getByRole('button', { name: /Wrangler/ }).click();
+  await expect(page).toHaveURL('/odometer?vehicleId=2');
+  await expect(page.locator('#odo-only')).toHaveValue('88000');
+  await expect(page.getByTestId('equipment-20')).toHaveAttribute('aria-checked', 'true');
+
+  // Saved last vehicle back to 1, then "Log Odometer" reuses the page for it.
+  await page.evaluate(() =>
+    localStorage.setItem('quicklogger.prefs', JSON.stringify({ lastVehicleId: 1 }))
+  );
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await page.getByRole('link', { name: 'Log Odometer' }).click();
+  await expect(page).toHaveURL('/odometer');
+
+  await expect(page.locator('#odo-only')).toHaveValue('45100');
+  await expect(page.getByTestId('equipment-7')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('equipment-20')).toHaveCount(0);
+
+  let posted: Record<string, unknown> | null = null;
+  await page.route('**/api/odometer', async (route) => {
+    posted = route.request().postDataJSON();
+    await route.fulfill({ json: { ok: true, recordId: 5 } });
+  });
+  await page.locator('#odo-only').fill('45320');
+  await page.getByRole('button', { name: 'Log odometer' }).click();
+  await page.waitForURL(/\/maintenance\?vehicleId=1$/);
+  expect(posted).toMatchObject({ vehicleId: 1, equipmentIds: [7] });
+});
+
+test('never-loaded equipment says so and asks the server to include equipped items (review #9)', async ({
+  page
+}) => {
+  await baseStubs(page);
+  await page.unroute('**/api/vehicle/equipment**');
+  await page.route('**/api/vehicle/equipment**', (route) => route.abort('failed'));
+  let posted: Record<string, unknown> | null = null;
+  await page.route('**/api/odometer', async (route) => {
+    posted = route.request().postDataJSON();
+    await route.fulfill({ json: { ok: true, recordId: 5 } });
+  });
+  await gotoOdometerViaDrawer(page);
+
+  await expect(page.getByTestId('equipment-unknown')).toBeVisible();
+  await expect(page.getByText('No equipment on this vehicle.')).toHaveCount(0);
+  await page.locator('#odo-only').fill('45320');
+  await page.getByRole('button', { name: 'Log odometer' }).click();
+  await page.waitForURL(/\/maintenance\?vehicleId=1$/);
+  expect(posted).toMatchObject({ equipmentIds: [], includeEquipped: true });
+});
+
+test('History renders seeded odometer rows next to fill-ups (fixture, review #11)', async ({
+  page
+}) => {
+  await baseStubs(page);
+  await seedOdometerEntry(page, {
+    input: { vehicleId: 1, date: '2026-11-12', odometer: 45320, clientSubmissionId: 'f' },
+    status: 'failed',
+    lastError: '403',
+    attempts: 1,
+    equipmentNames: ['Off-road trailer']
+  });
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await page.getByRole('link', { name: 'History' }).click();
+
+  const card = page.getByTestId('odometer-card');
+  await expect(card).toHaveCount(1);
+  await expect(card.getByText('Failed', { exact: true })).toBeVisible();
+  await expect(card.getByText('with Off-road trailer')).toBeVisible();
+  await expect(card.getByText('error: 403')).toBeVisible();
 });

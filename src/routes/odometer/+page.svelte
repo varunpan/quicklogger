@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { submitOdometer, ApiError } from '$lib/client/api';
   import { OdometerQueue } from '$lib/client/idb';
-  import { saveOdometerSnapshot } from '$lib/client/odometer-snapshot';
+  import { genUuid } from '$lib/client/uuid';
   import { savePrefs } from '$lib/client/prefs';
   import Icon from '$lib/client/Icon.svelte';
   import type { OdometerSubmissionInput } from '$lib/shared/types';
@@ -17,8 +17,11 @@
 
   const DIST_UNIT = effectiveDistanceUnit();
 
-  // Prefilled with LubeLogger's current mileage (max across all record types),
-  // shown greyed with a "prefilled" badge like the fuel form until edited.
+  // Form state seeds from the loaded vehicle (same one-time `untrack` idiom as
+  // Log Fuel) and is re-seeded whenever SvelteKit reuses this page for a
+  // different vehicle — see the $effect.pre below. The odometer prefills with
+  // LubeLogger's current mileage (or a higher reading still waiting to sync),
+  // greyed with a "prefilled" badge until edited.
   let odometer = $state<number | ''>(untrack(() => data.lastOdometer ?? ''));
   let odometerEdited = $state(false);
   let isoDate = $state(localIsoDate());
@@ -29,6 +32,26 @@
     untrack(() => data.equipment.filter((e) => e.isEquipped).map((e) => e.id))
   );
   let submitting = $state(false);
+
+  // Navigating /odometer?vehicleId=2 → /odometer (vehicle 1) reuses this
+  // component with new `data`; without a re-seed the form would keep vehicle
+  // 2's prefill and equipment ids and submit them for vehicle 1. Keyed on the
+  // vehicle id only, so a same-vehicle reload never clobbers typing.
+  let seededVehicleId: number | null = untrack(() => data.vehicle?.id ?? null);
+  $effect.pre(() => {
+    const vid = data.vehicle?.id ?? null;
+    if (vid === seededVehicleId) return;
+    seededVehicleId = vid;
+    untrack(() => {
+      odometer = data.lastOdometer ?? '';
+      odometerEdited = false;
+      lowerAcknowledged = false;
+      notes = '';
+      toast = null;
+      selected.clear();
+      for (const e of data.equipment) if (e.isEquipped) selected.add(e.id);
+    });
+  });
   let toast = $state<{ kind: 'success' | 'queued' | 'error'; text: string } | null>(null);
 
   // Live connectivity for the offline banner + button label — same wiring as
@@ -75,12 +98,19 @@
   async function submit() {
     if (!canSubmit || !data.vehicle) return;
     const vehicleId = data.vehicle.id;
+    // Only ticked ids that belong to THIS vehicle's list — belt and braces
+    // against any stale selection.
+    const ids = data.equipment.filter((e) => selected.has(e.id)).map((e) => e.id);
     const input: OdometerSubmissionInput = {
       vehicleId,
       date: isoDate,
       odometer: odometer as number,
       notes: notes.trim() || undefined,
-      equipmentIds: [...selected]
+      equipmentIds: ids,
+      // Equipment list never loaded on this device: let the server attach
+      // whatever LubeLogger marks equipped when this reading is written.
+      ...(data.equipmentKnown ? {} : { includeEquipped: true }),
+      clientSubmissionId: genUuid()
     };
     const names = data.equipment.filter((e) => selected.has(e.id)).map((e) => e.description);
     submitting = true;
@@ -93,11 +123,15 @@
           names.length ? ` with ${names.join(', ')}` : ''
         }`
       };
-      saveOdometerSnapshot(vehicleId, { lastOdometer: input.odometer });
       savePrefs({ lastVehicleId: vehicleId });
       // Local history trail for /history, like the fuel form's synced row.
       try {
-        await (await OdometerQueue.open()).enqueue(input, 'synced', names);
+        const oq = await OdometerQueue.open();
+        try {
+          await oq.enqueue(input, 'synced', names);
+        } finally {
+          oq.close();
+        }
       } catch {
         // IDB unavailable (private mode, quota); ignore.
       }
@@ -116,8 +150,12 @@
         // reset and land on /history (renders from IndexedDB, so the Queued
         // badge is visible offline) — same flow as the fuel form.
         try {
-          await (await OdometerQueue.open()).enqueue(input, 'queued', names);
-          saveOdometerSnapshot(vehicleId, { lastOdometer: input.odometer });
+          const oq = await OdometerQueue.open();
+          try {
+            await oq.enqueue(input, 'queued', names);
+          } finally {
+            oq.close();
+          }
           toast = { kind: 'queued', text: 'Saved locally — will sync when online' };
           notes = '';
           odometerEdited = false;
@@ -215,7 +253,12 @@
 
   <div class="field mb-3">
     <span class="field-label">Equipment</span>
-    {#if data.equipment.length === 0}
+    {#if !data.equipmentKnown}
+      <p class="text-xs text-amber-300 px-1 py-2" data-testid="equipment-unknown">
+        Equipment list not loaded yet on this device. Anything marked Equipped in LubeLogger will be
+        included when this reading syncs.
+      </p>
+    {:else if data.equipment.length === 0}
       <p class="text-xs text-zinc-500 px-1 py-2">
         No equipment on this vehicle. Add some (e.g. a trailer) under the vehicle's Equipment tab in
         LubeLogger.

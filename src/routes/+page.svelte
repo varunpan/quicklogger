@@ -45,6 +45,7 @@
   import Icon from '$lib/client/Icon.svelte';
   import OcrPreview from '$lib/client/OcrPreview.svelte';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
+  import { genUuid } from '$lib/client/uuid';
   import { readPhotoDate, interpretPhotoDate, formatLocalDate } from '$lib/client/exif';
   import type { Rotation, NormalizedRect } from '$lib/client/image';
 
@@ -599,12 +600,6 @@
     const path: string = `/vehicles?${params.toString()}`;
     // eslint-disable-next-line svelte/no-navigation-without-resolve
     goto(path);
-  }
-
-  function genUuid(): string {
-    const c = globalThis.crypto;
-    if (c && 'randomUUID' in c) return c.randomUUID();
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
   function bumpOdometer(): void {
