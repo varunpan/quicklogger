@@ -13,24 +13,14 @@ import {
 } from '$lib/server/currency';
 import { convertSubmission } from '$lib/server/convert';
 import { getLogger } from '$lib/server/logger';
+import { IdempotencyWindow, jsonResponse, type SubmitResult } from '$lib/server/idempotency';
+import { contentLengthExceeds } from '$lib/server/contentLength';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 let cur: CurrencyService | null = null;
 
-// A submission's serialized outcome, shared among concurrent duplicate submits
-// via the idempotency map. We store the serialized form (not a `Response`)
-// because a `Response` body is single-use — concurrent waiters each need to
-// build their own fresh `Response` from the same bytes.
-type SubmitResult = { status: number; body: string };
-// `settled` gates the sweep: `ts` is stamped at registration, so a submission
-// in flight for longer than the window would age out while unresolved — and
-// evicting it would let a late duplicate re-submit concurrently, the exact
-// double-write this map prevents. Only settled entries are ever swept.
-const idempotencyMap = new Map<
-  string,
-  { ts: number; settled: boolean; promise: Promise<SubmitResult> }
->();
-const IDEMPOTENCY_WINDOW_MS = 60_000;
+// 60-second clientSubmissionId duplicate guard — see $lib/server/idempotency.ts.
+const idempotency = new IdempotencyWindow(60_000);
 
 // Server-side diagnostic string for a photo that didn't attach. Not
 // user-facing — the client maps any truthy `photoWarning` to one fixed toast.
@@ -58,7 +48,7 @@ function currency() {
 
 export function _resetForTests() {
   cur = null;
-  idempotencyMap.clear();
+  idempotency.clear();
 }
 
 interface ParsedBody {
@@ -190,13 +180,6 @@ function validate(b: Partial<FuelSubmissionInput>): asserts b is FuelSubmissionI
   }
   if (invalid.length)
     throw new Error(`invalid fields (must be > 0 / non-empty): ${invalid.join(', ')}`);
-}
-
-function jsonResponse(r: SubmitResult): Response {
-  return new Response(r.body, {
-    status: r.status,
-    headers: { 'content-type': 'application/json' }
-  });
 }
 
 /** Belt-and-suspenders: ensure unique upload filenames. The `pump-` / `odometer-`
@@ -412,21 +395,9 @@ async function submitToLubeLogger(
   }
 }
 
-// Best-effort early rejection from the advertised Content-Length — same
-// pre-guard pattern as `/api/ocr`'s `_contentLengthExceeds`. The transport
-// runs with BODY_SIZE_LIMIT=Infinity (deliberate — see photo-ocr.md), so
-// without this, `parseBody()` buffers the entire body into memory before any
-// app-level check runs. Returns true only when the header is present,
-// numeric, positive, and exceeds `capBytes`; a missing / non-numeric / lying
-// header returns false so chunked bodies fall through to the post-parse
-// gates, which stay authoritative. Underscore-prefixed so SvelteKit's
-// endpoint export validation permits it (test-only export).
-export function _contentLengthExceeds(header: string | null, capBytes: number): boolean {
-  if (header === null) return false;
-  const n = Number(header);
-  if (!Number.isFinite(n) || n <= 0) return false;
-  return n > capBytes;
-}
+// Test-only re-export (underscore-prefixed so SvelteKit's endpoint export
+// validation permits it); the helper lives in $lib/server/contentLength.ts.
+export const _contentLengthExceeds = contentLengthExceeds;
 
 export const POST: RequestHandler = async ({ request, locals }) => {
   // Cap derivation: the endpoint accepts at most two photos (pumpImage +
@@ -463,35 +434,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
   const input = parsed as FuelSubmissionInput;
 
-  const now = Date.now();
-  for (const [k, v] of idempotencyMap) {
-    if (v.settled && now - v.ts > IDEMPOTENCY_WINDOW_MS) idempotencyMap.delete(k);
-  }
-
-  // Dedup a duplicate submit (same clientSubmissionId) against either an
-  // in-flight request or one completed within the window. Registering the
-  // pending promise BEFORE awaiting upstream — the synchronous `set` below,
-  // ahead of any `await` — is what closes the concurrent-double-submit race
-  // (a double-tap, or the SW queue replay racing the foreground submit). Two
-  // near-simultaneous duplicates now await and share one upstream write
-  // instead of both POSTing and creating two records.
-  const existing = idempotencyMap.get(input.clientSubmissionId);
-  if (existing) return jsonResponse(await existing.promise);
-
-  const promise = submitToLubeLogger(input, images, locals.logger);
-  const entry = { ts: now, settled: false, promise };
-  idempotencyMap.set(input.clientSubmissionId, entry);
-
-  const result = await promise;
-  // Keep a success cached for the rest of the window so a later resubmit is a
-  // no-op; drop a failure (no record was created) so a genuine retry can reach
-  // upstream. Marking settled (and refreshing ts from completion time) is what
-  // re-arms the sweep for this entry.
-  entry.settled = true;
-  if (result.status >= 200 && result.status < 300) {
-    entry.ts = Date.now();
-  } else {
-    idempotencyMap.delete(input.clientSubmissionId);
-  }
-  return jsonResponse(result);
+  // Dedup a duplicate submit (same clientSubmissionId) against an in-flight
+  // request or one completed within the window — a double-tap, or the SW
+  // queue replay racing the foreground submit.
+  return jsonResponse(
+    await idempotency.run(input.clientSubmissionId, () =>
+      submitToLubeLogger(input, images, locals.logger)
+    )
+  );
 };
