@@ -278,7 +278,13 @@ describe('submitOdometer', () => {
           headers: { 'content-type': 'application/json' }
         })
     );
-    const body = { vehicleId: 3, date: '2026-11-12', odometer: 45320, equipmentIds: [7] };
+    const body = {
+      vehicleId: 3,
+      date: '2026-11-12',
+      odometer: 45320,
+      equipmentIds: [7],
+      clientSubmissionId: 'c1'
+    };
     const out = await submitOdometer(body, f as unknown as typeof fetch);
     const [url, init] = f.mock.calls[0] as unknown as Parameters<typeof fetch>;
     expect(url).toBe('/api/odometer');
@@ -291,7 +297,7 @@ describe('submitOdometer', () => {
     const f = vi.fn(async () => new Response('bad', { status: 400 }));
     await expect(
       submitOdometer(
-        { vehicleId: 3, date: '2026-11-12', odometer: 1 },
+        { vehicleId: 3, date: '2026-11-12', odometer: 1, clientSubmissionId: 'c2' },
         f as unknown as typeof fetch
       )
     ).rejects.toBeInstanceOf(ApiError);

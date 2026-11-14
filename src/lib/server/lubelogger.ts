@@ -143,6 +143,12 @@ export interface Equipment {
  *  space-separated `equipmentRecordId` field upstream. */
 export interface AddOdometerRecordPayload {
   date: string;
+  /** Start of the trip this reading closes. Sent explicitly: left blank,
+   *  LubeLogger uses the vehicle's HIGHEST odometer record regardless of
+   *  date, which credits equipment a zero or negative distance whenever a
+   *  higher record already exists (an auto-inserted fill-up record, an
+   *  out-of-order replay). */
+  initialOdometer: number;
   odometer: number;
   notes?: string;
   tags?: string;
@@ -157,6 +163,8 @@ export interface OdometerRecord {
   date: string; // ISO YYYY-MM-DD
   initialOdometer: number;
   odometer: number;
+  equipmentIds: number[];
+  notes: string;
 }
 
 export function normalizeEquipment(raw: EquipmentRecordRaw): Equipment {
@@ -370,13 +378,24 @@ export class LubeLoggerClient {
       id: Number(r.id),
       date: String(r.date ?? ''),
       initialOdometer: Number(r.initialOdometer),
-      odometer: Number(r.odometer)
+      odometer: Number(r.odometer),
+      // Space-separated on the wire (`"7 8"`), like the add endpoint takes.
+      equipmentIds: String(r.equipmentRecordId ?? '')
+        .split(' ')
+        .filter((t) => t !== '')
+        .map(Number),
+      notes: typeof r.notes === 'string' ? r.notes : ''
     }));
   }
 
-  /** Add an odometer-only record (no fuel). Returns the new record id when
-   *  LubeLogger reports one. A `success: false` body is treated as an error
-   *  even on a 2xx, so a rejected record never looks like a logged one. */
+  /** Add an odometer-only record (no fuel). Returns the new record id.
+   *  Only a 2xx JSON body with `success: true` counts as logged, so a
+   *  rejected record never looks like a logged one:
+   *  - a non-JSON 2xx (e.g. an auth proxy's HTML page) → 502, retryable;
+   *  - `success: false` on a 2xx → LubeLogger's permission filters answer
+   *    "Access Denied" this way (status 200), which is permanent → 403;
+   *    anything else is unexpected → 502, retryable. Validation and storage
+   *    failures arrive as real 400 / 500 statuses via `request()`. */
   async addOdometerRecord(
     vehicleId: number,
     payload: AddOdometerRecordPayload
@@ -386,6 +405,7 @@ export class LubeLoggerClient {
       odometer: String(payload.odometer),
       notes: payload.notes ?? '',
       tags: payload.tags ?? '',
+      initialOdometer: String(payload.initialOdometer),
       equipmentRecordId: (payload.equipmentIds ?? []).join(' ')
     };
     const res = await this.request(`/api/vehicle/odometerrecords/add?vehicleId=${vehicleId}`, {
@@ -393,13 +413,23 @@ export class LubeLoggerClient {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const out = (await res.json().catch(() => ({}))) as {
-      success?: boolean;
-      message?: string;
-      additionalData?: { recordId?: number };
-    };
-    if (out.success === false) {
-      throw new LubeLoggerError(400, out.message ?? 'odometer record rejected');
+    const path = '/api/vehicle/odometerrecords/add';
+    let out: { success?: unknown; message?: unknown; additionalData?: { recordId?: number } };
+    try {
+      out = await res.json();
+    } catch {
+      this.logger.warn('lubelogger non-json success body', { upstream_path: path });
+      throw new LubeLoggerError(502, 'odometer add returned a non-JSON body');
+    }
+    if (out?.success !== true) {
+      const message = typeof out?.message === 'string' ? out.message : '';
+      const status = message === 'Access Denied' ? 403 : 502;
+      this.logger.warn('lubelogger rejected record', {
+        upstream_path: path,
+        upstream_message: message.slice(0, 200),
+        mapped_status: status
+      });
+      throw new LubeLoggerError(status, message || 'odometer record rejected');
     }
     return { recordId: out.additionalData?.recordId };
   }

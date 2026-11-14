@@ -118,6 +118,14 @@ export interface OdometerSubmissionInput {
   odometer: number;
   notes?: string;
   equipmentIds?: number[];
+  /** Also attach whatever equipment LubeLogger marks "equipped", resolved
+   *  server-side at write time. Set when the page couldn't load the equipment
+   *  list (offline before it was ever cached), so a towed trailer that's
+   *  marked equipped still gets the distance. Only literal `true` counts. */
+  includeEquipped?: boolean;
+  /** Client-generated id keying the server's 60 s duplicate guard, carried
+   *  unchanged onto the queued row so a replay shares it (as for fuel). */
+  clientSubmissionId: string;
   /** Set only by the SW replay loop — asks the server to check LubeLogger for
    *  an already-landed record before writing (same as FuelSubmissionInput). */
   queueReplay?: boolean;
