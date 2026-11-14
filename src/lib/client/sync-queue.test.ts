@@ -385,7 +385,13 @@ describe('syncQueue', () => {
 });
 
 describe('syncQueue — odometer entries', () => {
-  const odoInput = { vehicleId: 1, date: '2026-11-12', odometer: 45320, equipmentIds: [7] };
+  const odoInput = {
+    vehicleId: 1,
+    date: '2026-11-12',
+    odometer: 45320,
+    equipmentIds: [7],
+    clientSubmissionId: 'odo-1'
+  };
   let dbName: string;
   let realFetch: typeof globalThis.fetch;
 
@@ -472,5 +478,28 @@ describe('syncQueue — odometer entries', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     const [e] = await oq.list();
     expect(e).toMatchObject({ status: 'failed', lastError: 'max attempts' });
+  });
+
+  it('replays fuel and odometer entries in the order they were made (review #5)', async () => {
+    const q = await Queue.open(dbName);
+    const oq = await OdometerQueue.open(dbName);
+    // 10am odometer reading, then a noon fill-up, then a 2pm reading.
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1_000);
+    await oq.enqueue({ ...odoInput, odometer: 45320 });
+    vi.spyOn(Date, 'now').mockReturnValueOnce(2_000);
+    await q.enqueue({ ...baseInput, odometer: 45400 });
+    vi.spyOn(Date, 'now').mockReturnValueOnce(3_000);
+    await oq.enqueue({ ...odoInput, odometer: 45500, clientSubmissionId: 'odo-2' });
+    vi.restoreAllMocks();
+
+    const order: string[] = [];
+    globalThis.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      order.push(`${url} ${JSON.parse(init!.body as string).odometer}`);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    expect(order).toEqual(['/api/odometer 45320', '/api/fuelup 45400', '/api/odometer 45500']);
   });
 });

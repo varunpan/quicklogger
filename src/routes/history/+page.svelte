@@ -79,13 +79,28 @@
   onMount(async () => {
     try {
       const q = await Queue.open();
-      allEntries = await q.list();
-      odometerEntries = await (await OdometerQueue.open()).list();
+      try {
+        allEntries = await q.list();
+      } finally {
+        q.close();
+      }
     } catch (e) {
       error = (e as Error).message ?? 'IndexedDB unavailable';
-    } finally {
-      loading = false;
     }
+    // Odometer readings live in their own database. Loaded separately so a
+    // failure there can never hide the fill-ups that already loaded — the
+    // page just shows fill-ups only.
+    try {
+      const oq = await OdometerQueue.open();
+      try {
+        odometerEntries = await oq.list();
+      } finally {
+        oq.close();
+      }
+    } catch {
+      odometerEntries = [];
+    }
+    loading = false;
   });
 </script>
 

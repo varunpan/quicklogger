@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { openDB } from 'idb';
-import { Queue, OdometerQueue } from './idb';
+import { Queue, OdometerQueue, ODOMETER_DB_SUFFIX } from './idb';
 import type { FuelSubmissionInput } from '$lib/shared/types';
 
 const baseInput: FuelSubmissionInput = {
@@ -143,7 +143,13 @@ describe('Queue', () => {
 });
 
 describe('OdometerQueue', () => {
-  const odoInput = { vehicleId: 1, date: '2026-11-12', odometer: 45320, equipmentIds: [7] };
+  const odoInput = {
+    vehicleId: 1,
+    date: '2026-11-12',
+    odometer: 45320,
+    equipmentIds: [7],
+    clientSubmissionId: 'odo-1'
+  };
   let oq: OdometerQueue;
   beforeEach(async () => {
     oq = await OdometerQueue.open(`oq-${Math.random()}`);
@@ -190,7 +196,7 @@ describe('OdometerQueue', () => {
     expect(rows.some((r) => r.status === 'queued')).toBe(true);
   });
 
-  it('shares the database with Queue without touching fuel rows', async () => {
+  it('keeps odometer rows in their own database, apart from fuel rows', async () => {
     const name = `shared-${Math.random()}`;
     const q = await Queue.open(name);
     await q.enqueue(baseInput);
@@ -198,11 +204,16 @@ describe('OdometerQueue', () => {
     await o.enqueue(odoInput);
     expect(await q.list()).toHaveLength(1);
     expect(await o.list()).toHaveLength(1);
+    const dbs = (await indexedDB.databases()).map((d) => d.name);
+    expect(dbs).toContain(name);
+    expect(dbs).toContain(`${name}${ODOMETER_DB_SUFFIX}`);
   });
 
-  it('upgrades an existing v1 database, keeping its fuel rows', async () => {
-    const name = `upgrade-${Math.random()}`;
-    const v1 = await openDB(name, 1, {
+  it('never upgrades or blocks on an existing v1 fuel database (review #4)', async () => {
+    const name = `v1-${Math.random()}`;
+    // An old-build connection that is never closed — the case that would
+    // block a version bump forever.
+    const oldConnection = await openDB(name, 1, {
       upgrade(db) {
         const store = db.createObjectStore('pendingSubmissions', {
           keyPath: 'id',
@@ -211,18 +222,35 @@ describe('OdometerQueue', () => {
         store.createIndex('byStatus', 'status');
       }
     });
-    await v1.add('pendingSubmissions', {
+    await oldConnection.add('pendingSubmissions', {
       input: baseInput,
       status: 'queued',
       attempts: 0,
       enqueuedAt: 1
     });
-    v1.close();
 
-    const q = await Queue.open(name);
-    expect(await q.list()).toHaveLength(1);
     const o = await OdometerQueue.open(name);
     await o.enqueue(odoInput);
     expect(await o.list()).toHaveLength(1);
+    const q = await Queue.open(name);
+    expect(await q.list()).toHaveLength(1);
+    expect(oldConnection.version).toBe(1);
+    oldConnection.close();
+  });
+
+  it('close() releases the connection', async () => {
+    const name = `close-${Math.random()}`;
+    const o = await OdometerQueue.open(name);
+    o.close();
+    // A version change only succeeds once no connection holds the database.
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open(`${name}${ODOMETER_DB_SUFFIX}`, 2);
+      req.onblocked = () => reject(new Error('blocked'));
+      req.onsuccess = () => {
+        req.result.close();
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
   });
 });
