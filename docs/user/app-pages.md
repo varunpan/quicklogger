@@ -109,7 +109,10 @@ Works offline, like Log Fuel: the button reads **Save offline**, the
 reading is queued on the device, you land on **History** with an amber
 **Queued** badge, and it syncs when you reconnect. The equipment list and
 current odometer are remembered from your last online visit, so the
-trailer checkbox is still there with no signal. Your LubeLogger API key
+trailer checkbox is still there with no signal. If the page has never been
+opened online on this phone, it says the equipment list isn't loaded yet,
+and anything marked **Equipped** in LubeLogger is attached when the reading
+syncs. Your LubeLogger API key
 needs edit access (the same key that logs fill-ups already has it).
 
 Like the other pages, the **vehicle card** at the top switches vehicles

@@ -20,7 +20,7 @@ Source: `src/lib/client/idb.ts`.
 | Property         | Value                                                                     |
 | ---------------- | ------------------------------------------------------------------------- |
 | Database name    | `quicklogger` (default; `Queue.open(name)` accepts an override for tests) |
-| Database version | `2` (v2 added the `pendingOdometer` store — see below)                    |
+| Database version | `1`                                                                       |
 | Object store     | `pendingSubmissions`                                                      |
 | `keyPath`        | `id`                                                                      |
 | `autoIncrement`  | `true`                                                                    |
@@ -276,16 +276,16 @@ consumers can't accidentally bolt the extra upstream GET onto their submits.
 
 ## Schema versioning
 
-The database version is `2` (`DB_VERSION` in `idb.ts`). v2 (#97) added the
-`pendingOdometer` object store for odometer-only readings from `/odometer`;
-`upgrade()` is version-gated (`oldVersion < 1` creates `pendingSubmissions`,
-`oldVersion < 2` creates `pendingOdometer`), so existing fuel rows survive the
-upgrade untouched. A `blocking` handler closes an older connection so a newer
-build's upgrade isn't stalled behind it. `pendingOdometer` rows
-(`OdometerQueueEntry`) follow the same status machine, attempt budget and
-retention as fuel rows and drain in the same `syncQueue` run, after the fuel
-rows; replays carry `queueReplay: true` and are deduped upstream on
-`date` + `odometer`. Details: [`odometer-entry.md`](./odometer-entry.md).
+The database version is `1` (the literal `openDB(name, 1, ...)` in `idb.ts`).
+
+Odometer-only readings (`/odometer`, #97) deliberately did **not** bump it:
+they live in a separate database, `quicklogger-odometer` (version 1, store
+`pendingOdometer`). A version change has to wait for every open connection
+to the old version to close, and v1 connections in the wild (old-build tabs,
+the outgoing SW) never do, so a bump could hang both queues. Both databases
+share one queue implementation (`RecordQueue`), and `syncQueue` drains them
+together in the order entries were made through one `replayEntry` state
+machine. Details: [`odometer-entry.md`](./odometer-entry.md).
 
 The v0.1.3 `'synced'` status addition was **not** a version bump.
 
