@@ -1,16 +1,20 @@
 import type { Equipment } from '$lib/server/lubelogger';
 
 /**
- * Per-vehicle localStorage snapshot that keeps `/odometer` usable offline:
- * the equipment list (so the trailer checkbox still shows) and the last known
- * odometer (so the field still prefills). Written by the loader on every
- * successful fetch and by the page after each logged / queued reading; read
- * by the loader only when LubeLogger is unreachable. The `/odometer` sibling
- * of last-fillup.ts's `quicklogger.lastFuelup.<id>` cache.
+ * Per-vehicle localStorage copy of what `/odometer` last loaded from
+ * LubeLogger: the equipment list (so the trailer checkbox still shows
+ * offline) and LubeLogger's last reported odometer. It only ever mirrors
+ * upstream — every successful load overwrites it, and nothing the user types
+ * is written here — so a mistyped reading can't stick in the prefill: fix or
+ * delete the record in LubeLogger and the next online load corrects it.
+ * Readings still waiting to sync are folded in from the queues instead
+ * (`pendingOdometerMax`, +page.ts). The `/odometer` sibling of
+ * last-fillup.ts's `quicklogger.lastFuelup.<id>` cache.
  */
 export interface OdometerSnapshot {
-  equipment: Equipment[];
-  lastOdometer: number | null;
+  /** Absent until the equipment list has loaded once. */
+  equipment?: Equipment[];
+  lastOdometer?: number;
 }
 
 export function odometerSnapshotKey(vehicleId: number): string {
@@ -23,28 +27,21 @@ export function loadOdometerSnapshot(vehicleId: number): OdometerSnapshot | null
     const raw = localStorage.getItem(odometerSnapshotKey(vehicleId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<OdometerSnapshot>;
-    return {
-      equipment: Array.isArray(parsed.equipment) ? parsed.equipment : [],
-      lastOdometer:
-        typeof parsed.lastOdometer === 'number' && Number.isFinite(parsed.lastOdometer)
-          ? parsed.lastOdometer
-          : null
-    };
+    const out: OdometerSnapshot = {};
+    if (Array.isArray(parsed.equipment)) out.equipment = parsed.equipment;
+    if (typeof parsed.lastOdometer === 'number' && Number.isFinite(parsed.lastOdometer))
+      out.lastOdometer = parsed.lastOdometer;
+    return out;
   } catch {
     return null; // corrupt JSON / storage blocked → treat as a miss
   }
 }
 
-/** Merge `patch` into the stored snapshot. `lastOdometer` only ever moves
- *  forward, so a stale upstream read can't roll back a newer queued reading. */
-export function saveOdometerSnapshot(vehicleId: number, patch: Partial<OdometerSnapshot>): void {
+/** Overwrite whichever fields `fresh` carries with LubeLogger's latest values. */
+export function saveOdometerSnapshot(vehicleId: number, fresh: OdometerSnapshot): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    const prev = loadOdometerSnapshot(vehicleId) ?? { equipment: [], lastOdometer: null };
-    const next: OdometerSnapshot = {
-      equipment: patch.equipment ?? prev.equipment,
-      lastOdometer: Math.max(prev.lastOdometer ?? 0, patch.lastOdometer ?? 0) || null
-    };
+    const next = { ...(loadOdometerSnapshot(vehicleId) ?? {}), ...fresh };
     localStorage.setItem(odometerSnapshotKey(vehicleId), JSON.stringify(next));
   } catch {
     /* quota / private mode — the snapshot is a convenience */
