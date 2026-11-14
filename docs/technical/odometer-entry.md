@@ -43,18 +43,21 @@ modelled.
 
 Persistence:
 
-- **IndexedDB store `pendingOdometer`** (database version 1 → 2; the upgrade only
-  adds the store, fuel rows are untouched). `OdometerQueueEntry` mirrors
-  `QueueEntry` — `input`, `status`, `attempts`, `enqueuedAt`, `lastError`,
-  `deduped` — plus a display-only `equipmentNames` snapshot so `/history` can
-  label the row offline. It's a separate store, not a `kind` field on
-  `pendingSubmissions`, so every fuel-queue consumer (History pricing, the
-  offline fuel prefill in `last-fillup.ts`, `pruneSynced`) keeps seeing only
-  rows with fuel fields. See [`offline-queue.md`](./offline-queue.md).
+- **IndexedDB database `quicklogger-odometer`** (version 1, store
+  `pendingOdometer`) — a separate database, not a second store in
+  `quicklogger`, so the fuel database never needs a version bump. A bump
+  would wait on every v1 connection already open (an old-build tab, the
+  outgoing SW), and those never close, so it could hang both queues.
+  `OdometerQueueEntry` has the same shape and status machine as `QueueEntry`,
+  minus `converted`, plus a display-only `equipmentNames` snapshot so
+  `/history` can label the row offline. Both queues share one implementation
+  (`RecordQueue` in `idb.ts`). See [`offline-queue.md`](./offline-queue.md).
 - **localStorage `quicklogger.odometerSnapshot.<vehicleId>`**
-  (`src/lib/client/odometer-snapshot.ts`) — `{ equipment, lastOdometer }`, written on
-  every successful load and after each logged / queued reading, read by the
-  loader only when LubeLogger is unreachable. `lastOdometer` only moves forward.
+  (`src/lib/client/odometer-snapshot.ts`) — `{ equipment?, lastOdometer? }`,
+  a mirror of LubeLogger's last answer: every successful load overwrites it,
+  and nothing the user types is written to it. Read only for whatever
+  couldn't be fetched. `equipment` is absent until the list has loaded once,
+  which is how the page tells "never loaded" from "no equipment".
 - No service-worker cache: `/api/vehicle/equipment` and `/api/odometer` fall
   through the SW's generic network-only `/api/` branch.
 
@@ -62,30 +65,36 @@ Persistence:
 
 1. Reached from the drawer (`Log Odometer`) or via the picker round-trip (`/vehicles?from=odometer`).
 2. Loader resolves the active vehicle with the shared `resolveSelectedVehicle()` (`URL ?vehicleId= → prefs.lastVehicleId → vehicles[0]`), then fetches equipment and vehicle info in parallel.
-3. The odometer field is prefilled from `VehicleInfo.lastReportedOdometer` (LubeLogger's max mileage across all record types) and greyed with a `prefilled` badge — the same visual as the Log Fuel form ([`odometer-prefill.md`](./odometer-prefill.md)). The `+N mi since last reading` line appears once the user edits it.
-4. Equipment with `isEquipped: true` starts checked, matching LubeLogger's form.
-5. A reading below the last known one shows the smart-check chip ("1 issue found … Submit anyway"), same as Log Fuel; submit is blocked until acknowledged.
-6. Submit → `POST /api/odometer` → `addOdometerRecord` (JSON variant of `odometerrecords/add`). On success: green toast naming the equipment, a `'synced'` row in `pendingOdometer` (History trail), `savePrefs({ lastVehicleId })`, then `/maintenance` — the same landing as a logged fill-up, so a reminder the new distance tipped into due shows straight away.
-7. On a network error or 5xx: enqueue as `'queued'`, amber toast, land on `/history` (renders from IndexedDB, so the Queued badge is visible offline). A 4xx is a red "Submission rejected" toast and is not queued. The SW drains `pendingOdometer` right after `pendingSubmissions` in the same `syncQueue` run (`drainOdometer`).
+3. The odometer field prefills from `VehicleInfo.lastReportedOdometer` (LubeLogger's max mileage across all record types; the snapshot's copy when offline), raised to the highest reading still **queued** for the vehicle (odometer or fuel) — like `resolveOfflineLastFillup` does for fuel. `'failed'` rows don't count, so a mistyped reading LubeLogger refused can't steer the prefill. Greyed with a `prefilled` badge, as on Log Fuel ([`odometer-prefill.md`](./odometer-prefill.md)); the `+N mi since last reading` line appears once edited.
+4. Equipment with `isEquipped: true` starts checked, matching LubeLogger's form. If the list has never loaded on this device (offline, fresh install), the page says so and the reading carries `includeEquipped: true`: the server attaches whatever LubeLogger marks equipped when it writes the record.
+5. When SvelteKit reuses the page for a different vehicle (e.g. `/odometer?vehicleId=2` → drawer → `/odometer` for vehicle 1), an `$effect.pre` keyed on the vehicle id re-seeds the odometer, equipment ticks and notes; same-vehicle reloads never clobber typing.
+6. A reading below the last known one shows the smart-check chip ("1 issue found … Submit anyway"), same as Log Fuel; submit is blocked until acknowledged.
+7. Submit → `POST /api/odometer` (with a `clientSubmissionId`) → the server reads the vehicle's odometer records, works out the trip start, and calls `addOdometerRecord` (JSON variant of `odometerrecords/add`). On success: green toast naming the equipment, a `'synced'` row in `pendingOdometer` (History trail), `savePrefs({ lastVehicleId })`, then `/maintenance` — the same landing as a logged fill-up, so a reminder the new distance tipped into due shows straight away.
+8. On a network error or 5xx: enqueue as `'queued'`, amber toast, land on `/history` (renders from IndexedDB, so the Queued badge is visible offline). A 4xx is a red "Submission rejected" toast and is not queued. The SW drains both queues in one `syncQueue` run, in the order entries were made (`enqueuedAt`), through one shared `replayEntry`.
 
 ## Edge cases & invariants
 
-| Scenario                                 | Behaviour                                                                                       | Why                                                                                                          |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Prefilled value left untouched           | Submit disabled                                                                                 | It would log a 0-distance record                                                                             |
-| Vehicle has no equipment                 | Hint pointing at LubeLogger's Equipment tab; odometer-only submit allowed                       | The page is still useful for a plain odometer reading                                                        |
-| Upstream 2xx with `success: false`       | Treated as `LubeLoggerError(400)`                                                               | LubeLogger reports some validation failures in the body; a rejected record must never look like a logged one |
-| Upstream 4xx (e.g. unknown equipment id) | Passed through; red toast                                                                       | Same 4xx passthrough / 5xx → 502 mapping as `/api/fuelup`                                                    |
-| `vehicleInfo` / equipment fetch fails    | Falls back to the localStorage snapshot; amber banner says readings will sync later             | The trailer checkbox and prefill must still work in the field                                                |
-| Offline submit (network error / 5xx)     | Queued, amber toast, lands on `/history`                                                        | Same as Log Fuel                                                                                             |
-| Replay of a POST that already landed     | Server matches `date` + `odometer` upstream, returns `deduped: true`; History shows **Skipped** | Same replay dedupe contract as `/api/fuelup`                                                                 |
-| Reading lower than the last one          | Smart-check chip with **Submit anyway**                                                         | Usually a typo; same as Log Fuel                                                                             |
-| Duplicate ids in `equipmentIds`          | De-duplicated server-side                                                                       | LubeLogger de-dupes too; keeps the payload clean                                                             |
+| Scenario                                                                          | Behaviour                                                                                                           | Why                                                                                                                    |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Prefilled value left untouched                                                    | Submit disabled                                                                                                     | It would log a 0-distance record                                                                                       |
+| Vehicle has no equipment                                                          | Hint pointing at LubeLogger's Equipment tab; odometer-only submit allowed                                           | The page is still useful for a plain odometer reading                                                                  |
+| Upstream 2xx with `success: false`                                                | `"Access Denied"` → 403 (permanent); anything else → 502 (retried); reason logged                                   | LubeLogger's permission filters answer 200 + `success: false`; validation / storage errors use real 400 / 500 statuses |
+| Upstream 2xx with a non-JSON body                                                 | 502 (retried), logged                                                                                               | e.g. an auth proxy's HTML page — never reported as logged                                                              |
+| Upstream 4xx (e.g. unknown equipment id)                                          | Passed through; red toast                                                                                           | Same 4xx passthrough / 5xx → 502 mapping as `/api/fuelup`                                                              |
+| `vehicleInfo` / equipment fetch fails                                             | Falls back to the localStorage snapshot; amber banner says readings will sync later                                 | The trailer checkbox and prefill must still work in the field                                                          |
+| Offline submit (network error / 5xx)                                              | Queued, amber toast, lands on `/history`                                                                            | Same as Log Fuel                                                                                                       |
+| Replay of a POST that already landed                                              | Server matches date + odometer + equipment set + notes upstream, returns `deduped: true`; History shows **Skipped** | Same replay dedupe contract as `/api/fuelup`                                                                           |
+| Same date + odometer, different equipment (e.g. a fill-up's auto-inserted record) | Written, with the trip start from the record before it                                                              | A different real reading must never be dropped                                                                         |
+| Replay arrives while the original write is still in flight                        | Shares the first request's result (60 s `clientSubmissionId` window)                                                | The record isn't upstream yet, so the dedupe alone can't see it                                                        |
+| Equipment list never loaded (offline, fresh install)                              | Amber note; reading carries `includeEquipped: true`                                                                 | So a trailer marked equipped still gets the distance                                                                   |
+| Reading lower than the last one                                                   | Smart-check chip with **Submit anyway**                                                                             | Usually a typo; same as Log Fuel                                                                                       |
+| Duplicate ids in `equipmentIds`                                                   | De-duplicated server-side                                                                                           | LubeLogger de-dupes too; keeps the payload clean                                                                       |
 
 ## Non-obvious decisions
 
-- **Separate store, shared drain.** `pendingOdometer` reuses the fuel queue's state machine, 5-attempt budget, network-error revert, retention bound (`historyKeepPerVehicle`) and `syncing` lock rather than inventing its own.
-- **Dedupe key is `date` + `odometer`.** Fuel needs `fuelConsumed` as a third field because two same-day fill-ups can share an offline-prefilled odometer; two odometer-only readings with the same date and value are the same reading.
-- **No in-memory idempotency window.** `/api/fuelup` has a 60 s `clientSubmissionId` window for double-taps; here the button disables while a submit is in flight, the SW drain is single-flight, and replays go through the upstream dedupe, so there's no second write path for it to guard.
+- **Separate database, shared queue code.** `RecordQueue` holds list / attempts / dead-lettering / retention once for both queues, and `replayEntry` is the one replay state machine, so a fix to either reaches fuel and odometer alike.
+- **Trip start sent explicitly.** Left blank, LubeLogger starts the trip at the vehicle's _highest_ odometer record regardless of date, so a trailer reading entered after a higher record (the auto-inserted record of a later fill-up, an out-of-order replay) gets a zero or negative distance. The server sends the odometer of the record just before ours in LubeLogger's own `recalculate` order (date, then odometer), capped at the reading itself.
+- **Dedupe key is everything we write.** Date + odometer alone matched LubeLogger's auto-inserted fill-up records (they carry only "equipped" equipment) and dropped real readings; the equipment set and notes must match too.
+- **Same 60 s duplicate guard as fuel.** `IdempotencyWindow` (`$lib/server/idempotency.ts`) is shared with `/api/fuelup`.
 - **"Log Odometer", not "Log Miles".** The label stays unit-neutral for km instances (#69); figures use `effectiveDistanceUnit()`.
 - **JSON variant of `odometerrecords/add`.** It binds `equipmentRecordId` (space-separated ids) the same as multipart, and it's the variant LubeLogger documents for nested fields.
