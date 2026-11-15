@@ -11,6 +11,14 @@
     parseIsoLocal
   } from '$lib/client/format';
   import { unitPriceDisplay } from '$lib/client/unit-price';
+  import { listOdometerRecords, listEquipment } from '$lib/client/api';
+  import {
+    equipmentByReading,
+    loadEquipmentByReading,
+    saveEquipmentByReading,
+    readingKey,
+    type EquipmentByReading
+  } from '$lib/client/history-equipment';
   import VehicleCard from '$lib/client/VehicleCard.svelte';
 
   let { data } = $props();
@@ -75,6 +83,36 @@
   function fuelCostLine(input: QueueEntry['input']): string {
     return `${input.volume.toFixed(3)} ${input.volumeUnit} · ${formatCost(input.cost, input.currency)}`;
   }
+
+  // Equipment LubeLogger credited each reading to, so a fill-up made while a
+  // trailer was Equipped reads "with Off-road trailer" — that credit comes
+  // from LubeLogger's auto-inserted odometer record, not from the fill-up.
+  // Cached labels show at once (and offline); a best-effort refresh from
+  // LubeLogger replaces them. Failures are silent: History stays IDB-first.
+  let equipmentLabels: EquipmentByReading = $state({});
+  $effect(() => {
+    const vid = data.vehicle?.id;
+    if (!vid) return;
+    equipmentLabels = loadEquipmentByReading(vid);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [records, equipment] = await Promise.all([
+          listOdometerRecords(vid),
+          listEquipment(vid)
+        ]);
+        if (cancelled) return;
+        const map = equipmentByReading(records, equipment);
+        saveEquipmentByReading(vid, map);
+        equipmentLabels = map;
+      } catch {
+        // offline / LubeLogger down — keep the cached labels
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  });
 
   onMount(async () => {
     try {
@@ -209,6 +247,11 @@
         <div class="text-sm text-zinc-300 mt-0.5">
           {fuelCostLine(entry.input)}
         </div>
+        {#if entry.status === 'synced' && equipmentLabels[readingKey(entry.input.date, entry.input.odometer)]}
+          <div class="text-sm text-zinc-300 mt-0.5" data-testid="fillup-equipment">
+            with {equipmentLabels[readingKey(entry.input.date, entry.input.odometer)].join(', ')}
+          </div>
+        {/if}
         <div class="text-sm text-zinc-400 mt-0.5" data-testid="unit-price">
           {unitPrice.actual}{#if unitPrice.converted}<span class="text-zinc-500">
               · {unitPrice.converted}</span

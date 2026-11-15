@@ -222,3 +222,19 @@ export async function submitOdometer(
   await throwIfNotOk(res, 'odometer');
   return res.json();
 }
+
+/** One odometer record as /history needs it (see /api/vehicle/odometer-records). */
+export interface OdometerRecordSummary {
+  date: string;
+  odometer: number;
+  equipmentIds: number[];
+}
+
+export async function listOdometerRecords(
+  vehicleId: number,
+  fetchImpl = fetch
+): Promise<OdometerRecordSummary[]> {
+  const res = await fetchImpl(`/api/vehicle/odometer-records?vehicleId=${vehicleId}`);
+  await throwIfNotOk(res, 'odometer-records');
+  return res.json();
+}

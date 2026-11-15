@@ -3,6 +3,7 @@ import {
   submitFuelupWithPhotos,
   getVehicleInfo,
   listEquipment,
+  listOdometerRecords,
   submitOdometer,
   postOcr,
   getFx,
@@ -301,5 +302,21 @@ describe('submitOdometer', () => {
         f as unknown as typeof fetch
       )
     ).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('listOdometerRecords', () => {
+  it('requests /api/vehicle/odometer-records with the vehicle id', async () => {
+    const f = vi.fn(
+      async () =>
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    );
+    await listOdometerRecords(3, f as unknown as typeof fetch);
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe(
+      '/api/vehicle/odometer-records?vehicleId=3'
+    );
   });
 });
