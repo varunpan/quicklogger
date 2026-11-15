@@ -16,7 +16,7 @@ describe('odometer snapshot', () => {
 
   it('round-trips equipment and lastOdometer per vehicle', () => {
     saveOdometerSnapshot(1, { equipment: [TRAILER], lastOdometer: 45100 });
-    expect(loadOdometerSnapshot(1)).toEqual({ equipment: [TRAILER], lastOdometer: 45100 });
+    expect(loadOdometerSnapshot(1)).toMatchObject({ equipment: [TRAILER], lastOdometer: 45100 });
     expect(loadOdometerSnapshot(2)).toBeNull();
   });
 
@@ -24,13 +24,13 @@ describe('odometer snapshot', () => {
     saveOdometerSnapshot(1, { equipment: [TRAILER], lastOdometer: 1_234_560 });
     // The bad record was fixed in LubeLogger; the next load reports the truth.
     saveOdometerSnapshot(1, { lastOdometer: 123_456 });
-    expect(loadOdometerSnapshot(1)).toEqual({ equipment: [TRAILER], lastOdometer: 123_456 });
+    expect(loadOdometerSnapshot(1)).toMatchObject({ equipment: [TRAILER], lastOdometer: 123_456 });
   });
 
   it('keeps fields the fresh values do not carry', () => {
     saveOdometerSnapshot(1, { equipment: [TRAILER], lastOdometer: 45100 });
     saveOdometerSnapshot(1, { equipment: [] });
-    expect(loadOdometerSnapshot(1)).toEqual({ equipment: [], lastOdometer: 45100 });
+    expect(loadOdometerSnapshot(1)).toMatchObject({ equipment: [], lastOdometer: 45100 });
   });
 
   it('distinguishes "equipment never loaded" from "no equipment"', () => {
@@ -43,5 +43,13 @@ describe('odometer snapshot', () => {
   it('treats corrupt JSON as a miss', () => {
     localStorage.setItem(odometerSnapshotKey(1), '{nope');
     expect(loadOdometerSnapshot(1)).toBeNull();
+  });
+
+  it('stamps when the equipment list was saved, and keeps it across odometer-only saves', () => {
+    saveOdometerSnapshot(1, { equipment: [TRAILER], equipmentSavedAt: 1234 });
+    saveOdometerSnapshot(1, { lastOdometer: 45100 });
+    expect(loadOdometerSnapshot(1)?.equipmentSavedAt).toBe(1234);
+    saveOdometerSnapshot(1, { equipment: [] });
+    expect(loadOdometerSnapshot(1)?.equipmentSavedAt).toBeGreaterThan(1234);
   });
 });

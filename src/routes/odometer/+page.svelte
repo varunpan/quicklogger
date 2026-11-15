@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { SvelteSet } from 'svelte/reactivity';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { submitOdometer, ApiError } from '$lib/client/api';
@@ -26,12 +25,14 @@
   let odometerEdited = $state(false);
   let isoDate = $state(localIsoDate());
   let notes = $state('');
-  // Pre-check whatever LubeLogger marks as currently equipped (e.g. the
-  // trailer is hitched), mirroring LubeLogger's own odometer form.
-  const selected = new SvelteSet<number>(
-    untrack(() => data.equipment.filter((e) => e.isEquipped).map((e) => e.id))
-  );
   let submitting = $state(false);
+  // Item whose Equip / Unequip is in flight (one at a time).
+  let equipping = $state<number | null>(null);
+
+  // A reading credits whatever is Equipped — the same rule LubeLogger applies
+  // to the odometer records it auto-inserts for fill-ups. Putting an item on
+  // or taking it off is the Equip / Unequip button, never a per-reading tick.
+  const equipped = $derived(data.equipment.filter((e) => e.isEquipped));
 
   // Navigating /odometer?vehicleId=2 → /odometer (vehicle 1) reuses this
   // component with new `data`; without a re-seed the form would keep vehicle
@@ -48,8 +49,6 @@
       lowerAcknowledged = false;
       notes = '';
       toast = null;
-      selected.clear();
-      for (const e of data.equipment) if (e.isEquipped) selected.add(e.id);
     });
   });
   let toast = $state<{ kind: 'success' | 'queued' | 'error'; text: string } | null>(null);
@@ -79,8 +78,17 @@
   const lowerThanLast = $derived(delta !== null && delta < 0 && !lowerAcknowledged);
 
   // An untouched prefill would log 0 miles, so the user must enter a reading.
+  const readingReady = $derived(
+    odometerEdited &&
+      !lowerThanLast &&
+      typeof odometer === 'number' &&
+      Number.isInteger(odometer) &&
+      odometer >= 0 &&
+      isoDate !== ''
+  );
   const canSubmit = $derived(
     !submitting &&
+      equipping === null &&
       odometerEdited &&
       !lowerThanLast &&
       data.vehicle !== null &&
@@ -90,84 +98,134 @@
       isoDate !== ''
   );
 
-  function toggle(id: number) {
-    if (selected.has(id)) selected.delete(id);
-    else selected.add(id);
+  const canChangeEquipment = $derived(!submitting && equipping === null);
+  // Disabled Equip / Unequip render grey (like a disabled Log odometer), not
+  // faded blue, so it's obvious they need a reading first.
+  const canEquip = $derived(canChangeEquipment && readingReady);
+
+  /** Remember a logged reading on this device (History), like Log Fuel. */
+  async function recordSynced(input: OdometerSubmissionInput, names: string[]) {
+    try {
+      const oq = await OdometerQueue.open();
+      try {
+        await oq.enqueue(input, 'synced', names);
+      } finally {
+        oq.close();
+      }
+    } catch {
+      // IDB unavailable (private mode, quota); ignore.
+    }
   }
 
-  async function submit() {
-    if (!canSubmit || !data.vehicle) return;
-    const vehicleId = data.vehicle.id;
-    // Only ticked ids that belong to THIS vehicle's list — belt and braces
-    // against any stale selection.
-    const ids = data.equipment.filter((e) => selected.has(e.id)).map((e) => e.id);
-    const input: OdometerSubmissionInput = {
-      vehicleId,
-      date: isoDate,
-      odometer: odometer as number,
-      notes: notes.trim() || undefined,
-      equipmentIds: ids,
-      // Equipment list never loaded on this device: let the server attach
-      // whatever LubeLogger marks equipped when this reading is written.
-      ...(data.equipmentKnown ? {} : { includeEquipped: true }),
-      clientSubmissionId: genUuid()
-    };
-    const names = data.equipment.filter((e) => selected.has(e.id)).map((e) => e.description);
-    submitting = true;
+  /**
+   * Send one reading — a plain Log, or an Equip / Unequip — and land like a
+   * logged fill-up: /maintenance when it reached LubeLogger; queued for the SW
+   * to replay and /history (Queued badge, works offline) on a network error
+   * or 5xx; a "Submission rejected" toast on a 4xx.
+   */
+  async function send(input: OdometerSubmissionInput, names: string[], okText: string) {
+    const vehicleId = input.vehicleId;
     toast = null;
     try {
       await submitOdometer(input);
-      toast = {
-        kind: 'success',
-        text: `Logged ${formatOdometer(String(input.odometer))} ${DIST_UNIT}${
-          names.length ? ` with ${names.join(', ')}` : ''
-        }`
-      };
+      toast = { kind: 'success', text: okText };
       savePrefs({ lastVehicleId: vehicleId });
       // Local history trail for /history, like the fuel form's synced row.
-      try {
-        const oq = await OdometerQueue.open();
-        try {
-          await oq.enqueue(input, 'synced', names);
-        } finally {
-          oq.close();
-        }
-      } catch {
-        // IDB unavailable (private mode, quota); ignore.
-      }
+      await recordSynced(input, names);
       notes = '';
       odometerEdited = false;
       // Same landing as a logged fill-up: /maintenance, so any reminder the
-      // new distance just tipped into due (e.g. the trailer's bearings) shows.
+      // new distance just tipped into due shows.
       // eslint-disable-next-line svelte/no-navigation-without-resolve
       void goto(`/maintenance?vehicleId=${vehicleId}`).catch(() => {});
     } catch (err) {
       const status = err instanceof ApiError ? err.status : undefined;
       if (status && status >= 400 && status < 500) {
         toast = { kind: 'error', text: `Submission rejected: ${(err as Error).message}` };
-      } else {
-        // Network error / 5xx: queue it for the service worker to replay, then
-        // reset and land on /history (renders from IndexedDB, so the Queued
-        // badge is visible offline) — same flow as the fuel form.
-        try {
-          const oq = await OdometerQueue.open();
-          try {
-            await oq.enqueue(input, 'queued', names);
-          } finally {
-            oq.close();
-          }
-          toast = { kind: 'queued', text: 'Saved locally — will sync when online' };
-          notes = '';
-          odometerEdited = false;
-          // eslint-disable-next-line svelte/no-navigation-without-resolve
-          void goto(`/history?vehicleId=${vehicleId}`).catch(() => {});
-        } catch {
-          toast = {
-            kind: 'error',
-            text: "Couldn't save — device storage unavailable. This reading was NOT saved."
-          };
-        }
+        return;
       }
+      // Network error / 5xx: queue it for the service worker to replay, then
+      // reset and land on /history (renders from IndexedDB, so the Queued
+      // badge is visible offline) — same flow as the fuel form. An Equip /
+      // Unequip queues as ONE row (reading + Equipped change), so both land
+      // together and in the order tapped; the page shows it as pending.
+      try {
+        const oq = await OdometerQueue.open();
+        try {
+          await oq.enqueue(input, 'queued', names);
+        } finally {
+          oq.close();
+        }
+        toast = { kind: 'queued', text: 'Saved locally — will sync when online' };
+        notes = '';
+        odometerEdited = false;
+        // eslint-disable-next-line svelte/no-navigation-without-resolve
+        void goto(`/history?vehicleId=${vehicleId}`).catch(() => {});
+      } catch {
+        toast = {
+          kind: 'error',
+          text: "Couldn't save — device storage unavailable. This reading was NOT saved."
+        };
+      }
+    }
+  }
+
+  /**
+   * Equip (put the item on) or Unequip (take it off) — one tap, no LubeLogger.
+   * Logs the odometer entered above crediting what is Equipped BEFORE the
+   * change (Equip: the item isn't on yet, so miles it didn't travel are
+   * closed out; Unequip: it is, so it gets the miles up to now), and sets the
+   * item's Equipped flag in the same request. Works offline: the pair queues
+   * as one row and replays in order with fill-ups.
+   */
+  async function changeEquipment(item: (typeof data.equipment)[number]) {
+    if (!data.vehicle || !canChangeEquipment || !readingReady) return;
+    const putOn = !item.isEquipped;
+    const action = putOn ? 'Equipped' : 'Unequipped';
+    const input: OdometerSubmissionInput = {
+      vehicleId: data.vehicle.id,
+      date: isoDate,
+      odometer: odometer as number,
+      notes: notes.trim() || `${action} ${item.description}`,
+      equipmentIds: equipped.map((e) => e.id),
+      setEquipped: { equipmentId: item.id, equipped: putOn },
+      clientSubmissionId: genUuid()
+    };
+    equipping = item.id;
+    try {
+      await send(
+        input,
+        equipped.map((e) => e.description),
+        `${action} ${item.description} at ${formatOdometer(String(input.odometer))} ${DIST_UNIT}`
+      );
+    } finally {
+      equipping = null;
+    }
+  }
+
+  async function submit() {
+    if (!canSubmit || !data.vehicle) return;
+    const names = equipped.map((e) => e.description);
+    const input: OdometerSubmissionInput = {
+      vehicleId: data.vehicle.id,
+      date: isoDate,
+      odometer: odometer as number,
+      notes: notes.trim() || undefined,
+      equipmentIds: equipped.map((e) => e.id),
+      // Equipment list never loaded on this device: let the server attach
+      // whatever LubeLogger marks equipped when this reading is written.
+      ...(data.equipmentKnown ? {} : { includeEquipped: true }),
+      clientSubmissionId: genUuid()
+    };
+    submitting = true;
+    try {
+      await send(
+        input,
+        names,
+        `Logged ${formatOdometer(String(input.odometer))} ${DIST_UNIT}${
+          names.length ? ` with ${names.join(', ')}` : ''
+        }`
+      );
     } finally {
       submitting = false;
     }
@@ -264,50 +322,59 @@
         LubeLogger.
       </p>
     {:else}
+      <p class="text-xs text-zinc-500 px-1 pb-2">
+        Readings count toward whatever is Equipped. Enter the odometer, then Equip when you put
+        something on and Unequip when you take it off — offline too.
+      </p>
+      {#if !odometerEdited}
+        <p class="text-xs text-amber-300 px-1 pb-2" data-testid="equip-hint">
+          Type the current odometer above to Equip or Unequip.
+        </p>
+      {/if}
       {#each data.equipment as e (e.id)}
-        {@const on = selected.has(e.id)}
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={on}
+        <div
           data-testid="equipment-{e.id}"
-          class="flex items-center gap-3 w-full rounded-xl px-3 py-3 mb-2 bg-zinc-800/60 border border-zinc-700/60 text-left"
-          onclick={() => toggle(e.id)}
+          data-equipped={e.isEquipped}
+          class="flex items-center gap-3 w-full rounded-xl px-3 py-3 mb-2 bg-zinc-800/60 border border-zinc-700/60"
         >
-          {#if on}
-            <span
-              class="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shrink-0"
-              aria-hidden="true"
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
-              >
-            </span>
-          {:else}
-            <span
-              class="w-5 h-5 rounded-md border-2 border-zinc-600 bg-transparent shrink-0"
-              aria-hidden="true"
-            ></span>
-          {/if}
           <span class="flex-1 min-w-0">
-            <span
-              class="block text-sm font-semibold"
-              class:text-zinc-100={on}
-              class:text-zinc-300={!on}>{e.description}</span
-            >
+            <span class="block text-sm font-semibold text-zinc-100">
+              {e.description}
+              {#if e.isEquipped}
+                <span class="badge ml-1 text-blue-300 bg-blue-500/15 border border-blue-500/30"
+                  >Equipped</span
+                >
+              {/if}
+              {#if e.pending}
+                <span
+                  class="badge ml-1 text-amber-300 bg-amber-500/15 border border-amber-500/30"
+                  data-testid="equipment-pending-{e.id}">waiting to sync</span
+                >
+              {/if}
+            </span>
             <span class="block text-xs text-zinc-500 mt-0.5">
               {formatOdometer(String(e.distanceTraveled))}
-              {DIST_UNIT} logged{e.isEquipped ? ' · equipped' : ''}
+              {DIST_UNIT} logged
             </span>
           </span>
-        </button>
+          <button
+            type="button"
+            data-testid="equip-{e.id}"
+            disabled={!canEquip}
+            class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold border"
+            class:bg-blue-600={canEquip && !e.isEquipped}
+            class:border-blue-600={canEquip && !e.isEquipped}
+            class:text-white={canEquip && !e.isEquipped}
+            class:border-zinc-500={canEquip && e.isEquipped}
+            class:text-zinc-200={canEquip && e.isEquipped}
+            class:bg-zinc-700={!canEquip}
+            class:border-zinc-700={!canEquip}
+            class:text-zinc-500={!canEquip}
+            onclick={() => changeEquipment(e)}
+          >
+            {equipping === e.id ? 'Saving…' : e.isEquipped ? 'Unequip' : 'Equip'}
+          </button>
+        </div>
       {/each}
     {/if}
   </div>

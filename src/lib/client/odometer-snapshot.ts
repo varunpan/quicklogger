@@ -14,6 +14,10 @@ import type { Equipment } from '$lib/server/lubelogger';
 export interface OdometerSnapshot {
   /** Absent until the equipment list has loaded once. */
   equipment?: Equipment[];
+  /** When `equipment` was fetched (ms epoch). Equip / Unequip made on this
+   *  device after it are applied on top offline — even ones that have since
+   *  synced, which this copy hasn't seen yet. */
+  equipmentSavedAt?: number;
   lastOdometer?: number;
 }
 
@@ -29,6 +33,7 @@ export function loadOdometerSnapshot(vehicleId: number): OdometerSnapshot | null
     const parsed = JSON.parse(raw) as Partial<OdometerSnapshot>;
     const out: OdometerSnapshot = {};
     if (Array.isArray(parsed.equipment)) out.equipment = parsed.equipment;
+    if (typeof parsed.equipmentSavedAt === 'number') out.equipmentSavedAt = parsed.equipmentSavedAt;
     if (typeof parsed.lastOdometer === 'number' && Number.isFinite(parsed.lastOdometer))
       out.lastOdometer = parsed.lastOdometer;
     return out;
@@ -41,7 +46,8 @@ export function loadOdometerSnapshot(vehicleId: number): OdometerSnapshot | null
 export function saveOdometerSnapshot(vehicleId: number, fresh: OdometerSnapshot): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    const next = { ...(loadOdometerSnapshot(vehicleId) ?? {}), ...fresh };
+    const next: OdometerSnapshot = { ...(loadOdometerSnapshot(vehicleId) ?? {}), ...fresh };
+    if (fresh.equipment) next.equipmentSavedAt = fresh.equipmentSavedAt ?? Date.now();
     localStorage.setItem(odometerSnapshotKey(vehicleId), JSON.stringify(next));
   } catch {
     /* quota / private mode — the snapshot is a convenience */
