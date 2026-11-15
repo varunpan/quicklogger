@@ -502,4 +502,34 @@ describe('syncQueue — odometer entries', () => {
 
     expect(order).toEqual(['/api/odometer 45320', '/api/fuelup 45400', '/api/odometer 45500']);
   });
+
+  it("one entry's storage failure doesn't stop later entries replaying (N5)", async () => {
+    const q = await Queue.open(dbName);
+    const oq = await OdometerQueue.open(dbName);
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1_000);
+    await oq.enqueue(odoInput);
+    vi.spyOn(Date, 'now').mockReturnValueOnce(2_000);
+    await q.enqueue({ ...baseInput, odometer: 45400 });
+    vi.restoreAllMocks();
+    // The odometer row's post-POST write fails (quota, db closed underneath).
+    vi.spyOn(OdometerQueue.prototype, 'markSynced').mockRejectedValueOnce(
+      new DOMException('quota', 'QuotaExceededError')
+    );
+    const urls: string[] = [];
+    globalThis.fetch = vi.fn(async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+
+    await syncQueue(dbName);
+
+    expect(urls).toEqual(['/api/odometer', '/api/fuelup']);
+    const [fuel] = await (await Queue.open(dbName)).list();
+    expect(fuel.status).toBe('synced');
+    // The POST reached the server, so its attempt is not refunded; the row
+    // stays queued for the next run (where replay dedupe catches it).
+    const [odo] = await (await OdometerQueue.open(dbName)).list();
+    expect(odo).toMatchObject({ status: 'queued', attempts: 1 });
+    vi.restoreAllMocks();
+  });
 });

@@ -67,72 +67,79 @@ export async function syncQueue(dbName?: string, historyKeepPerVehicle?: number)
     work.sort((a, b) => a.entry.enqueuedAt - b.entry.enqueuedAt || a.entry.id - b.entry.id);
 
     for (const w of work) {
-      if (w.kind === 'fuel') {
-        const fq = q;
-        // `queueReplay` marks EVERY replayed POST — not just attempts ≥ 1.
-        // A queued entry's original foreground POST may have landed upstream
-        // with the response lost in transit (the enqueue happens in the form's
-        // network-error catch), so even a first-drain replay is potentially a
-        // re-send. The server checks LubeLogger for an already-landed record
-        // before writing (day-later dedupe — the in-memory idempotency window
-        // is 60 s and wiped on restart). Added at POST time only; the stored
-        // entry keeps the unmodified user payload.
-        await replayEntry(
-          fq,
-          w.entry,
-          '/api/fuelup',
-          { ...w.entry.input, queueReplay: true } satisfies FuelSubmissionInput,
-          async (res) => {
-            // Save the converted snapshot from the response body so the
-            // cross-currency unit price renders on /history. Both `cost` and
-            // `currency` come from the body: this loop runs in the SERVICE WORKER,
-            // which has no localStorage, so the instance currency MUST be carried
-            // in the response rather than read from client config (issue #57).
-            //
-            // A missing/invalid body is non-fatal: the row still advances to
-            // 'synced'; the converted half just stays absent. Both fields are
-            // required — a body missing either one yields no snapshot rather than
-            // a guessed currency.
-            //
-            // The same body carries `deduped: true` when the server found the
-            // record already upstream and skipped the write (replay dedupe).
-            // Without carrying that onto the row, a duplicate entry syncs to a
-            // plain 'synced' row and /history shows two fill-ups for one real
-            // record, permanently. Strict `=== true` — a truthy non-boolean
-            // must not flag the row.
-            let snapshot: ConvertedSnapshot | undefined;
-            let deduped = false;
-            try {
-              const body = await res.json();
-              const cost = body?.submitted?.cost;
-              const currency = body?.submitted?.currency;
-              if (typeof cost === 'number' && typeof currency === 'string') {
-                snapshot = { cost, currency };
+      // Each entry is isolated: if a storage write for one entry throws
+      // (quota exceeded, database closed underneath), that entry stays as it
+      // is for the next run and the rest of the queue still replays.
+      try {
+        if (w.kind === 'fuel') {
+          const fq = q;
+          // `queueReplay` marks EVERY replayed POST — not just attempts ≥ 1.
+          // A queued entry's original foreground POST may have landed upstream
+          // with the response lost in transit (the enqueue happens in the form's
+          // network-error catch), so even a first-drain replay is potentially a
+          // re-send. The server checks LubeLogger for an already-landed record
+          // before writing (day-later dedupe — the in-memory idempotency window
+          // is 60 s and wiped on restart). Added at POST time only; the stored
+          // entry keeps the unmodified user payload.
+          await replayEntry(
+            fq,
+            w.entry,
+            '/api/fuelup',
+            { ...w.entry.input, queueReplay: true } satisfies FuelSubmissionInput,
+            async (res) => {
+              // Save the converted snapshot from the response body so the
+              // cross-currency unit price renders on /history. Both `cost` and
+              // `currency` come from the body: this loop runs in the SERVICE WORKER,
+              // which has no localStorage, so the instance currency MUST be carried
+              // in the response rather than read from client config (issue #57).
+              //
+              // A missing/invalid body is non-fatal: the row still advances to
+              // 'synced'; the converted half just stays absent. Both fields are
+              // required — a body missing either one yields no snapshot rather than
+              // a guessed currency.
+              //
+              // The same body carries `deduped: true` when the server found the
+              // record already upstream and skipped the write (replay dedupe).
+              // Without carrying that onto the row, a duplicate entry syncs to a
+              // plain 'synced' row and /history shows two fill-ups for one real
+              // record, permanently. Strict `=== true` — a truthy non-boolean
+              // must not flag the row.
+              let snapshot: ConvertedSnapshot | undefined;
+              let deduped = false;
+              try {
+                const body = await res.json();
+                const cost = body?.submitted?.cost;
+                const currency = body?.submitted?.currency;
+                if (typeof cost === 'number' && typeof currency === 'string') {
+                  snapshot = { cost, currency };
+                }
+                deduped = body?.deduped === true;
+              } catch {
+                // Non-JSON / empty body → advance status without a snapshot.
               }
-              deduped = body?.deduped === true;
-            } catch {
-              // Non-JSON / empty body → advance status without a snapshot.
+              await fq.markSynced(w.entry.id, snapshot, deduped);
             }
-            await fq.markSynced(w.entry.id, snapshot, deduped);
-          }
-        );
-      } else if (oq) {
-        const odq = oq;
-        await replayEntry(
-          odq,
-          w.entry,
-          '/api/odometer',
-          { ...w.entry.input, queueReplay: true } satisfies OdometerSubmissionInput,
-          async (res) => {
-            let deduped = false;
-            try {
-              deduped = (await res.json())?.deduped === true;
-            } catch {
-              // Non-JSON / empty body → still synced, just not flagged.
+          );
+        } else if (oq) {
+          const odq = oq;
+          await replayEntry(
+            odq,
+            w.entry,
+            '/api/odometer',
+            { ...w.entry.input, queueReplay: true } satisfies OdometerSubmissionInput,
+            async (res) => {
+              let deduped = false;
+              try {
+                deduped = (await res.json())?.deduped === true;
+              } catch {
+                // Non-JSON / empty body → still synced, just not flagged.
+              }
+              await odq.markSynced(w.entry.id, deduped);
             }
-            await odq.markSynced(w.entry.id, deduped);
-          }
-        );
+          );
+        }
+      } catch {
+        // Leave this entry for the next sync; carry on with the others.
       }
     }
     // Bound the synced-history trail. The form's success path appends a
@@ -182,25 +189,29 @@ async function replayEntry(
     return;
   }
   await q.incrementAttempts(entry.id);
+  let res: Response;
   try {
-    const res = await fetch(url, {
+    res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (res.ok) {
-      await onSuccess(res);
-    } else if (res.status >= 400 && res.status < 500) {
-      await q.markFailed(entry.id, `${res.status}`);
-    }
-    // else: leave queued for next sync
   } catch (_err) {
     // The request never reached a server, so it must not consume replay
     // budget: iOS fires focus + visibilitychange on every resume, and one
     // offline stretch with a few lock/unlock cycles would otherwise burn
     // all 5 attempts without a single byte leaving the device. The bump
     // stays pre-fetch (a POST that kills the SW mid-flight still advances
-    // the counter — crash-loop protection); only a caught throw reverts.
+    // the counter — crash-loop protection); only a network throw reverts.
+    // Only the fetch sits in this try: a storage error AFTER the POST
+    // reached the server is not a network failure and must not refund it.
     await q.decrementAttempts(entry.id);
+    return;
   }
+  if (res.ok) {
+    await onSuccess(res);
+  } else if (res.status >= 400 && res.status < 500) {
+    await q.markFailed(entry.id, `${res.status}`);
+  }
+  // else: leave queued for next sync
 }
