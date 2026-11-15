@@ -123,6 +123,12 @@ export interface OdometerSubmissionInput {
    *  list (offline before it was ever cached), so a towed trailer that's
    *  marked equipped still gets the distance. Only literal `true` counts. */
   includeEquipped?: boolean;
+  /** Equip / Unequip: after this reading is written, set this item's
+   *  Equipped flag. Reading and flag travel as ONE request (and one queued
+   *  row offline), so they always land together and in the order tapped;
+   *  if the flag fails after the reading landed, the replay's dedupe skips
+   *  the reading and just retries the flag. */
+  setEquipped?: { equipmentId: number; equipped: boolean };
   /** Client-generated id keying the server's 60 s duplicate guard, carried
    *  unchanged onto the queued row so a replay shares it (as for fuel). */
   clientSubmissionId: string;

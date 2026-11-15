@@ -404,6 +404,76 @@ describe('LubeLoggerClient', () => {
     );
   });
 
+  const TRAILER_RAW = {
+    id: 7,
+    vehicleId: 1,
+    description: 'Off-road trailer',
+    isEquipped: false,
+    distanceTraveled: 300,
+    notes: 'Bearings repacked 2026-06',
+    tags: 'trailer offroad',
+    extraFields: [{ name: 'VIN', value: '1T9...' }],
+    files: [{ name: 'title.pdf', location: '/documents/abc.pdf', isPending: false }]
+  };
+
+  it('setEquipmentEquipped changes only isEquipped and sends everything else back unchanged', async () => {
+    let put: Record<string, unknown> | null = null;
+    server.use(
+      http.get(`${BASE}/api/vehicle/equipmentrecords`, () => HttpResponse.json([TRAILER_RAW])),
+      http.put(`${BASE}/api/vehicle/equipmentrecords/update`, async ({ request }) => {
+        put = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ success: true, message: 'Equipment Record Updated' });
+      })
+    );
+    const out = await client().setEquipmentEquipped(1, 7, true);
+    expect(put).toEqual({
+      id: '7',
+      description: 'Off-road trailer',
+      isEquipped: 'True',
+      notes: 'Bearings repacked 2026-06',
+      tags: 'trailer offroad',
+      extraFields: [{ name: 'VIN', value: '1T9...' }],
+      files: [{ name: 'title.pdf', location: '/documents/abc.pdf', isPending: false }]
+    });
+    expect(out).toEqual({
+      id: 7,
+      description: 'Off-road trailer',
+      isEquipped: true,
+      distanceTraveled: 300
+    });
+  });
+
+  it('setEquipmentEquipped is a no-op when the item is already in that state', async () => {
+    server.use(
+      http.get(`${BASE}/api/vehicle/equipmentrecords`, () => HttpResponse.json([TRAILER_RAW]))
+    );
+    // No PUT handler: onUnhandledRequest would fail the test if one were sent.
+    const out = await client().setEquipmentEquipped(1, 7, false);
+    expect(out.isEquipped).toBe(false);
+  });
+
+  it("setEquipmentEquipped throws 404 for an item that isn't on the vehicle", async () => {
+    server.use(
+      http.get(`${BASE}/api/vehicle/equipmentrecords`, () => HttpResponse.json([TRAILER_RAW]))
+    );
+    await expect(client().setEquipmentEquipped(1, 99, true)).rejects.toMatchObject({
+      name: 'LubeLoggerError',
+      status: 404
+    });
+  });
+
+  it('setEquipmentEquipped maps a 200 "Access Denied" update to 403', async () => {
+    server.use(
+      http.get(`${BASE}/api/vehicle/equipmentrecords`, () => HttpResponse.json([TRAILER_RAW])),
+      http.put(`${BASE}/api/vehicle/equipmentrecords/update`, () =>
+        HttpResponse.json({ success: false, message: 'Access Denied' })
+      )
+    );
+    await expect(client().setEquipmentEquipped(1, 7, true)).rejects.toMatchObject({
+      status: 403
+    });
+  });
+
   it('fetches an image with x-api-key + culture-invariant and returns the raw Response', async () => {
     let observedKey = '';
     let observedCulture = '';

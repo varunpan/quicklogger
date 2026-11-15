@@ -1,7 +1,12 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { lubeloggerFromEnv } from '$lib/server/lubeloggerProxy';
-import { LubeLoggerError, type OdometerRecord } from '$lib/server/lubelogger';
+import {
+  LubeLoggerError,
+  type LubeLoggerClient,
+  type Equipment,
+  type OdometerRecord
+} from '$lib/server/lubelogger';
 import { contentLengthExceeds } from '$lib/server/contentLength';
 import { IdempotencyWindow, jsonResponse, type SubmitResult } from '$lib/server/idempotency';
 import type { Logger } from '$lib/server/logger';
@@ -36,6 +41,17 @@ export function _validate(input: Partial<OdometerSubmissionInput>): string | nul
     if (input.equipmentIds.some((id) => !Number.isInteger(id) || id <= 0))
       return 'invalid equipmentIds';
   }
+  if (input.setEquipped !== undefined) {
+    const se = input.setEquipped as { equipmentId?: unknown; equipped?: unknown } | null;
+    if (
+      !se ||
+      typeof se !== 'object' ||
+      !Number.isInteger(se.equipmentId) ||
+      (se.equipmentId as number) <= 0 ||
+      typeof se.equipped !== 'boolean'
+    )
+      return 'invalid setEquipped';
+  }
   // Same rule as /api/fuelup: an empty key would collide unrelated submits.
   if (typeof input.clientSubmissionId !== 'string' || input.clientSubmissionId.trim() === '')
     return 'invalid clientSubmissionId';
@@ -43,11 +59,20 @@ export function _validate(input: Partial<OdometerSubmissionInput>): string | nul
 }
 
 /**
- * Start of the trip this reading closes: the odometer of the latest existing
- * record that sorts before it in LubeLogger's own order (date, then odometer —
- * the order its "recalculate" uses), or the reading itself when there is none
- * (LubeLogger's convention for a first record). Never above the reading, so a
- * bad earlier record can't credit equipment a negative distance.
+ * Odometer of the latest existing record at or before this reading in
+ * LubeLogger's own order (date, then odometer — the order its "recalculate"
+ * uses), or the reading itself when there is none (LubeLogger's convention for
+ * a first record). Never above the reading, so a bad earlier record can't
+ * credit equipment a negative distance.
+ *
+ * A record with the SAME date and odometer counts as before, so the new one is
+ * a zero-length trip — where recalculate's stable sort would put it. That
+ * trip is already covered by the existing record: a reading logged twice
+ * (e.g. once without the trailer, then again with it ticked) must not credit
+ * the trailer the miles before it, and a fill-up's auto-inserted record that
+ * carried the equipped trailer must not be credited twice. (Found in live
+ * testing: an earlier per-item rule credited the trailer the truck's solo
+ * miles on a re-logged reading.)
  */
 export function _initialOdometerFor(
   records: OdometerRecord[],
@@ -56,7 +81,7 @@ export function _initialOdometerFor(
 ): number {
   let prev: OdometerRecord | null = null;
   for (const r of records) {
-    const before = r.date < date || (r.date === date && r.odometer < odometer);
+    const before = r.date < date || (r.date === date && r.odometer <= odometer);
     if (!before) continue;
     if (!prev || r.date > prev.date || (r.date === prev.date && r.odometer > prev.odometer))
       prev = r;
@@ -65,24 +90,37 @@ export function _initialOdometerFor(
 }
 
 /**
- * Replay dedupe match. Every field we write must agree — date, odometer,
- * equipment set and notes — so a different real reading at the same date and
- * odometer (e.g. the record LubeLogger auto-inserts for a fill-up, which
- * carries only "equipped" equipment) is never mistaken for this one.
+ * Replay dedupe: is everything this reading would add already upstream?
+ * True when a record at the same date + odometer carries the same notes (the
+ * reading itself, or a fill-up record LubeLogger auto-inserted with those
+ * notes) AND the records at that reading together carry every required item.
+ * Never mistakes a same-reading record without the trailer for this one.
+ * `requiredIds` is the explicitly ticked set; for an `includeEquipped` reading
+ * the equipped extras were resolved at write time and may have changed since.
  */
 export function _findReplayMatch(
   records: OdometerRecord[],
-  want: { date: string; odometer: number; equipmentIds: number[]; notes: string }
+  want: { date: string; odometer: number; requiredIds: number[]; notes: string }
 ): OdometerRecord | undefined {
-  const key = (ids: number[]) => [...new Set(ids)].sort((a, b) => a - b).join(' ');
-  const wantIds = key(want.equipmentIds);
-  return records.find(
-    (r) =>
-      r.date === want.date &&
-      r.odometer === want.odometer &&
-      key(r.equipmentIds) === wantIds &&
-      r.notes.trim() === want.notes
+  const ties = records.filter((r) => r.date === want.date && r.odometer === want.odometer);
+  const covered = new Set(ties.flatMap((r) => r.equipmentIds));
+  if (!want.requiredIds.every((id) => covered.has(id))) return undefined;
+  return ties.find((r) => r.notes.trim() === want.notes);
+}
+
+/** Equip / Unequip's second half: set the item's Equipped flag. Returns the
+ *  updated item for the response, or nothing for a plain reading. */
+async function applyEquipped(
+  input: OdometerSubmissionInput,
+  client: LubeLoggerClient
+): Promise<{ equipment?: Equipment }> {
+  if (!input.setEquipped) return {};
+  const equipment = await client.setEquipmentEquipped(
+    input.vehicleId,
+    input.setEquipped.equipmentId,
+    input.setEquipped.equipped
   );
+  return { equipment };
 }
 
 async function submitToLubeLogger(
@@ -112,6 +150,13 @@ async function submitToLubeLogger(
           .map((e) => e.id);
       }
     } catch (err) {
+      // A 4xx (revoked key, no access to the vehicle) will never succeed on a
+      // retry: pass it through so the page shows "Submission rejected" and a
+      // queued entry fails at once instead of burning its 5 attempts. Only a
+      // 5xx / network failure is uncertain enough for 503 ("retry later").
+      if (err instanceof LubeLoggerError && err.status >= 400 && err.status < 500) {
+        return fail(err.status, 'Could not add odometer record to LubeLogger');
+      }
       logger.warn('odometer pre-check failed', { err });
       return fail(503, 'could not read odometer records from LubeLogger — retry later');
     }
@@ -126,7 +171,7 @@ async function submitToLubeLogger(
       const match = _findReplayMatch(records, {
         date: input.date,
         odometer: input.odometer,
-        equipmentIds,
+        requiredIds: input.includeEquipped === true ? (input.equipmentIds ?? []) : equipmentIds,
         notes
       });
       if (match) {
@@ -135,7 +180,10 @@ async function submitToLubeLogger(
           recordId: match.id,
           clientSubmissionId: input.clientSubmissionId
         });
-        return ok({ ok: true, recordId: match.id, deduped: true });
+        // The reading landed earlier; an Equip / Unequip may still owe its
+        // flag change (it failed after the write, or the SW died in between).
+        const equipment = await applyEquipped(input, client);
+        return ok({ ok: true, recordId: match.id, deduped: true, ...equipment });
       }
     }
 
@@ -146,7 +194,11 @@ async function submitToLubeLogger(
       notes: notes || undefined,
       equipmentIds
     });
-    return ok({ ok: true, recordId: recordId ?? null });
+    // Equip / Unequip: the reading is in; now the flag. A failure here maps
+    // like any upstream error (5xx → 502 keeps a queued row queued), and the
+    // replay's dedupe then skips the reading and retries just the flag.
+    const equipment = await applyEquipped(input, client);
+    return ok({ ok: true, recordId: recordId ?? null, ...equipment });
   } catch (err) {
     if (err instanceof LubeLoggerError) {
       // Detail is logged at the throw site; 4xx passthrough / 5xx → 502 is

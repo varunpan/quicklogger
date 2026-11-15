@@ -124,10 +124,16 @@ export interface EquipmentRecordRaw {
   id: string;
   vehicleId: string;
   description: string;
-  isEquipped: string;
-  distanceTraveled: string;
+  // Strings in the default export; typed under culture-invariant (live 1.7.4
+  // returns `false` / `300`). normalizeEquipment accepts either.
+  isEquipped: string | boolean;
+  distanceTraveled: string | number;
   notes: string;
   tags: string;
+  /** Passed back untouched by setEquipmentEquipped — LubeLogger's update
+   *  replaces the whole record, so dropping them would wipe them. */
+  extraFields?: unknown[];
+  files?: unknown[];
 }
 
 /** Normalized equipment item (a trailer, a set of tires, ...) attached to a
@@ -388,14 +394,9 @@ export class LubeLoggerClient {
     }));
   }
 
-  /** Add an odometer-only record (no fuel). Returns the new record id.
-   *  Only a 2xx JSON body with `success: true` counts as logged, so a
-   *  rejected record never looks like a logged one:
-   *  - a non-JSON 2xx (e.g. an auth proxy's HTML page) → 502, retryable;
-   *  - `success: false` on a 2xx → LubeLogger's permission filters answer
-   *    "Access Denied" this way (status 200), which is permanent → 403;
-   *    anything else is unexpected → 502, retryable. Validation and storage
-   *    failures arrive as real 400 / 500 statuses via `request()`. */
+  /** Add an odometer-only record (no fuel). Returns the new record id. Only
+   *  a 2xx JSON `success: true` counts as logged (see `expectSuccess`), so a
+   *  rejected record never looks like a logged one. */
   async addOdometerRecord(
     vehicleId: number,
     payload: AddOdometerRecordPayload
@@ -413,13 +414,73 @@ export class LubeLoggerClient {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const path = '/api/vehicle/odometerrecords/add';
-    let out: { success?: unknown; message?: unknown; additionalData?: { recordId?: number } };
+    const out = await this.expectSuccess<{ recordId?: number }>(
+      res,
+      '/api/vehicle/odometerrecords/add',
+      'odometer record rejected'
+    );
+    return { recordId: out?.recordId };
+  }
+
+  /**
+   * Set an equipment item's Equipped flag. LubeLogger's update REPLACES the
+   * whole record (notes, tags, extra fields, files), so the current record is
+   * read first and sent back with only `isEquipped` changed. Throws 404 when
+   * the item isn't on this vehicle. A no-op when it's already in that state.
+   */
+  async setEquipmentEquipped(
+    vehicleId: number,
+    equipmentId: number,
+    equipped: boolean
+  ): Promise<Equipment> {
+    const listRes = await this.request(`/api/vehicle/equipmentrecords?vehicleId=${vehicleId}`);
+    const arr = (await listRes.json()) as EquipmentRecordRaw[];
+    const raw = Array.isArray(arr) ? arr.find((r) => Number(r.id) === equipmentId) : undefined;
+    if (!raw)
+      throw new LubeLoggerError(404, `equipment ${equipmentId} not on vehicle ${vehicleId}`);
+    const current = normalizeEquipment(raw);
+    if (current.isEquipped === equipped) return current;
+
+    const body = {
+      id: String(raw.id),
+      description: raw.description,
+      isEquipped: equipped ? 'True' : 'False',
+      notes: raw.notes ?? '',
+      tags: raw.tags ?? '',
+      extraFields: raw.extraFields ?? [],
+      files: raw.files ?? []
+    };
+    const res = await this.request('/api/vehicle/equipmentrecords/update', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    await this.expectSuccess(
+      res,
+      '/api/vehicle/equipmentrecords/update',
+      'equipment update rejected'
+    );
+    return { ...current, isEquipped: equipped };
+  }
+
+  /** Only a 2xx JSON body with `success: true` counts:
+   *  - a non-JSON 2xx (e.g. an auth proxy's HTML page) → 502, retryable;
+   *  - `success: false` on a 2xx → LubeLogger's permission filters answer
+   *    "Access Denied" this way (status 200), which is permanent → 403;
+   *    anything else is unexpected → 502, retryable. Validation and storage
+   *    failures arrive as real 400 / 500 statuses via `request()`.
+   *  Returns `additionalData`. Rejections are logged with LubeLogger's reason. */
+  private async expectSuccess<T>(
+    res: Response,
+    path: string,
+    fallback: string
+  ): Promise<T | undefined> {
+    let out: { success?: unknown; message?: unknown; additionalData?: T };
     try {
       out = await res.json();
     } catch {
       this.logger.warn('lubelogger non-json success body', { upstream_path: path });
-      throw new LubeLoggerError(502, 'odometer add returned a non-JSON body');
+      throw new LubeLoggerError(502, `${path} returned a non-JSON body`);
     }
     if (out?.success !== true) {
       const message = typeof out?.message === 'string' ? out.message : '';
@@ -429,9 +490,9 @@ export class LubeLoggerClient {
         upstream_message: message.slice(0, 200),
         mapped_status: status
       });
-      throw new LubeLoggerError(status, message || 'odometer record rejected');
+      throw new LubeLoggerError(status, message || fallback);
     }
-    return { recordId: out.additionalData?.recordId };
+    return out.additionalData;
   }
 
   async fetchImage(path: string): Promise<Response> {
