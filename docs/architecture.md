@@ -24,6 +24,7 @@ The system has three surfaces:
     ├── /api/vehicle/info
     ├── /api/vehicle/image
     ├── /api/vehicle/equipment
+    ├── /api/vehicle/odometer-records
     ├── /api/fuelup       ←──── form submits land here
     ├── /api/odometer     ←──── odometer-only entries (+ equipment)
     ├── /api/fx

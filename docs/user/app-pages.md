@@ -80,36 +80,49 @@ that was actually read, not the original full-size capture. See
 
 ## Log Odometer (`/odometer`)
 
-Log an odometer reading **without a fill-up** — for example after a trip
-where you towed a trailer. If the vehicle has **Equipment** in LubeLogger
-(a trailer, a roof tent, a set of tires), each one shows as a checkbox; tick
-what was attached and LubeLogger adds the trip's distance to that
-equipment's total, so its service reminders stay accurate.
+Log an odometer reading **without a fill-up**, and keep track of miles on
+your **Equipment** — a trailer, a roof tent, a bike rack, a set of tires —
+without opening LubeLogger.
 
 - **Odometer** — starts filled with the vehicle's current mileage from
   LubeLogger, greyed with a `prefilled` badge. Type the new reading; a
-  `+220 mi since last reading` line shows the trip distance. The **Log
-  odometer** button stays disabled until you change the number, so you
-  can't log a zero-distance entry by accident.
+  `+220 mi since last reading` line shows the distance. Buttons stay
+  disabled until you change the number, so you can't log a zero-distance
+  entry by accident.
 - **Date** — today by default.
-- **Equipment** — one checkbox per item, with its distance so far.
-  Anything LubeLogger marks as currently equipped starts ticked. No
-  equipment? The page says so and you can still log a plain reading. Add
-  equipment under the vehicle's **Equipment** tab in LubeLogger.
-- **Note** — optional.
+- **Equipment** — each item shows its miles so far, an **Equipped** tag when
+  it's on, and one button:
+  - **Equip** — when you put it on. Enter the odometer first: the reading is
+    logged _without_ the item (so miles it didn't travel aren't counted),
+    then it's marked Equipped.
+  - **Unequip** — when you take it off. The reading is logged _with_ the
+    item (it gets the miles up to now), then it's marked not Equipped.
+
+  While an item is Equipped, every reading counts toward it — the ones you
+  log here and the ones LubeLogger records with each fill-up. No equipment?
+  Add it once under the vehicle's **Equipment** tab in LubeLogger.
+
+- **Note** — optional (Equip / Unequip fill in "Equipped …" / "Unequipped …"
+  if you leave it blank).
+
+A trip with a trailer is then: **Equip** before you leave, log fuel as
+usual, **Unequip** when you're back.
 
 If the reading is lower than the last one, an amber **1 issue found**
 box asks you to confirm with **Submit anyway** — same as a fill-up.
 
-On success a green toast confirms the reading and the equipment it was
-logged with, and you land on **Maintenance**, just like after a fill-up,
+After **Log odometer**, **Equip** or **Unequip**, a green toast confirms the
+reading and you land on **Maintenance**, just like after a fill-up,
 so any service the new miles just made due shows up.
 
 Works offline, like Log Fuel: the button reads **Save offline**, the
 reading is queued on the device, you land on **History** with an amber
 **Queued** badge, and it syncs when you reconnect. The equipment list and
-current odometer are remembered from your last online visit, so the
-trailer checkbox is still there with no signal. If the page has never been
+current odometer are remembered from your last online visit, so readings
+still count toward what's Equipped with no signal. **Equip** and
+**Unequip** work offline too: the reading and the change are saved together,
+the item shows **waiting to sync**, later readings count toward it, and both
+reach LubeLogger in the order you tapped them. If the page has never been
 opened online on this phone, it says the equipment list isn't loaded yet,
 and anything marked **Equipped** in LubeLogger is attached when the reading
 syncs. Your LubeLogger API key

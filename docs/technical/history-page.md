@@ -173,3 +173,17 @@ renders alongside the actual figure.
 - [`offline-queue.md`](./offline-queue.md) — how entries reach the store and what triggers status changes.
 - [`maintenance-page.md`](./maintenance-page.md) — the page this one mirrors structurally.
 - [`fillup-unit-price.md`](./fillup-unit-price.md) — the unit-price line, snapshot, and conditional rule.
+
+## Equipment labels on fill-up cards
+
+A synced fill-up card reads "with Off-road trailer" when LubeLogger credited
+that fill-up's distance to equipment. The credit lives on the odometer record
+LubeLogger auto-inserts for the fill-up (and only when its "auto insert
+odometer" setting is on, which quicklogger can't see), so the page asks
+LubeLogger instead of guessing: on load it fetches
+`/api/vehicle/odometer-records` + `/api/vehicle/equipment` in the background,
+maps `date|odometer` → names (`src/lib/client/history-equipment.ts`), and
+caches the map per vehicle in localStorage
+(`quicklogger.historyEquipment.<vehicleId>`) so the labels still show offline.
+Failures are silent — the page stays IndexedDB-first. Queued fill-ups get no
+label: LubeLogger hasn't recorded them yet.
